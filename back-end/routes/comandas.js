@@ -273,7 +273,7 @@ router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador', 'garcom'
   } finally { await session.endSession(); }
 });
 
-router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -325,7 +325,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador', 'garcom'),
           : [{ tipo: pagamentoFinal, valorRecebido: total, dataPagamento: new Date(), quitado: true }],
     });
     await order.save({ session });
-    if (customer) {
+    if (customer && !utilizacaoInterna) {
       await Customer.findByIdAndUpdate(customer.id, { $inc: { cafesFidelidade: 1 } }, { session });
       comanda.clienteId = customer.id;
       if (nome) comanda.clienteNome = nome;
