@@ -2,6 +2,7 @@ services:
   - type: web
     runtime: node
     name: pdv-cafe-api-willplacetech
+    branch: backup-main-com-insights-20260912
     region: oregon
     plan: free
     rootDir: back-end
@@ -17,6 +18,7 @@ services:
   - type: web
     runtime: static
     name: pdv-cafe-web-willplacetech
+    branch: backup-main-com-insights-20260912
     rootDir: front-end
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
