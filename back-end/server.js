@@ -4,10 +4,12 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const colors = require('colors');
+const path = require('path'); // ← ADICIONADO
 const connectDB = require('./db');
 const User = require('./models/User');
 
 const app = express();
+
 const allowedOrigins = [
   ...(process.env.FRONTEND_URL || '').split(','),
   'https://sabordabraco.onrender.com',
@@ -17,7 +19,9 @@ const allowedOrigins = [
 ]
   .map((origin) => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
+
 const isRenderOrigin = (origin) => /^https:\/\/[a-z0-9-]+\.onrender\.com$/i.test(origin);
+
 const corsOptions = {
   origin: (requestOrigin, callback) => {
     const normalizedOrigin = requestOrigin?.replace(/\/$/, '');
@@ -37,6 +41,7 @@ app.use(helmet());
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
+
 app.use((req, res, next) => {
   const cookieHeader = req.headers.cookie || '';
   req.cookies = Object.fromEntries(cookieHeader.split(';').filter(Boolean).map((cookie) => {
@@ -45,6 +50,7 @@ app.use((req, res, next) => {
   }));
   next();
 });
+
 app.use('/api/auth/login', rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
@@ -53,7 +59,7 @@ app.use('/api/auth/login', rateLimit({
   message: { msg: 'Muitas tentativas de login. Tente novamente mais tarde.' },
 }));
 
-// Rotas
+// Rotas da API
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/production', require('./routes/production'));
@@ -63,7 +69,7 @@ app.use('/api/comandas', require('./routes/comandas'));
 app.use('/api/fiscal', require('./routes/fiscal'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 
-// Rota base
+// Rota base da API
 app.get('/api', (req, res) => {
   res.json({ 
     msg: 'API PDV MERN funcionando!',
@@ -79,6 +85,22 @@ app.get('/api', (req, res) => {
     }
   });
 });
+
+// ============================================================
+// ↓↓↓ CORREÇÃO DOS 404 — Frontend SPA (Vite/React) ↓↓↓
+// ============================================================
+// 1) Serve os arquivos estáticos do build (pasta dist do Vite)
+//    Se seu build estiver em outra pasta (ex: build, client/dist),
+//    ajuste o caminho abaixo.
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// 2) Catch-all: qualquer rota GET que não seja /api/* nem arquivo
+//    estático devolve o index.html, e o React Router cuida da navegação.
+//    Fica DEPOIS das rotas de API para não interceptá-las.
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+// ============================================================
 
 // Tratamento de erro global
 app.use((err, req, res, next) => {
