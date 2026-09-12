@@ -28,6 +28,6 @@ Crie `back-end/.env` a partir de `.env.example` e informe a conexão MongoDB ant
 O repositório inclui `render.yaml` para criar o front-end estático e a API Node.js pelo fluxo **New + Blueprint**. No Render, conecte este repositório e informe apenas a variável secreta `MONGO_URI` da instância MongoDB. As URLs configuradas são:
 
 - API: `https://pdv-cafe-api-willplacetech.onrender.com`
-- Front-end: `https://pdv-cafe-web-willplacetech.onrender.com`
+- Front-end: `https://sabordabraco.onrender.com`
 
 Após salvar a `MONGO_URI`, o Render executa os dois deploys automaticamente. Não coloque essa URI no GitHub.

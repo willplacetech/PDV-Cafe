@@ -17,7 +17,7 @@ services:
 
   - type: web
     runtime: static
-    name: pdv-cafe-web-willplacetech
+    name: sabordabraco
     branch: backup-main-com-insights-20260912
     rootDir: front-end
     buildCommand: npm ci && npm run build
