@@ -297,8 +297,9 @@ export default function ContasReceber() {
   };
 
   const abrirAlterarComanda = (pedido) => {
+    const comandaSelecionada = pedido.comandaId || comandasAbertas[0]?._id || '';
     setAlterarComandaModal(pedido);
-    setNovaComandaId(pedido.comandaId || '');
+    setNovaComandaId(comandaSelecionada);
   };
 
   const confirmarAlterarComanda = async () => {
@@ -798,22 +799,24 @@ Obrigado! 🙏`
                   </div>
                 )}
 
-                {/* ✅ Botões individuais: Imprimir • WhatsApp • Receber • Quitar */}
+                {/* ✅ Ações principais em uma linha no desktop */}
                 <div className="order-actions" style={{
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(4, 1fr)',
-                  gap: 10
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                  alignItems: 'stretch'
                 }}>
                   <button 
                     onClick={() => pedido.status === 'pago' ? imprimirComprovante(pedido) : imprimirPedido(pedido)} 
                     style={{
+                      flex: '1 1 160px',
                       padding: '10px 8px', 
                       background: 'var(--brand-brown)', 
                       color: '#fff',
                       border: 'none', borderRadius: 8, 
                       fontSize: 13, fontWeight: 600, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      whiteSpace: 'nowrap', width: '100%', boxSizing: 'border-box'
+                      whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'
                     }}
                   >
                     🖨️ {pedido.status === 'pago' ? 'Comprovante' : 'Imprimir'}
@@ -822,13 +825,14 @@ Obrigado! 🙏`
                   <button 
                     onClick={() => enviarWhatsApp(pedido)} 
                     style={{
+                      flex: '1 1 160px',
                       padding: '10px 8px', 
                       background: 'var(--success-bg)', 
                       color: '#fff',
                       border: 'none', borderRadius: 8, 
                       fontSize: 13, fontWeight: 600, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      whiteSpace: 'nowrap', width: '100%', boxSizing: 'border-box', flexWrap: 'nowrap' 
+                      whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box' 
                     }}
                   >
                     💬 WhatsApp
@@ -836,37 +840,39 @@ Obrigado! 🙏`
 
                   {pedido.status !== 'pago' && pedido.status !== 'cancelado' && (
                     <>
-                      {pedido.comandaId && <button
-                        onClick={() => abrirNovoPedido(pedido)}
+                      <button
+                        onClick={() => (pedido.comandaId ? abrirNovoPedido(pedido) : abrirAlterarComanda(pedido))}
                         style={{
+                          flex: '1 1 180px',
                           padding: '10px 8px', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: 8,
                           fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          whiteSpace: 'nowrap', width: '100%', boxSizing: 'border-box'
+                          whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'
                         }}
-                      >➕ Novo pedido</button>}
+                      >{pedido.comandaId ? '➕ Novo pedido' : '🔗 Vincular comanda'}</button>
                       <button
                         onClick={() => abrirAlterarComanda(pedido)}
                         style={{
+                          flex: '1 1 180px',
                           padding: '10px 8px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: 8,
                           fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          whiteSpace: 'nowrap', width: '100%', boxSizing: 'border-box'
+                          whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'
                         }}
                       >✏️ Alterar comanda</button>
                       <button 
                         onClick={() => abrirModalReceber(pedido)}
                         style={{
+                          flex: '1 1 160px',
                           padding: '10px 8px', 
                           background: 'var(--success-bg)',
                           color: '#fff',
                           border: 'none', borderRadius: 8, 
                           fontSize: 13, fontWeight: 600, cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          whiteSpace: 'nowrap', width: '100%', boxSizing: 'border-box', flexWrap: 'nowrap' 
+                          whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'
                         }}
                       >
                         💰 Receber
                       </button>
-                      
                     </>
                   )}
                 </div>
@@ -1005,12 +1011,12 @@ Obrigado! 🙏`
           <div onClick={event => event.stopPropagation()} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 480, maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' }}>
             <h3 style={{ margin: '0 0 6px' }}>➕ Novo pedido na conta</h3>
             <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)', fontSize: 13 }}>Pedido #{novoPedidoModal.numero} · {novoPedidoModal.clienteNome}</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px auto', gap: 8, alignItems: 'end', marginBottom: 12 }}>
-              <label style={{ fontSize: 12, fontWeight: 700 }}>Produto<select value={novoPedidoForm.produtoId} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, produtoId: event.target.value })} style={{ display: 'block', width: '100%', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10 }}><option value="">Selecione...</option>{produtos.map(produto => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select></label>
-              <label style={{ fontSize: 12, fontWeight: 700 }}>Qtd<input type="number" min="0.001" step="0.001" value={novoPedidoForm.quantidade} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, quantidade: event.target.value })} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10 }} /></label>
-              <button onClick={adicionarItemNovoPedido} style={{ padding: 10, background: 'var(--accent-primary)', color: '#fff', border: 0, borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Adicionar</button>
+            <div className="novo-pedido-item-form">
+              <label className="novo-pedido-field">Produto<select value={novoPedidoForm.produtoId} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, produtoId: event.target.value })}><option value="">Selecione um produto</option>{produtos.map(produto => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select></label>
+              <label className="novo-pedido-field novo-pedido-quantity">Quantidade<input type="number" min="0.001" step="0.001" value={novoPedidoForm.quantidade} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, quantidade: event.target.value })} /></label>
+              <button type="button" className="novo-pedido-add" onClick={adicionarItemNovoPedido}>Adicionar produto</button>
             </div>
-            {novoPedidoForm.itens.length > 0 && <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 10, padding: 10, marginBottom: 12 }}>{novoPedidoForm.itens.map((item, index) => <div key={`${item.produtoId}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '5px 0', borderBottom: index < novoPedidoForm.itens.length - 1 ? '1px solid var(--border-light)' : 0, fontSize: 13 }}><span>{item.quantidade}x {item.nome}</span><button onClick={() => setNovoPedidoForm({ ...novoPedidoForm, itens: novoPedidoForm.itens.filter((_, itemIndex) => itemIndex !== index) })} style={{ border: 0, background: 'transparent', color: 'var(--error-bg)', cursor: 'pointer' }}>Remover</button></div>)}</div>}
+            {novoPedidoForm.itens.length > 0 && <div className="novo-pedido-items">{novoPedidoForm.itens.map((item, index) => <div className="novo-pedido-item" key={`${item.produtoId}-${index}`}><span><strong>{item.quantidade}x</strong> {item.nome}</span><button type="button" onClick={() => setNovoPedidoForm({ ...novoPedidoForm, itens: novoPedidoForm.itens.filter((_, itemIndex) => itemIndex !== index) })}>Remover</button></div>)}</div>}
             <label style={{ display: 'block', marginBottom: 12, fontSize: 12, fontWeight: 700 }}>Nome de quem está fazendo o novo pedido<input value={novoPedidoForm.nomeSolicitante} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, nomeSolicitante: event.target.value })} placeholder="Ex.: Maria" style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10 }} /></label>
             <label style={{ display: 'block', marginBottom: 16, fontSize: 12, fontWeight: 700 }}>Observação do novo pedido<textarea value={novoPedidoForm.observacao} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, observacao: event.target.value })} placeholder="Ex.: café e salgado para Maria" rows="3" style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10, resize: 'vertical' }} /></label>
             <div style={{ display: 'flex', gap: 10 }}><button onClick={() => setNovoPedidoModal(null)} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button><button onClick={adicionarItensAoPedido} style={{ flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 0, borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Confirmar novo pedido</button></div>
@@ -1048,15 +1054,94 @@ Obrigado! 🙏`
       )}
 
       <style>{`
-        @media (max-width: 900px) {
-          .order-actions {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
+        .novo-pedido-item-form {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 112px 150px;
+          gap: 10px;
+          align-items: end;
+          margin-bottom: 14px;
+          padding: 12px;
+          border: 1px solid var(--border-color);
+          border-radius: 12px;
+          background: var(--bg-tertiary);
         }
+
+        .novo-pedido-field {
+          display: grid;
+          gap: 6px;
+          color: var(--text-secondary);
+          font-size: 11px;
+          font-weight: 800;
+        }
+
+        .novo-pedido-field select,
+        .novo-pedido-field input {
+          width: 100%;
+          min-height: 42px;
+          box-sizing: border-box;
+          padding: 9px 10px;
+          border: 1px solid var(--border-color);
+          border-radius: 9px;
+          background: var(--input-bg);
+          color: var(--input-text);
+          font-size: 14px;
+        }
+
+        .novo-pedido-add {
+          min-height: 42px;
+          padding: 9px 12px;
+          border: 1px solid var(--accent-primary);
+          border-radius: 9px;
+          background: var(--accent-primary);
+          color: #fff;
+          font-size: 13px;
+          font-weight: 800;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+
+        .novo-pedido-items {
+          display: grid;
+          gap: 0;
+          margin-bottom: 14px;
+          padding: 4px 12px;
+          border: 1px solid var(--border-light);
+          border-radius: 10px;
+          background: var(--bg-tertiary);
+        }
+
+        .novo-pedido-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          min-height: 42px;
+          border-bottom: 1px solid var(--border-light);
+          color: var(--text-primary);
+          font-size: 13px;
+        }
+
+        .novo-pedido-item:last-child { border-bottom: 0; }
+        .novo-pedido-item strong { color: var(--accent-primary); }
+        .novo-pedido-item button {
+          border: 0;
+          background: transparent;
+          color: var(--error-bg);
+          font-size: 11px;
+          font-weight: 700;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+
+        @media (max-width: 900px) {
+          .novo-pedido-item-form { grid-template-columns: minmax(0, 1fr) 112px; }
+          .novo-pedido-add { grid-column: 1 / -1; }
+        }
+
         @media (max-width: 480px) {
-          .order-actions {
-            grid-template-columns: 1fr !important;
-          }
+          .novo-pedido-item-form { grid-template-columns: 1fr; }
+          .novo-pedido-add { grid-column: auto; width: 100%; }
+          .novo-pedido-item { align-items: flex-start; flex-direction: column; justify-content: center; gap: 4px; padding: 8px 0; }
         }
       `}</style>
     </div>

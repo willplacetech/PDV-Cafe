@@ -301,7 +301,7 @@ export default function Financeiro() {
               </label>
 
               <div className="form-submit">
-                <button type="submit" className="dashboard-toggle-button">Salvar</button>
+                <button type="submit" className="financeiro-submit-button">Salvar</button>
               </div>
             </form>
           </section>
@@ -574,6 +574,28 @@ export default function Financeiro() {
           display: flex;
           align-items: end;
           justify-content: flex-end;
+          grid-column: 1 / -1;
+        }
+
+        .financeiro-submit-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 42px;
+          padding: 10px 18px;
+          border: 1px solid var(--accent-primary);
+          border-radius: 10px;
+          background: var(--accent-primary);
+          color: #fff;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: filter 0.2s ease;
+          min-width: 180px;
+        }
+
+        .financeiro-submit-button:hover {
+          filter: brightness(0.98);
         }
 
         .bar-chart {

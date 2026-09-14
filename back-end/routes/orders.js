@@ -86,8 +86,13 @@ router.patch('/:id/alterar-comanda', auth, auth.allowRoles('admin'), async (req,
       const comandaAnterior = await Comanda.findById(order.comandaId);
       if (comandaAnterior && String(comandaAnterior._id) !== String(comandaId)) {
         comandaAnterior.pedidoId = undefined;
+        comandaAnterior.observacao = comandaAnterior.observacao || '';
         await comandaAnterior.save();
       }
+    }
+
+    if (order.comandaId && String(order.comandaId) === String(comandaId)) {
+      return res.json(order);
     }
 
     order.comandaId = comandaId;
