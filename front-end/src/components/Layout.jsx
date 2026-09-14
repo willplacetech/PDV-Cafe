@@ -23,6 +23,7 @@ export default function Layout() {
   const ativoUsuarios = location.pathname.startsWith('/usuarios');
   const ativoDashboard = location.pathname.startsWith('/dashboard');
   const ativoProducao = location.pathname.startsWith('/producao');
+  const ativoFinanceiro = location.pathname.startsWith('/financeiro');
 
   // ✅ Título e ícone — UMA POR UMA, sem função
   let iconePagina = '☕';
@@ -63,6 +64,10 @@ export default function Layout() {
   if (location.pathname.startsWith('/producao')) {
     iconePagina = '🧪';
     tituloPagina = 'Produção';
+  }
+  if (location.pathname.startsWith('/financeiro')) {
+    iconePagina = '💰';
+    tituloPagina = 'Financeiro';
   }
 
 
@@ -181,6 +186,7 @@ export default function Layout() {
           )}
           {user?.role === 'admin' && <Link to="/dashboard" className={ativoDashboard ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>📊</span><span style={{ whiteSpace: 'nowrap' }}>Dashboard</span></Link>}
           {user?.role === 'admin' && <Link to="/producao" className={ativoProducao ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>🧪</span><span style={{ whiteSpace: 'nowrap' }}>Produção</span></Link>}
+          {user?.role === 'admin' && <Link to="/financeiro" className={ativoFinanceiro ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>💵</span><span style={{ whiteSpace: 'nowrap' }}>Financeiro</span></Link>}
         </nav>
 
         <div style={{
@@ -248,6 +254,7 @@ export default function Layout() {
         )}
         {user?.role === 'admin' && <Link to="/dashboard" className={ativoDashboard ? 'bottom-link active' : 'bottom-link'}><span style={{ fontSize: 20, lineHeight: 1 }}>📊</span><span style={{ fontSize: '10px' }}>Dashboard</span></Link>}
         {user?.role === 'admin' && <Link to="/producao" className={ativoProducao ? 'bottom-link active' : 'bottom-link'}><span style={{ fontSize: 20, lineHeight: 1 }}>🧪</span><span style={{ fontSize: '10px' }}>Produção</span></Link>}
+        {user?.role === 'admin' && <Link to="/financeiro" className={ativoFinanceiro ? 'bottom-link active' : 'bottom-link'}><span style={{ fontSize: 20, lineHeight: 1 }}>💵</span><span style={{ fontSize: '10px' }}>Financeiro</span></Link>}
       </nav>
 
 

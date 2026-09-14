@@ -7,8 +7,10 @@ const Comanda = require('./models/Comanda');
 const Recipe = require('./models/Recipe');
 const Production = require('./models/Production');
 const StockMovement = require('./models/StockMovement');
+const Despesa = require('./models/Despesa');
+const HistoricoCusto = require('./models/HistoricoCusto');
 
-const models = [User, Product, Customer, Order, Comanda, Recipe, Production, StockMovement];
+const models = [User, Product, Customer, Order, Comanda, Recipe, Production, StockMovement, Despesa, HistoricoCusto];
 
 const connectDB = async () => {
   try {

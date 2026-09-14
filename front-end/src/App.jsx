@@ -15,6 +15,7 @@ import Comandas from './pages/Comandas.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Production from './pages/Production.jsx';
 import Kitchen from './pages/Kitchen.jsx';
+import Financeiro from './pages/Financeiro.jsx';
 
 
 export default function App() {
@@ -40,6 +41,7 @@ export default function App() {
                     <Route path="/usuarios" element={<Users />} />
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/producao" element={<Production />} />
+                    <Route path="/financeiro" element={<Financeiro />} />
                   </Route>
                   <Route path="*" element={<Navigate to="/pdv" />} />
                 </Route>

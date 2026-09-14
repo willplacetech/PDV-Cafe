@@ -53,6 +53,30 @@ const ProductSchema = new mongoose.Schema({
     default: 0,
     min: [0, 'Custo não pode ser negativo'],
   },
+  custoUnitario: {
+    type: Number,
+    default: 0,
+    min: [0, 'Custo unitário não pode ser negativo'],
+  },
+  precoCompra: {
+    type: Number,
+    default: 0,
+    min: [0, 'Preço de compra não pode ser negativo'],
+  },
+  unidadeCompra: {
+    type: String,
+    enum: ['kg', 'g', 'l', 'ml', 'un', 'dz'],
+    default: 'kg',
+  },
+  custoUnitarioBase: {
+    type: Number,
+    default: 0,
+    min: [0, 'Custo unitário base não pode ser negativo'],
+  },
+  reajusteRecomendado: {
+    type: Boolean,
+    default: false,
+  },
   estoque: {
     type: Number,
     required: true,

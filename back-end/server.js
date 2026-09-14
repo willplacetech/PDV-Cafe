@@ -68,6 +68,11 @@ app.use('/api/orders', require('./routes/orders'));
 app.use('/api/comandas', require('./routes/comandas'));
 app.use('/api/fiscal', require('./routes/fiscal'));
 app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/despesas', require('./routes/despesas'));
+app.use('/api/contabil', require('./routes/contabil'));
+app.use('/api/insumos', require('./routes/insumos'));
+app.use('/api/receitas', require('./routes/receitas'));
+app.use('/api/produtos', require('./routes/products'));
 
 // Rota base da API
 app.get('/api', (req, res) => {

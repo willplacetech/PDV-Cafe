@@ -34,6 +34,60 @@ router.get('/mais-vendidos', auth, auth.allowRoles('admin', 'operador', 'garcom'
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
+router.get('/sem-custo', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const dataLimite = new Date();
+    dataLimite.setDate(dataLimite.getDate() - 90);
+    const produtosVendidos = await Order.aggregate([
+      { $match: { status: { $ne: 'cancelado' }, createdAt: { $gte: dataLimite } } },
+      { $unwind: '$itens' },
+      { $group: { _id: '$itens.produtoId', quantidade: { $sum: '$itens.quantidade' } } },
+    ]);
+    const ids = produtosVendidos.filter((item) => item._id).map((item) => item._id);
+    const produtos = await Product.find({ _id: { $in: ids }, custoUnitario: { $lte: 0 } }).select('nome codigo preco custoUnitario');
+    res.json(produtos);
+  } catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
+router.get('/reajuste-recomendado', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const produtos = await Product.find({ reajusteRecomendado: true }).select('nome codigo preco custoUnitario reajusteRecomendado');
+    const lista = produtos.map((produto) => {
+      const custo = Number(produto.custoUnitario || 0);
+      const venda = Number(produto.preco || 0);
+      const margem = venda > 0 ? ((venda - custo) / venda) * 100 : 0;
+      return {
+        _id: produto._id,
+        nome: produto.nome,
+        codigo: produto.codigo,
+        custoAtual: custo,
+        precoAtual: venda,
+        margemAtual: margem,
+      };
+    });
+    res.json(lista);
+  } catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
+router.get('/:id/historico-custo', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const HistoricoCusto = require('../models/HistoricoCusto');
+    const historico = await HistoricoCusto.find({ produtoId: req.params.id }).sort({ data: -1 });
+    res.json(historico);
+  } catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
+router.put('/:id/aplicar-preco', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const { precoVenda } = req.body;
+    const produto = await Product.findById(req.params.id);
+    if (!produto) return res.status(404).json({ msg: 'Produto não encontrado' });
+    produto.preco = Number(precoVenda);
+    await produto.save();
+    res.json(produto);
+  } catch (error) { res.status(400).json({ msg: error.message }); }
+});
+
 router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);

@@ -1,0 +1,152 @@
+const express = require('express');
+const { body, validationResult } = require('express-validator');
+const auth = require('../middleware/auth');
+const Despesa = require('../models/Despesa');
+
+const router = express.Router();
+
+const validate = (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({ errors: errors.array() });
+    return false;
+  }
+  return true;
+};
+
+const gerarParcelasRecorrentes = async (despesaBase) => {
+  const parcelas = [];
+  const baseDate = new Date(despesaBase.dataVencimento);
+  for (let index = 1; index <= 12; index += 1) {
+    const proximo = new Date(baseDate);
+    proximo.setMonth(proximo.getMonth() + index);
+    parcelas.push({
+      descricao: despesaBase.descricao,
+      categoria: despesaBase.categoria,
+      fornecedor: despesaBase.fornecedor,
+      valor: despesaBase.valor,
+      dataVencimento: proximo,
+      status: 'pendente',
+      recorrente: true,
+      frequenciaRecorrencia: despesaBase.frequenciaRecorrencia || 'mensal',
+      usuarioCadastro: despesaBase.usuarioCadastro,
+      origemRecorrencia: despesaBase._id,
+    });
+  }
+  return parcelas;
+};
+
+router.use(auth);
+router.use(auth.allowRoles('admin'));
+
+router.get('/', async (req, res) => {
+  try {
+    const filtro = {};
+    if (req.query.status) filtro.status = req.query.status;
+    if (req.query.categoria) filtro.categoria = req.query.categoria;
+    if (req.query.dataInicio || req.query.dataFim) {
+      filtro.dataVencimento = {};
+      if (req.query.dataInicio) filtro.dataVencimento.$gte = new Date(`${req.query.dataInicio}T00:00:00`);
+      if (req.query.dataFim) filtro.dataVencimento.$lte = new Date(`${req.query.dataFim}T23:59:59`);
+    }
+    const despesas = await Despesa.find(filtro).sort({ dataVencimento: 1 });
+    res.json(despesas);
+  } catch (error) {
+    res.status(500).json({ msg: error.message });
+  }
+});
+
+router.get('/resumo', async (req, res) => {
+  try {
+    const mes = req.query.mes || new Date().toISOString().slice(0, 7);
+    const [ano, mesNumero] = mes.split('-').map(Number);
+    const inicio = new Date(ano, mesNumero - 1, 1);
+    const fim = new Date(ano, mesNumero, 1);
+    const [pendente, pago, atrasado, categoriaResumo] = await Promise.all([
+      Despesa.aggregate([{ $match: { dataVencimento: { $gte: inicio, $lt: fim }, status: 'pendente' } }, { $group: { _id: null, total: { $sum: '$valor' } } }]),
+      Despesa.aggregate([{ $match: { dataPagamento: { $gte: inicio, $lt: fim }, status: 'pago' } }, { $group: { _id: null, total: { $sum: '$valor' } } }]),
+      Despesa.aggregate([{ $match: { dataVencimento: { $gte: inicio, $lt: fim }, status: 'atrasado' } }, { $group: { _id: null, total: { $sum: '$valor' } } }]),
+      Despesa.aggregate([
+        { $match: { dataPagamento: { $gte: inicio, $lt: fim }, status: 'pago' } },
+        { $group: { _id: '$categoria', total: { $sum: '$valor' } } },
+      ])
+    ]);
+
+    res.json({
+      totalPendente: pendente[0]?.total || 0,
+      totalPago: pago[0]?.total || 0,
+      totalAtrasado: atrasado[0]?.total || 0,
+      porCategoria: categoriaResumo.map((item) => ({ categoria: item._id, total: item.total })),
+    });
+  } catch (error) {
+    res.status(500).json({ msg: error.message });
+  }
+});
+
+router.post('/', [
+  body('descricao').trim().notEmpty(),
+  body('categoria').isIn(['Aluguel', 'Energia', 'Água', 'Internet', 'Fornecedores/Insumos', 'Salários/Pró-labore', 'Impostos', 'Marketing', 'Manutenção', 'Transporte', 'Outros']),
+  body('valor').isFloat({ min: 0.01 }),
+  body('dataVencimento').optional().isISO8601(),
+], async (req, res) => {
+  if (!validate(req, res)) return;
+
+  try {
+    const payload = {
+      ...req.body,
+      valor: Number(req.body.valor),
+      dataVencimento: req.body.dataVencimento ? new Date(req.body.dataVencimento) : new Date(),
+      usuarioCadastro: req.user.id,
+    };
+    const despesa = await Despesa.create(payload);
+
+    if (payload.recorrente) {
+      const parcelas = await gerarParcelasRecorrentes(despesa);
+      await Despesa.insertMany(parcelas);
+    }
+
+    res.status(201).json(despesa);
+  } catch (error) {
+    res.status(400).json({ msg: error.message });
+  }
+});
+
+router.put('/:id', [
+  body('descricao').optional().trim().notEmpty(),
+  body('categoria').optional().isIn(['Aluguel', 'Energia', 'Água', 'Internet', 'Fornecedores/Insumos', 'Salários/Pró-labore', 'Impostos', 'Marketing', 'Manutenção', 'Transporte', 'Outros']),
+  body('valor').optional().isFloat({ min: 0.01 }),
+], async (req, res) => {
+  if (!validate(req, res)) return;
+  try {
+    const despesa = await Despesa.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true, runValidators: true });
+    if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
+    res.json(despesa);
+  } catch (error) {
+    res.status(400).json({ msg: error.message });
+  }
+});
+
+router.put('/:id/pagar', async (req, res) => {
+  try {
+    const despesa = await Despesa.findById(req.params.id);
+    if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
+    despesa.dataPagamento = req.body.dataPagamento ? new Date(req.body.dataPagamento) : new Date();
+    despesa.status = 'pago';
+    await despesa.save();
+    res.json(despesa);
+  } catch (error) {
+    res.status(400).json({ msg: error.message });
+  }
+});
+
+router.delete('/:id', async (req, res) => {
+  try {
+    const despesa = await Despesa.findByIdAndDelete(req.params.id);
+    if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
+    res.json({ msg: 'Despesa removida com sucesso' });
+  } catch (error) {
+    res.status(400).json({ msg: error.message });
+  }
+});
+
+module.exports = router;
