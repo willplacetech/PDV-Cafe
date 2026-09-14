@@ -4,7 +4,7 @@ const auth = require('../middleware/auth');
 const Product = require('../models/Product');
 const Recipe = require('../models/Recipe');
 const HistoricoCusto = require('../models/HistoricoCusto');
-const { converterCustoBase, calcularVariacaoPercentual } = require('../utils/custo');
+const { converterCustoBase, quantidadeNaBase, calcularVariacaoPercentual } = require('../utils/custo');
 
 const router = express.Router();
 
@@ -18,10 +18,11 @@ const recalcularReceitasAfetadas = async (produtoId) => {
     const custoAntigo = Number(recipe.custoUnitario || 0);
     const ingredientes = recipe.ingredientes.map((item) => ({
       quantidade: Number(item.quantidade || 0),
+      unidade: item.unidade,
       custoUnitarioBase: Number(item.produtoId?.custoUnitarioBase || 0),
     }));
 
-    const custoInsumosTotal = ingredientes.reduce((soma, item) => soma + item.quantidade * item.custoUnitarioBase, 0);
+    const custoInsumosTotal = ingredientes.reduce((soma, item) => soma + quantidadeNaBase(item.quantidade, item.unidade) * item.custoUnitarioBase, 0);
     const custoTotal = custoInsumosTotal + Number(recipe.custoEmbalagem || 0) + Number(recipe.custoIndireto || 0) + Number(recipe.maoDeObra || 0);
     const custoUnitario = recipe.rendimento > 0 ? custoTotal / Number(recipe.rendimento) : 0;
 

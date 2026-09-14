@@ -7,10 +7,15 @@ const converterCustoBase = (precoCompra, unidadeCompra, unidadeReferencia = 'g')
   return Number((preco / target).toFixed(12));
 };
 
+const quantidadeNaBase = (quantidade, unidade) => {
+  const fatores = { kg: 1000, g: 1, l: 1000, ml: 1, un: 1, dz: 12 };
+  return Number(quantidade || 0) * (fatores[unidade] || 1);
+};
+
 const arredondar = (valor) => Number(Number(valor || 0).toFixed(6));
 
 const calcularCustoReceita = (ingredientes, custoEmbalagem = 0, custoIndireto = 0, maoDeObra = 0, rendimento = 1) => {
-  const custoInsumosTotal = arredondar(ingredientes.reduce((soma, item) => soma + Number(item.quantidade || 0) * Number(item.custoUnitarioBase || 0), 0));
+  const custoInsumosTotal = arredondar(ingredientes.reduce((soma, item) => soma + quantidadeNaBase(item.quantidade, item.unidade) * Number(item.custoUnitarioBase || 0), 0));
   const custoTotal = arredondar(custoInsumosTotal + Number(custoEmbalagem || 0) + Number(custoIndireto || 0) + Number(maoDeObra || 0));
   const custoUnitario = arredondar(Number(rendimento) > 0 ? custoTotal / Number(rendimento) : 0);
   return { custoInsumosTotal, custoTotal, custoUnitario };
@@ -27,4 +32,4 @@ const calcularMargem = (custo, venda) => {
   return Number(percentual.toFixed(2));
 };
 
-module.exports = { converterCustoBase, arredondar, calcularCustoReceita, calcularVariacaoPercentual, calcularMargem };
+module.exports = { converterCustoBase, quantidadeNaBase, arredondar, calcularCustoReceita, calcularVariacaoPercentual, calcularMargem };

@@ -7,6 +7,7 @@ import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda
 import DashboardInsights from '../components/DashboardInsights.jsx';
 import DashboardTabs from '../components/DashboardTabs.jsx';
 import ProductSalesHistory from '../components/ProductSalesHistory.jsx';
+import DateInput from '../components/DateInput.jsx';
 
 const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const labels = { dia: 'Hoje', semana: 'Esta semana', mes: 'Este mês' };
@@ -33,17 +34,19 @@ export default function Dashboard() {
   const [comparacaoSemanaA, setComparacaoSemanaA] = useState(() => { const data = new Date(); data.setDate(data.getDate() - data.getDay() + 1); return data.toISOString().slice(0, 10); });
   const [comparacaoSemanaB, setComparacaoSemanaB] = useState(() => { const data = new Date(); data.setDate(data.getDate() - data.getDay() - 6); return data.toISOString().slice(0, 10); });
   const [comparacaoVendas, setComparacaoVendas] = useState(null);
+  const [alertasCusto, setAlertasCusto] = useState({ semCusto: [], reajuste: [] });
   const [productionData, setProductionData] = useState(null);
   const { showToast } = useToast();
 
   useEffect(() => {
     if (user?.role !== 'admin') return;
-    Promise.all([api.get('/dashboard'), api.get('/products'), api.get('/comandas'), api.get('/production/dashboard')])
-      .then(([dashboardResponse, productsResponse, comandasResponse, productionResponse]) => {
+    Promise.all([api.get('/dashboard'), api.get('/products'), api.get('/comandas'), api.get('/production/dashboard'), api.get('/products/sem-custo'), api.get('/products/reajuste-recomendado')])
+      .then(([dashboardResponse, productsResponse, comandasResponse, productionResponse, semCustoResponse, reajusteResponse]) => {
         setData(dashboardResponse.data);
         setProdutos(productsResponse.data);
         setComandas(comandasResponse.data);
         setProductionData(productionResponse.data);
+        setAlertasCusto({ semCusto: semCustoResponse.data || [], reajuste: reajusteResponse.data || [] });
       })
       .catch((error) => showToast(error.response?.data?.msg || 'Não foi possível carregar o dashboard', 'error'));
   }, [user?.role]);
@@ -190,10 +193,11 @@ export default function Dashboard() {
       <div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">ANÁLISE DE VENDAS</span><h2>Comparar períodos</h2><p>Escolha semanas ou meses para analisar a evolução das vendas.</p></div></div>
       <div className="dashboard-comparison-controls">
         <div className="dashboard-comparison-modes"><button type="button" className={comparacaoTipo === 'semana' ? 'active' : ''} onClick={() => setComparacaoTipo('semana')}>Semana a semana</button><button type="button" className={comparacaoTipo === 'mes' ? 'active' : ''} onClick={() => setComparacaoTipo('mes')}>Mês a mês</button></div>
-        {comparacaoTipo === 'mes' ? <><label>Período principal<input type="month" value={comparacaoMesA} onChange={(event) => setComparacaoMesA(event.target.value)} /></label><label>Comparar com<input type="month" value={comparacaoMesB} onChange={(event) => setComparacaoMesB(event.target.value)} /></label></> : <><label>Semana principal<input type="date" value={comparacaoSemanaA} onChange={(event) => setComparacaoSemanaA(event.target.value)} /></label><label>Comparar com<input type="date" value={comparacaoSemanaB} onChange={(event) => setComparacaoSemanaB(event.target.value)} /></label></>}
+        {comparacaoTipo === 'mes' ? <><label>Período principal<input type="month" value={comparacaoMesA} onChange={(event) => setComparacaoMesA(event.target.value)} /></label><label>Comparar com<input type="month" value={comparacaoMesB} onChange={(event) => setComparacaoMesB(event.target.value)} /></label></> : <><label>Semana principal<DateInput value={comparacaoSemanaA} onChange={setComparacaoSemanaA} /></label><label>Comparar com<DateInput value={comparacaoSemanaB} onChange={setComparacaoSemanaB} /></label></>}
       </div>
       {comparacaoVendas && <div className="dashboard-comparison-table-wrap"><table className="dashboard-comparison-table"><thead><tr><th>Indicador</th><th>{comparacaoVendas.periodoA.rotulo}</th><th>{comparacaoVendas.periodoB.rotulo}</th><th>Variação</th></tr></thead><tbody>{[['Receita', comparacaoVendas.periodoA.total, comparacaoVendas.periodoB.total, true], ['Pedidos', comparacaoVendas.periodoA.pedidos, comparacaoVendas.periodoB.pedidos, false], ['Itens vendidos', comparacaoVendas.periodoA.itens, comparacaoVendas.periodoB.itens, false], ['Ticket médio', comparacaoVendas.periodoA.ticketMedio, comparacaoVendas.periodoB.ticketMedio, true]].map(([nome, atual, anterior, monetario]) => <tr key={nome}><th>{nome}</th><td>{monetario ? money(atual) : atual}</td><td>{monetario ? money(anterior) : anterior}</td><td className={variacao(atual, anterior) >= 0 ? 'comparison-up' : 'comparison-down'}>{variacao(atual, anterior) >= 0 ? '+' : ''}{variacao(atual, anterior).toFixed(1)}%</td></tr>)}</tbody></table></div>}
     </section>
+    {(alertasCusto.semCusto.length > 0 || alertasCusto.reajuste.length > 0) && <section className="dashboard-cost-alerts"><div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">ATENÇÃO OPERACIONAL</span><h2>Alertas de custos</h2></div><a href="/producao">Abrir Produção</a></div><div className="dashboard-cost-alert-grid"><a href="/producao"><strong>{alertasCusto.semCusto.length}</strong><span>produtos sem custo cadastrado</span></a><a href="/producao"><strong>{alertasCusto.reajuste.length}</strong><span>produtos com reajuste recomendado</span></a></div></section>}
     <ProductSalesHistory products={produtos} topProducts={data.periodos?.mes?.maisVendidos || []} />
     <DashboardInsights insights={insights} />
     <section className="dashboard-comandas"><div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">HISTÓRICO DE COMANDAS</span><h2>Comandas geradas</h2><p>Consulte comandas abertas, fechadas ou canceladas por período.</p></div><div className="dashboard-report-actions"><span className="dashboard-orders-count">{comandas.length}</span><button className="dashboard-toggle-button" onClick={() => alternarQuadro('comandas')}>{quadrosAbertos.comandas ? 'Ocultar' : 'Consultar'}</button></div></div>{quadrosAbertos.comandas && <><form className="dashboard-comandas-filter" onSubmit={consultarComandas}><label>De<input type="date" value={dataInicio} onChange={(event) => setDataInicio(event.target.value)} /></label><label>Até<input type="date" value={dataFim} onChange={(event) => setDataFim(event.target.value)} /></label><button className="dashboard-toggle-button" type="submit" disabled={carregandoComandas}>{carregandoComandas ? 'Consultando...' : 'Filtrar'}</button></form>{comandas.length ? <div className="dashboard-comandas-list">{Object.entries(comandasPorData).map(([data, comandasDoDia]) => <details className="dashboard-comandas-day" key={data}><summary><strong>{formatarDataComandas(data)}</strong><span>{comandasDoDia.length} comanda(s)</span></summary><div className="dashboard-comandas-day-list">{comandasDoDia.map((comanda) => { const total = comanda.itens?.reduce((sum, item) => sum + Number(item.precoUnitario || 0) * Number(item.quantidade || 0), 0); return <div className="dashboard-comanda" key={comanda._id}><div><strong>#{comanda.numero}</strong><span>{comanda.clienteNome || 'Cliente não identificado'}</span><div style={{ display: 'grid', gap: 3 }}><small>{new Date(comanda.createdAt).toLocaleString('pt-BR')} · {comanda.itens?.length || 0} itens · {comanda.atendente || 'Atendente não informado'}</small>{(Number(comanda.desconto || 0) > 0 || Boolean(comanda.utilizacaoInterna)) && <small style={{ display: 'block', color: 'var(--accent-primary)', fontWeight: 700 }}>{Number(comanda.desconto || 0) > 0 ? `Desconto: -${money(comanda.desconto)}` : ''}{Number(comanda.desconto || 0) > 0 && Boolean(comanda.utilizacaoInterna) ? ' · ' : ''}{Boolean(comanda.utilizacaoInterna) ? 'Uso interno' : ''}</small>}</div></div><div><b>{money(total)}</b><span className={`dashboard-comanda-status comanda-status-${comanda.status}`}>{statusLabels[comanda.status] || comanda.status}</span></div></div>; })}</div></details>)}</div> : <p className="dashboard-empty-orders">Nenhuma comanda encontrada no período.</p>}</>}</section>
@@ -225,6 +229,12 @@ export default function Dashboard() {
       .dashboard-comparison-table td { color:var(--text-primary); }
       .comparison-up { color:var(--success-bg) !important; font-weight:800; }
       .comparison-down { color:var(--error-bg) !important; font-weight:800; }
+      .dashboard-cost-alerts { margin-top:16px; padding:18px; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:16px; box-shadow:var(--shadow-sm); }
+      .dashboard-cost-alerts a { color:var(--accent-primary); font-size:12px; font-weight:700; text-decoration:none; }
+      .dashboard-cost-alert-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+      .dashboard-cost-alert-grid a { display:grid; gap:4px; padding:12px; border:1px solid var(--accent-border); border-radius:10px; background:var(--accent-light); }
+      .dashboard-cost-alert-grid strong { font-size:22px; }
+      .dashboard-cost-alert-grid span { color:var(--text-secondary); }
       .dashboard-period-title { display:flex; justify-content:space-between; align-items:center; gap:8px; }
       .dashboard-period-title h2 { margin:0; font-size:16px; color:var(--text-primary); }
       .dashboard-period-title span { color:var(--text-secondary); font-size:11px; }
@@ -371,6 +381,7 @@ export default function Dashboard() {
       @media (max-width:520px) { .dashboard-sales-summary { grid-template-columns:1fr; } .dashboard-section-heading { flex-wrap:wrap; } }
       @media (max-width:900px) { .dashboard-monthly-summary { grid-template-columns:repeat(3, 1fr); } .dashboard-monthly-columns { grid-template-columns:1fr; } }
       @media (max-width:520px) { .dashboard-monthly-summary { grid-template-columns:1fr; } .dashboard-print-button { width:100%; } }
+      @media (max-width:520px) { .dashboard-cost-alert-grid { grid-template-columns:1fr; } }
       @media (max-width:520px) { .dashboard-comparison-controls { grid-template-columns:1fr; } .dashboard-comparison-modes { display:grid; grid-template-columns:1fr 1fr; } .dashboard-comparison-modes button { width:100%; } }
       @media (max-width:520px) { .dashboard-comandas-filter { align-items:stretch; flex-direction:column; } .dashboard-comandas-filter input, .dashboard-comandas-filter button { width:100%; box-sizing:border-box; } .dashboard-comandas-day summary { align-items:flex-start; flex-direction:column; gap:4px; } .dashboard-comanda { align-items:flex-start; flex-direction:column; gap:8px; } .dashboard-comanda > div:last-child { width:100%; justify-content:space-between; } }
     `}</style>

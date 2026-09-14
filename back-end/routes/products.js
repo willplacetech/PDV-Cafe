@@ -5,6 +5,7 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
 const { corrigirBolos } = require('../utils/corrigirBolos');
+const HistoricoCusto = require('../models/HistoricoCusto');
 
 const router = express.Router();
 const units = ['un', 'kg', 'g', 'l', 'ml'];
@@ -57,6 +58,19 @@ router.get('/sem-custo', auth, auth.allowRoles('admin'), async (req, res) => {
     const produtos = await Product.find({ _id: { $in: ids }, custoUnitario: { $lte: 0 } }).select('nome codigo preco custoUnitario');
     res.json(produtos);
   } catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
+router.put('/:id/aplicar-preco', auth, auth.allowRoles('admin'), [body('preco').isFloat({ min: 0 })], async (req, res) => {
+  try {
+    const produto = await Product.findByIdAndUpdate(req.params.id, { $set: { preco: Number(req.body.preco), reajusteRecomendado: false } }, { new: true, runValidators: true });
+    if (!produto) return res.status(404).json({ msg: 'Produto não encontrado' });
+    res.json(produto);
+  } catch (error) { res.status(400).json({ msg: error.message }); }
+});
+
+router.get('/:id/historico-custo', auth, auth.allowRoles('admin'), async (req, res) => {
+  try { res.json(await HistoricoCusto.find({ produtoId: req.params.id }).sort({ data: -1 }).limit(6).lean()); }
+  catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
 router.get('/reajuste-recomendado', auth, auth.allowRoles('admin'), async (req, res) => {

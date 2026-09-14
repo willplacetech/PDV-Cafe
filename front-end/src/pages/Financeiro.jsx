@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
+import DateInput from '../components/DateInput.jsx';
 
 const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const statusColors = { pago: '#16a34a', pendente: '#d97706', atrasado: '#dc2626' };
@@ -210,12 +211,12 @@ export default function Financeiro() {
 
               <label>
                 De
-                <input type="date" value={filtro.dataInicio} onChange={(event) => setFiltro({ ...filtro, dataInicio: event.target.value })} />
+                <DateInput value={filtro.dataInicio} onChange={(value) => setFiltro({ ...filtro, dataInicio: value })} />
               </label>
 
               <label>
                 Até
-                <input type="date" value={filtro.dataFim} onChange={(event) => setFiltro({ ...filtro, dataFim: event.target.value })} />
+                <DateInput value={filtro.dataFim} onChange={(value) => setFiltro({ ...filtro, dataFim: value })} />
               </label>
             </div>
 
@@ -296,7 +297,7 @@ export default function Financeiro() {
 
               <label>
                 Vencimento
-                <input type="date" value={form.dataVencimento} onChange={(event) => setForm({ ...form, dataVencimento: event.target.value })} required />
+                <DateInput value={form.dataVencimento} onChange={(value) => setForm({ ...form, dataVencimento: value })} required />
               </label>
 
               <label className="checkbox-row">

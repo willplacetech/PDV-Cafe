@@ -35,6 +35,7 @@ router.post('/:id/calcular-custo', [
 
     const ingredientes = (recipe.ingredientes || []).map((item) => ({
       quantidade: Number(item.quantidade || 0),
+      unidade: item.unidade,
       custoUnitarioBase: Number(item.produtoId?.custoUnitarioBase || 0),
     }));
 
