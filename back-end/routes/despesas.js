@@ -4,6 +4,8 @@ const auth = require('../middleware/auth');
 const Despesa = require('../models/Despesa');
 
 const router = express.Router();
+const TIME_ZONE = 'America/Sao_Paulo';
+const dataHojeSaoPaulo = () => new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format(new Date());
 
 const validate = (req, res) => {
   const errors = validationResult(req);
@@ -60,8 +62,11 @@ router.get('/resumo', async (req, res) => {
   try {
     const mes = req.query.mes || new Date().toISOString().slice(0, 7);
     const [ano, mesNumero] = mes.split('-').map(Number);
-    const inicio = new Date(ano, mesNumero - 1, 1);
-    const fim = new Date(ano, mesNumero, 1);
+    const inicio = new Date(`${mes}-01T00:00:00-03:00`);
+    const fimMes = new Date(Date.UTC(ano, mesNumero, 1, 3));
+    const fimHoje = new Date(`${dataHojeSaoPaulo()}T00:00:00-03:00`);
+    fimHoje.setUTCDate(fimHoje.getUTCDate() + 1);
+    const fim = inicio.getTime() <= fimHoje.getTime() && fimHoje.getTime() < fimMes.getTime() ? fimHoje : fimMes;
     const [pendente, pago, atrasado, categoriaResumo] = await Promise.all([
       Despesa.aggregate([{ $match: { dataVencimento: { $gte: inicio, $lt: fim }, status: 'pendente' } }, { $group: { _id: null, total: { $sum: '$valor' } } }]),
       Despesa.aggregate([{ $match: { dataPagamento: { $gte: inicio, $lt: fim }, status: 'pago' } }, { $group: { _id: null, total: { $sum: '$valor' } } }]),

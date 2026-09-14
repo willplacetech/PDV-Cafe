@@ -69,6 +69,45 @@ router.use((req, res, next) => {
   next();
 });
 
+const resumoVendasPeriodo = async (inicio, fim) => {
+  const pedidos = await Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $ne: 'cancelado' } }).select('total itens').lean();
+  const total = pedidos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
+  const itens = pedidos.reduce((sum, pedido) => sum + (pedido.itens || []).reduce((itemSum, item) => itemSum + quantidadeNaUnidadeBase(item), 0), 0);
+  return { pedidos: pedidos.length, itens, total, ticketMedio: pedidos.length ? total / pedidos.length : 0 };
+};
+
+router.get('/comparar-vendas', async (req, res) => {
+  try {
+    const tipo = req.query.tipo === 'mes' ? 'mes' : 'semana';
+    let periodoA;
+    let periodoB;
+
+    if (tipo === 'mes') {
+      const mesA = /^\d{4}-\d{2}$/.test(String(req.query.periodoA || '')) ? req.query.periodoA : dataSaoPaulo().slice(0, 7);
+      const mesB = /^\d{4}-\d{2}$/.test(String(req.query.periodoB || '')) ? req.query.periodoB : mesA;
+      const criarMes = (mes) => {
+        const [ano, numero] = mes.split('-').map(Number);
+        return { inicio: new Date(`${mes}-01T00:00:00-03:00`), fim: new Date(Date.UTC(ano, numero, 1, 3)), rotulo: mes };
+      };
+      periodoA = criarMes(mesA);
+      periodoB = criarMes(mesB);
+    } else {
+      const inicioA = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.periodoA || '')) ? req.query.periodoA : dataSaoPaulo();
+      const inicioB = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.periodoB || '')) ? req.query.periodoB : inicioA;
+      periodoA = periodoHistorico(inicioA);
+      periodoB = periodoHistorico(inicioB);
+      periodoA.rotulo = `${dataSaoPaulo(periodoA.inicio)} a ${dataSaoPaulo(new Date(periodoA.fim.getTime() - 1))}`;
+      periodoB.rotulo = `${dataSaoPaulo(periodoB.inicio)} a ${dataSaoPaulo(new Date(periodoB.fim.getTime() - 1))}`;
+    }
+
+    const [resumoA, resumoB] = await Promise.all([
+      resumoVendasPeriodo(periodoA.inicio, periodoA.fim),
+      resumoVendasPeriodo(periodoB.inicio, periodoB.fim),
+    ]);
+    res.json({ tipo, periodoA: { ...resumoA, rotulo: periodoA.rotulo }, periodoB: { ...resumoB, rotulo: periodoB.rotulo } });
+  } catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
 router.get('/historico-produtos', async (req, res) => {
   try {
     const produtoId = String(req.query.produtoId || '').trim();

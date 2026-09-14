@@ -7,6 +7,7 @@ import { AuthContext } from '../context/AuthContextDefinition.jsx';
 const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const statusColors = { pago: '#16a34a', pendente: '#d97706', atrasado: '#dc2626' };
 const categorias = ['Aluguel', 'Energia', 'Água', 'Internet', 'Fornecedores/Insumos', 'Salários/Pró-labore', 'Impostos', 'Marketing', 'Manutenção', 'Transporte', 'Outros'];
+const percentChange = (current, previous) => previous ? ((current - previous) / Math.abs(previous)) * 100 : (current ? 100 : 0);
 
 export default function Financeiro() {
   const { user } = useContext(AuthContext);
@@ -14,6 +15,13 @@ export default function Financeiro() {
   const [despesas, setDespesas] = useState([]);
   const [resumo, setResumo] = useState({ totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
   const [fluxo, setFluxo] = useState({ dados: [], totalEntradas: 0, totalSaidas: 0, saldoDoMes: 0 });
+  const [mesComparacaoA, setMesComparacaoA] = useState(new Date().toISOString().slice(0, 7));
+  const [mesComparacaoB, setMesComparacaoB] = useState(() => {
+    const data = new Date();
+    data.setMonth(data.getMonth() - 1);
+    return data.toISOString().slice(0, 7);
+  });
+  const [comparacao, setComparacao] = useState({ periodoA: null, periodoB: null });
   const [dre, setDre] = useState({ receitaBruta: 0, cmv: 0, lucroBruto: 0, despesasOperacionais: 0, ebit: 0, depreciacaoAmortizacao: 0, ebitda: 0, impostosEstimados: 0, lucroLiquido: 0, margemBruta: 0, margemLiquida: 0, despesasPorCategoria: {}, produtosSemCusto: [] });
   const [mesSelecionado, setMesSelecionado] = useState(new Date().toISOString().slice(0, 7));
   const [filtro, setFiltro] = useState({ status: '', categoria: '', dataInicio: '', dataFim: '' });
@@ -25,24 +33,26 @@ export default function Financeiro() {
 
     const load = async () => {
       try {
-        const [despesasRes, resumoRes, fluxoRes, dreRes] = await Promise.all([
+        const [despesasRes, resumoRes, fluxoRes, dreRes, comparacaoRes] = await Promise.all([
           api.get('/despesas'),
           api.get('/despesas/resumo', { params: { mes: mesSelecionado } }),
           api.get('/contabil/fluxo-caixa', { params: { mes: mesSelecionado } }),
           api.get('/contabil/dre', { params: { mes: mesSelecionado } }),
+          api.get('/contabil/comparar-meses', { params: { mesA: mesComparacaoA, mesB: mesComparacaoB } }),
         ]);
 
         setDespesas(despesasRes.data || []);
         setResumo(resumoRes.data || { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
         setFluxo(fluxoRes.data || { dados: [], totalEntradas: 0, totalSaidas: 0, saldoDoMes: 0 });
         setDre(dreRes.data || { receitaBruta: 0, cmv: 0, lucroBruto: 0, despesasOperacionais: 0, ebit: 0, depreciacaoAmortizacao: 0, ebitda: 0, impostosEstimados: 0, lucroLiquido: 0, margemBruta: 0, margemLiquida: 0, despesasPorCategoria: {}, produtosSemCusto: [] });
+        setComparacao(comparacaoRes.data || { periodoA: null, periodoB: null });
       } catch (error) {
         showToast(error.response?.data?.msg || 'Não foi possível carregar o financeiro', 'error');
       }
     };
 
     load();
-  }, [mesSelecionado, showToast, user]);
+  }, [mesSelecionado, mesComparacaoA, mesComparacaoB, showToast, user]);
 
   const despesasFiltradas = useMemo(() => despesas.filter((despesa) => {
     const matchesStatus = !filtro.status || despesa.status === filtro.status;
@@ -139,6 +149,7 @@ export default function Financeiro() {
           ['despesas', 'Contas a Pagar'],
           ['fluxo', 'Fluxo de Caixa'],
           ['dre', 'DRE / EBITDA'],
+          ['comparar', 'Comparar Meses'],
         ].map(([key, label]) => (
           <button
             key={key}
@@ -394,6 +405,59 @@ export default function Financeiro() {
         </>
       )}
 
+      {tab === 'comparar' && (
+        <section className="financeiro-panel">
+          <div className="dashboard-section-heading">
+            <div>
+              <span className="dashboard-eyebrow">ANÁLISE COMPARATIVA</span>
+              <h2>Comparar mês a mês</h2>
+              <p>Escolha os períodos para comparar vendas, recebimentos e despesas.</p>
+            </div>
+          </div>
+
+          <div className="compare-periods">
+            <label>
+              Mês principal
+              <input type="month" value={mesComparacaoA} onChange={(event) => setMesComparacaoA(event.target.value)} />
+            </label>
+            <span className="compare-versus">versus</span>
+            <label>
+              Mês de comparação
+              <input type="month" value={mesComparacaoB} onChange={(event) => setMesComparacaoB(event.target.value)} />
+            </label>
+          </div>
+
+          {comparacao.periodoA && comparacao.periodoB && (
+            <div className="compare-table-wrap">
+              <table className="financeiro-table compare-table">
+                <thead>
+                  <tr><th>Indicador</th><th>{comparacao.periodoA.mes}</th><th>{comparacao.periodoB.mes}</th><th>Variação</th></tr>
+                </thead>
+                <tbody>
+                  {[
+                    ['Receita de vendas', comparacao.periodoA.receita, comparacao.periodoB.receita, true],
+                    ['Entradas recebidas', comparacao.periodoA.entradas, comparacao.periodoB.entradas, true],
+                    ['Despesas pagas', comparacao.periodoA.despesasPagas, comparacao.periodoB.despesasPagas, true],
+                    ['Saldo de caixa', comparacao.periodoA.saldo, comparacao.periodoB.saldo, true],
+                    ['Resultado operacional', comparacao.periodoA.resultadoOperacional, comparacao.periodoB.resultadoOperacional, true],
+                    ['Pedidos', comparacao.periodoA.pedidos, comparacao.periodoB.pedidos, false],
+                  ].map(([label, valorA, valorB, isMoney]) => (
+                    <tr key={label}>
+                      <th>{label}</th>
+                      <td>{isMoney ? money(valorA) : valorA}</td>
+                      <td>{isMoney ? money(valorB) : valorB}</td>
+                      <td className={percentChange(valorA, valorB) >= 0 ? 'compare-positive' : 'compare-negative'}>
+                        {percentChange(valorA, valorB) >= 0 ? '+' : ''}{percentChange(valorA, valorB).toFixed(1)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
       <style>{`
         .financeiro-page {
           color: var(--text-primary);
@@ -613,6 +677,45 @@ export default function Financeiro() {
           border-color: var(--accent-primary);
         }
 
+        .compare-periods {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+          align-items: end;
+          gap: 12px;
+          margin: 16px 0;
+        }
+
+        .compare-periods label {
+          display: grid;
+          gap: 6px;
+          color: var(--text-secondary);
+          font-size: 11px;
+          font-weight: 700;
+        }
+
+        .compare-periods input {
+          min-height: 42px;
+          padding: 9px 12px;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          background: var(--bg-tertiary);
+          color: var(--text-primary);
+        }
+
+        .compare-versus {
+          padding-bottom: 12px;
+          color: var(--text-secondary);
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .compare-table-wrap { overflow-x: auto; }
+        .compare-table { min-width: 620px; }
+        .compare-table th:not(:first-child),
+        .compare-table td:not(:first-child) { text-align: right; }
+        .compare-positive { color: var(--success-bg) !important; font-weight: 800; }
+        .compare-negative { color: var(--error-bg) !important; font-weight: 800; }
+
         .bar-chart {
           display: flex;
           align-items: flex-end;
@@ -677,6 +780,9 @@ export default function Financeiro() {
           .form-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
+
+          .compare-periods { grid-template-columns: 1fr 1fr; }
+          .compare-versus { display: none; }
         }
 
         @media (max-width: 640px) {
@@ -690,6 +796,8 @@ export default function Financeiro() {
           .form-grid {
             grid-template-columns: 1fr;
           }
+
+          .compare-periods { grid-template-columns: 1fr; }
 
           .dashboard-section-heading {
             flex-direction: column;

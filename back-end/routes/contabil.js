@@ -7,16 +7,50 @@ const Recipe = require('../models/Recipe');
 const Despesa = require('../models/Despesa');
 
 const router = express.Router();
+const TIME_ZONE = 'America/Sao_Paulo';
+
+const dataHojeSaoPaulo = () => new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format(new Date());
+const chaveDataSaoPaulo = (value) => new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format(new Date(value));
 
 const getMesRange = (mes) => {
   if (mes) {
     const [ano, mesNumero] = String(mes).split('-').map(Number);
     if (ano && mesNumero) {
-      return { inicio: new Date(ano, mesNumero - 1, 1), fim: new Date(ano, mesNumero, 1) };
+      const inicio = new Date(`${mes}-01T00:00:00-03:00`);
+      const fimMes = new Date(Date.UTC(ano, mesNumero, 1, 3));
+      const fimHoje = new Date(`${dataHojeSaoPaulo()}T00:00:00-03:00`);
+      fimHoje.setUTCDate(fimHoje.getUTCDate() + 1);
+      const fim = inicio.getTime() <= fimHoje.getTime() && fimHoje.getTime() < fimMes.getTime() ? fimHoje : fimMes;
+      return { inicio, fim };
     }
   }
   const agora = new Date();
-  return { inicio: new Date(agora.getFullYear(), agora.getMonth(), 1), fim: new Date(agora.getFullYear(), agora.getMonth() + 1, 1) };
+  const mesAtual = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
+  return getMesRange(mesAtual);
+};
+
+const resumoComparativo = async (mes) => {
+  const { inicio, fim } = getMesRange(mes);
+  const [pedidos, despesas, pedidosComPagamentos] = await Promise.all([
+    Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $in: ['pago', 'parcial'] } }).select('total').lean(),
+    Despesa.find({ status: 'pago', dataPagamento: { $gte: inicio, $lt: fim } }).select('valor').lean(),
+    Order.find({ 'pagamentos.dataPagamento': { $gte: inicio, $lt: fim } }).select('pagamentos').lean(),
+  ]);
+  const receita = pedidos.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
+  const despesasPagas = despesas.reduce((total, despesa) => total + Number(despesa.valor || 0), 0);
+  const entradas = pedidosComPagamentos.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => {
+    const data = new Date(pagamento.dataPagamento);
+    return data >= inicio && data < fim;
+  }).reduce((subtotal, pagamento) => subtotal + Number(pagamento.valorRecebido || 0), 0), 0);
+  return {
+    mes,
+    pedidos: pedidos.length,
+    receita,
+    entradas,
+    despesasPagas,
+    saldo: entradas - despesasPagas,
+    resultadoOperacional: receita - despesasPagas,
+  };
 };
 
 router.use(auth);
@@ -97,8 +131,7 @@ router.get('/fluxo-caixa', async (req, res) => {
   try {
     const mes = req.query.mes || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
     const [ano, mesNumero] = mes.split('-').map(Number);
-    const inicio = new Date(ano, mesNumero - 1, 1);
-    const fim = new Date(ano, mesNumero, 1);
+    const { inicio, fim } = getMesRange(mes);
 
     const [vendas, despesas] = await Promise.all([
       Order.find({ 'pagamentos.dataPagamento': { $gte: inicio, $lt: fim } }).lean(),
@@ -113,7 +146,7 @@ router.get('/fluxo-caixa', async (req, res) => {
         if (!pagamento.dataPagamento) continue;
         const data = new Date(pagamento.dataPagamento);
         if (data < inicio || data >= fim) continue;
-        const chave = data.toISOString().slice(0, 10);
+        const chave = chaveDataSaoPaulo(data);
         entradasPorDia.set(chave, (entradasPorDia.get(chave) || 0) + Number(pagamento.valorRecebido || 0));
       }
     }
@@ -128,7 +161,7 @@ router.get('/fluxo-caixa', async (req, res) => {
     const lista = [];
     const cursor = new Date(inicio);
     while (cursor < fim) {
-      const chave = cursor.toISOString().slice(0, 10);
+      const chave = chaveDataSaoPaulo(cursor);
       const entradas = entradasPorDia.get(chave) || 0;
       const saidas = saidasPorDia.get(chave) || 0;
       lista.push({
@@ -156,6 +189,22 @@ router.get('/fluxo-caixa', async (req, res) => {
       saldoDoMes: totalEntradas - totalSaidas,
       dados: fluxo,
     });
+  } catch (error) {
+    res.status(500).json({ msg: error.message });
+  }
+});
+
+router.get('/comparar-meses', async (req, res) => {
+  try {
+    const agora = new Date();
+    const mesAtual = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
+    const mesA = /^\d{4}-\d{2}$/.test(String(req.query.mesA || '')) ? req.query.mesA : mesAtual;
+    const anterior = new Date(`${mesA}-01T00:00:00-03:00`);
+    anterior.setUTCMonth(anterior.getUTCMonth() - 1);
+    const mesAnterior = `${anterior.getUTCFullYear()}-${String(anterior.getUTCMonth() + 1).padStart(2, '0')}`;
+    const mesB = /^\d{4}-\d{2}$/.test(String(req.query.mesB || '')) ? req.query.mesB : mesAnterior;
+    const [periodoA, periodoB] = await Promise.all([resumoComparativo(mesA), resumoComparativo(mesB)]);
+    res.json({ periodoA, periodoB });
   } catch (error) {
     res.status(500).json({ msg: error.message });
   }
