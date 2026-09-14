@@ -3,6 +3,8 @@ const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
+const Comanda = require('../models/Comanda');
+const { corrigirBolos } = require('../utils/corrigirBolos');
 
 const router = express.Router();
 const units = ['un', 'kg', 'g', 'l', 'ml'];
@@ -32,6 +34,13 @@ router.get('/mais-vendidos', auth, auth.allowRoles('admin', 'operador', 'garcom'
       { $limit: limite },
     ]);
     res.json(ranking.map((item) => ({ produtoId: item._id, quantidade: item.quantidade })));
+  } catch (err) { res.status(500).json({ msg: err.message }); }
+});
+
+router.post('/migracoes/corrigir-bolos-gramas', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const [pedidos, comandas] = await Promise.all([corrigirBolos(Order), corrigirBolos(Comanda)]);
+    res.json({ msg: 'Histórico de bolos corrigido.', itensCorrigidos: pedidos + comandas });
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
