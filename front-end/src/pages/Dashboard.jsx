@@ -180,7 +180,6 @@ export default function Dashboard() {
       .dashboard-page { color: var(--text-primary); }
       .dashboard-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:20px; }
       .dashboard-eyebrow { color:var(--accent-primary); font-size:10px; font-weight:800; letter-spacing:.1em; }
-      .dashboard-heading h1 { margin:4px 0; font-size:26px; font-family:var(--font-heading); color:var(--brand-brown); }
       .dashboard-heading p { margin:0; color:var(--text-secondary); font-size:13px; }
       .dashboard-open { padding:10px 13px; border:1px solid var(--accent-border); border-radius:10px; background:var(--accent-light); color:var(--accent-primary); font-size:12px; font-weight:800; }
       .dashboard-periods { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; }

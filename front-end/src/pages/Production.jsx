@@ -112,7 +112,6 @@ const styles = `
 .production-page { color:var(--text-primary); }
 .production-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:20px; }
 .production-eyebrow { color:var(--accent-primary); font-size:10px; font-weight:800; letter-spacing:.1em; }
-.production-heading h1 { margin:4px 0; font-size:26px; font-family:var(--font-heading); color:var(--brand-brown); }
 .production-heading p, .section-heading p { margin:0; color:var(--text-secondary); font-size:13px; }
 .production-kpi { display:grid; gap:2px; padding:12px 16px; border:1px solid var(--accent-border); border-radius:10px; background:var(--accent-light); text-align:right; }
 .production-kpi strong { color:var(--accent-primary); font-size:22px; }
