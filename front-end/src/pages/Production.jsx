@@ -200,26 +200,37 @@ const styles = `
 .possible-list h3 { margin-bottom:4px; }
 .possible-list div { display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border-light); font-size:12px; }
 .possible-list b { color:var(--accent-primary); white-space:nowrap; }
-.cost-calculator { display:grid; gap:16px; }
-.cost-step, .cost-result { padding:16px; border:1px solid var(--border-light); border-radius:12px; background:var(--bg-tertiary); }
-.cost-step h3, .cost-result h3 { margin:0 0 12px; color:var(--text-primary); font-size:15px; }
-.cost-ingredient-list { display:grid; gap:8px; }
-.cost-ingredient-row { display:grid; grid-template-columns:minmax(0,1fr) 130px 80px auto; align-items:center; gap:8px; padding:9px 0; border-bottom:1px solid var(--border-light); }
+.cost-calculator { display:grid; gap:0; padding:20px; }
+.cost-calculator > .section-heading { margin-bottom:0; padding-bottom:18px; border-bottom:1px solid var(--border-light); }
+.cost-calculator > .section-heading h2 { font-size:20px; }
+.cost-step, .cost-result { padding:20px 0; border:0; border-bottom:1px solid var(--border-light); border-radius:0; background:transparent; }
+.cost-step h3, .cost-result h3 { margin:0 0 14px; color:var(--text-primary); font-size:14px; }
+.cost-step h3::first-letter { color:var(--accent-primary); }
+.cost-ingredient-list { display:grid; gap:0; border:1px solid var(--border-color); border-radius:10px; overflow:hidden; background:var(--bg-secondary); }
+.cost-ingredient-row { display:grid; grid-template-columns:minmax(0,1fr) 150px 92px 86px; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--border-light); }
+.cost-ingredient-row:last-child { border-bottom:0; }
+.cost-ingredient-row:hover { background:var(--bg-tertiary); }
 .cost-ingredient-row span { display:grid; gap:3px; color:var(--text-primary); font-size:13px; }
 .cost-ingredient-row small { color:var(--text-secondary); font-size:11px; }
-.cost-ingredient-row input, .cost-ingredient-row select, .apply-price input { min-height:38px; box-sizing:border-box; width:100%; padding:8px 9px; border:1px solid var(--border-color); border-radius:8px; background:var(--input-bg); color:var(--input-text); }
-.cost-alert { padding:12px; border:1px solid var(--warning-bg); border-radius:10px; background:rgba(217,119,6,.1); color:var(--text-primary); font-size:12px; }
+.cost-ingredient-row input, .cost-ingredient-row select, .apply-price input { min-height:40px; box-sizing:border-box; width:100%; padding:8px 10px; border:1px solid var(--border-color); border-radius:8px; background:var(--input-bg); color:var(--input-text); font:inherit; }
+.cost-ingredient-row .secondary { min-height:40px; padding:8px 10px; }
+.cost-alert { margin-top:12px; padding:12px 14px; border:1px solid var(--warning-bg); border-left:4px solid var(--warning-bg); border-radius:8px; background:rgba(217,119,6,.08); color:var(--text-primary); font-size:12px; }
+.cost-alert strong { display:block; margin-bottom:5px; color:var(--warning-bg); }
 .cost-alert div { margin-top:5px; }
+.cost-result { border-bottom:0; padding-bottom:0; }
 .cost-result-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
-.cost-result-grid > div { display:grid; gap:5px; padding:12px; border:1px solid var(--border-light); border-radius:10px; }
+.cost-result-grid > div { display:grid; align-content:center; gap:6px; min-height:78px; padding:12px 14px; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-secondary); }
 .cost-result-grid small { color:var(--text-secondary); font-size:11px; }
-.cost-result-grid strong { color:var(--accent-primary); font-size:15px; }
+.cost-result-grid strong { color:var(--text-primary); font-size:15px; line-height:1.35; }
 .cost-result-grid .cost-highlight { border-color:var(--accent-primary); background:var(--accent-light); }
-.cost-result-grid .cost-highlight strong { font-size:22px; }
-.apply-price { display:grid; grid-template-columns:1fr auto; gap:10px; margin-top:14px; }
-.history-row { padding:7px 0; border-bottom:1px solid var(--border-light); color:var(--text-secondary); font-size:11px; }
+.cost-result-grid .cost-highlight small, .cost-result-grid .cost-highlight strong { color:var(--accent-primary); }
+.cost-result-grid .cost-highlight strong { font-size:24px; }
+.apply-price { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; margin-top:16px; padding-top:16px; border-top:1px solid var(--border-light); }
+.apply-price .primary { min-height:40px; white-space:nowrap; }
+.cost-result h4 { margin:20px 0 8px; color:var(--text-secondary); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
+.history-row { padding:9px 0; border-bottom:1px solid var(--border-light); color:var(--text-secondary); font-size:11px; }
 .empty { color:var(--text-secondary); font-size:13px; }
 @media (max-width:640px) { .production-heading { align-items:flex-start; flex-direction:column; } .production-header-actions { width:100%; flex-wrap:wrap; } .production-alert, .production-kpi { flex:1; } .production-kpi { box-sizing:border-box; text-align:left; } .form-grid, .ingredient-row { grid-template-columns:1fr; } .ingredient-row .icon-button { width:100%; } }
 @media (max-width:900px) { .cost-result-grid { grid-template-columns:repeat(2,1fr); } }
-@media (max-width:640px) { .cost-ingredient-row, .apply-price { grid-template-columns:1fr; } .cost-result-grid { grid-template-columns:1fr; } }
+@media (max-width:640px) { .cost-calculator { padding:16px; } .cost-ingredient-row, .apply-price { grid-template-columns:1fr; } .cost-result-grid { grid-template-columns:1fr; } .apply-price .primary { width:100%; } }
 `;
