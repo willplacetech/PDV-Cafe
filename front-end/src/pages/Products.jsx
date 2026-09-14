@@ -98,7 +98,7 @@ export default function Products() {
     if (!window.confirm('Corrigir o histórico de bolos registrados em gramas para quilogramas? O valor das vendas será preservado.')) return;
     try {
       const response = await api.post('/products/migracoes/corrigir-bolos-gramas');
-      showToast(`${response.data.itensCorrigidos} item(ns) histórico(s) corrigido(s).`, 'success');
+      showToast(`${response.data.produtosCorrigidos || 0} produto(s) e ${response.data.itensCorrigidos || 0} item(ns) histórico(s) corrigidos.`, 'success');
     } catch (err) {
       showToast(err.response?.data?.msg || 'Não foi possível corrigir o histórico.', 'error');
     }
@@ -125,7 +125,7 @@ export default function Products() {
           <p>Gerencie seu catálogo de produtos</p>
         </div>
         <button type="button" onClick={corrigirHistoricoBolos} style={{ padding: '10px 14px', border: '1px solid var(--accent-border)', borderRadius: 10, background: 'var(--accent-light)', color: 'var(--accent-primary)', fontWeight: 700, cursor: 'pointer' }}>
-          Corrigir histórico de bolos
+          Corrigir bolos do catálogo e histórico
         </button>
       </div>
 

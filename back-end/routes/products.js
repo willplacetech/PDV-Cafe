@@ -4,7 +4,7 @@ const auth = require('../middleware/auth');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
-const { corrigirBolos } = require('../utils/corrigirBolos');
+const { corrigirBolos, corrigirProdutosBolo } = require('../utils/corrigirBolos');
 const HistoricoCusto = require('../models/HistoricoCusto');
 
 const router = express.Router();
@@ -40,8 +40,8 @@ router.get('/mais-vendidos', auth, auth.allowRoles('admin', 'operador', 'garcom'
 
 router.post('/migracoes/corrigir-bolos-gramas', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
-    const [pedidos, comandas] = await Promise.all([corrigirBolos(Order), corrigirBolos(Comanda)]);
-    res.json({ msg: 'Histórico de bolos corrigido.', itensCorrigidos: pedidos + comandas });
+    const [pedidos, comandas, produtos] = await Promise.all([corrigirBolos(Order), corrigirBolos(Comanda), corrigirProdutosBolo(Product)]);
+    res.json({ msg: 'Catálogo e histórico de bolos corrigidos.', itensCorrigidos: pedidos + comandas, produtosCorrigidos: produtos });
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
