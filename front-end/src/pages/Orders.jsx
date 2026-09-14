@@ -87,9 +87,11 @@ export default function Orders() {
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px', color: 'var(--text-primary)' }}>📋 Histórico de Pedidos</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>Acompanhe todas as vendas realizadas</p>
+      <div className="page-heading">
+        <div>
+          <h1>📋 Histórico de Pedidos</h1>
+          <p>Acompanhe todas as vendas realizadas</p>
+        </div>
       </div>
 
       {/* FILTRO DE STATUS */}

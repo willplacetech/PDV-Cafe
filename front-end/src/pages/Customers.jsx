@@ -128,9 +128,11 @@ export default function Customers() {
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px', color: 'var(--text-primary)' }}>👤 Cadastro de Clientes</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>Gerencie sua base de clientes</p>
+      <div className="page-heading">
+        <div>
+          <h1>👤 Cadastro de Clientes</h1>
+          <p>Gerencie sua base de clientes</p>
+        </div>
       </div>
 
 

@@ -6,13 +6,13 @@ import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 
 
 const corCategoria = {
-  'Bebidas Quentes': { bg: 'rgba(169,79,43,.14)', txt: '#8f3f20', border: 'rgba(169,79,43,.3)' },
-  'Bebidas geladas': { bg: 'rgba(61,139,140,.14)', txt: '#267477', border: 'rgba(61,139,140,.3)' },
-  Salgados: { bg: 'rgba(210,137,48,.16)', txt: '#9a6417', border: 'rgba(210,137,48,.3)' },
-  Doces: { bg: 'rgba(190,104,120,.14)', txt: '#9d4e61', border: 'rgba(190,104,120,.3)' },
-  'Café da manhã': { bg: 'rgba(126,157,107,.16)', txt: '#547642', border: 'rgba(126,157,107,.3)' },
-  Insumos: { bg: 'rgba(117,93,69,.14)', txt: '#73583f', border: 'rgba(117,93,69,.3)' },
-  Outros: { bg: 'rgba(100,116,139,.12)', txt: '#64748b', border: 'rgba(100,116,139,.25)' }
+  'Bebidas Quentes': { bg: 'var(--category-hot-bg)', txt: 'var(--category-hot-text)', border: 'var(--category-hot-border)' },
+  'Bebidas geladas': { bg: 'var(--category-cold-bg)', txt: 'var(--category-cold-text)', border: 'var(--category-cold-border)' },
+  Salgados: { bg: 'var(--category-savory-bg)', txt: 'var(--category-savory-text)', border: 'var(--category-savory-border)' },
+  Doces: { bg: 'var(--category-sweet-bg)', txt: 'var(--category-sweet-text)', border: 'var(--category-sweet-border)' },
+  'Café da manhã': { bg: 'var(--category-breakfast-bg)', txt: 'var(--category-breakfast-text)', border: 'var(--category-breakfast-border)' },
+  Insumos: { bg: 'var(--category-supply-bg)', txt: 'var(--category-supply-text)', border: 'var(--category-supply-border)' },
+  Outros: { bg: 'var(--category-other-bg)', txt: 'var(--category-other-text)', border: 'var(--category-other-border)' }
 };
 
 const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Salgados', 'Doces', 'Bebidas geladas', 'Café da manhã'];
@@ -312,9 +312,11 @@ Obrigado pela preferência! 🙏`
   return (
     <div>
       {/* Cabeçalho PDV */}
-      <div className="pdv-header-desktop" style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px', color: 'var(--text-primary)' }}>☕ Atendimento</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>Monte o pedido e abra uma comanda.</p>
+      <div className="pdv-header-desktop page-heading">
+        <div>
+          <h1>☕ Atendimento</h1>
+          <p>Monte o pedido e abra uma comanda.</p>
+        </div>
       </div>
       <button type="button" className="pdv-mobile-cart-trigger" onClick={() => setMobileCartOpen(true)}>
         <span>🛒 Carrinho</span>
@@ -622,7 +624,7 @@ Obrigado pela preferência! 🙏`
                 fontSize: 14, fontWeight: 700, cursor: 'pointer', minHeight: 48
               }}>🛒 Iniciar Nova Venda</button>
               <button onClick={() => setModalSucesso(null)} style={{
-                width: '100%', padding: '10px', background: 'transparent', color: '#64748b',
+                width: '100%', padding: '10px', background: 'transparent', color: 'var(--text-secondary)',
                 border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500,
                 cursor: 'pointer', minHeight: 36
               }}>Fechar</button>

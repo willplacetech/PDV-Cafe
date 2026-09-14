@@ -100,9 +100,11 @@ export default function Products() {
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px', color: 'var(--text-primary)' }}>📦 Cadastro de Produtos</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>Gerencie seu catálogo de produtos</p>
+      <div className="page-heading">
+        <div>
+          <h1>📦 Cadastro de Produtos</h1>
+          <p>Gerencie seu catálogo de produtos</p>
+        </div>
       </div>
 
 
@@ -271,13 +273,13 @@ export default function Products() {
 
 
 const corCategoria = {
-  'Bebidas Quentes': { bg: 'rgba(169,79,43,.14)', txt: '#8f3f20' },
-  'Bebidas geladas': { bg: 'rgba(61,139,140,.14)', txt: '#267477' },
-  Salgados: { bg: 'rgba(210,137,48,.16)', txt: '#9a6417' },
-  Doces: { bg: 'rgba(190,104,120,.14)', txt: '#9d4e61' },
-  'Café da manhã': { bg: 'rgba(126,157,107,.16)', txt: '#547642' },
-  Insumos: { bg: 'rgba(117,93,69,.14)', txt: '#73583f' },
-  Outros: { bg: 'rgba(100,116,139,.12)', txt: '#64748b' }
+  'Bebidas Quentes': { bg: 'var(--category-hot-bg)', txt: 'var(--category-hot-text)' },
+  'Bebidas geladas': { bg: 'var(--category-cold-bg)', txt: 'var(--category-cold-text)' },
+  Salgados: { bg: 'var(--category-savory-bg)', txt: 'var(--category-savory-text)' },
+  Doces: { bg: 'var(--category-sweet-bg)', txt: 'var(--category-sweet-text)' },
+  'Café da manhã': { bg: 'var(--category-breakfast-bg)', txt: 'var(--category-breakfast-text)' },
+  Insumos: { bg: 'var(--category-supply-bg)', txt: 'var(--category-supply-text)' },
+  Outros: { bg: 'var(--category-other-bg)', txt: 'var(--category-other-text)' }
 };
 
 

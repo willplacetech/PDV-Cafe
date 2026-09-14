@@ -91,7 +91,7 @@ export default function Production() {
   };
 
   return <div className="production-page">
-    <header className="production-heading"><div><span className="production-eyebrow">GESTÃO DE INSUMOS</span><h1>Produção</h1><p>Controle ingredientes, receitas e produtos produzidos na casa.</p></div><div className="production-kpi"><strong>{productionDashboard?.receitasPossiveis?.filter((recipe) => recipe.producoesPossiveis > 0).length || 0}</strong><span>receitas possíveis</span></div></header>
+    <header className="production-heading page-heading"><div><span className="production-eyebrow">GESTÃO DE INSUMOS</span><h1>Produção</h1><p>Controle ingredientes, receitas e produtos produzidos na casa.</p></div><div className="production-kpi"><strong>{productionDashboard?.receitasPossiveis?.filter((recipe) => recipe.producoesPossiveis > 0).length || 0}</strong><span>receitas possíveis</span></div></header>
     <nav className="production-tabs" aria-label="Seções da produção">
       {[['estoque', 'Estoque de insumos'], ['receitas', 'Receitas'], ['produzir', 'Nova produção'], ['transferir', 'Transferências']].map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}</button>)}
     </nav>
@@ -110,7 +110,7 @@ export default function Production() {
 
 const styles = `
 .production-page { color:var(--text-primary); }
-.production-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:18px; }
+.production-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:20px; }
 .production-eyebrow { color:var(--accent-primary); font-size:10px; font-weight:800; letter-spacing:.1em; }
 .production-heading h1 { margin:4px 0; font-size:26px; font-family:var(--font-heading); color:var(--brand-brown); }
 .production-heading p, .section-heading p { margin:0; color:var(--text-secondary); font-size:13px; }

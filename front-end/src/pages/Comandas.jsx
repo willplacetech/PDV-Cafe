@@ -251,7 +251,7 @@ export default function Comandas() {
 
   return (
     <div className="comandas-page">
-      <div className="page-heading"><h1>☕ Comandas</h1><p>Abra comandas, lance consumos e feche no caixa.</p></div>
+      <div className="page-heading"><div><h1>☕ Comandas</h1><p>Abra comandas, lance consumos e feche no caixa.</p></div></div>
       <form onSubmit={create} className="comandas-open-form">
         <input className="comandas-field" placeholder="Nome do cliente" value={newCommand.clienteNome} onChange={(e) => setNewCommand({ ...newCommand, clienteNome: e.target.value })} />
         <input className="comandas-field" placeholder="Observação" value={newCommand.observacao} onChange={(e) => setNewCommand({ ...newCommand, observacao: e.target.value })} />
@@ -527,7 +527,6 @@ export default function Comandas() {
       <style>{`
         .comandas-page { width: 100%; max-width: 1180px; margin: 0 auto; }
         .page-heading { margin-bottom: 20px; }
-        .page-heading h1 { margin: 0 0 4px; font-size: 22px; color: var(--text-primary); }
         .page-heading p, .comandas-card-heading p { margin: 0; color: var(--text-secondary); font-size: 13px; }
         .comandas-open-form, .comandas-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 16px; box-shadow: var(--shadow-sm); }
         .comandas-open-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; padding: 18px; margin-bottom: 16px; }

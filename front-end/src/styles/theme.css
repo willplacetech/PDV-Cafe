@@ -45,6 +45,28 @@
   --input-border: #ddc9b5;
   --input-text: #38251d;
   --input-placeholder: #a99383;
+
+  --category-hot-bg: rgba(169, 79, 43, .14);
+  --category-hot-text: #8f3f20;
+  --category-hot-border: rgba(169, 79, 43, .30);
+  --category-cold-bg: rgba(61, 139, 140, .14);
+  --category-cold-text: #267477;
+  --category-cold-border: rgba(61, 139, 140, .30);
+  --category-savory-bg: rgba(210, 137, 48, .16);
+  --category-savory-text: #9a6417;
+  --category-savory-border: rgba(210, 137, 48, .30);
+  --category-sweet-bg: rgba(190, 104, 120, .14);
+  --category-sweet-text: #9d4e61;
+  --category-sweet-border: rgba(190, 104, 120, .30);
+  --category-breakfast-bg: rgba(126, 157, 107, .16);
+  --category-breakfast-text: #547642;
+  --category-breakfast-border: rgba(126, 157, 107, .30);
+  --category-supply-bg: rgba(117, 93, 69, .14);
+  --category-supply-text: #73583f;
+  --category-supply-border: rgba(117, 93, 69, .30);
+  --category-other-bg: rgba(100, 116, 139, .12);
+  --category-other-text: #64748b;
+  --category-other-border: rgba(100, 116, 139, .25);
 }
 
 /* ========================================
@@ -88,6 +110,28 @@
   --input-border: #624333;
   --input-text: #fff3df;
   --input-placeholder: #a98972;
+
+  --category-hot-bg: rgba(231, 163, 93, .18);
+  --category-hot-text: #f3c0aa;
+  --category-hot-border: rgba(231, 163, 93, .44);
+  --category-cold-bg: rgba(86, 174, 177, .18);
+  --category-cold-text: #a9dfe0;
+  --category-cold-border: rgba(86, 174, 177, .42);
+  --category-savory-bg: rgba(229, 174, 80, .18);
+  --category-savory-text: #f0cd85;
+  --category-savory-border: rgba(229, 174, 80, .42);
+  --category-sweet-bg: rgba(214, 129, 151, .18);
+  --category-sweet-text: #efb5c2;
+  --category-sweet-border: rgba(214, 129, 151, .42);
+  --category-breakfast-bg: rgba(143, 189, 154, .18);
+  --category-breakfast-text: #c5dfb7;
+  --category-breakfast-border: rgba(143, 189, 154, .42);
+  --category-supply-bg: rgba(217, 189, 161, .16);
+  --category-supply-text: #e9d0b8;
+  --category-supply-border: rgba(217, 189, 161, .34);
+  --category-other-bg: rgba(166, 184, 204, .16);
+  --category-other-text: #c6d2df;
+  --category-other-border: rgba(166, 184, 204, .34);
 }
 
 /* ========================================
@@ -229,6 +273,39 @@ button:hover {
 
 button:active {
   transform: scale(0.98);
+}
+
+/* Estrutura visual compartilhada pelas telas do sistema */
+.page-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  color: var(--text-primary);
+}
+
+.page-heading h1 {
+  margin: 4px 0;
+  color: var(--brand-brown);
+  font: 700 26px var(--font-heading);
+}
+
+.page-heading p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.page-heading > div:first-child {
+  min-width: 0;
+}
+
+@media (max-width: 520px) {
+  .page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 /* Cards */

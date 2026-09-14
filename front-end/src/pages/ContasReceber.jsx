@@ -584,8 +584,12 @@ Obrigado! 🙏`
 
   return (
     <div>
-      <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px', color: 'var(--text-primary)' }}>📊 Contas a Receber</h1>
-      <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 20px' }}>Acerto de pendências por cliente</p>
+      <div className="page-heading">
+        <div>
+          <h1>📊 Contas a Receber</h1>
+          <p>Acerto de pendências por cliente</p>
+        </div>
+      </div>
 
       {/* FILTROS */}
       <div style={{
@@ -758,7 +762,7 @@ Obrigado! 🙏`
                   <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 8, padding: 10, marginBottom: 12 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Pagamentos:</div>
                     {pedido.pagamentos.map((pg, i) => (
-                      <div key={i} style={{ fontSize: 12, padding: '4px 0', borderTop: '1px solid #eee' }}>
+                      <div key={i} style={{ fontSize: 12, padding: '4px 0', borderTop: '1px solid var(--border-light)' }}>
                         {pg.dataPagamento ? new Date(pg.dataPagamento).toLocaleDateString('pt-BR') : '-'}
                         {' • '}{formaPagamentoLabel[pg.tipo] || pg.tipo}
                         {' • '}<strong>R$ {parseFloat(pg.valorRecebido).toFixed(2).replace('.',',')}</strong>
