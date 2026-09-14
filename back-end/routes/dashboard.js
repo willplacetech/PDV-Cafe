@@ -4,6 +4,7 @@ const Comanda = require('../models/Comanda');
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
 const auth = require('../middleware/auth');
+const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
 
 const router = express.Router();
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -88,7 +89,7 @@ router.get('/historico-produtos', async (req, res) => {
       const ponto = pontos.get(chave);
       if (!ponto) return;
       (pedido.itens || []).filter((item) => !produtoId || String(item.produtoId) === produtoId).forEach((item) => {
-        ponto.quantidade += Number(item.quantidade || 0);
+        ponto.quantidade += quantidadeNaUnidadeBase(item);
         ponto.total += Number(item.quantidade || 0) * Number(item.precoUnitario || 0);
         ponto.pedidos.add(String(pedido._id));
       });
@@ -109,9 +110,9 @@ router.get('/', async (req, res) => {
       Promise.all(periodos.map(async (periodo) => {
         const pedidos = await Order.find({ createdAt: { $gte: inicioDoPeriodo(periodo) }, status: { $ne: 'cancelado' } }).select('total itens createdAt');
         const total = pedidos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
-        const itens = pedidos.reduce((sum, pedido) => sum + (pedido.itens || []).reduce((itemSum, item) => itemSum + Number(item.quantidade || 0), 0), 0);
+        const itens = pedidos.reduce((sum, pedido) => sum + (pedido.itens || []).reduce((itemSum, item) => itemSum + quantidadeNaUnidadeBase(item), 0), 0);
         const produtos = new Map();
-        pedidos.forEach((pedido) => (pedido.itens || []).forEach((item) => produtos.set(item.nome, (produtos.get(item.nome) || 0) + Number(item.quantidade || 0))));
+        pedidos.forEach((pedido) => (pedido.itens || []).forEach((item) => produtos.set(item.nome, (produtos.get(item.nome) || 0) + quantidadeNaUnidadeBase(item))));
         const maisVendidos = [...produtos.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([nome, quantidade]) => ({ nome, quantidade }));
         return { periodo, total, pedidos: pedidos.length, itens, ticketMedio: pedidos.length ? total / pedidos.length : 0, maisVendidos };
       })),
@@ -128,7 +129,7 @@ router.get('/', async (req, res) => {
     ]);
     const vendasHoje = pedidosDia.filter((pedido) => pedido.status !== 'cancelado');
     const vendasHojeTotal = vendasHoje.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
-    const vendasHojeItens = vendasHoje.reduce((total, pedido) => total + (pedido.itens || []).reduce((itens, item) => itens + Number(item.quantidade || 0), 0), 0);
+    const vendasHojeItens = vendasHoje.reduce((total, pedido) => total + (pedido.itens || []).reduce((itens, item) => itens + quantidadeNaUnidadeBase(item), 0), 0);
     const vendasHojeRecebido = recebimentosDia.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => new Date(pagamento.dataPagamento) >= inicioDoPeriodo('dia')).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0), 0);
     const vendasHojePendente = Math.max(0, vendasHojeTotal - vendasHojeRecebido);
     const vendasMes = pedidosMes.filter((pedido) => pedido.status !== 'cancelado');
@@ -142,7 +143,7 @@ router.get('/', async (req, res) => {
       vendasPorDia.set(dia, (vendasPorDia.get(dia) || 0) + Number(pedido.total || 0));
       (pedido.itens || []).forEach((item) => {
         const atual = produtosMes.get(item.nome) || { nome: item.nome, quantidade: 0, total: 0 };
-        atual.quantidade += Number(item.quantidade || 0);
+        atual.quantidade += quantidadeNaUnidadeBase(item);
         atual.total += Number(item.quantidade || 0) * Number(item.precoUnitario || 0);
         produtosMes.set(item.nome, atual);
       });
@@ -169,7 +170,7 @@ router.get('/', async (req, res) => {
       periodo: `${inicioDoPeriodo('mes').toLocaleDateString('pt-BR')} a ${new Date(fimDoMesAtual().getTime() - 1).toLocaleDateString('pt-BR')}`,
       pedidos: pedidosMes.length,
       vendas: vendasMes.length,
-      itens: vendasMes.reduce((total, pedido) => total + (pedido.itens || []).reduce((soma, item) => soma + Number(item.quantidade || 0), 0), 0),
+      itens: vendasMes.reduce((total, pedido) => total + (pedido.itens || []).reduce((soma, item) => soma + quantidadeNaUnidadeBase(item), 0), 0),
       total: totalMes,
       recebido: recebidoMes,
       pendente: Math.max(0, totalMes - recebidoMes),
@@ -195,10 +196,10 @@ router.get('/', async (req, res) => {
         const produtoId = String(item.produtoId || '');
         if (new Date(pedido.createdAt) >= inicioEstoqueParado) vendasUltimos60Dias.add(produtoId);
         const atual = vendasPorProduto.get(produtoId) || { produtoId, nome: item.nome, quantidade: 0, receita: 0 };
-        atual.quantidade += Number(item.quantidade || 0);
+        atual.quantidade += quantidadeNaUnidadeBase(item);
         atual.receita += Number(item.quantidade || 0) * Number(item.precoUnitario || 0);
         vendasPorProduto.set(produtoId, atual);
-        vendaHora.itens += Number(item.quantidade || 0);
+        vendaHora.itens += quantidadeNaUnidadeBase(item);
       });
     });
     const produtosABC = [...vendasPorProduto.values()].sort((a, b) => b.receita - a.receita);

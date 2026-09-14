@@ -174,13 +174,6 @@ export default function Financeiro() {
                 <span className="dashboard-eyebrow">CONTROLE DE DESPESAS</span>
                 <h2>Despesas</h2>
               </div>
-              <button
-                type="button"
-                className="dashboard-toggle-button"
-                onClick={() => document.getElementById('nova-despesa')?.scrollIntoView({ behavior: 'smooth' })}
-              >
-                Nova Despesa
-              </button>
             </div>
 
             <div className="filters-grid">
@@ -361,7 +354,7 @@ export default function Financeiro() {
                 <span className="dashboard-eyebrow">DEMONSTRATIVO</span>
                 <h2>DRE / EBITDA</h2>
               </div>
-              <button type="button" className="dashboard-toggle-button" onClick={exportarCsv}>
+              <button type="button" className="financeiro-secondary-button" onClick={exportarCsv}>
                 Exportar CSV
               </button>
             </div>
@@ -596,6 +589,28 @@ export default function Financeiro() {
 
         .financeiro-submit-button:hover {
           filter: brightness(0.98);
+        }
+
+        .financeiro-secondary-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 42px;
+          padding: 10px 16px;
+          border: 1px solid var(--accent-border);
+          border-radius: 10px;
+          background: var(--accent-light);
+          color: var(--accent-primary);
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .financeiro-secondary-button:hover {
+          background: var(--bg-tertiary);
+          border-color: var(--accent-primary);
         }
 
         .bar-chart {

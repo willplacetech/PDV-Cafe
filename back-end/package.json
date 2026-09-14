@@ -4,6 +4,7 @@
   "description": "Backend PDV - Express/MongoDB",
   "main": "server.js",
   "scripts": {
+    "corrigir-bolos-gramas": "node scripts/corrigir-bolos-gramas.js",
     "start": "node server.js",
     "dev": "nodemon server.js"
   },

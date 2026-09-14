@@ -2,6 +2,7 @@ const express = require('express');
 const auth = require('../middleware/auth');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
 const Recipe = require('../models/Recipe');
 const Despesa = require('../models/Despesa');
 
@@ -38,7 +39,7 @@ router.get('/dre', async (req, res) => {
       receitaBruta += Number(pedido.total || 0);
       for (const item of pedido.itens || []) {
         const produtoId = String(item.produtoId || '');
-        const quantidade = Number(item.quantidade || 0);
+        const quantidade = quantidadeNaUnidadeBase(item);
         const recipe = produtoId ? await Recipe.findOne({ produtoId, ativa: true }).lean() : null;
         const produto = produtoId ? await Product.findById(produtoId).lean() : null;
         const custoUnitario = recipe?.custoUnitario || produto?.custoUnitario || produto?.custo || 0;

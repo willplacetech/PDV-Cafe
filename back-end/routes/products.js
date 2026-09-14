@@ -26,7 +26,8 @@ router.get('/mais-vendidos', auth, auth.allowRoles('admin', 'operador', 'garcom'
     const ranking = await Order.aggregate([
       { $match: { status: { $ne: 'cancelado' } } },
       { $unwind: '$itens' },
-      { $group: { _id: '$itens.produtoId', quantidade: { $sum: '$itens.quantidade' } } },
+      { $project: { produtoId: '$itens.produtoId', quantidade: { $cond: [{ $in: ['$itens.unidadeVenda', ['g', 'ml']] }, { $divide: ['$itens.quantidade', 1000] }, '$itens.quantidade'] } } },
+      { $group: { _id: '$produtoId', quantidade: { $sum: '$quantidade' } } },
       { $sort: { quantidade: -1 } },
       { $limit: limite },
     ]);
