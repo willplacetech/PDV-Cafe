@@ -20,9 +20,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('pdv_user');
-    localStorage.removeItem('pdv_token');
+    localStorage.clear();
     setUser(null);
+    location.reload();
   };
 
   return (
