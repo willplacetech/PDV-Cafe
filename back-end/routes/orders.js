@@ -69,6 +69,37 @@ router.get('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
+router.patch('/:id/alterar-comanda', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ msg: 'Pedido não encontrado' });
+    if (!['pendente', 'parcial'].includes(order.status)) return res.status(400).json({ msg: 'Somente pedidos em aberto podem ser movidos para outra comanda' });
+
+    const comandaId = req.body.comandaId;
+    if (!comandaId) return res.status(400).json({ msg: 'Informe a comanda de destino' });
+    if (!mongoose.isValidObjectId(comandaId)) return res.status(400).json({ msg: 'Comanda inválida' });
+
+    const novaComanda = await Comanda.findById(comandaId);
+    if (!novaComanda || novaComanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda de destino não está aberta' });
+
+    if (order.comandaId && String(order.comandaId) !== String(comandaId)) {
+      const comandaAnterior = await Comanda.findById(order.comandaId);
+      if (comandaAnterior && String(comandaAnterior._id) !== String(comandaId)) {
+        comandaAnterior.pedidoId = undefined;
+        await comandaAnterior.save();
+      }
+    }
+
+    order.comandaId = comandaId;
+    novaComanda.pedidoId = order._id;
+    await Promise.all([order.save(), novaComanda.save()]);
+
+    res.json(order);
+  } catch (err) {
+    res.status(400).json({ msg: err.message });
+  }
+});
+
 router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req, res) => {
   const session = await mongoose.startSession();
   try {

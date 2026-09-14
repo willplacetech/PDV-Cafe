@@ -3,13 +3,21 @@ import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
 
-const categorias = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Café da manhã', 'Insumos', 'Outros'];
+const categorias = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Insumos', 'Outros'];
 
 
 export default function Products() {
   const [produtos, setProdutos] = useState([]);
   const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', custo: '', estoque: '', estoqueInsumos: '', estoqueMinimoInsumos: '', unidadeVenda: 'un', vendidoFracionado: false, aFazer: false, fichaTecnica: [], producaoPropria: false, controladoComoInsumo: false };
   const [form, setForm] = useState(vazio);
+
+  const handleCategoriaChange = (categoria) => {
+    setForm((prev) => ({
+      ...prev,
+      categoria,
+      controladoComoInsumo: categoria === 'Insumos' ? true : prev.controladoComoInsumo,
+    }));
+  };
   const [editing, setEditing] = useState(null);
   const [filtro, setFiltro] = useState('');
   const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
@@ -141,10 +149,22 @@ export default function Products() {
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>Categoria</label>
-              <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })} style={inputStyle}>
+              <select value={form.categoria} onChange={e => handleCategoriaChange(e.target.value)} style={inputStyle}>
                 {categorias.map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 48, color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700, gridColumn: 'span 1' }}>
+              <input
+                type="checkbox"
+                checked={form.categoria === 'Insumos' || form.controladoComoInsumo}
+                disabled={form.categoria === 'Insumos'}
+                onChange={(e) => setForm((prev) => ({
+                  ...prev,
+                  controladoComoInsumo: prev.categoria === 'Insumos' ? true : e.target.checked,
+                }))}
+              />
+              {form.categoria === 'Insumos' ? 'Automático: controlar também como insumo' : 'Controlar também como insumo'}
+            </label>
             <div>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>Preço (R$) *</label>
               <input type="number" step="0.01" min={0} placeholder="0.00" value={form.preco} required
@@ -193,10 +213,6 @@ export default function Products() {
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 48, color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>
               <input type="checkbox" checked={form.producaoPropria} onChange={e => setForm({ ...form, producaoPropria: e.target.checked })} />
               Produto de produção própria
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 48, color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>
-              <input type="checkbox" checked={form.controladoComoInsumo} onChange={e => setForm({ ...form, controladoComoInsumo: e.target.checked })} />
-              Controlar também como insumo
             </label>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
@@ -277,7 +293,6 @@ const corCategoria = {
   'Bebidas geladas': { bg: 'var(--category-cold-bg)', txt: 'var(--category-cold-text)' },
   Salgados: { bg: 'var(--category-savory-bg)', txt: 'var(--category-savory-text)' },
   Doces: { bg: 'var(--category-sweet-bg)', txt: 'var(--category-sweet-text)' },
-  'Café da manhã': { bg: 'var(--category-breakfast-bg)', txt: 'var(--category-breakfast-text)' },
   Insumos: { bg: 'var(--category-supply-bg)', txt: 'var(--category-supply-text)' },
   Outros: { bg: 'var(--category-other-bg)', txt: 'var(--category-other-text)' }
 };
