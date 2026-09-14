@@ -44,8 +44,10 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
+      // Remove credenciais e dados persistidos de versões anteriores antes de autenticar novamente.
+      localStorage.clear();
       await login(form.username.trim().toLowerCase(), form.password);
-      showToast('Bem-vindo!', 'success');
+      window.location.reload();
     } catch (err) {
       const mensagem = err.response?.data?.msg || 'Usuário ou senha inválidos';
       showToast(mensagem, 'error');
