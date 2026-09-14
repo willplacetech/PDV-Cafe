@@ -6,6 +6,31 @@ const Product = require('../models/Product');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
+const TIME_ZONE = 'America/Sao_Paulo';
+
+const partesDataSaoPaulo = (value = new Date()) => {
+  const partes = new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(value));
+  const valores = Object.fromEntries(partes.filter((parte) => parte.type !== 'literal').map((parte) => [parte.type, parte.value]));
+  return { year: Number(valores.year), month: Number(valores.month), day: Number(valores.day) };
+};
+
+const dataSaoPaulo = (value = new Date()) => {
+  const { year, month, day } = partesDataSaoPaulo(value);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+const inicioHojeSaoPaulo = () => new Date(`${dataSaoPaulo()}T00:00:00-03:00`);
+const horaSaoPaulo = (value) => Number(new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, hour: '2-digit', hourCycle: 'h23' }).format(new Date(value)));
+
+const periodoHistorico = (periodo) => {
+  const hoje = inicioHojeSaoPaulo();
+  const fim = new Date(hoje);
+  fim.setUTCDate(fim.getUTCDate() + 1);
+  const inicio = new Date(hoje);
+  if (periodo === 'semana') inicio.setUTCDate(inicio.getUTCDate() - inicio.getUTCDay());
+  if (periodo === 'mes') inicio.setUTCDate(1);
+  return { inicio, fim };
+};
 
 const inicioDoPeriodo = (periodo) => {
   const agora = new Date();
@@ -41,6 +66,45 @@ router.use(auth);
 router.use((req, res, next) => {
   if (req.user.role !== 'admin') return res.status(403).json({ msg: 'Acesso restrito ao administrador' });
   next();
+});
+
+router.get('/historico-produtos', async (req, res) => {
+  try {
+    const periodo = ['dia', 'semana', 'mes'].includes(req.query.periodo) ? req.query.periodo : 'dia';
+    const produtoId = String(req.query.produtoId || '').trim();
+    const { inicio, fim } = periodoHistorico(periodo);
+    const pontos = new Map();
+
+    if (periodo === 'dia') {
+      for (let hora = 8; hora <= 19; hora += 1) pontos.set(String(hora), { chave: String(hora), rotulo: `${String(hora).padStart(2, '0')}h`, quantidade: 0, total: 0, pedidos: new Set() });
+    } else {
+      const cursor = new Date(inicio);
+      while (cursor < fim) {
+        const chave = dataSaoPaulo(cursor);
+        const rotulo = periodo === 'semana'
+          ? new Intl.DateTimeFormat('pt-BR', { timeZone: TIME_ZONE, weekday: 'short', day: '2-digit' }).format(cursor).replace('.', '')
+          : new Intl.DateTimeFormat('pt-BR', { timeZone: TIME_ZONE, day: '2-digit', month: '2-digit' }).format(cursor);
+        pontos.set(chave, { chave, rotulo, quantidade: 0, total: 0, pedidos: new Set() });
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+    }
+
+    const pedidos = await Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $ne: 'cancelado' } }).select('_id createdAt itens');
+    pedidos.forEach((pedido) => {
+      const chave = periodo === 'dia' ? String(horaSaoPaulo(pedido.createdAt)) : dataSaoPaulo(pedido.createdAt);
+      const ponto = pontos.get(chave);
+      if (!ponto) return;
+      (pedido.itens || []).filter((item) => !produtoId || String(item.produtoId) === produtoId).forEach((item) => {
+        ponto.quantidade += Number(item.quantidade || 0);
+        ponto.total += Number(item.quantidade || 0) * Number(item.precoUnitario || 0);
+        ponto.pedidos.add(String(pedido._id));
+      });
+    });
+
+    const historico = [...pontos.values()].map(({ pedidos, ...ponto }) => ({ ...ponto, pedidos: pedidos.size }));
+    const resumo = historico.reduce((total, ponto) => ({ quantidade: total.quantidade + ponto.quantidade, total: total.total + ponto.total, pedidos: total.pedidos + ponto.pedidos }), { quantidade: 0, total: 0, pedidos: 0 });
+    res.json({ periodo, produtoId: produtoId || null, inicio, fim, resumo, pontos: historico });
+  } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
 router.get('/', async (req, res) => {
@@ -127,11 +191,13 @@ router.get('/', async (req, res) => {
     const inicioEstoqueParado = new Date();
     inicioEstoqueParado.setDate(inicioEstoqueParado.getDate() - 60);
     const vendasUltimos60Dias = new Set();
-    const vendasPorHora = Array.from({ length: 24 }, (_, hora) => ({ hora, pedidos: 0, itens: 0, total: 0 }));
+    const vendasPorHora = Array.from({ length: 12 }, (_, indice) => ({ hora: indice + 8, pedidos: 0, itens: 0, total: 0 }));
     pedidosInsights.filter((pedido) => pedido.status !== 'cancelado').forEach((pedido) => {
-      const hora = new Date(pedido.createdAt).getHours();
-      vendasPorHora[hora].pedidos += 1;
-      vendasPorHora[hora].total += Number(pedido.total || 0);
+      const hora = horaSaoPaulo(pedido.createdAt);
+      if (hora < 8 || hora > 19) return;
+      const vendaHora = vendasPorHora[hora - 8];
+      vendaHora.pedidos += 1;
+      vendaHora.total += Number(pedido.total || 0);
       (pedido.itens || []).forEach((item) => {
         const produtoId = String(item.produtoId || '');
         if (new Date(pedido.createdAt) >= inicioEstoqueParado) vendasUltimos60Dias.add(produtoId);
@@ -139,7 +205,7 @@ router.get('/', async (req, res) => {
         atual.quantidade += Number(item.quantidade || 0);
         atual.receita += Number(item.quantidade || 0) * Number(item.precoUnitario || 0);
         vendasPorProduto.set(produtoId, atual);
-        vendasPorHora[hora].itens += Number(item.quantidade || 0);
+        vendaHora.itens += Number(item.quantidade || 0);
       });
     });
     const produtosABC = [...vendasPorProduto.values()].sort((a, b) => b.receita - a.receita);
