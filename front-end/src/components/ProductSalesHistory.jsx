@@ -2,12 +2,23 @@ import { useEffect, useState } from 'react';
 import api from '../services/api.jsx';
 
 const quantity = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
-const periodLabels = { dia: 'Dia', semana: 'Semana', mes: 'Mês' };
+const isoDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const mondayOf = (value) => {
+  const date = new Date(`${value || isoDate(new Date())}T12:00:00`);
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  return isoDate(date);
+};
+const weekRange = (weekStart) => {
+  const start = new Date(`${weekStart}T12:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  return `${start.toLocaleDateString('pt-BR')} a ${end.toLocaleDateString('pt-BR')}`;
+};
 
 export default function ProductSalesHistory({ products, topProducts = [] }) {
   const [open, setOpen] = useState(false);
   const [productId, setProductId] = useState('');
-  const [period, setPeriod] = useState('dia');
+  const [weekStart, setWeekStart] = useState(() => mondayOf());
   const [history, setHistory] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -17,12 +28,12 @@ export default function ProductSalesHistory({ products, topProducts = [] }) {
     let active = true;
     setLoading(true);
     setError('');
-    api.get('/dashboard/historico-produtos', { params: { periodo: period, ...(productId ? { produtoId: productId } : {}) } })
+    api.get('/dashboard/historico-produtos', { params: { semanaInicio: weekStart, ...(productId ? { produtoId: productId } : {}) } })
       .then((response) => { if (active) setHistory(response.data); })
       .catch((requestError) => { if (active) setError(requestError.response?.data?.msg || 'Não foi possível carregar o histórico de vendas.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [open, period, productId]);
+  }, [open, weekStart, productId]);
 
   const salesRank = new Map(topProducts.map((product, index) => [product.nome, index]));
   const sortedProducts = [...products].sort((first, second) => {
@@ -39,8 +50,8 @@ export default function ProductSalesHistory({ products, topProducts = [] }) {
     <div className="dashboard-section-heading product-history-heading">
       <div>
         <span className="dashboard-eyebrow">HISTÓRICO DE VENDAS</span>
-        <h2>Vendas por produto e período</h2>
-        <p>{open ? 'Selecione o produto e o período para consultar quantidades vendidas e pedidos.' : 'Abra para consultar as quantidades vendidas por produto.'}</p>
+        <h2>Vendas por produto — semana completa</h2>
+        <p>{open ? `Gráfico de quantidades de ${weekRange(weekStart)}.` : 'Abra para consultar as quantidades vendidas por produto.'}</p>
       </div>
       <button type="button" className="product-history-toggle" onClick={() => setOpen((value) => !value)} aria-expanded={open}>{open ? 'Ocultar' : 'Consultar'}</button>
     </div>
@@ -52,10 +63,9 @@ export default function ProductSalesHistory({ products, topProducts = [] }) {
         </select>
       </label>
       <div className="product-history-period-control">
-        <span>Período</span>
-        <div className="product-history-periods" aria-label="Período do histórico">
-        {Object.entries(periodLabels).map(([value, label]) => <button type="button" className={period === value ? 'active' : ''} key={value} onClick={() => setPeriod(value)}>{label}</button>)}
-        </div>
+        <span>Semana completa</span>
+        <input type="date" value={weekStart} onChange={(event) => setWeekStart(mondayOf(event.target.value))} aria-label="Escolher semana" />
+        <small>{weekRange(weekStart)}</small>
       </div>
     </div>
     {loading ? <p className="product-history-message">Carregando histórico...</p> : error ? <p className="product-history-message">{error}</p> : <>
@@ -76,4 +86,4 @@ export default function ProductSalesHistory({ products, topProducts = [] }) {
   </section>;
 }
 
-const styles = `.product-sales-history{margin-top:24px;padding:18px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);box-shadow:var(--shadow-sm)}.product-history-heading{margin-bottom:0}.product-history-toggle{min-height:40px;padding:8px 13px;border:1px solid var(--accent-primary);border-radius:8px;background:var(--accent-primary);color:#fff;font:700 12px var(--font-body);cursor:pointer}.product-history-filters{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-top:14px;margin-bottom:14px}.product-history-filters label,.product-history-period-control{display:grid;gap:5px;min-width:min(100%,260px);color:var(--text-secondary);font-size:11px;font-weight:700}.product-history-filters select{min-height:40px;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;background:var(--input-bg);color:var(--input-text);font:inherit}.product-history-periods{display:flex;gap:6px}.product-history-periods button{min-height:40px;padding:8px 13px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-tertiary);color:var(--text-secondary);font:700 12px var(--font-body);cursor:pointer}.product-history-periods button.active{border-color:var(--accent-primary);background:var(--accent-primary);color:#fff}.product-history-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}.product-history-summary div{padding:11px;border:1px solid var(--border-light);border-radius:10px;background:var(--bg-tertiary)}.product-history-summary small,.product-history-summary b{display:block}.product-history-summary small,.product-history-message{color:var(--text-secondary);font-size:11px}.product-history-summary b{margin-top:5px;color:var(--accent-primary);font-size:16px}.product-history-list{display:grid;gap:8px}.product-history-point{display:grid;grid-template-columns:minmax(150px,1fr) minmax(80px,2fr) auto;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-light)}.product-history-point-title{display:grid;gap:3px}.product-history-point-title strong{color:var(--text-primary);font-size:12px}.product-history-point-title span{color:var(--text-secondary);font-size:11px}.product-history-bar{height:8px;overflow:hidden;border-radius:8px;background:var(--border-light)}.product-history-bar i{display:block;height:100%;border-radius:inherit;background:var(--accent-primary)}.product-history-point>b{color:var(--accent-primary);font-size:12px;white-space:nowrap}.product-history-message{margin:18px 0 0}@media(max-width:640px){.product-history-filters{align-items:stretch;flex-direction:column}.product-history-periods{width:100%}.product-history-periods button{flex:1}.product-history-summary{grid-template-columns:1fr}.product-history-point{grid-template-columns:1fr auto}.product-history-bar{grid-column:1 / -1;grid-row:2}}`;
+const styles = `.product-sales-history{margin-top:24px;padding:18px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);box-shadow:var(--shadow-sm)}.product-history-heading{margin-bottom:0}.product-history-toggle{min-height:40px;padding:8px 13px;border:1px solid var(--accent-primary);border-radius:8px;background:var(--accent-primary);color:#fff;font:700 12px var(--font-body);cursor:pointer}.product-history-filters{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-top:14px;margin-bottom:14px}.product-history-filters label,.product-history-period-control{display:grid;gap:5px;min-width:min(100%,260px);color:var(--text-secondary);font-size:11px;font-weight:700}.product-history-filters select,.product-history-period-control input{min-height:40px;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;background:var(--input-bg);color:var(--input-text);font:inherit}.product-history-period-control small{color:var(--accent-primary);font-size:11px}.product-history-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}.product-history-summary div{padding:11px;border:1px solid var(--border-light);border-radius:10px;background:var(--bg-tertiary)}.product-history-summary small,.product-history-summary b{display:block}.product-history-summary small,.product-history-message{color:var(--text-secondary);font-size:11px}.product-history-summary b{margin-top:5px;color:var(--accent-primary);font-size:16px}.product-history-list{display:grid;gap:8px}.product-history-point{display:grid;grid-template-columns:minmax(150px,1fr) minmax(80px,2fr) auto;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-light)}.product-history-point-title{display:grid;gap:3px}.product-history-point-title strong{color:var(--text-primary);font-size:12px}.product-history-point-title span{color:var(--text-secondary);font-size:11px}.product-history-bar{height:8px;overflow:hidden;border-radius:8px;background:var(--border-light)}.product-history-bar i{display:block;height:100%;border-radius:inherit;background:var(--accent-primary)}.product-history-point>b{color:var(--accent-primary);font-size:12px;white-space:nowrap}.product-history-message{margin:18px 0 0}@media(max-width:640px){.product-history-filters{align-items:stretch;flex-direction:column}.product-history-summary{grid-template-columns:1fr}.product-history-point{grid-template-columns:1fr auto}.product-history-bar{grid-column:1 / -1;grid-row:2}}`;

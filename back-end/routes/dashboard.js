@@ -22,13 +22,13 @@ const dataSaoPaulo = (value = new Date()) => {
 const inicioHojeSaoPaulo = () => new Date(`${dataSaoPaulo()}T00:00:00-03:00`);
 const horaSaoPaulo = (value) => Number(new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, hour: '2-digit', hourCycle: 'h23' }).format(new Date(value)));
 
-const periodoHistorico = (periodo) => {
-  const hoje = inicioHojeSaoPaulo();
-  const fim = new Date(hoje);
-  fim.setUTCDate(fim.getUTCDate() + 1);
-  const inicio = new Date(hoje);
-  if (periodo === 'semana') inicio.setUTCDate(inicio.getUTCDate() - inicio.getUTCDay());
-  if (periodo === 'mes') inicio.setUTCDate(1);
+const periodoHistorico = (semanaInicio) => {
+  const dataInformada = /^\d{4}-\d{2}-\d{2}$/.test(String(semanaInicio || '')) ? new Date(`${semanaInicio}T00:00:00-03:00`) : inicioHojeSaoPaulo();
+  const inicio = new Date(dataInformada);
+  const diaDaSemana = inicio.getUTCDay();
+  inicio.setUTCDate(inicio.getUTCDate() - (diaDaSemana === 0 ? 6 : diaDaSemana - 1));
+  const fim = new Date(inicio);
+  fim.setUTCDate(fim.getUTCDate() + 7);
   return { inicio, fim };
 };
 
@@ -70,28 +70,21 @@ router.use((req, res, next) => {
 
 router.get('/historico-produtos', async (req, res) => {
   try {
-    const periodo = ['dia', 'semana', 'mes'].includes(req.query.periodo) ? req.query.periodo : 'dia';
     const produtoId = String(req.query.produtoId || '').trim();
-    const { inicio, fim } = periodoHistorico(periodo);
+    const { inicio, fim } = periodoHistorico(req.query.semanaInicio);
     const pontos = new Map();
 
-    if (periodo === 'dia') {
-      for (let hora = 8; hora <= 19; hora += 1) pontos.set(String(hora), { chave: String(hora), rotulo: `${String(hora).padStart(2, '0')}h`, quantidade: 0, total: 0, pedidos: new Set() });
-    } else {
-      const cursor = new Date(inicio);
-      while (cursor < fim) {
-        const chave = dataSaoPaulo(cursor);
-        const rotulo = periodo === 'semana'
-          ? new Intl.DateTimeFormat('pt-BR', { timeZone: TIME_ZONE, weekday: 'short', day: '2-digit' }).format(cursor).replace('.', '')
-          : new Intl.DateTimeFormat('pt-BR', { timeZone: TIME_ZONE, day: '2-digit', month: '2-digit' }).format(cursor);
-        pontos.set(chave, { chave, rotulo, quantidade: 0, total: 0, pedidos: new Set() });
-        cursor.setUTCDate(cursor.getUTCDate() + 1);
-      }
+    const cursor = new Date(inicio);
+    while (cursor < fim) {
+      const chave = dataSaoPaulo(cursor);
+      const rotulo = new Intl.DateTimeFormat('pt-BR', { timeZone: TIME_ZONE, weekday: 'short', day: '2-digit' }).format(cursor).replace('.', '');
+      pontos.set(chave, { chave, rotulo, quantidade: 0, total: 0, pedidos: new Set() });
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
 
     const pedidos = await Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $ne: 'cancelado' } }).select('_id createdAt itens');
     pedidos.forEach((pedido) => {
-      const chave = periodo === 'dia' ? String(horaSaoPaulo(pedido.createdAt)) : dataSaoPaulo(pedido.createdAt);
+      const chave = dataSaoPaulo(pedido.createdAt);
       const ponto = pontos.get(chave);
       if (!ponto) return;
       (pedido.itens || []).filter((item) => !produtoId || String(item.produtoId) === produtoId).forEach((item) => {
@@ -103,7 +96,7 @@ router.get('/historico-produtos', async (req, res) => {
 
     const historico = [...pontos.values()].map(({ pedidos, ...ponto }) => ({ ...ponto, pedidos: pedidos.size }));
     const resumo = historico.reduce((total, ponto) => ({ quantidade: total.quantidade + ponto.quantidade, total: total.total + ponto.total, pedidos: total.pedidos + ponto.pedidos }), { quantidade: 0, total: 0, pedidos: 0 });
-    res.json({ periodo, produtoId: produtoId || null, inicio, fim, resumo, pontos: historico });
+    res.json({ periodo: 'semana', produtoId: produtoId || null, inicio, fim, resumo, pontos: historico });
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
