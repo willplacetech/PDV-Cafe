@@ -37,6 +37,7 @@ export default function Dashboard() {
   const [alertasCusto, setAlertasCusto] = useState({ semCusto: [], reajuste: [] });
   const [productionData, setProductionData] = useState(null);
   const [taxasCartao, setTaxasCartao] = useState({ cartao_credito: '', cartao_debito: '' });
+  const [editandoTaxa, setEditandoTaxa] = useState({ cartao_credito: false, cartao_debito: false });
   const [salvandoTaxas, setSalvandoTaxas] = useState(false);
   const { showToast } = useToast();
 
@@ -171,6 +172,7 @@ export default function Dashboard() {
       });
       const response = await api.get('/dashboard');
       setData(response.data);
+      setEditandoTaxa((atuais) => ({ ...atuais, [tipo]: false }));
       showToast('Taxa aplicada aos pagamentos do mês', 'success');
     } catch (error) {
       showToast(error.response?.data?.msg || 'Não foi possível aplicar a taxa', 'error');
@@ -178,6 +180,16 @@ export default function Dashboard() {
       setSalvandoTaxas(false);
     }
   };
+
+  const renderTaxaCartao = (tipo, label) => (
+    <div className="dashboard-fee-setting" key={tipo}>
+      <span>{label}</span>
+      {editandoTaxa[tipo] ? (
+        <input className="dashboard-card-fee" type="number" min="0" step="0.01" value={taxasCartao[tipo]} onChange={(event) => setTaxasCartao({ ...taxasCartao, [tipo]: event.target.value })} disabled={salvandoTaxas} aria-label={`Taxa do ${label}`} />
+      ) : <strong>{Number(taxasCartao[tipo] || 0).toFixed(2).replace('.', ',')}%</strong>}
+      {editandoTaxa[tipo] ? <button type="button" className="dashboard-fee-button" onClick={() => aplicarTaxaCartao(tipo)} disabled={salvandoTaxas}>{salvandoTaxas ? 'Salvando...' : 'Salvar'}</button> : <button type="button" className="dashboard-fee-button" onClick={() => setEditandoTaxa((atuais) => ({ ...atuais, [tipo]: true }))}>Alterar</button>}
+    </div>
+  );
 
   const pagamentoComTaxaAtual = (pagamento) => {
     const bruto = Number(pagamento.bruto ?? pagamento.total ?? 0);
@@ -225,6 +237,7 @@ export default function Dashboard() {
   return <div className="dashboard-page">
     <div className="dashboard-heading page-heading"><div><span className="dashboard-eyebrow">GESTÃO DA CASA</span><h1>Dashboard</h1><p>Acompanhe o ritmo do Sabor de Abraço.</p></div><div className="dashboard-open">{data.comandasAbertas} comandas abertas</div></div>
     <DashboardTabs value={dashboardTab} onChange={setDashboardTab} />
+    <section className="dashboard-fee-settings"><div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">CONFIGURAÇÃO DE PAGAMENTOS</span><h2>Taxas de cartão</h2><p>As taxas ficam definidas até serem alteradas.</p></div></div><div className="dashboard-fee-grid">{renderTaxaCartao('cartao_credito', 'Cartão de crédito')}{renderTaxaCartao('cartao_debito', 'Cartão de débito')}</div></section>
     <div className="dashboard-periods">{['dia', 'semana', 'mes'].map((periodo) => { const metric = data.periodos[periodo]; return <section className="dashboard-period" key={periodo}><div className="dashboard-period-title"><h2>{labels[periodo]}</h2><span>{metric.pedidos} pedidos</span></div><strong className="dashboard-total">{money(metric.total)}</strong><div className="dashboard-stats"><span><b>{metric.itens}</b> itens</span><span><b>{money(metric.ticketMedio)}</b> ticket médio</span></div><div className="dashboard-products"><h3>Mais pedidos</h3>{metric.maisVendidos.length ? metric.maisVendidos.map((product) => <div className="dashboard-product" key={product.nome}><span>{product.nome}</span><b>{product.quantidade}</b></div>) : <p>Nenhum pedido no período.</p>}</div></section>; })}</div>
     <section className="dashboard-comparison">
       <div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">ANÁLISE DE VENDAS</span><h2>Comparar períodos</h2><p>Escolha semanas ou meses para analisar a evolução das vendas.</p></div></div>
@@ -273,6 +286,15 @@ export default function Dashboard() {
       .dashboard-cost-alert-grid a { display:grid; gap:4px; padding:12px; border:1px solid var(--accent-border); border-radius:10px; background:var(--accent-light); }
       .dashboard-cost-alert-grid strong { font-size:22px; }
       .dashboard-cost-alert-grid span { color:var(--text-secondary); }
+      .dashboard-fee-settings { margin-top:16px; padding:18px; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:16px; box-shadow:var(--shadow-sm); }
+      .dashboard-fee-settings h2 { margin:0; color:var(--text-primary); font-size:17px; }
+      .dashboard-fee-settings p { margin:4px 0 0; color:var(--text-secondary); font-size:12px; }
+      .dashboard-fee-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:14px; }
+      .dashboard-fee-setting { display:flex; align-items:center; gap:10px; min-height:46px; padding:10px 12px; border:1px solid var(--border-light); border-radius:10px; background:var(--bg-tertiary); }
+      .dashboard-fee-setting > span { flex:1; color:var(--text-primary); font-size:13px; font-weight:700; }
+      .dashboard-fee-setting > strong { color:var(--accent-primary); font-size:15px; }
+      .dashboard-fee-button { min-height:32px; padding:6px 10px; border:1px solid var(--accent-border); border-radius:7px; background:var(--accent-light); color:var(--accent-primary); font-size:11px; font-weight:700; cursor:pointer; }
+      .dashboard-monthly-row .dashboard-card-fee { display:none; }
       .dashboard-period-title { display:flex; justify-content:space-between; align-items:center; gap:8px; }
       .dashboard-period-title h2 { margin:0; font-size:16px; color:var(--text-primary); }
       .dashboard-period-title span { color:var(--text-secondary); font-size:11px; }
@@ -419,7 +441,7 @@ export default function Dashboard() {
       @media (max-width:520px) { .dashboard-heading { align-items:flex-start; flex-direction:column; } .dashboard-order { align-items:flex-start; flex-direction:column; gap:8px; } .dashboard-order > div:last-child { width:100%; justify-content:space-between; } }
       @media (max-width:900px) { .dashboard-sales-summary { grid-template-columns:repeat(3, 1fr); } }
       @media (max-width:520px) { .dashboard-sales-summary { grid-template-columns:1fr; } .dashboard-section-heading { flex-wrap:wrap; } }
-      @media (max-width:900px) { .dashboard-monthly-summary { grid-template-columns:repeat(3, 1fr); } .dashboard-monthly-columns { grid-template-columns:1fr; } }
+      @media (max-width:900px) { .dashboard-monthly-summary { grid-template-columns:repeat(3, 1fr); } .dashboard-monthly-columns { grid-template-columns:1fr; } .dashboard-fee-grid { grid-template-columns:1fr; } }
       @media (max-width:520px) { .dashboard-monthly-summary { grid-template-columns:1fr; } .dashboard-print-button { width:100%; } }
       @media (max-width:520px) { .dashboard-cost-alert-grid { grid-template-columns:1fr; } }
       @media (max-width:520px) { .dashboard-comparison-controls { grid-template-columns:1fr; } .dashboard-comparison-modes { display:grid; grid-template-columns:1fr 1fr; } .dashboard-comparison-modes button { width:100%; } }
