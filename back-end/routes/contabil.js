@@ -5,6 +5,7 @@ const Product = require('../models/Product');
 const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
 const Recipe = require('../models/Recipe');
 const Despesa = require('../models/Despesa');
+const PaymentSettings = require('../models/PaymentSettings');
 
 const router = express.Router();
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -73,6 +74,11 @@ router.patch('/taxas-cartao', async (req, res) => {
     const tipo = ['cartao_credito', 'cartao_debito'].includes(req.body.tipo) ? req.body.tipo : null;
     const percentual = Number(req.body.taxaPercentual);
     if (!mes || !tipo || !Number.isFinite(percentual) || percentual < 0) return res.status(400).json({ msg: 'Informe mês, cartão e uma taxa válida' });
+    await PaymentSettings.findOneAndUpdate(
+      { chave: 'principal' },
+      { $set: { [tipo]: percentual } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
     const { inicio, fim } = getMesRange(mes);
     const pedidos = await Order.find({ pagamentos: { $elemMatch: { tipo, dataPagamento: { $gte: inicio, $lt: fim } } } });
     let atualizados = 0;

@@ -51,9 +51,10 @@ export default function Dashboard() {
         setProductionData(productionResponse.data);
         setAlertasCusto({ semCusto: semCustoResponse.data || [], reajuste: reajusteResponse.data || [] });
         const pagamentos = dashboardResponse.data.relatorioMes?.pagamentos || [];
+        const taxasConfiguradas = dashboardResponse.data.taxasCartao || {};
         setTaxasCartao({
-          cartao_credito: pagamentos.find((pagamento) => pagamento.tipo === 'cartao_credito')?.taxaPercentual || '',
-          cartao_debito: pagamentos.find((pagamento) => pagamento.tipo === 'cartao_debito')?.taxaPercentual || '',
+          cartao_credito: taxasConfiguradas.cartao_credito ?? pagamentos.find((pagamento) => pagamento.tipo === 'cartao_credito')?.taxaPercentual ?? '',
+          cartao_debito: taxasConfiguradas.cartao_debito ?? pagamentos.find((pagamento) => pagamento.tipo === 'cartao_debito')?.taxaPercentual ?? '',
         });
       })
       .catch((error) => showToast(error.response?.data?.msg || 'Não foi possível carregar o dashboard', 'error'));

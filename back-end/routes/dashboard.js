@@ -3,6 +3,7 @@ const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
+const PaymentSettings = require('../models/PaymentSettings');
 const auth = require('../middleware/auth');
 const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
 
@@ -301,7 +302,8 @@ router.get('/', async (req, res) => {
       comparativoMes: { atual: { total: totalMesAtual, pedidos: mesAtual.length }, anterior: { total: totalMesAnterior, pedidos: mesAnterior.length }, variacaoPercentual: totalMesAnterior ? ((totalMesAtual - totalMesAnterior) / totalMesAnterior) * 100 : null },
       fidelidade: { clientesComCompra, clientesRecorrentes, taxaRecorrencia: clientesComCompra ? (clientesRecorrentes / clientesComCompra) * 100 : 0, clientes: clientesFrequentes },
     };
-    res.json({ periodos: Object.fromEntries(periodMetrics.map((metric) => [metric.periodo, metric])), comandasAbertas: openCommands, pedidosHoje: pedidosDia.slice(0, 30), clientesCadastrados, clientesRecentes, vendasHoje: { pedidos: vendasHoje.length, itens: vendasHojeItens, total: vendasHojeTotal, recebido: vendasHojeRecebido, pendente: vendasHojePendente }, relatorioMes, relatorioClientes: { periodo: relatorioMes.periodo, totalCadastrados: todosClientes.length, clientesComCompra: relatorioClientes.filter((cliente) => cliente.pedidos > 0).length, totalVendido: relatorioClientes.reduce((total, cliente) => total + cliente.total, 0), totalRecebido: relatorioClientes.reduce((total, cliente) => total + cliente.recebido, 0), totalPendente: relatorioClientes.reduce((total, cliente) => total + cliente.pendente, 0), clientes: relatorioClientes }, insights, atualizadoEm: new Date() });
+    const configuracaoTaxas = await PaymentSettings.findOne({ chave: 'principal' }).lean();
+    res.json({ taxasCartao: configuracaoTaxas ? { cartao_credito: Number(configuracaoTaxas.cartao_credito || 0), cartao_debito: Number(configuracaoTaxas.cartao_debito || 0) } : null, periodos: Object.fromEntries(periodMetrics.map((metric) => [metric.periodo, metric])), comandasAbertas: openCommands, pedidosHoje: pedidosDia.slice(0, 30), clientesCadastrados, clientesRecentes, vendasHoje: { pedidos: vendasHoje.length, itens: vendasHojeItens, total: vendasHojeTotal, recebido: vendasHojeRecebido, pendente: vendasHojePendente }, relatorioMes, relatorioClientes: { periodo: relatorioMes.periodo, totalCadastrados: todosClientes.length, clientesComCompra: relatorioClientes.filter((cliente) => cliente.pedidos > 0).length, totalVendido: relatorioClientes.reduce((total, cliente) => total + cliente.total, 0), totalRecebido: relatorioClientes.reduce((total, cliente) => total + cliente.recebido, 0), totalPendente: relatorioClientes.reduce((total, cliente) => total + cliente.pendente, 0), clientes: relatorioClientes }, insights, atualizadoEm: new Date() });
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 

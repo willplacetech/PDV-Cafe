@@ -5,6 +5,7 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Customer = require('../models/Customer');
 const auth = require('../middleware/auth');
+const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
 
 const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -307,6 +308,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
         await customer.save({ session });
       }
     }
+    const taxasCartao = await obterTaxasCartao();
     const order = new Order({
       itens: comanda.itens,
       subtotal,
@@ -323,7 +325,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
         ? [{ tipo: 'credito_loja', valorRecebido: 0, dataPagamento: new Date(), quitado: true, observacao: 'Utilização interna' }]
         : creditoLoja
           ? []
-          : [{ tipo: pagamentoFinal, valorRecebido: total, dataPagamento: new Date(), quitado: true }],
+          : [{ tipo: pagamentoFinal, valorRecebido: total, ...calcularPagamento(pagamentoFinal, total, taxasCartao), dataPagamento: new Date(), quitado: true }],
     });
     await order.save({ session });
     if (customer && !utilizacaoInterna) {

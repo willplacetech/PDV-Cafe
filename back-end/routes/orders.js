@@ -4,6 +4,7 @@ const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
 const Product = require('../models/Product');
 const auth = require('../middleware/auth');
+const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
 
 const router = express.Router();
 const permiteFracionar = (product) => Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda);
@@ -169,7 +170,7 @@ router.patch('/:id/pagar', auth, auth.allowRoles('admin'), async (req, res) => {
     if (!['dinheiro', 'pix', 'credito_loja', 'cartao_credito', 'cartao_debito'].includes(req.body.tipo || 'dinheiro')) return res.status(400).json({ msg: 'Forma de pagamento inválida' });
     if (value !== balance || balance <= 0) return res.status(400).json({ msg: 'O recebimento deve quitar o saldo total do pedido' });
     const tipo = req.body.tipo || 'dinheiro';
-    order.pagamentos.push({ tipo, valorRecebido: balance, dataPagamento: new Date(), quitado: true, observacao: req.body.observacao });
+    order.pagamentos.push({ tipo, valorRecebido: balance, ...calcularPagamento(tipo, balance, await obterTaxasCartao()), dataPagamento: new Date(), quitado: true, observacao: req.body.observacao });
     order.status = 'pago';
     await order.save();
     res.json(order);
@@ -183,7 +184,7 @@ router.patch('/:id/quitar', auth, auth.allowRoles('admin'), async (req, res) => 
     const paid = order.pagamentos.reduce((sum, payment) => sum + (Number(payment.valorRecebido) || 0), 0);
     const balance = money(order.total - paid);
     if (balance <= 0) return res.status(400).json({ msg: 'Pedido já está quitado' });
-    order.pagamentos.push({ tipo: 'dinheiro', valorRecebido: balance, dataPagamento: new Date(), quitado: true, observacao: 'Quitação total' });
+    order.pagamentos.push({ tipo: 'dinheiro', valorRecebido: balance, ...calcularPagamento('dinheiro', balance), dataPagamento: new Date(), quitado: true, observacao: 'Quitação total' });
     order.status = 'pago';
     await order.save();
     res.json(order);
@@ -199,11 +200,12 @@ router.patch('/cliente/:clienteId/quitar', auth, auth.allowRoles('admin'), async
     const tipo = req.body.tipo || 'dinheiro';
     const tiposAceitos = ['dinheiro', 'pix', 'credito_loja', 'cartao_credito', 'cartao_debito'];
     if (!tiposAceitos.includes(tipo)) throw new Error('Forma de pagamento inválida');
+    const taxasCartao = await obterTaxasCartao();
     pedidos.forEach((order) => {
       const pago = order.pagamentos.reduce((sum, payment) => sum + (Number(payment.valorRecebido) || 0), 0);
       const saldo = money(order.total - pago);
       if (saldo <= 0) return;
-      order.pagamentos.push({ tipo, valorRecebido: saldo, dataPagamento: new Date(), quitado: true, observacao: req.body.observacao || 'Quitação total do cliente' });
+      order.pagamentos.push({ tipo, valorRecebido: saldo, ...calcularPagamento(tipo, saldo, taxasCartao), dataPagamento: new Date(), quitado: true, observacao: req.body.observacao || 'Quitação total do cliente' });
       order.status = 'pago';
     });
     await Promise.all(pedidos.map((order) => order.save({ session })));
