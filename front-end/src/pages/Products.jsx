@@ -124,9 +124,6 @@ export default function Products() {
           <h1>📦 Cadastro de Produtos</h1>
           <p>Gerencie seu catálogo de produtos</p>
         </div>
-        <button type="button" onClick={corrigirHistoricoBolos} style={{ padding: '10px 14px', border: '1px solid var(--accent-border)', borderRadius: 10, background: 'var(--accent-light)', color: 'var(--accent-primary)', fontWeight: 700, cursor: 'pointer' }}>
-          Corrigir bolos do catálogo e histórico
-        </button>
       </div>
 
 

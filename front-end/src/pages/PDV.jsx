@@ -15,7 +15,7 @@ const corCategoria = {
   Outros: { bg: 'var(--category-other-bg)', txt: 'var(--category-other-text)', border: 'var(--category-other-border)' }
 };
 
-const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Salgados', 'Doces', 'Bebidas geladas', 'Café da manhã'];
+const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Salgados', 'Doces', 'Bebidas geladas'];
 const normalizarTexto = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 // FIX: 'gelad' verificado ANTES de 'café/espresso' para classificar corretamente
@@ -26,7 +26,6 @@ const grupoProduto = (produto) => {
   if (nome.includes('cappuccino') || nome.includes('café') || nome.includes('cafe') || nome.includes('espresso') || nome.includes('expresso') || nome.includes('filtro')) return 'Bebidas Quentes';
   if (nome.includes('doce') || nome.includes('bolo') || nome.includes('torta') || nome.includes('cookie')) return 'Doces';
   if (nome.includes('pão') || nome.includes('salgad') || nome.includes('croissant') || produto.categoria === 'Salgados') return 'Salgados';
-  if (produto.categoria === 'Café da manhã') return 'Café da manhã';
   return 'Outros';
 };
 const permiteFracionar = (produto) => Boolean(produto?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(produto?.unidadeVenda);
