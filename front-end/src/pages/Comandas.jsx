@@ -4,8 +4,15 @@ import { useToast } from '../components/Toast.jsx';
 import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 
 const formatMoney = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
-const formatQuantity = (item) => `${Number(item.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${item.unidadeVenda || 'un'}`;
-const permiteFracionar = (product) => Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda);
+const formatQuantity = (item) => {
+  const quantidade = Number(item.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+  if (Number(item.pesoPorUnidade) > 0) {
+    const peso = Number(item.pesoPorUnidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+    return `${quantidade} unidade(s) · ${peso} ${item.unidadePeso || 'kg'} cada`;
+  }
+  return `${quantidade} ${item.unidadeVenda || 'un'}`;
+};
+const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda));
 
 // ─── helpers de cupom / whatsapp ─────────────────────────────────────────────
 

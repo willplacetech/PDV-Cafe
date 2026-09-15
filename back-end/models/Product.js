@@ -31,6 +31,16 @@ const ProductSchema = new mongoose.Schema({
     enum: ['un', 'kg', 'g', 'l', 'ml'],
     default: 'un',
   },
+  pesoPorUnidade: {
+    type: Number,
+    min: [0, 'Peso por unidade não pode ser negativo'],
+    default: 0,
+  },
+  unidadePeso: {
+    type: String,
+    enum: ['kg', 'g'],
+    default: 'kg',
+  },
   vendidoFracionado: {
     type: Boolean,
     default: false,

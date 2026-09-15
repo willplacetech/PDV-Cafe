@@ -7,6 +7,8 @@ const itemSchema = new mongoose.Schema({
   precoUnitario: { type: Number, required: true },
   quantidade: { type: Number, required: true, min: 0.001 },
   unidadeVenda: { type: String, enum: ['un', 'kg', 'g', 'l', 'ml'], default: 'un' },
+  pesoPorUnidade: { type: Number, min: 0 },
+  unidadePeso: { type: String, enum: ['kg', 'g'] },
   modificadores: { type: [String], default: [] },
 });
 

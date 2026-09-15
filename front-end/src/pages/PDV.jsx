@@ -28,7 +28,12 @@ const grupoProduto = (produto) => {
   if (nome.includes('pão') || nome.includes('salgad') || nome.includes('croissant') || produto.categoria === 'Salgados') return 'Salgados';
   return 'Outros';
 };
-const permiteFracionar = (produto) => Boolean(produto?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(produto?.unidadeVenda);
+const permiteFracionar = (produto) => !Number(produto?.pesoPorUnidade) && (Boolean(produto?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(produto?.unidadeVenda));
+const precoPorUnidade = (produto) => {
+  const pesoEmKg = Number(produto?.pesoPorUnidade || 0) * (produto?.unidadePeso === 'g' ? 0.001 : 1);
+  const preco = pesoEmKg > 0 ? Number(produto.preco || 0) * pesoEmKg : Number(produto.preco || 0);
+  return Math.round((preco + Number.EPSILON) * 100) / 100;
+};
 
 
 export default function PDV() {
@@ -93,7 +98,7 @@ export default function PDV() {
     } else {
       setCarrinho([...carrinho, {
         produtoId: prod._id, codigo: prod.codigo, nome: prod.nome,
-        precoUnitario: prod.preco, quantidade: incremento, unidadeVenda: prod.unidadeVenda || 'un', vendidoFracionado: permiteFracionar(prod), modificadores: modificadoresItem
+        precoUnitario: precoPorUnidade(prod), quantidade: incremento, unidadeVenda: prod.unidadeVenda || 'un', pesoPorUnidade: prod.pesoPorUnidade, unidadePeso: prod.unidadePeso, vendidoFracionado: permiteFracionar(prod), modificadores: modificadoresItem
       }]);
     }
     setFeedbackProduto(prod._id);

@@ -5,9 +5,10 @@ const Comanda = require('../models/Comanda');
 const Product = require('../models/Product');
 const auth = require('../middleware/auth');
 const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
+const { precoPorUnidade } = require('../utils/pesoProduto');
 
 const router = express.Router();
-const permiteFracionar = (product) => Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda);
+const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda));
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
 async function buildOrderItems(rawItems, session) {
@@ -25,7 +26,7 @@ async function buildOrderItems(rawItems, session) {
     const quantity = Number(item.quantidade);
     if (!product) throw new Error('Produto não encontrado');
     if (!permiteFracionar(product) && !Number.isInteger(quantity)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
-    return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda };
+    return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: precoPorUnidade(product), quantidade, unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso };
   });
   for (const [productId, quantity] of totals) {
     const updated = await Product.findOneAndUpdate({ _id: productId, estoque: { $gte: quantity } }, { $inc: { estoque: -quantity } }, { new: true, session });

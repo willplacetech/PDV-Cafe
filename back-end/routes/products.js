@@ -7,12 +7,13 @@ const Comanda = require('../models/Comanda');
 const { corrigirBolos, corrigirProdutosBolo } = require('../utils/corrigirBolos');
 const HistoricoCusto = require('../models/HistoricoCusto');
 const Recipe = require('../models/Recipe');
+const { pesoPorUnidadeEmKg } = require('../utils/pesoProduto');
 
 const router = express.Router();
 const units = ['un', 'kg', 'g', 'l', 'ml'];
 const dataLocal = () => { const agora = new Date(); return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`; };
 const antesDasOito = () => new Date().getHours() < 8;
-const validations = [body('codigo').trim().notEmpty(), body('nome').trim().notEmpty(), body('preco').isFloat({ min: 0 }), body('custo').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueInsumos').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('estoqueMinimoInsumos').optional().isFloat({ min: 0 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('producaoPropria').optional().isBoolean(), body('controladoComoInsumo').optional().isBoolean()];
+const validations = [body('codigo').trim().notEmpty(), body('nome').trim().notEmpty(), body('preco').isFloat({ min: 0 }), body('custo').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueInsumos').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('estoqueMinimoInsumos').optional().isFloat({ min: 0 }), body('unidadeVenda').optional().isIn(units), body('pesoPorUnidade').optional().isFloat({ min: 0 }), body('unidadePeso').optional().isIn(['kg', 'g']), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('producaoPropria').optional().isBoolean(), body('controladoComoInsumo').optional().isBoolean()];
 
 router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
@@ -27,6 +28,7 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
     const receitaPorProduto = new Map(receitas.map((receita) => [String(receita.produtoId), receita._id]));
     res.json(produtos.map((produto) => ({
       ...produto.toObject(),
+      estoquePesoTotal: Number((Number(produto.estoque || 0) * pesoPorUnidadeEmKg(produto)).toFixed(6)),
       receitaId: receitaPorProduto.get(String(produto._id)) || null,
       temReceita: receitaPorProduto.has(String(produto._id)),
     })));
@@ -126,7 +128,7 @@ router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
-    res.json(product);
+    res.json({ ...product.toObject(), estoquePesoTotal: Number((Number(product.estoque || 0) * pesoPorUnidadeEmKg(product)).toFixed(6)) });
   } catch (_) { res.status(404).json({ msg: 'Produto não encontrado' }); }
 });
 
@@ -141,12 +143,12 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const estoqueInsumos = Number(data.estoqueInsumos) || 0;
     const fichaTecnica = Array.isArray(data.fichaTecnica) ? data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })).filter((item) => item.produtoId && Number.isFinite(item.quantidade) && item.quantidade > 0 && units.includes(item.unidade)) : [];
     const custoUnitario = Number(data.custoUnitario ?? data.custo) || 0;
-    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), custo: custoUnitario, custoUnitario, estoque, estoqueInsumos, estoqueInicialDia: estoque, estoqueInicialData: dataLocal(), estoqueInsumosInicial: estoqueInsumos, estoqueInsumosInicialData: dataLocal(), estoqueMinimoInsumos: Number(data.estoqueMinimoInsumos) || 0, unidadeVenda: data.unidadeVenda || 'un', vendidoFracionado: Boolean(data.vendidoFracionado), aFazer: Boolean(data.aFazer), fichaTecnica, producaoPropria: Boolean(data.producaoPropria), controladoComoInsumo: Boolean(data.controladoComoInsumo), createdBy: req.user.id });
+    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), custo: custoUnitario, custoUnitario, estoque, estoqueInsumos, estoqueInicialDia: estoque, estoqueInicialData: dataLocal(), estoqueInsumosInicial: estoqueInsumos, estoqueInsumosInicialData: dataLocal(), estoqueMinimoInsumos: Number(data.estoqueMinimoInsumos) || 0, unidadeVenda: data.unidadeVenda || 'un', pesoPorUnidade: Number(data.pesoPorUnidade) || 0, unidadePeso: data.unidadePeso || 'kg', vendidoFracionado: Boolean(data.vendidoFracionado), aFazer: Boolean(data.aFazer), fichaTecnica, producaoPropria: Boolean(data.producaoPropria), controladoComoInsumo: Boolean(data.controladoComoInsumo), createdBy: req.user.id });
     res.status(201).json(product);
   } catch (err) { res.status(400).json({ msg: err.code === 11000 ? 'Código duplicado' : err.message }); }
 });
 
-router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('fichaTecnica').optional().isArray()], async (req, res) => {
+router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().isIn(units), body('pesoPorUnidade').optional().isFloat({ min: 0 }), body('unidadePeso').optional().isIn(['kg', 'g']), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('fichaTecnica').optional().isArray()], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
@@ -157,7 +159,8 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     }
     const fields = {};
     ['codigo', 'nome', 'categoria', 'unidadeVenda'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
-    ['preco', 'estoque', 'estoqueInsumos', 'estoqueMaximo', 'estoqueMinimoInsumos'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
+    ['preco', 'estoque', 'estoqueInsumos', 'estoqueMaximo', 'estoqueMinimoInsumos', 'pesoPorUnidade'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
+    if (data.unidadePeso !== undefined) fields.unidadePeso = data.unidadePeso;
     if (data.custoUnitario !== undefined || data.custo !== undefined) {
       const receitaVinculada = await Recipe.exists({ produtoId: req.params.id, ativa: true });
       if (!receitaVinculada) {
@@ -178,7 +181,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     }
     const product = await Product.findByIdAndUpdate(req.params.id, { $set: fields }, { new: true, runValidators: true });
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
-    res.json(product);
+    res.json({ ...product.toObject(), estoquePesoTotal: Number((Number(product.estoque || 0) * pesoPorUnidadeEmKg(product)).toFixed(6)) });
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 

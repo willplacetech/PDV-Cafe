@@ -6,10 +6,11 @@ const Order = require('../models/Order');
 const Customer = require('../models/Customer');
 const auth = require('../middleware/auth');
 const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
+const { precoPorUnidade } = require('../utils/pesoProduto');
 
 const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
-const permiteFracionar = (product) => Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda);
+const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda));
 
 async function ajustarEstoque(itens, operacao, session) {
   const produtos = await Product.find({ _id: { $in: itens.map((item) => item.produtoId) } }).session(session);
@@ -86,7 +87,7 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
       const modificadores = Array.isArray(item.modificadores)
         ? item.modificadores.filter((value) => typeof value === 'string').slice(0, 10)
         : [];
-      itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
+      itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: precoPorUnidade(product), quantidade, unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
     }
     await ajustarEstoque(itens, 'baixar', session);
     const [comanda] = await Comanda.create([{ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, itens, estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
@@ -112,7 +113,7 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
       ? req.body.modificadores.filter((item) => typeof item === 'string').slice(0, 10)
       : [];
     await ajustarEstoque([{ produtoId: product.id, quantidade }], 'baixar', session);
-    comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
+    comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: precoPorUnidade(product), quantidade, unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
     comanda.estoqueBaixado = true;
     await comanda.save({ session });
     await session.commitTransaction();
@@ -191,6 +192,8 @@ router.post('/:id/mover', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
       precoUnitario: item.precoUnitario,
       quantidade: item.quantidade,
       unidadeVenda: item.unidadeVenda,
+      pesoPorUnidade: item.pesoPorUnidade,
+      unidadePeso: item.unidadePeso,
       modificadores: [...(item.modificadores || [])],
       aFazer: Boolean(item.aFazer),
       insumosConsumidos: (item.insumosConsumidos || []).map((ingrediente) => (ingrediente.toObject ? ingrediente.toObject() : { produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })),

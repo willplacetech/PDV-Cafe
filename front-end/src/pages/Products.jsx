@@ -9,7 +9,7 @@ const categorias = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', '
 
 export default function Products() {
   const [produtos, setProdutos] = useState([]);
-  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', custo: '', estoque: '', estoqueInsumos: '', estoqueMinimoInsumos: '', unidadeVenda: 'un', vendidoFracionado: false, aFazer: false, fichaTecnica: [], producaoPropria: false, controladoComoInsumo: false, temReceita: false };
+  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', custo: '', estoque: '', pesoPorUnidade: '', unidadePeso: 'kg', estoqueInsumos: '', estoqueMinimoInsumos: '', unidadeVenda: 'un', vendidoFracionado: false, aFazer: false, fichaTecnica: [], producaoPropria: false, controladoComoInsumo: false, temReceita: false };
   const [form, setForm] = useState(vazio);
 
   const handleCategoriaChange = (categoria) => {
@@ -67,7 +67,7 @@ export default function Products() {
       return showToast('⚠️ Este código já está cadastrado! Use outro.', 'warning');
     }
 
-    const dados = { ...form, preco: parseFloat(form.preco), custoUnitario: parseFloat(form.custo) || 0, estoque: parseFloat(form.estoque) || 0, estoqueInsumos: parseFloat(form.estoqueInsumos) || 0, estoqueMinimoInsumos: parseFloat(form.estoqueMinimoInsumos) || 0, unidadeVenda: form.unidadeVenda, vendidoFracionado: form.vendidoFracionado, aFazer: form.aFazer, fichaTecnica: form.fichaTecnica.filter((item) => item.produtoId && Number(item.quantidade) > 0).map((item) => ({ ...item, quantidade: Number(item.quantidade) })), producaoPropria: form.producaoPropria, controladoComoInsumo: form.controladoComoInsumo };
+    const dados = { ...form, preco: parseFloat(form.preco), custoUnitario: parseFloat(form.custo) || 0, estoque: parseFloat(form.estoque) || 0, pesoPorUnidade: parseFloat(form.pesoPorUnidade) || 0, unidadePeso: form.unidadePeso, estoqueInsumos: parseFloat(form.estoqueInsumos) || 0, estoqueMinimoInsumos: parseFloat(form.estoqueMinimoInsumos) || 0, unidadeVenda: form.unidadeVenda, vendidoFracionado: form.vendidoFracionado, aFazer: form.aFazer, fichaTecnica: form.fichaTecnica.filter((item) => item.produtoId && Number(item.quantidade) > 0).map((item) => ({ ...item, quantidade: Number(item.quantidade) })), producaoPropria: form.producaoPropria, controladoComoInsumo: form.controladoComoInsumo };
     try {
       editing ? await api.put(`/products/${editing._id}`, dados) : await api.post('/products', dados);
       showToast(editing ? '✅ Produto atualizado!' : '✅ Produto cadastrado!', 'success');
@@ -82,7 +82,7 @@ export default function Products() {
 
   const alterar = (p) => {
     setEditing(p);
-    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, custo: p.custoUnitario ?? p.custo ?? '', estoque: p.estoque, estoqueInsumos: p.estoqueInsumos || '', estoqueMinimoInsumos: p.estoqueMinimoInsumos || '', unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado), aFazer: Boolean(p.aFazer), fichaTecnica: p.fichaTecnica || [], producaoPropria: Boolean(p.producaoPropria), controladoComoInsumo: Boolean(p.controladoComoInsumo), temReceita: Boolean(p.temReceita) });
+    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, custo: p.custoUnitario ?? p.custo ?? '', estoque: p.estoque, pesoPorUnidade: p.pesoPorUnidade || '', unidadePeso: p.unidadePeso || 'kg', estoqueInsumos: p.estoqueInsumos || '', estoqueMinimoInsumos: p.estoqueMinimoInsumos || '', unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado), aFazer: Boolean(p.aFazer), fichaTecnica: p.fichaTecnica || [], producaoPropria: Boolean(p.producaoPropria), controladoComoInsumo: Boolean(p.controladoComoInsumo), temReceita: Boolean(p.temReceita) });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -148,8 +148,11 @@ export default function Products() {
           <section className="product-form-section">
             <div className="product-section-title"><span>📦</span><div><strong>ESTOQUE</strong><small>Quantidade disponível para venda</small></div></div>
             <div className="product-form-grid product-stock-grid">
-              <label>Estoque atual<input type="number" step="0.001" min={0} placeholder="0" value={form.estoque} onChange={e => setForm({ ...form, estoque: e.target.value })} /></label>
+              <label>Quantidade em estoque (unidades)<input type="number" step={form.pesoPorUnidade ? '1' : '0.001'} min={0} placeholder="0" value={form.estoque} onChange={e => setForm({ ...form, estoque: e.target.value })} /></label>
               <label>Unidade de venda<select value={form.unidadeVenda} onChange={e => setForm({ ...form, unidadeVenda: e.target.value })}>{['un', 'kg', 'g', 'l', 'ml'].map(unidade => <option key={unidade} value={unidade}>{unidade}</option>)}</select></label>
+              <label>Peso por unidade<input type="number" step="0.001" min={0} placeholder="Ex.: 3,506" value={form.pesoPorUnidade} onChange={e => setForm({ ...form, pesoPorUnidade: e.target.value })} /></label>
+              <label>Unidade do peso<select value={form.unidadePeso} onChange={e => setForm({ ...form, unidadePeso: e.target.value })}><option value="kg">kg</option><option value="g">g</option></select></label>
+              {Number(form.pesoPorUnidade) > 0 && <small className="field-help">Estoque total: {(Number(form.estoque || 0) * (form.unidadePeso === 'g' ? Number(form.pesoPorUnidade) / 1000 : Number(form.pesoPorUnidade))).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg totais</small>}
             </div>
           </section>
 
@@ -204,7 +207,7 @@ export default function Products() {
         </div>
 
 
-        {filtrados.length === 0 ? <div style={{ textAlign: 'center', padding: 36, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum produto nesta categoria</div> : <div className="product-admin-grid">{filtrados.map(p => { const cat = corCategoria[p.categoria] || corCategoria.Outros; return <article key={p._id} className="product-admin-card"><div><span style={{ background: cat.bg, color: cat.txt, padding: '3px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700 }}>{p.categoria}</span><h4>{p.nome}</h4><span className="product-code">Código {p.codigo}</span>{p.producaoPropria && <small className="product-tag">PP</small>}</div><div className="product-admin-footer"><div><strong>R$ {Number(p.preco).toFixed(2).replace('.', ',')}</strong><small> Custo R$ {Number(p.custo || 0).toFixed(2).replace('.', ',')}</small><small className={p.estoque <= 5 ? 'low-stock' : ''}>{p.estoque} venda · {p.estoqueInsumos || 0} insumo(s)</small></div><div className="product-card-actions"><button onClick={() => alterar(p)} style={btnTable}>Editar</button><button onClick={() => remover(p._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>Excluir</button></div></div></article>; })}</div>}
+        {filtrados.length === 0 ? <div style={{ textAlign: 'center', padding: 36, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum produto nesta categoria</div> : <div className="product-admin-grid">{filtrados.map(p => { const cat = corCategoria[p.categoria] || corCategoria.Outros; return <article key={p._id} className="product-admin-card"><div><span style={{ background: cat.bg, color: cat.txt, padding: '3px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700 }}>{p.categoria}</span><h4>{p.nome}</h4><span className="product-code">Código {p.codigo}</span>{p.producaoPropria && <small className="product-tag">PP</small>}</div><div className="product-admin-footer"><div><strong>R$ {Number(p.preco).toFixed(2).replace('.', ',')}</strong><small> Custo R$ {Number(p.custo || 0).toFixed(2).replace('.', ',')}</small><small className={p.estoque <= 5 ? 'low-stock' : ''}>{p.estoque} unidade(s){p.pesoPorUnidade > 0 ? ` · ${Number(p.estoquePesoTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg totais` : ''} · {p.estoqueInsumos || 0} insumo(s)</small></div><div className="product-card-actions"><button onClick={() => alterar(p)} style={btnTable}>Editar</button><button onClick={() => remover(p._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>Excluir</button></div></div></article>; })}</div>}
       </div>
 
 
