@@ -11,6 +11,12 @@ const TIME_ZONE = 'America/Sao_Paulo';
 
 const dataHojeSaoPaulo = () => new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format(new Date());
 const chaveDataSaoPaulo = (value) => new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format(new Date(value));
+const dinheiro = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+const pagamentoTaxa = (pagamento) => {
+  const valor = Number(pagamento.valorRecebido || 0);
+  const taxa = Number(pagamento.taxaValor || (valor * Number(pagamento.taxaPercentual || 0) / 100));
+  return { taxa: dinheiro(taxa), liquido: dinheiro(valor - taxa) };
+};
 
 const getMesRange = (mes) => {
   if (mes) {
@@ -41,20 +47,54 @@ const resumoComparativo = async (mes) => {
   const entradas = pedidosComPagamentos.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => {
     const data = new Date(pagamento.dataPagamento);
     return data >= inicio && data < fim;
-  }).reduce((subtotal, pagamento) => subtotal + Number(pagamento.valorRecebido || 0), 0), 0);
+  }).reduce((subtotal, pagamento) => subtotal + pagamentoTaxa(pagamento).liquido, 0), 0);
+  const taxasCartao = pedidosComPagamentos.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => {
+    const data = new Date(pagamento.dataPagamento);
+    return data >= inicio && data < fim;
+  }).reduce((subtotal, pagamento) => subtotal + pagamentoTaxa(pagamento).taxa, 0), 0);
   return {
     mes,
     pedidos: pedidos.length,
     receita,
     entradas,
+    taxasCartao,
     despesasPagas,
     saldo: entradas - despesasPagas,
-    resultadoOperacional: receita - despesasPagas,
+    resultadoOperacional: receita - taxasCartao - despesasPagas,
   };
 };
 
 router.use(auth);
 router.use(auth.allowRoles('admin'));
+
+router.patch('/taxas-cartao', async (req, res) => {
+  try {
+    const mes = /^\d{4}-\d{2}$/.test(String(req.body.mes || '')) ? req.body.mes : null;
+    const tipo = ['cartao_credito', 'cartao_debito'].includes(req.body.tipo) ? req.body.tipo : null;
+    const percentual = Number(req.body.taxaPercentual);
+    if (!mes || !tipo || !Number.isFinite(percentual) || percentual < 0) return res.status(400).json({ msg: 'Informe mês, cartão e uma taxa válida' });
+    const { inicio, fim } = getMesRange(mes);
+    const pedidos = await Order.find({ pagamentos: { $elemMatch: { tipo, dataPagamento: { $gte: inicio, $lt: fim } } } });
+    let atualizados = 0;
+    for (const pedido of pedidos) {
+      let alterado = false;
+      pedido.pagamentos.forEach((pagamento) => {
+        const data = new Date(pagamento.dataPagamento);
+        if (pagamento.tipo !== tipo || data < inicio || data >= fim) return;
+        const valor = dinheiro(pagamento.valorRecebido);
+        pagamento.taxaPercentual = percentual;
+        pagamento.taxaValor = dinheiro(valor * percentual / 100);
+        pagamento.valorLiquido = dinheiro(valor - pagamento.taxaValor);
+        alterado = true;
+        atualizados += 1;
+      });
+      if (alterado) await pedido.save();
+    }
+    res.json({ mes, tipo, taxaPercentual: percentual, pagamentosAtualizados: atualizados });
+  } catch (error) {
+    res.status(500).json({ msg: error.message });
+  }
+});
 
 router.get('/dre', async (req, res) => {
   try {
@@ -98,9 +138,12 @@ router.get('/dre', async (req, res) => {
       despesasPorCategoria[despesa.categoria] = (despesasPorCategoria[despesa.categoria] || 0) + Number(despesa.valor || 0);
     }
 
+    const taxasCartao = periodoVendas.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((subtotal, pagamento) => subtotal + pagamentoTaxa(pagamento).taxa, 0), 0);
+
     const depreciacao = Number(req.query.depreciacao || 0);
     const impostos = Number(req.query.impostos || 0);
-    const lucroBruto = receitaBruta - cmv;
+    const receitaLiquida = receitaBruta - taxasCartao;
+    const lucroBruto = receitaLiquida - cmv;
     const ebit = lucroBruto - despesasOperacionais;
     const ebitda = ebit + depreciacao;
     const lucroLiquido = ebit - impostos;
@@ -108,6 +151,8 @@ router.get('/dre', async (req, res) => {
     res.json({
       periodo: { mes: req.query.mes || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`, inicio, fim },
       receitaBruta,
+      receitaLiquida,
+      taxasCartao,
       cmv,
       lucroBruto,
       despesasOperacionais,
@@ -147,7 +192,7 @@ router.get('/fluxo-caixa', async (req, res) => {
         const data = new Date(pagamento.dataPagamento);
         if (data < inicio || data >= fim) continue;
         const chave = chaveDataSaoPaulo(data);
-        entradasPorDia.set(chave, (entradasPorDia.get(chave) || 0) + Number(pagamento.valorRecebido || 0));
+        entradasPorDia.set(chave, (entradasPorDia.get(chave) || 0) + pagamentoTaxa(pagamento).liquido);
       }
     }
 

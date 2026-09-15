@@ -22,6 +22,11 @@ const dataSaoPaulo = (value = new Date()) => {
 
 const inicioHojeSaoPaulo = () => new Date(`${dataSaoPaulo()}T00:00:00-03:00`);
 const horaSaoPaulo = (value) => Number(new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, hour: '2-digit', hourCycle: 'h23' }).format(new Date(value)));
+const pagamentoTaxa = (pagamento) => {
+  const valor = Number(pagamento.valorRecebido || 0);
+  const taxa = Number(pagamento.taxaValor || (valor * Number(pagamento.taxaPercentual || 0) / 100));
+  return { bruto: valor, taxa, liquido: valor - taxa };
+};
 
 const periodoHistorico = (semanaInicio) => {
   const dataInformada = /^\d{4}-\d{2}-\d{2}$/.test(String(semanaInicio || '')) ? new Date(`${semanaInicio}T00:00:00-03:00`) : inicioHojeSaoPaulo();
@@ -169,7 +174,7 @@ router.get('/', async (req, res) => {
     const vendasHoje = pedidosDia.filter((pedido) => pedido.status !== 'cancelado');
     const vendasHojeTotal = vendasHoje.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
     const vendasHojeItens = vendasHoje.reduce((total, pedido) => total + (pedido.itens || []).reduce((itens, item) => itens + quantidadeNaUnidadeBase(item), 0), 0);
-    const vendasHojeRecebido = recebimentosDia.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => new Date(pagamento.dataPagamento) >= inicioDoPeriodo('dia')).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0), 0);
+    const vendasHojeRecebido = recebimentosDia.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => new Date(pagamento.dataPagamento) >= inicioDoPeriodo('dia')).reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).liquido, 0), 0);
     const vendasHojePendente = Math.max(0, vendasHojeTotal - vendasHojeRecebido);
     const vendasMes = pedidosMes.filter((pedido) => pedido.status !== 'cancelado');
     const pagamentosMes = new Map();
@@ -187,9 +192,17 @@ router.get('/', async (req, res) => {
         produtosMes.set(item.nome, atual);
       });
     });
-    recebimentosMes.forEach((pedido) => (pedido.pagamentos || []).filter((pagamento) => new Date(pagamento.dataPagamento) >= inicioDoPeriodo('mes') && new Date(pagamento.dataPagamento) < fimDoMesAtual()).forEach((pagamento) => pagamentosMes.set(pagamento.tipo, (pagamentosMes.get(pagamento.tipo) || 0) + Number(pagamento.valorRecebido || 0))));
+    recebimentosMes.forEach((pedido) => (pedido.pagamentos || []).filter((pagamento) => new Date(pagamento.dataPagamento) >= inicioDoPeriodo('mes') && new Date(pagamento.dataPagamento) < fimDoMesAtual()).forEach((pagamento) => {
+      const atual = pagamentosMes.get(pagamento.tipo) || { bruto: 0, taxa: 0, total: 0 };
+      const valores = pagamentoTaxa(pagamento);
+      atual.bruto += valores.bruto;
+      atual.taxa += valores.taxa;
+      atual.total += valores.liquido;
+      pagamentosMes.set(pagamento.tipo, atual);
+    }));
     const totalMes = vendasMes.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
-    const recebidoMes = vendasMes.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0), 0);
+    const recebidoMes = vendasMes.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).liquido, 0), 0);
+    const taxasMes = vendasMes.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).taxa, 0), 0);
     const statusMes = pedidosMes.reduce((status, pedido) => { status[pedido.status] = (status[pedido.status] || 0) + 1; return status; }, {});
     const clientesRelatorio = new Map(clientesRecentes.map((cliente) => [String(cliente._id), {
       id: cliente._id,
@@ -215,7 +228,8 @@ router.get('/', async (req, res) => {
       pendente: Math.max(0, totalMes - recebidoMes),
       ticketMedio: vendasMes.length ? totalMes / vendasMes.length : 0,
       status: statusMes,
-      pagamentos: [...pagamentosMes.entries()].map(([tipo, total]) => ({ tipo, total })).sort((a, b) => b.total - a.total),
+      pagamentos: [...pagamentosMes.entries()].map(([tipo, valores]) => ({ tipo, ...valores })).sort((a, b) => b.total - a.total),
+      taxasCartao: taxasMes,
       produtos: [...produtosMes.values()].sort((a, b) => b.quantidade - a.quantidade).slice(0, 10),
       clientes: clientesMes.size,
       vendasPorDia: [...vendasPorDia.entries()].map(([dia, total]) => ({ dia, total })),

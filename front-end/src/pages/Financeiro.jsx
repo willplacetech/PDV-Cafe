@@ -23,7 +23,7 @@ export default function Financeiro() {
     return data.toISOString().slice(0, 7);
   });
   const [comparacao, setComparacao] = useState({ periodoA: null, periodoB: null });
-  const [dre, setDre] = useState({ receitaBruta: 0, cmv: 0, lucroBruto: 0, despesasOperacionais: 0, ebit: 0, depreciacaoAmortizacao: 0, ebitda: 0, impostosEstimados: 0, lucroLiquido: 0, margemBruta: 0, margemLiquida: 0, despesasPorCategoria: {}, produtosSemCusto: [] });
+  const [dre, setDre] = useState({ receitaBruta: 0, receitaLiquida: 0, taxasCartao: 0, cmv: 0, lucroBruto: 0, despesasOperacionais: 0, ebit: 0, depreciacaoAmortizacao: 0, ebitda: 0, impostosEstimados: 0, lucroLiquido: 0, margemBruta: 0, margemLiquida: 0, despesasPorCategoria: {}, produtosSemCusto: [] });
   const [mesSelecionado, setMesSelecionado] = useState(new Date().toISOString().slice(0, 7));
   const [filtro, setFiltro] = useState({ status: '', categoria: '', dataInicio: '', dataFim: '' });
   const [form, setForm] = useState({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
@@ -45,7 +45,7 @@ export default function Financeiro() {
         setDespesas(despesasRes.data || []);
         setResumo(resumoRes.data || { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
         setFluxo(fluxoRes.data || { dados: [], totalEntradas: 0, totalSaidas: 0, saldoDoMes: 0 });
-        setDre(dreRes.data || { receitaBruta: 0, cmv: 0, lucroBruto: 0, despesasOperacionais: 0, ebit: 0, depreciacaoAmortizacao: 0, ebitda: 0, impostosEstimados: 0, lucroLiquido: 0, margemBruta: 0, margemLiquida: 0, despesasPorCategoria: {}, produtosSemCusto: [] });
+        setDre(dreRes.data || { receitaBruta: 0, receitaLiquida: 0, taxasCartao: 0, cmv: 0, lucroBruto: 0, despesasOperacionais: 0, ebit: 0, depreciacaoAmortizacao: 0, ebitda: 0, impostosEstimados: 0, lucroLiquido: 0, margemBruta: 0, margemLiquida: 0, despesasPorCategoria: {}, produtosSemCusto: [] });
         setComparacao(comparacaoRes.data || { periodoA: null, periodoB: null });
       } catch (error) {
         showToast(error.response?.data?.msg || 'Não foi possível carregar o financeiro', 'error');
@@ -97,6 +97,8 @@ export default function Financeiro() {
   const exportarCsv = () => {
     const linhas = [
       ['Receita Bruta', dre.receitaBruta],
+      ['Taxas de cartão', dre.taxasCartao],
+      ['Receita Líquida', dre.receitaLiquida],
       ['CMV', dre.cmv],
       ['Lucro Bruto', dre.lucroBruto],
       ['Despesas Operacionais', dre.despesasOperacionais],
@@ -375,6 +377,8 @@ export default function Financeiro() {
               <table className="financeiro-table dre-table">
                 <tbody>
                   <tr><th>Receita Bruta</th><td>{money(dre.receitaBruta)}</td><td>100%</td></tr>
+                  <tr><th>− Taxas de cartão</th><td>{money(dre.taxasCartao)}</td><td>{dre.receitaBruta ? `${((dre.taxasCartao / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
+                  <tr><th>= Receita Líquida</th><td>{money(dre.receitaLiquida)}</td><td>{dre.receitaBruta ? `${((dre.receitaLiquida / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
                   <tr><th>− CMV</th><td>{money(dre.cmv)}</td><td>{dre.receitaBruta ? `${((dre.cmv / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
                   <tr><th>= Lucro Bruto</th><td>{money(dre.lucroBruto)}</td><td>{dre.receitaBruta ? `${((dre.lucroBruto / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
                   {Object.entries(dre.despesasPorCategoria || {}).map(([categoria, valor]) => (

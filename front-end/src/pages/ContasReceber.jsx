@@ -612,11 +612,9 @@ Obrigado! 🙏`
   return (
     <div>
       <div className="page-heading">
-        <div>
           <h1>📊 Contas a Receber</h1>
           <p>Acerto de pendências por cliente</p>
         </div>
-      </div>
 
       {/* FILTROS */}
       <div style={{
@@ -911,8 +909,8 @@ Obrigado! 🙏`
               </select>
             </div>
 
+
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Observação</label>
               <input type="text" placeholder="Ex: Pagamento em lote"
                 value={formPagamentoMultiplo.observacao}
                 onChange={e => setFormPagamentoMultiplo({...formPagamentoMultiplo, observacao: e.target.value})}
@@ -966,7 +964,6 @@ Obrigado! 🙏`
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Observação</label>
               <input type="text" placeholder="Ex: Pagamento parcial"
                 value={formPagamento.observacao}
                 onChange={e => setFormPagamento({...formPagamento, observacao: e.target.value})}

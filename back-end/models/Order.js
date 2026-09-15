@@ -17,6 +17,9 @@ const pagamentoSchema = new mongoose.Schema({
     default: 'credito_loja'
   },
   valorRecebido: { type: Number, default: 0 },
+  taxaPercentual: { type: Number, default: 0, min: 0 },
+  taxaValor: { type: Number, default: 0, min: 0 },
+  valorLiquido: { type: Number, default: 0, min: 0 },
   dataPagamento: Date,
   quitado: { type: Boolean, default: false },
   observacao: String,
