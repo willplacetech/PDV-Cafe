@@ -381,8 +381,9 @@ export default function Financeiro() {
                   <tr><th>= Receita Líquida</th><td>{money(dre.receitaLiquida)}</td><td>{dre.receitaBruta ? `${((dre.receitaLiquida / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
                   <tr><th>− CMV</th><td>{money(dre.cmv)}</td><td>{dre.receitaBruta ? `${((dre.cmv / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
                   <tr><th>= Lucro Bruto</th><td>{money(dre.lucroBruto)}</td><td>{dre.receitaBruta ? `${((dre.lucroBruto / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
+                  <tr><th>− Despesas Operacionais</th><td>{money(dre.despesasOperacionais)}</td><td>{dre.receitaLiquida ? `${((dre.despesasOperacionais / dre.receitaLiquida) * 100).toFixed(1)}%` : '0%'}</td></tr>
                   {Object.entries(dre.despesasPorCategoria || {}).map(([categoria, valor]) => (
-                    <tr key={categoria}><th>− {categoria}</th><td>{money(valor)}</td><td>{dre.receitaBruta ? `${((valor / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
+                    <tr key={categoria}><th>↳ {categoria}</th><td>{money(valor)}</td><td>{dre.receitaLiquida ? `${((valor / dre.receitaLiquida) * 100).toFixed(1)}%` : '0%'}</td></tr>
                   ))}
                   <tr><th>= EBIT</th><td>{money(dre.ebit)}</td><td>{dre.receitaBruta ? `${((dre.ebit / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
                   <tr><th>+ Depreciação/Amortização</th><td>{money(dre.depreciacaoAmortizacao)}</td><td>—</td></tr>

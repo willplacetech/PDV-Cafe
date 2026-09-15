@@ -139,8 +139,9 @@ router.get('/dre', async (req, res) => {
     const despesasPorCategoria = {};
     let despesasOperacionais = 0;
     for (const despesa of despesasPagas) {
-      despesasOperacionais += Number(despesa.valor || 0);
-      despesasPorCategoria[despesa.categoria] = (despesasPorCategoria[despesa.categoria] || 0) + Number(despesa.valor || 0);
+      const valor = dinheiro(despesa.valor);
+      despesasOperacionais = dinheiro(despesasOperacionais + valor);
+      despesasPorCategoria[despesa.categoria] = dinheiro((despesasPorCategoria[despesa.categoria] || 0) + valor);
     }
 
     const taxasCartao = periodoVendas.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((subtotal, pagamento) => subtotal + pagamentoTaxa(pagamento).taxa, 0), 0);
@@ -149,9 +150,9 @@ router.get('/dre', async (req, res) => {
     const impostos = Number(req.query.impostos || 0);
     const receitaLiquida = receitaBruta - taxasCartao;
     const lucroBruto = receitaLiquida - cmv;
-    const ebit = lucroBruto - despesasOperacionais;
-    const ebitda = ebit + depreciacao;
-    const lucroLiquido = ebit - impostos;
+    const ebit = dinheiro(lucroBruto - despesasOperacionais);
+    const ebitda = dinheiro(ebit + depreciacao);
+    const lucroLiquido = dinheiro(ebit - impostos);
 
     res.json({
       periodo: { mes: req.query.mes || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`, inicio, fim },
