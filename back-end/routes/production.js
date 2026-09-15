@@ -6,11 +6,25 @@ const Product = require('../models/Product');
 const Recipe = require('../models/Recipe');
 const Production = require('../models/Production');
 const StockMovement = require('../models/StockMovement');
+const { calcularCustoReceita } = require('../utils/custo');
 
 const router = express.Router();
 const locations = ['venda', 'insumos'];
 const units = ['un', 'kg', 'g', 'l', 'ml'];
 const balanceField = (location) => location === 'insumos' ? 'estoqueInsumos' : 'estoque';
+
+const sincronizarCustoReceita = async (recipeId) => {
+  const recipe = await Recipe.findById(recipeId).populate('ingredientes.produtoId');
+  if (!recipe) return;
+  const ingredientes = recipe.ingredientes.map((item) => ({
+    quantidade: Number(item.quantidade || 0),
+    unidade: item.unidade,
+    custoUnitarioBase: Number(item.produtoId?.custoUnitarioBase || 0),
+  }));
+  const resultado = calcularCustoReceita(ingredientes, recipe.custoEmbalagem, recipe.custoIndireto, recipe.maoDeObra, Number(recipe.rendimento || 1));
+  await Recipe.findByIdAndUpdate(recipe._id, { $set: { custoInsumosTotal: resultado.custoInsumosTotal, custoTotal: resultado.custoTotal, custoUnitario: resultado.custoUnitario } });
+  await Product.findByIdAndUpdate(recipe.produtoId, { $set: { custo: resultado.custoUnitario, custoUnitario: resultado.custoUnitario } });
+};
 
 router.use(auth);
 router.use(auth.allowRoles('admin'));
@@ -50,6 +64,7 @@ router.post('/recipes', [
     if (itens.some((item) => !byId.has(String(item.produtoId)) || !Number.isFinite(item.quantidade) || item.quantidade <= 0 || !units.includes(item.unidade))) return res.status(400).json({ msg: 'Ingrediente inválido' });
     const recipe = await Recipe.create({ nome: nome.trim(), produtoId, rendimento: Number(rendimento), unidadeRendimento, ingredientes: itens, createdBy: req.user.id });
     await Product.findByIdAndUpdate(produtoId, { $set: { producaoPropria: true } });
+    await sincronizarCustoReceita(recipe._id);
     res.status(201).json(await recipe.populate('produtoId', 'nome codigo unidadeVenda producaoPropria'));
   } catch (error) { res.status(400).json({ msg: error.message }); }
 });
@@ -71,6 +86,8 @@ router.put('/recipes/:id', [
     ['rendimento', 'ativa'].forEach((key) => { if (req.body[key] !== undefined) fields[key] = key === 'rendimento' ? Number(req.body[key]) : Boolean(req.body[key]); });
     if (req.body.ingredientes) fields.ingredientes = req.body.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade }));
     const updated = await Recipe.findByIdAndUpdate(req.params.id, { $set: fields }, { new: true, runValidators: true }).populate('produtoId', 'nome codigo unidadeVenda producaoPropria');
+    await Product.findByIdAndUpdate(updated.produtoId._id, { $set: { producaoPropria: updated.ativa } });
+    if (updated.ativa) await sincronizarCustoReceita(updated._id);
     res.json(updated);
   } catch (error) { res.status(400).json({ msg: error.message }); }
 });
@@ -81,6 +98,7 @@ router.delete('/recipes/:id', async (req, res) => {
     if (used) return res.status(400).json({ msg: 'Receita já utilizada não pode ser excluída; desative-a.' });
     const recipe = await Recipe.findByIdAndDelete(req.params.id);
     if (!recipe) return res.status(404).json({ msg: 'Receita não encontrada' });
+    await Product.findByIdAndUpdate(recipe.produtoId, { $set: { producaoPropria: false } });
     res.json({ msg: 'Receita removida com sucesso' });
   } catch (error) { res.status(400).json({ msg: error.message }); }
 });

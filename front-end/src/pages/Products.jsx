@@ -9,7 +9,7 @@ const categorias = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', '
 
 export default function Products() {
   const [produtos, setProdutos] = useState([]);
-  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', custo: '', estoque: '', estoqueInsumos: '', estoqueMinimoInsumos: '', unidadeVenda: 'un', vendidoFracionado: false, aFazer: false, fichaTecnica: [], producaoPropria: false, controladoComoInsumo: false };
+  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', custo: '', estoque: '', estoqueInsumos: '', estoqueMinimoInsumos: '', unidadeVenda: 'un', vendidoFracionado: false, aFazer: false, fichaTecnica: [], producaoPropria: false, controladoComoInsumo: false, temReceita: false };
   const [form, setForm] = useState(vazio);
 
   const handleCategoriaChange = (categoria) => {
@@ -67,7 +67,7 @@ export default function Products() {
       return showToast('⚠️ Este código já está cadastrado! Use outro.', 'warning');
     }
 
-    const dados = { ...form, preco: parseFloat(form.preco), custo: parseFloat(form.custo) || 0, estoque: parseFloat(form.estoque) || 0, estoqueInsumos: parseFloat(form.estoqueInsumos) || 0, estoqueMinimoInsumos: parseFloat(form.estoqueMinimoInsumos) || 0, unidadeVenda: form.unidadeVenda, vendidoFracionado: form.vendidoFracionado, aFazer: form.aFazer, fichaTecnica: form.fichaTecnica.filter((item) => item.produtoId && Number(item.quantidade) > 0).map((item) => ({ ...item, quantidade: Number(item.quantidade) })), producaoPropria: form.producaoPropria, controladoComoInsumo: form.controladoComoInsumo };
+    const dados = { ...form, preco: parseFloat(form.preco), custoUnitario: parseFloat(form.custo) || 0, estoque: parseFloat(form.estoque) || 0, estoqueInsumos: parseFloat(form.estoqueInsumos) || 0, estoqueMinimoInsumos: parseFloat(form.estoqueMinimoInsumos) || 0, unidadeVenda: form.unidadeVenda, vendidoFracionado: form.vendidoFracionado, aFazer: form.aFazer, fichaTecnica: form.fichaTecnica.filter((item) => item.produtoId && Number(item.quantidade) > 0).map((item) => ({ ...item, quantidade: Number(item.quantidade) })), producaoPropria: form.producaoPropria, controladoComoInsumo: form.controladoComoInsumo };
     try {
       editing ? await api.put(`/products/${editing._id}`, dados) : await api.post('/products', dados);
       showToast(editing ? '✅ Produto atualizado!' : '✅ Produto cadastrado!', 'success');
@@ -82,7 +82,7 @@ export default function Products() {
 
   const alterar = (p) => {
     setEditing(p);
-    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, custo: p.custo || '', estoque: p.estoque, estoqueInsumos: p.estoqueInsumos || '', estoqueMinimoInsumos: p.estoqueMinimoInsumos || '', unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado), aFazer: Boolean(p.aFazer), fichaTecnica: p.fichaTecnica || [], producaoPropria: Boolean(p.producaoPropria), controladoComoInsumo: Boolean(p.controladoComoInsumo) });
+    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, custo: p.custoUnitario ?? p.custo ?? '', estoque: p.estoque, estoqueInsumos: p.estoqueInsumos || '', estoqueMinimoInsumos: p.estoqueMinimoInsumos || '', unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado), aFazer: Boolean(p.aFazer), fichaTecnica: p.fichaTecnica || [], producaoPropria: Boolean(p.producaoPropria), controladoComoInsumo: Boolean(p.controladoComoInsumo), temReceita: Boolean(p.temReceita) });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -170,7 +170,7 @@ export default function Products() {
 
           {(form.categoria === 'Insumos' || form.controladoComoInsumo) && <section className="product-form-section product-insumo-section"><div className="product-section-title"><span>🧺</span><div><strong>ESTOQUE DE INSUMO</strong><small>Controle separado para produção</small></div></div><div className="product-form-grid"><label>Estoque de Insumo<input type="number" step="0.001" min={0} placeholder="0" value={form.estoqueInsumos} onChange={e => setForm({ ...form, estoqueInsumos: e.target.value })} /></label><label>Estoque Mínimo<input type="number" step="0.001" min={0} placeholder="0" value={form.estoqueMinimoInsumos} onChange={e => setForm({ ...form, estoqueMinimoInsumos: e.target.value })} /></label></div></section>}
 
-          <section className="product-form-section product-cost-section"><div className="product-section-title"><span>💰</span><div><strong>CUSTO</strong><small>Preenchido pela Calculadora de Custo</small></div></div><label>Custo unitário (R$)<input type="number" value={form.custo} disabled readOnly placeholder="Calculado automaticamente" /></label><small className="field-help">Calculado automaticamente na Calculadora de Custo</small></section>
+          <section className="product-form-section product-cost-section"><div className="product-section-title"><span>💰</span><div><strong>CUSTO</strong><small>{form.temReceita ? 'Preenchido pela receita' : 'Custo de aquisição do produto'}</small></div></div><label>Custo unitário (R$)<input type="number" step="0.01" min="0" value={form.custo} disabled={form.temReceita} readOnly={form.temReceita} placeholder={form.temReceita ? 'Calculado automaticamente' : '0,00'} onChange={(e) => setForm({ ...form, custo: e.target.value })} /></label><small className="field-help">{form.temReceita ? 'Calculado automaticamente pela receita' : 'Informe o custo de aquisição/compra'}</small></section>
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
             <button type="submit" style={{
               flex: 1, padding: '12px', background: 'var(--accent-primary)', color: '#fff',

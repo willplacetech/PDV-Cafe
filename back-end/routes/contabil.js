@@ -114,9 +114,8 @@ router.get('/dre', async (req, res) => {
       for (const item of pedido.itens || []) {
         const produtoId = String(item.produtoId || '');
         const quantidade = quantidadeNaUnidadeBase(item);
-        const recipe = produtoId ? await Recipe.findOne({ produtoId, ativa: true }).lean() : null;
         const produto = produtoId ? await Product.findById(produtoId).lean() : null;
-        const custoUnitario = recipe?.custoUnitario || produto?.custoUnitario || produto?.custo || 0;
+        const custoUnitario = Number(produto?.custoUnitario || 0);
         if (custoUnitario > 0) {
           cmv += quantidade * custoUnitario;
         } else {

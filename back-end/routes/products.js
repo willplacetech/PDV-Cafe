@@ -6,6 +6,7 @@ const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
 const { corrigirBolos, corrigirProdutosBolo } = require('../utils/corrigirBolos');
 const HistoricoCusto = require('../models/HistoricoCusto');
+const Recipe = require('../models/Recipe');
 
 const router = express.Router();
 const units = ['un', 'kg', 'g', 'l', 'ml'];
@@ -19,7 +20,16 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
     const query = {};
     if (search) query.$or = [{ nome: { $regex: search, $options: 'i' } }, { codigo: { $regex: search, $options: 'i' } }];
     if (categoria) query.categoria = categoria;
-    res.json(await Product.find(query).sort({ nome: 1 }));
+    const [produtos, receitas] = await Promise.all([
+      Product.find(query).sort({ nome: 1 }),
+      Recipe.find({ ativa: true }).select('_id produtoId').lean(),
+    ]);
+    const receitaPorProduto = new Map(receitas.map((receita) => [String(receita.produtoId), receita._id]));
+    res.json(produtos.map((produto) => ({
+      ...produto.toObject(),
+      receitaId: receitaPorProduto.get(String(produto._id)) || null,
+      temReceita: receitaPorProduto.has(String(produto._id)),
+    })));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
@@ -130,7 +140,8 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const estoque = Number(data.estoque) || 0;
     const estoqueInsumos = Number(data.estoqueInsumos) || 0;
     const fichaTecnica = Array.isArray(data.fichaTecnica) ? data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })).filter((item) => item.produtoId && Number.isFinite(item.quantidade) && item.quantidade > 0 && units.includes(item.unidade)) : [];
-    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), custo: Number(data.custo) || 0, estoque, estoqueInsumos, estoqueInicialDia: estoque, estoqueInicialData: dataLocal(), estoqueInsumosInicial: estoqueInsumos, estoqueInsumosInicialData: dataLocal(), estoqueMinimoInsumos: Number(data.estoqueMinimoInsumos) || 0, unidadeVenda: data.unidadeVenda || 'un', vendidoFracionado: Boolean(data.vendidoFracionado), aFazer: Boolean(data.aFazer), fichaTecnica, producaoPropria: Boolean(data.producaoPropria), controladoComoInsumo: Boolean(data.controladoComoInsumo), createdBy: req.user.id });
+    const custoUnitario = Number(data.custoUnitario ?? data.custo) || 0;
+    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), custo: custoUnitario, custoUnitario, estoque, estoqueInsumos, estoqueInicialDia: estoque, estoqueInicialData: dataLocal(), estoqueInsumosInicial: estoqueInsumos, estoqueInsumosInicialData: dataLocal(), estoqueMinimoInsumos: Number(data.estoqueMinimoInsumos) || 0, unidadeVenda: data.unidadeVenda || 'un', vendidoFracionado: Boolean(data.vendidoFracionado), aFazer: Boolean(data.aFazer), fichaTecnica, producaoPropria: Boolean(data.producaoPropria), controladoComoInsumo: Boolean(data.controladoComoInsumo), createdBy: req.user.id });
     res.status(201).json(product);
   } catch (err) { res.status(400).json({ msg: err.code === 11000 ? 'Código duplicado' : err.message }); }
 });
@@ -146,7 +157,15 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     }
     const fields = {};
     ['codigo', 'nome', 'categoria', 'unidadeVenda'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
-    ['preco', 'custo', 'estoque', 'estoqueInsumos', 'estoqueMaximo', 'estoqueMinimoInsumos'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
+    ['preco', 'estoque', 'estoqueInsumos', 'estoqueMaximo', 'estoqueMinimoInsumos'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
+    if (data.custoUnitario !== undefined || data.custo !== undefined) {
+      const receitaVinculada = await Recipe.exists({ produtoId: req.params.id, ativa: true });
+      if (!receitaVinculada) {
+        const custoUnitario = Number(data.custoUnitario ?? data.custo);
+        fields.custoUnitario = custoUnitario;
+        fields.custo = custoUnitario;
+      }
+    }
     ['vendidoFracionado', 'aFazer', 'producaoPropria', 'controladoComoInsumo'].forEach((key) => { if (data[key] !== undefined) fields[key] = Boolean(data[key]); });
     if (data.fichaTecnica !== undefined) fields.fichaTecnica = data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade }));
     if (data.estoque !== undefined && antesDasOito()) {
