@@ -176,7 +176,10 @@ router.get('/', async (req, res) => {
     const vendasHojeTotal = vendasHoje.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
     const vendasHojeItens = vendasHoje.reduce((total, pedido) => total + (pedido.itens || []).reduce((itens, item) => itens + quantidadeNaUnidadeBase(item), 0), 0);
     const vendasHojeRecebido = recebimentosDia.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => new Date(pagamento.dataPagamento) >= inicioDoPeriodo('dia')).reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).liquido, 0), 0);
-    const vendasHojePendente = Math.max(0, vendasHojeTotal - vendasHojeRecebido);
+    const vendasHojePendente = vendasHoje.reduce((total, pedido) => {
+      const recebidoBruto = (pedido.pagamentos || []).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0);
+      return total + Math.max(0, Number(pedido.total || 0) - recebidoBruto);
+    }, 0);
     const vendasMes = pedidosMes.filter((pedido) => pedido.status !== 'cancelado');
     const pagamentosMes = new Map();
     const produtosMes = new Map();
@@ -226,7 +229,10 @@ router.get('/', async (req, res) => {
       itens: vendasMes.reduce((total, pedido) => total + (pedido.itens || []).reduce((soma, item) => soma + quantidadeNaUnidadeBase(item), 0), 0),
       total: totalMes,
       recebido: recebidoMes,
-      pendente: Math.max(0, totalMes - recebidoMes),
+      pendente: vendasMes.reduce((total, pedido) => {
+        const recebidoBruto = (pedido.pagamentos || []).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0);
+        return total + Math.max(0, Number(pedido.total || 0) - recebidoBruto);
+      }, 0),
       ticketMedio: vendasMes.length ? totalMes / vendasMes.length : 0,
       status: statusMes,
       pagamentos: [...pagamentosMes.entries()].map(([tipo, valores]) => ({ tipo, ...valores })).sort((a, b) => b.total - a.total),

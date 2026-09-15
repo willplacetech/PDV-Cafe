@@ -355,7 +355,8 @@ export default function Layout() {
             overflow: hidden !important;
           }
           #bottom-nav {
-            display: flex !important;
+            display: grid !important;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             position: fixed;
             bottom: 0; left: 0; right: 0;
             background: var(--bg-secondary);
@@ -366,7 +367,7 @@ export default function Layout() {
           }
           #main-content {
             margin-left: 0 !important;
-            padding: 16px 16px 100px 16px !important;
+            padding: 16px 16px 140px 16px !important;
             min-height: calc(100vh - 60px);
           }
         }
@@ -396,7 +397,7 @@ export default function Layout() {
         }
 
         .bottom-link {
-          flex: 1; display: flex; flex-direction: column;
+          display: flex; min-width: 0; width: 100%; flex-direction: column;
           align-items: center; justify-content: center;
           padding: 6px 2px; text-decoration: none;
           color: var(--text-secondary);
