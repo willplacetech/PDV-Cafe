@@ -466,6 +466,7 @@ export default function Financeiro() {
       <style>{`
         .financeiro-page {
           color: var(--text-primary);
+          min-width: 0;
         }
 
         .financeiro-header {
@@ -779,6 +780,10 @@ export default function Financeiro() {
           text-align: center;
         }
 
+        .financeiro-page .dashboard-section-heading > div { min-width: 0; }
+        .financeiro-page .dashboard-section-heading h2,
+        .financeiro-page .dashboard-section-heading p { overflow-wrap: anywhere; }
+
         @media (max-width: 900px) {
           .financeiro-kpis,
           .filters-grid,
@@ -791,10 +796,19 @@ export default function Financeiro() {
         }
 
         @media (max-width: 640px) {
+          .financeiro-page { overflow-x: hidden; }
           .financeiro-header {
             flex-direction: column;
             align-items: flex-start;
           }
+
+          .financeiro-header > div,
+          .financeiro-period,
+          .financeiro-period label,
+          .financeiro-period input { width: 100%; }
+
+          .financeiro-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+          .financeiro-tabs button { min-height: 44px; padding: 8px 6px; white-space: normal; }
 
           .financeiro-kpis,
           .filters-grid,
@@ -803,6 +817,10 @@ export default function Financeiro() {
           }
 
           .compare-periods { grid-template-columns: 1fr; }
+
+          .financeiro-panel { padding: 14px; border-radius: 12px; }
+          .financeiro-kpi { padding: 14px; border-radius: 12px; }
+          .financeiro-kpi strong { font-size: 20px; overflow-wrap: anywhere; }
 
           .dashboard-section-heading {
             flex-direction: column;
@@ -820,6 +838,19 @@ export default function Financeiro() {
           .financeiro-table {
             min-width: 640px;
           }
+
+          .dre-table { min-width: 0 !important; width: 100%; }
+          .dre-table th { width: auto; }
+          .dre-table th, .dre-table td { padding: 10px 6px; font-size: 12px; }
+          .dre-table th { overflow-wrap: anywhere; }
+          .compare-table-wrap { margin-right: -14px; padding-right: 14px; }
+        }
+
+        @media (max-width: 380px) {
+          .financeiro-tabs { grid-template-columns: 1fr; }
+          .financeiro-kpi strong { font-size: 18px; }
+          .financeiro-table { min-width: 600px; }
+          .dre-table { min-width: 0 !important; }
         }
       `}</style>
     </div>
