@@ -6,6 +6,7 @@ const Product = require('../models/Product');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
+const permiteFracionar = (product) => Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda);
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
 async function buildOrderItems(rawItems, session) {
@@ -22,7 +23,7 @@ async function buildOrderItems(rawItems, session) {
     const product = byId.get(String(item.produtoId));
     const quantity = Number(item.quantidade);
     if (!product) throw new Error('Produto não encontrado');
-    if (!product.vendidoFracionado && !Number.isInteger(quantity)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
+    if (!permiteFracionar(product) && !Number.isInteger(quantity)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
     return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda };
   });
   for (const [productId, quantity] of totals) {
@@ -126,7 +127,7 @@ router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req,
       const product = porId.get(String(item.produtoId));
       const quantidade = Number(item.quantidade);
       if (!product) throw new Error('Produto não encontrado');
-      if (!product.vendidoFracionado && !Number.isInteger(quantidade)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
+      if (!permiteFracionar(product) && !Number.isInteger(quantidade)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
       return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda };
     });
     for (const [produtoId, quantidade] of quantidades) {

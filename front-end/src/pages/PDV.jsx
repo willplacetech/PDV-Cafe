@@ -29,7 +29,7 @@ const grupoProduto = (produto) => {
   if (produto.categoria === 'Café da manhã') return 'Café da manhã';
   return 'Outros';
 };
-const precisaModificar = (produto) => grupoProduto(produto) === 'Bebidas Quentes';
+const permiteFracionar = (produto) => Boolean(produto?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(produto?.unidadeVenda);
 
 
 export default function PDV() {
@@ -41,8 +41,6 @@ export default function PDV() {
   const [clienteId, setClienteId] = useState('');
   const [clienteNome, setClienteNome] = useState('');
   const [grupoAtivo, setGrupoAtivo] = useState('Todos');
-  const [produtoModificador, setProdutoModificador] = useState(null);
-  const [modificadores, setModificadores] = useState({ tamanho: 'Médio', leite: 'Integral', acompanhamentos: [] });
   const [feedbackProduto, setFeedbackProduto] = useState(null);
   const [modalSucesso, setModalSucesso] = useState(null);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
@@ -96,7 +94,7 @@ export default function PDV() {
     } else {
       setCarrinho([...carrinho, {
         produtoId: prod._id, codigo: prod.codigo, nome: prod.nome,
-        precoUnitario: prod.preco, quantidade: incremento, unidadeVenda: 'un', vendidoFracionado: false, modificadores: modificadoresItem
+        precoUnitario: prod.preco, quantidade: incremento, unidadeVenda: prod.unidadeVenda || 'un', vendidoFracionado: permiteFracionar(prod), modificadores: modificadoresItem
       }]);
     }
     setFeedbackProduto(prod._id);
@@ -105,18 +103,7 @@ export default function PDV() {
   };
 
   const selecionarProduto = (prod) => {
-    if (precisaModificar(prod)) {
-      setProdutoModificador(prod);
-      setModificadores({ tamanho: 'Médio', leite: 'Integral', acompanhamentos: [] });
-      return;
-    }
     adicionarItem(prod);
-  };
-
-  const confirmarModificadores = () => {
-    const escolhas = [modificadores.tamanho, modificadores.leite, ...modificadores.acompanhamentos];
-    adicionarItem(produtoModificador, { modificadores: escolhas });
-    setProdutoModificador(null);
   };
 
 
@@ -124,7 +111,7 @@ export default function PDV() {
     const novos = [...carrinho];
     const prod = produtos.find(p => p._id === novos[idx].produtoId);
     if (qtd < 0.001) return removerItem(idx);
-    if (!prod?.vendidoFracionado && !Number.isInteger(qtd)) return showToast('Este produto é vendido por unidade', 'warning');
+    if (!permiteFracionar(prod) && !Number.isInteger(qtd)) return showToast('Este produto é vendido por unidade', 'warning');
     const quantidadeOutrasLinhas = carrinho.reduce((total, item, itemIndex) => itemIndex !== idx && item.produtoId === novos[idx].produtoId ? total + item.quantidade : total, 0);
     if (quantidadeOutrasLinhas + qtd > prod.estoque) return showToast(`Máximo: ${prod.estoque}`, 'warning');
     novos[idx].quantidade = qtd;
@@ -300,7 +287,7 @@ Obrigado pela preferência! 🙏`
   const produtosMaisVendidos = maisVendidos
     .map((item) => produtos.find((produto) => produto._id === String(item.produtoId)))
     .filter(Boolean);
-  const filtrados = produtos.filter((produto) =>
+  const filtrados = produtos.filter((produto) => produto.categoria !== 'Insumos').filter((produto) =>
     !termoBusca || [produto.nome, produto.codigo, produto.categoria].some((campo) => normalizarTexto(campo).includes(termoBusca))
   ).filter((produto) => {
     if (grupoAtivo === 'Todos') return true;
@@ -377,7 +364,7 @@ Obrigado pela preferência! 🙏`
                 <span style={{ fontSize: 11, color: 'var(--accent-primary)', fontWeight: 700 }}>ATENDIMENTO RÁPIDO</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
-                {produtosMaisVendidos.filter((produto) => grupoProduto(produto) !== 'Bebidas geladas').slice(0, 6).map((produto) => (
+                {produtosMaisVendidos.filter((produto) => produto.categoria !== 'Insumos' && grupoProduto(produto) !== 'Bebidas geladas').slice(0, 6).map((produto) => (
                   <button key={produto._id} onClick={() => selecionarProduto(produto)} style={{ padding: '11px 10px', minHeight: 58, textAlign: 'left', border: '1px solid var(--accent-border)', borderRadius: 10, background: 'var(--accent-light)', color: 'var(--text-primary)', cursor: 'pointer' }}>
                     <strong style={{ display: 'block', fontSize: 12 }}>{produto.nome}</strong>
                     <span style={{ fontSize: 11, color: 'var(--accent-primary)' }}>R$ {produto.preco.toFixed(2).replace('.', ',')}</span>
@@ -500,11 +487,11 @@ Obrigado pela preferência! 🙏`
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 10, overflow: 'hidden' }}>
-                            <button onClick={() => alterarQtd(i, item.quantidade - (prod?.vendidoFracionado ? 0.001 : 1))} style={{
+                            <button onClick={() => alterarQtd(i, item.quantidade - (permiteFracionar(prod) ? 0.001 : 1))} style={{
                               width: 40, height: 40, background: 'transparent', border: 'none',
                               cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)'
                             }}>−</button>
-                            <input type="number" min={prod?.vendidoFracionado ? 0.001 : 1} step={prod?.vendidoFracionado ? 0.001 : 1} value={item.quantidade}
+                            <input type="number" min={permiteFracionar(prod) ? 0.001 : 1} step={permiteFracionar(prod) ? 0.001 : 1} value={item.quantidade}
                               onChange={e => alterarQtd(i, Number(e.target.value))}
                               style={{
                                 width: 48, textAlign: 'center', border: 'none',
@@ -513,7 +500,7 @@ Obrigado pela preferência! 🙏`
                                 padding: '8px 4px', fontSize: 15, fontWeight: 700,
                                 background: 'var(--input-bg)', color: 'var(--input-text)'
                               }} />
-                            <button onClick={() => alterarQtd(i, item.quantidade + (prod?.vendidoFracionado ? 0.001 : 1))} style={{
+                            <button onClick={() => alterarQtd(i, item.quantidade + (permiteFracionar(prod) ? 0.001 : 1))} style={{
                               width: 40, height: 40, background: 'transparent', border: 'none',
                               cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)'
                             }}>+</button>
@@ -559,22 +546,6 @@ Obrigado pela preferência! 🙏`
           </div>
         </div>
       </div>
-
-      {produtoModificador && (
-        <div onClick={() => setProdutoModificador(null)} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(35, 22, 15, .48)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={(event) => event.stopPropagation()} style={{ width: '100%', maxWidth: 460, maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 18, padding: 22, boxShadow: 'var(--shadow-lg)', color: 'var(--text-primary)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 18 }}>
-              <div><span style={{ color: 'var(--accent-primary)', fontSize: 11, fontWeight: 800, letterSpacing: '.08em' }}>PERSONALIZE SEU CAFÉ</span><h2 style={{ margin: '4px 0 0', fontSize: 22 }}>{produtoModificador.nome}</h2></div>
-              <button onClick={() => setProdutoModificador(null)} aria-label="Fechar personalização" style={{ border: 0, background: 'transparent', fontSize: 20, cursor: 'pointer' }}>×</button>
-            </div>
-            <fieldset style={{ border: 0, padding: 0, margin: '0 0 16px' }}><legend style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Tamanho</legend><div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>{['Pequeno', 'Médio', 'Grande'].map((opcao) => <button type="button" key={opcao} onClick={() => setModificadores({ ...modificadores, tamanho: opcao })} style={{ minHeight: 44, borderRadius: 9, border: modificadores.tamanho === opcao ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', background: modificadores.tamanho === opcao ? 'var(--accent-light)' : 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: 700 }}>{opcao}</button>)}</div></fieldset>
-            <fieldset style={{ border: 0, padding: 0, margin: '0 0 16px' }}><legend style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Tipo de leite</legend><div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>{['Integral', 'Desnatado', 'Aveia'].map((opcao) => <button type="button" key={opcao} onClick={() => setModificadores({ ...modificadores, leite: opcao })} style={{ minHeight: 44, borderRadius: 9, border: modificadores.leite === opcao ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', background: modificadores.leite === opcao ? 'var(--accent-light)' : 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: 700 }}>{opcao}</button>)}</div></fieldset>
-            <fieldset style={{ border: 0, padding: 0, margin: '0 0 20px' }}><legend style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Acompanhamentos</legend><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>{['Canela', 'Chocolate'].map((opcao) => { const marcado = modificadores.acompanhamentos.includes(opcao); return <button type="button" key={opcao} onClick={() => setModificadores({ ...modificadores, acompanhamentos: marcado ? modificadores.acompanhamentos.filter((item) => item !== opcao) : [...modificadores.acompanhamentos, opcao] })} style={{ minHeight: 44, borderRadius: 9, border: marcado ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', background: marcado ? 'var(--accent-light)' : 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: 700 }}>{marcado ? '✓ ' : ''}{opcao}</button>; })}</div></fieldset>
-            <button type="button" onClick={confirmarModificadores} style={{ width: '100%', minHeight: 50, border: 0, borderRadius: 10, background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>Adicionar à comanda</button>
-          </div>
-        </div>
-      )}
-
 
       {/* ==========================================
           ✅ MODAL DE SUCESSO

@@ -8,6 +8,7 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+const permiteFracionar = (product) => Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda);
 
 async function ajustarEstoque(itens, operacao, session) {
   const produtos = await Product.find({ _id: { $in: itens.map((item) => item.produtoId) } }).session(session);
@@ -80,7 +81,7 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
       const quantidade = Number(item.quantidade);
       const product = await Product.findById(item.produtoId).session(session);
       if (!product || !Number.isFinite(quantidade) || quantidade < 0.001) throw new Error('Item inválido');
-      if (!product.vendidoFracionado && !Number.isInteger(quantidade)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
+      if (!permiteFracionar(product) && !Number.isInteger(quantidade)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
       const modificadores = Array.isArray(item.modificadores)
         ? item.modificadores.filter((value) => typeof value === 'string').slice(0, 10)
         : [];
@@ -105,7 +106,7 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
     const product = await Product.findById(req.body.produtoId).session(session);
     if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
     if (!product || !Number.isFinite(quantidade) || quantidade < 0.001) return res.status(400).json({ msg: 'Item inválido' });
-    if (!product.vendidoFracionado && !Number.isInteger(quantidade)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
+    if (!permiteFracionar(product) && !Number.isInteger(quantidade)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
     const modificadores = Array.isArray(req.body.modificadores)
       ? req.body.modificadores.filter((item) => typeof item === 'string').slice(0, 10)
       : [];
@@ -132,7 +133,7 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'g
     if (!item) return res.status(404).json({ msg: 'Item não encontrado' });
     if (!Number.isFinite(quantidade) || quantidade < 0.001) return res.status(400).json({ msg: 'Quantidade inválida' });
     const product = await Product.findById(item.produtoId).session(session);
-    if (product && !product.vendidoFracionado && !Number.isInteger(quantidade)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
+    if (product && !permiteFracionar(product) && !Number.isInteger(quantidade)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
     const diferenca = quantidade - Number(item.quantidade || 0);
     if (diferenca > 0) await ajustarEstoque([{ produtoId: item.produtoId, quantidade: diferenca }], 'baixar', session);
     if (diferenca < 0) await ajustarEstoque([{ produtoId: item.produtoId, quantidade: Math.abs(diferenca) }], 'devolver', session);
