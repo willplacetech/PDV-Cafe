@@ -28,6 +28,7 @@ const pagamentoTaxa = (pagamento) => {
   const taxa = Number(pagamento.taxaValor || (valor * Number(pagamento.taxaPercentual || 0) / 100));
   return { bruto: valor, taxa, liquido: valor - taxa };
 };
+const valorLiquidoPedido = (pedido) => Math.round((Math.max(0, Number(pedido.total || 0) - (pedido.pagamentos || []).reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0)) + Number.EPSILON) * 100) / 100;
 
 const periodoHistorico = (semanaInicio) => {
   const dataInformada = /^\d{4}-\d{2}-\d{2}$/.test(String(semanaInicio || '')) ? new Date(`${semanaInicio}T00:00:00-03:00`) : inicioHojeSaoPaulo();
@@ -188,7 +189,7 @@ router.get('/', async (req, res) => {
     vendasMes.forEach((pedido) => {
       if (pedido.clienteNome) clientesMes.add(pedido.clienteNome);
       const dia = new Date(pedido.createdAt).toLocaleDateString('pt-BR');
-      vendasPorDia.set(dia, (vendasPorDia.get(dia) || 0) + Number(pedido.total || 0));
+      vendasPorDia.set(dia, (vendasPorDia.get(dia) || 0) + valorLiquidoPedido(pedido));
       (pedido.itens || []).forEach((item) => {
         const atual = produtosMes.get(item.nome) || { nome: item.nome, quantidade: 0, total: 0 };
         atual.quantidade += quantidadeNaUnidadeBase(item);
