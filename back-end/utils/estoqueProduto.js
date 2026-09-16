@@ -1,0 +1,53 @@
+const { pesoPorUnidadeEmKg } = require('./pesoProduto');
+
+const arredondar = (valor, casas = 6) => {
+  const fator = 10 ** casas;
+  return Math.round((Number(valor || 0) + Number.EPSILON) * fator) / fator;
+};
+
+const produtoControlaPeso = (produto = {}) => Number(produto.pesoPorUnidade || 0) > 0 && ['kg', 'g'].includes(produto.unidadeVenda);
+
+const estoquePesoAtualKg = (produto = {}) => {
+  if (!produtoControlaPeso(produto)) return 0;
+  if (Number(produto.estoquePesoKg || 0) > 0) return Number(produto.estoquePesoKg);
+  if (Number(produto.estoque || 0) > 1000) return Number(produto.estoque) / 1000;
+  return Number(produto.estoque || 0) * pesoPorUnidadeEmKg(produto);
+};
+
+const estoquePecasAtual = (produto = {}) => {
+  if (!produtoControlaPeso(produto) || Number(produto.estoque || 0) <= 1000) return Number(produto.estoque || 0);
+  const peso = pesoPorUnidadeEmKg(produto);
+  return peso > 0 ? arredondar(estoquePesoAtualKg(produto) / peso) : 0;
+};
+
+const normalizarEstoqueLegado = (produto) => {
+  if (!produtoControlaPeso(produto)) return produto;
+  const peso = estoquePesoAtualKg(produto);
+  const pecas = estoquePecasAtual(produto);
+  produto.estoque = pecas;
+  produto.estoquePesoKg = arredondar(peso);
+  return produto;
+};
+
+const dadosEstoqueProduto = (produto = {}) => {
+  const pesoPorUnidade = pesoPorUnidadeEmKg(produto);
+  const estoquePesoKg = estoquePesoAtualKg(produto);
+  const estoque = estoquePecasAtual(produto);
+  return {
+    estoque,
+    estoquePesoKg: arredondar(estoquePesoKg),
+    estoquePesoTotal: arredondar(estoquePesoKg),
+    estoquePesoTotalExibicao: estoquePesoKg,
+    pesoPorUnidadeKg: pesoPorUnidade,
+  };
+};
+
+const dadosMovimentoEstoque = (produto, item = {}) => {
+  const quantidade = Number(item.quantidade || 0);
+  const porPeso = produtoControlaPeso(produto) && (item.tipoVenda === 'peso' || Number(item.pesoVendidoKg || 0) > 0);
+  if (porPeso) return { pecas: 0, pesoKg: Number(item.pesoVendidoKg || item.quantidade || 0), tipoVenda: 'peso' };
+  if (produtoControlaPeso(produto)) return { pecas: quantidade, pesoKg: quantidade * pesoPorUnidadeEmKg(produto), tipoVenda: 'inteiro' };
+  return { pecas: quantidade, pesoKg: 0, tipoVenda: 'unidade' };
+};
+
+module.exports = { arredondar, produtoControlaPeso, estoquePesoAtualKg, estoquePecasAtual, normalizarEstoqueLegado, dadosEstoqueProduto, dadosMovimentoEstoque };
