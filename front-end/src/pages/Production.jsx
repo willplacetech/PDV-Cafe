@@ -212,7 +212,7 @@ const styles = `
 .cost-ingredient-row:hover { background:var(--bg-tertiary); }
 .cost-ingredient-row span { display:grid; gap:3px; color:var(--text-primary); font-size:13px; }
 .cost-ingredient-row small { color:var(--text-secondary); font-size:11px; }
-.cost-ingredient-row input, .cost-ingredient-row select, .apply-price input { min-height:40px; box-sizing:border-box; width:100%; padding:8px 10px; border:1px solid var(--border-color); border-radius:8px; background:var(--input-bg); color:var(--input-text); font:inherit; }
+.cost-ingredient-row input, .cost-ingredient-row select, .apply-price input { box-sizing:border-box; width:100%; min-height:44px; padding:9px 11px; border:1px solid var(--input-border); border-radius:8px; background:var(--input-bg); color:var(--input-text); font:inherit; }
 .cost-ingredient-row .secondary { min-height:40px; padding:8px 10px; }
 .cost-alert { margin-top:12px; padding:12px 14px; border:1px solid var(--warning-bg); border-left:4px solid var(--warning-bg); border-radius:8px; background:rgba(217,119,6,.08); color:var(--text-primary); font-size:12px; }
 .cost-alert strong { display:block; margin-bottom:5px; color:var(--warning-bg); }
