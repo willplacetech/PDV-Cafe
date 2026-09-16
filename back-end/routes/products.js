@@ -263,7 +263,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
       aFazer: Boolean(data.aFazer),
       fichaTecnica,
       producaoPropria: Boolean(data.producaoPropria),
-      usavelEmReceita: Boolean(data.usavelEmReceita || tipo === 'insumo'),
+      usavelEmReceita: tipo === 'insumo',
       ativo: data.ativo !== undefined ? Boolean(data.ativo) : true,
       createdBy: req.user.id,
     });
@@ -286,6 +286,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     }
     const fields = {};
     if (data.tipo !== undefined) fields.tipo = tipo;
+    if (tipo === 'insumo') fields.usavelEmReceita = true;
     ['codigo', 'nome', 'categoria', 'unidadeVenda', 'unidadeCompra'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
     ['preco', 'precoCompra', 'estoque', 'estoqueInsumos', 'estoqueMaximo', 'estoqueMinimoInsumos', 'pesoPorUnidade', 'rendimentoPorUnidadeCompra'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
     if (data.estoque !== undefined && tipo === 'insumo') {
@@ -311,7 +312,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
         fields.custo = custoUnitario;
       }
     }
-    ['vendidoFracionado', 'aFazer', 'producaoPropria', 'usavelEmReceita'].forEach((key) => { if (data[key] !== undefined) fields[key] = Boolean(data[key]); });
+    ['vendidoFracionado', 'aFazer', 'producaoPropria'].forEach((key) => { if (data[key] !== undefined) fields[key] = Boolean(data[key]); });
     if (data.fichaTecnica !== undefined) fields.fichaTecnica = data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade }));
     if (data.estoque !== undefined && antesDasOito()) {
       fields.estoqueInicialDia = Number(data.estoque);

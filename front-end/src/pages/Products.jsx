@@ -21,7 +21,6 @@ const vazio = {
   aFazer: false,
   fichaTecnica: [],
   producaoPropria: false,
-  temReceita: false,
 };
 
 export default function Products() {
@@ -112,7 +111,6 @@ export default function Products() {
       aFazer: Boolean(produto.aFazer),
       fichaTecnica: produto.fichaTecnica || [],
       producaoPropria: Boolean(produto.producaoPropria),
-      temReceita: Boolean(produto.temReceita),
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -155,12 +153,19 @@ export default function Products() {
           <section className="product-form-section">
             <div className="product-section-title"><span>📋</span><div><strong>TIPO DE PRODUTO</strong><small>Escolha o grupo do estoque</small></div></div>
             <div className="product-form-grid">
-              <label>Tipo *
-                <select value={form.tipo} onChange={(event) => setForm({ ...form, tipo: event.target.value, categoria: event.target.value === 'insumo' ? 'Insumos' : 'Bebidas Quentes' })}>
-                  <option value="venda">Produto à venda</option>
-                  <option value="insumo">Insumo / Matéria-prima</option>
-                </select>
-              </label>
+              <div>
+                <span style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>Tipo *</span>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', minHeight: 42, alignItems: 'center' }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input type="radio" name="tipoProduto" value="venda" checked={form.tipo === 'venda'} onChange={() => setForm({ ...form, tipo: 'venda', categoria: 'Bebidas Quentes' })} />
+                    Produto à venda
+                  </label>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input type="radio" name="tipoProduto" value="insumo" checked={form.tipo === 'insumo'} onChange={() => setForm({ ...form, tipo: 'insumo', categoria: 'Insumos' })} />
+                    Insumo / Matéria-prima
+                  </label>
+                </div>
+              </div>
               <label>Código {!editing && <small>(automático)</small>}
                 <input value={form.codigo} readOnly={!editing} onChange={(event) => setForm({ ...form, codigo: event.target.value })} style={{ background: !editing ? 'var(--bg-tertiary)' : 'var(--input-bg)', cursor: !editing ? 'not-allowed' : 'text' }} />
               </label>
@@ -216,10 +221,6 @@ export default function Products() {
                   <select value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidadeCompra: event.target.value })}>
                     {['un', 'kg', 'g', 'l', 'ml', 'rolo', 'caixa', 'pacote'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </select>
-                </label>
-                <label className="product-checkbox-label">
-                  <input className="product-checkbox" type="checkbox" checked={form.temReceita} onChange={(event) => setForm({ ...form, temReceita: event.target.checked })} />
-                  Usável em receita
                 </label>
               </div>
             </section>
