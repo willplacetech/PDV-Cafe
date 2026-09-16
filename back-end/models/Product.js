@@ -31,6 +31,16 @@ const ProductSchema = new mongoose.Schema({
     enum: ['un', 'kg', 'g', 'l', 'ml'],
     default: 'un',
   },
+  unidadeCompra: {
+    type: String,
+    enum: ['un', 'kg', 'g', 'l', 'L', 'ml', 'rolo', 'caixa', 'pacote'],
+    default: 'kg',
+  },
+  rendimentoPorUnidadeCompra: {
+    type: Number,
+    default: 0,
+    min: [0, 'Rendimento por unidade de compra não pode ser negativo'],
+  },
   pesoPorUnidade: {
     type: Number,
     min: [0, 'Peso por unidade não pode ser negativo'],

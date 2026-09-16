@@ -44,7 +44,7 @@ export default function Production() {
 
   useEffect(() => { load(); }, []);
 
-  const producibleProducts = products.filter((product) => product.producaoPropria);
+  const producibleProducts = products.filter((product) => product.producaoPropria || !product.controladoComoInsumo);
   const stockProducts = products.filter((product) => product.controladoComoInsumo || Number(product.estoqueInsumos) > 0);
   const currentRecipe = recipes.find((recipe) => recipe._id === selectedRecipe);
   const costRecipe = recipes.find((recipe) => recipe._id === costForm.receitaId);

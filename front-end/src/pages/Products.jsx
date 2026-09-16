@@ -9,7 +9,7 @@ const categorias = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', '
 
 export default function Products() {
   const [produtos, setProdutos] = useState([]);
-  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', custo: '', estoque: '', pesoPorUnidade: '', unidadePeso: 'kg', estoqueInsumos: '', estoqueMinimoInsumos: '', unidadeVenda: 'un', vendidoFracionado: false, aFazer: false, fichaTecnica: [], producaoPropria: false, controladoComoInsumo: false, temReceita: false };
+  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', precoCompra: '', unidadeCompra: 'kg', rendimentoPorUnidadeCompra: '', custo: '', estoque: '', pesoPorUnidade: '', unidadePeso: 'kg', estoqueInsumos: '', estoqueMinimoInsumos: '', unidadeVenda: 'un', vendidoFracionado: false, aFazer: false, fichaTecnica: [], producaoPropria: false, controladoComoInsumo: false, temReceita: false };
   const [form, setForm] = useState(vazio);
 
   const handleCategoriaChange = (categoria) => {
@@ -67,7 +67,7 @@ export default function Products() {
       return showToast('⚠️ Este código já está cadastrado! Use outro.', 'warning');
     }
 
-    const dados = { ...form, preco: parseFloat(form.preco), custoUnitario: parseFloat(form.custo) || 0, estoque: parseFloat(form.estoque) || 0, pesoPorUnidade: parseFloat(form.pesoPorUnidade) || 0, unidadePeso: form.unidadePeso, estoqueInsumos: parseFloat(form.estoqueInsumos) || 0, estoqueMinimoInsumos: parseFloat(form.estoqueMinimoInsumos) || 0, unidadeVenda: form.unidadeVenda, vendidoFracionado: form.vendidoFracionado, aFazer: form.aFazer, fichaTecnica: form.fichaTecnica.filter((item) => item.produtoId && Number(item.quantidade) > 0).map((item) => ({ ...item, quantidade: Number(item.quantidade) })), producaoPropria: form.producaoPropria, controladoComoInsumo: form.controladoComoInsumo };
+    const dados = { ...form, preco: parseFloat(form.preco || 0), precoCompra: parseFloat(form.precoCompra || 0), custoUnitario: parseFloat(form.custo) || 0, estoque: parseFloat(form.estoque) || 0, pesoPorUnidade: parseFloat(form.pesoPorUnidade) || 0, unidadePeso: form.unidadePeso, estoqueInsumos: parseFloat(form.estoqueInsumos) || 0, estoqueMinimoInsumos: parseFloat(form.estoqueMinimoInsumos) || 0, unidadeVenda: form.unidadeVenda, unidadeCompra: form.unidadeCompra, rendimentoPorUnidadeCompra: parseFloat(form.rendimentoPorUnidadeCompra || 0), vendidoFracionado: form.vendidoFracionado, aFazer: form.aFazer, fichaTecnica: form.fichaTecnica.filter((item) => item.produtoId && Number(item.quantidade) > 0).map((item) => ({ ...item, quantidade: Number(item.quantidade) })), producaoPropria: form.producaoPropria, controladoComoInsumo: form.controladoComoInsumo };
     try {
       editing ? await api.put(`/products/${editing._id}`, dados) : await api.post('/products', dados);
       showToast(editing ? '✅ Produto atualizado!' : '✅ Produto cadastrado!', 'success');
@@ -82,7 +82,7 @@ export default function Products() {
 
   const alterar = (p) => {
     setEditing(p);
-    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, custo: p.custoUnitario ?? p.custo ?? '', estoque: p.estoque, pesoPorUnidade: p.pesoPorUnidade || '', unidadePeso: p.unidadePeso || 'kg', estoqueInsumos: p.estoqueInsumos || '', estoqueMinimoInsumos: p.estoqueMinimoInsumos || '', unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado), aFazer: Boolean(p.aFazer), fichaTecnica: p.fichaTecnica || [], producaoPropria: Boolean(p.producaoPropria), controladoComoInsumo: Boolean(p.controladoComoInsumo), temReceita: Boolean(p.temReceita) });
+    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco ?? '', precoCompra: p.precoCompra ?? '', unidadeCompra: p.unidadeCompra || 'kg', rendimentoPorUnidadeCompra: p.rendimentoPorUnidadeCompra ?? '', custo: p.custoUnitario ?? p.custo ?? '', estoque: p.estoque, pesoPorUnidade: p.pesoPorUnidade || '', unidadePeso: p.unidadePeso || 'kg', estoqueInsumos: p.estoqueInsumos || '', estoqueMinimoInsumos: p.estoqueMinimoInsumos || '', unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado), aFazer: Boolean(p.aFazer), fichaTecnica: p.fichaTecnica || [], producaoPropria: Boolean(p.producaoPropria), controladoComoInsumo: Boolean(p.controladoComoInsumo), temReceita: Boolean(p.temReceita) });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -131,6 +131,9 @@ export default function Products() {
         background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
         borderRadius: 16, padding: 16, marginBottom: 16
       }}>
+        {form.controladoComoInsumo && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, padding: '8px 12px', borderRadius: 10, background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.35)', color: '#0f766e', fontWeight: 700, fontSize: 12 }}>
+          📦 MODO INSUMO — preço é de COMPRA, não de venda
+        </div>}
         <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 14px', color: 'var(--text-primary)' }}>
           {editing ? '✏️ Editar Produto' : '➕ Novo Produto'}
         </h3>
@@ -140,19 +143,30 @@ export default function Products() {
             <div className="product-form-grid product-basic-grid">
               <label className="product-code-field">Código {!editing && <small>(automático)</small>}<input placeholder="Automático" value={form.codigo} readOnly={!editing} onChange={e => setForm({ ...form, codigo: e.target.value })} style={{ ...inputStyle, background: !editing ? 'var(--bg-tertiary)' : 'var(--input-bg)', cursor: !editing ? 'not-allowed' : 'text' }} /></label>
               <label>Nome *<input placeholder="Nome do produto" value={form.nome} required onChange={e => setForm({ ...form, nome: e.target.value })} /></label>
-              <label>Categoria<select value={form.categoria} onChange={e => handleCategoriaChange(e.target.value)}>{categorias.map(c => <option key={c}>{c}</option>)}</select></label>
-              <label>Preço de venda (R$) *<input type="number" step="0.01" min={0} placeholder="0,00" value={form.preco} required onChange={e => setForm({ ...form, preco: e.target.value })} /></label>
+              <label>{form.controladoComoInsumo ? 'Categoria de insumo' : 'Categoria'}<select value={form.categoria} onChange={e => handleCategoriaChange(e.target.value)}>{categorias.map(c => <option key={c}>{c}</option>)}</select></label>
+              {!form.controladoComoInsumo ? <label>Preço de venda (R$) *<input type="number" step="0.01" min={0} placeholder="0,00" value={form.preco} required onChange={e => setForm({ ...form, preco: e.target.value })} /></label> : <label>Preço de compra (R$)<input type="number" step="0.01" min={0} placeholder="0,00" value={form.precoCompra} onChange={e => setForm({ ...form, precoCompra: e.target.value })} /><small className="field-help">Quanto você PAGOU por este insumo (por unidade de compra)</small></label>}
             </div>
           </section>
 
           <section className="product-form-section">
-            <div className="product-section-title"><span>📦</span><div><strong>ESTOQUE</strong><small>Quantidade disponível para venda</small></div></div>
+            <div className="product-section-title"><span>📦</span><div><strong>ESTOQUE</strong><small>{form.controladoComoInsumo ? 'Quantidade disponível para produção' : 'Quantidade disponível para venda'}</small></div></div>
             <div className="product-form-grid product-stock-grid">
-              <label>Quantidade em estoque (unidades)<input type="number" step={form.pesoPorUnidade ? '1' : '0.001'} min={0} placeholder="0" value={form.estoque} onChange={e => setForm({ ...form, estoque: e.target.value })} /></label>
-              <label>Unidade de venda<select value={form.unidadeVenda} onChange={e => setForm({ ...form, unidadeVenda: e.target.value })}>{['un', 'kg', 'g', 'l', 'ml'].map(unidade => <option key={unidade} value={unidade}>{unidade}</option>)}</select></label>
-              <label>Peso por unidade<input type="number" step="0.001" min={0} placeholder="Ex.: 3,506" value={form.pesoPorUnidade} onChange={e => setForm({ ...form, pesoPorUnidade: e.target.value })} /></label>
-              <label>Unidade do peso<select value={form.unidadePeso} onChange={e => setForm({ ...form, unidadePeso: e.target.value })}><option value="kg">kg</option><option value="g">g</option></select></label>
-              {Number(form.pesoPorUnidade) > 0 && <small className="field-help">Estoque total: {(Number(form.estoque || 0) * (form.unidadePeso === 'g' ? Number(form.pesoPorUnidade) / 1000 : Number(form.pesoPorUnidade))).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg totais</small>}
+              {!form.controladoComoInsumo ? (
+                <>
+                  <label>Quantidade em estoque (unidades)<input type="number" step={form.pesoPorUnidade ? '1' : '0.001'} min={0} placeholder="0" value={form.estoque} onChange={e => setForm({ ...form, estoque: e.target.value })} /></label>
+                  <label>Unidade de venda<select value={form.unidadeVenda} onChange={e => setForm({ ...form, unidadeVenda: e.target.value })}>{['un', 'kg', 'g', 'l', 'ml'].map(unidade => <option key={unidade} value={unidade}>{unidade}</option>)}</select></label>
+                </>
+              ) : (
+                <>
+                  <label>Estoque atual (unidade de compra)<input type="number" step="0.001" min={0} placeholder="0" value={form.estoqueInsumos} onChange={e => setForm({ ...form, estoqueInsumos: e.target.value })} /><small className="field-help">Quantos pacotes/rolos/caixas você tem</small></label>
+                  <label>Unidade de compra<select value={form.unidadeCompra} onChange={e => setForm({ ...form, unidadeCompra: e.target.value })}>{['un', 'kg', 'g', 'L', 'ml', 'rolo', 'caixa', 'pacote'].map(unidade => <option key={unidade} value={unidade}>{unidade}</option>)}</select><small className="field-help">Como você compra este insumo</small></label>
+                </>
+              )}
+              {!form.controladoComoInsumo && <>
+                <label>Peso por unidade<input type="number" step="0.001" min={0} placeholder="Ex.: 3,506" value={form.pesoPorUnidade} onChange={e => setForm({ ...form, pesoPorUnidade: e.target.value })} /></label>
+                <label>Unidade do peso<select value={form.unidadePeso} onChange={e => setForm({ ...form, unidadePeso: e.target.value })}><option value="kg">kg</option><option value="g">g</option></select></label>
+              </>}
+              {Number(form.pesoPorUnidade) > 0 && !form.controladoComoInsumo && <small className="field-help">Estoque total: {(Number(form.estoque || 0) * (form.unidadePeso === 'g' ? Number(form.pesoPorUnidade) / 1000 : Number(form.pesoPorUnidade))).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg totais</small>}
             </div>
           </section>
 
@@ -160,17 +174,19 @@ export default function Products() {
             <div className="product-section-title"><span>⚙️</span><div><strong>TIPO DE PRODUTO</strong><small>Defina como este produto será usado na operação</small></div></div>
             <div className="product-check-grid">
               <label><input type="checkbox" checked={form.categoria === 'Insumos' || form.controladoComoInsumo} disabled={form.categoria === 'Insumos'} onChange={(e) => setForm((prev) => ({ ...prev, controladoComoInsumo: prev.categoria === 'Insumos' ? true : e.target.checked }))} />Controlar também como insumo</label>
-              <label><input type="checkbox" checked={form.producaoPropria} onChange={e => setForm({ ...form, producaoPropria: e.target.checked })} />Produto de produção própria</label>
-              <label><input type="checkbox" checked={form.vendidoFracionado} onChange={e => setForm({ ...form, vendidoFracionado: e.target.checked })} />Permitir venda fracionada</label>
-              <label><input type="checkbox" checked={form.aFazer} onChange={e => setForm({ ...form, aFazer: e.target.checked })} />Enviar automaticamente para Cozinha</label>
+              {!form.controladoComoInsumo && <label><input type="checkbox" checked={form.producaoPropria} onChange={e => setForm({ ...form, producaoPropria: e.target.checked })} />Produto de produção própria</label>}
+              {!form.controladoComoInsumo && <label><input type="checkbox" checked={form.vendidoFracionado} onChange={e => setForm({ ...form, vendidoFracionado: e.target.checked })} />Permitir venda fracionada</label>}
+              {!form.controladoComoInsumo && <label><input type="checkbox" checked={form.aFazer} onChange={e => setForm({ ...form, aFazer: e.target.checked })} />Enviar automaticamente para Cozinha</label>}
             </div>
-            {form.producaoPropria && <Link className="production-link" to="/producao">Após cadastrar, monte a receita aqui →</Link>}
+            {form.producaoPropria && !form.controladoComoInsumo && <Link className="production-link" to="/producao">Após cadastrar, monte a receita aqui →</Link>}
             {form.aFazer && <div className="technical-sheet"><strong>Ficha técnica do produto</strong><small>Insumos consumidos por unidade deste produto.</small>{form.fichaTecnica.map((item, index) => <div className="technical-row" key={`${index}-${item.produtoId}`}><select value={item.produtoId} onChange={e => setForm({ ...form, fichaTecnica: form.fichaTecnica.map((current, itemIndex) => itemIndex === index ? { ...current, produtoId: e.target.value } : current) })}><option value="">Ingrediente</option>{produtos.filter((produto) => produto._id !== editing?._id).map((produto) => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select><input type="number" min="0.001" step="0.001" placeholder="Quantidade" value={item.quantidade} onChange={e => setForm({ ...form, fichaTecnica: form.fichaTecnica.map((current, itemIndex) => itemIndex === index ? { ...current, quantidade: e.target.value } : current) })} /><select value={item.unidade || 'un'} onChange={e => setForm({ ...form, fichaTecnica: form.fichaTecnica.map((current, itemIndex) => itemIndex === index ? { ...current, unidade: e.target.value } : current) })}>{['un', 'kg', 'g', 'l', 'ml'].map(unidade => <option key={unidade}>{unidade}</option>)}</select><button type="button" onClick={() => setForm({ ...form, fichaTecnica: form.fichaTecnica.filter((_, itemIndex) => itemIndex !== index) })}>×</button></div>)}<button type="button" className="technical-add" onClick={() => setForm({ ...form, fichaTecnica: [...form.fichaTecnica, { produtoId: '', quantidade: '', unidade: 'un' }] })}>Adicionar insumo</button></div>}
           </section>
 
-          {(form.categoria === 'Insumos' || form.controladoComoInsumo) && <section className="product-form-section product-insumo-section"><div className="product-section-title"><span>🧺</span><div><strong>ESTOQUE DE INSUMO</strong><small>Controle separado para produção</small></div></div><div className="product-form-grid"><label>Estoque de Insumo<input type="number" step="0.001" min={0} placeholder="0" value={form.estoqueInsumos} onChange={e => setForm({ ...form, estoqueInsumos: e.target.value })} /></label><label>Estoque Mínimo<input type="number" step="0.001" min={0} placeholder="0" value={form.estoqueMinimoInsumos} onChange={e => setForm({ ...form, estoqueMinimoInsumos: e.target.value })} /></label></div></section>}
+          {(form.categoria === 'Insumos' || form.controladoComoInsumo) && <section className="product-form-section product-insumo-section"><div className="product-section-title"><span>🧺</span><div><strong>ESTOQUE DE INSUMO</strong><small>Controle separado para produção</small></div></div><div className="product-form-grid"><label>Estoque atual (unidade de compra)<input type="number" step="0.001" min={0} placeholder="0" value={form.estoqueInsumos} onChange={e => setForm({ ...form, estoqueInsumos: e.target.value })} /><small className="field-help">Quantos pacotes/rolos/caixas você tem</small></label><label>Estoque Mínimo<input type="number" step="0.001" min={0} placeholder="0" value={form.estoqueMinimoInsumos} onChange={e => setForm({ ...form, estoqueMinimoInsumos: e.target.value })} /></label></div></section>}
 
-          <section className="product-form-section product-cost-section"><div className="product-section-title"><span>💰</span><div><strong>CUSTO</strong><small>{form.temReceita ? 'Preenchido pela receita' : 'Custo de aquisição do produto'}</small></div></div><label>Custo unitário (R$)<input type="number" step="0.01" min="0" value={form.custo} disabled={form.temReceita} readOnly={form.temReceita} placeholder={form.temReceita ? 'Calculado automaticamente' : '0,00'} onChange={(e) => setForm({ ...form, custo: e.target.value })} /></label><small className="field-help">{form.temReceita ? 'Calculado automaticamente pela receita' : 'Informe o custo de aquisição/compra'}</small></section>
+          {(form.categoria === 'Insumos' || form.controladoComoInsumo) && <section className="product-form-section product-cost-section"><div className="product-section-title"><span>📐</span><div><strong>RENDIMENTO</strong><small>Quantidade produzida por unidade comprada</small></div></div><label>Rendimento por unidade de compra<input type="number" step="0.01" min={0} value={form.rendimentoPorUnidadeCompra} placeholder="0" onChange={(e) => setForm({ ...form, rendimentoPorUnidadeCompra: e.target.value })} /><small className="field-help">Quantas unidades prontas este insumo rende? Ex: 1kg de pão de queijo rende 20 unidades → digite 20</small></label></section>}
+
+          {!form.controladoComoInsumo && <section className="product-form-section product-cost-section"><div className="product-section-title"><span>💰</span><div><strong>CUSTO</strong><small>{form.temReceita ? 'Preenchido pela receita' : 'Custo de aquisição do produto'}</small></div></div><label>Custo unitário (R$)<input type="number" step="0.01" min="0" value={form.custo} disabled={form.temReceita} readOnly={form.temReceita} placeholder={form.temReceita ? 'Calculado automaticamente' : '0,00'} onChange={(e) => setForm({ ...form, custo: e.target.value })} /></label><small className="field-help">{form.temReceita ? 'Calculado automaticamente pela receita' : 'Informe o custo de aquisição/compra'}</small></section>}
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
             <button type="submit" style={{
               flex: 1, padding: '12px', background: 'var(--accent-primary)', color: '#fff',
