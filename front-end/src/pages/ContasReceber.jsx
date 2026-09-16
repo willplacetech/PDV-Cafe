@@ -38,8 +38,6 @@ export default function ContasReceber() {
   const [quitarClienteModal, setQuitarClienteModal] = useState(false);
   const [pagamentoMultiploModal, setPagamentoMultiploModal] = useState(null);
   const [novoPedidoModal, setNovoPedidoModal] = useState(null);
-  const [alterarComandaModal, setAlterarComandaModal] = useState(null);
-  const [novaComandaId, setNovaComandaId] = useState('');
   const [novoPedidoForm, setNovoPedidoForm] = useState({ produtoId: '', quantidade: '1', nomeSolicitante: '', observacao: '', itens: [] });
   const [formPagamento, setFormPagamento] = useState({ tipo: 'credito_loja', valorRecebido: '', observacao: '' });
   const [formPagamentoMultiplo, setFormPagamentoMultiplo] = useState({ tipo: 'credito_loja', observacao: '' });
@@ -294,25 +292,6 @@ export default function ContasReceber() {
   const abrirNovoPedido = (pedido) => {
     setNovoPedidoModal(pedido);
     setNovoPedidoForm({ produtoId: '', quantidade: '1', nomeSolicitante: '', observacao: '', itens: [] });
-  };
-
-  const abrirAlterarComanda = (pedido) => {
-    const comandaSelecionada = pedido.comandaId || comandasAbertas[0]?._id || '';
-    setAlterarComandaModal(pedido);
-    setNovaComandaId(comandaSelecionada);
-  };
-
-  const confirmarAlterarComanda = async () => {
-    if (!alterarComandaModal) return;
-    try {
-      await api.patch(`/orders/${alterarComandaModal._id}/alterar-comanda`, { comandaId: novaComandaId || null });
-      setAlterarComandaModal(null);
-      setNovaComandaId('');
-      carregarPedidos();
-      showToast('✅ Comanda alterada com sucesso!', 'success');
-    } catch (error) {
-      showToast(error.response?.data?.msg || 'Erro ao alterar comanda', 'error');
-    }
   };
 
   const adicionarItemNovoPedido = () => {
@@ -839,7 +818,7 @@ Obrigado! 🙏`
                   {pedido.status !== 'pago' && pedido.status !== 'cancelado' && (
                     <>
                       <button
-                        onClick={() => (pedido.comandaId ? abrirNovoPedido(pedido) : abrirAlterarComanda(pedido))}
+                        onClick={() => abrirNovoPedido(pedido)}
                         style={{
                           flex: '1 1 180px',
                           padding: '10px 8px', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: 8,
@@ -847,15 +826,6 @@ Obrigado! 🙏`
                           whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'
                         }}
                       >{pedido.comandaId ? '➕ Novo pedido' : '🔗 Vincular comanda'}</button>
-                      <button
-                        onClick={() => abrirAlterarComanda(pedido)}
-                        style={{
-                          flex: '1 1 180px',
-                          padding: '10px 8px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: 8,
-                          fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'
-                        }}
-                      >✏️ Alterar comanda</button>
                       <button 
                         onClick={() => abrirModalReceber(pedido)}
                         style={{
@@ -977,27 +947,6 @@ Obrigado! 🙏`
               <button onClick={registrarPagamento} style={{
                 flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer'
               }}>Quitar Total</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {alterarComandaModal && (
-        <div onClick={() => setAlterarComandaModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20 }}>
-          <div onClick={event => event.stopPropagation()} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 420 }}>
-            <h3 style={{ margin: '0 0 6px' }}>✏️ Alterar comanda</h3>
-            <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)', fontSize: 13 }}>Pedido #{alterarComandaModal.numero} · {alterarComandaModal.clienteNome}</p>
-            <label style={{ display: 'block', marginBottom: 12, fontSize: 12, fontWeight: 700 }}>Comanda aberta
-              <select value={novaComandaId} onChange={event => setNovaComandaId(event.target.value)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10 }}>
-                <option value="">Selecione uma comanda</option>
-                {comandasAbertas.map((comanda) => (
-                  <option key={comanda._id} value={comanda._id}>#{comanda.numero} · {comanda.clienteNome}</option>
-                ))}
-              </select>
-            </label>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setAlterarComandaModal(null)} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={confirmarAlterarComanda} disabled={!novaComandaId} style={{ flex: 1, padding: 12, background: novaComandaId ? 'var(--success-bg)' : 'var(--bg-tertiary)', color: novaComandaId ? '#fff' : 'var(--text-secondary)', border: 'none', borderRadius: 10, fontWeight: 700, cursor: novaComandaId ? 'pointer' : 'not-allowed' }}>Salvar</button>
             </div>
           </div>
         </div>
