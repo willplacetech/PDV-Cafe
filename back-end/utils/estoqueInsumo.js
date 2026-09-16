@@ -1,10 +1,18 @@
-const fatoresBase = { g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
+const fatoresBase = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
 
 const paraBase = (quantidade, unidade) => Number(quantidade || 0) * (fatoresBase[unidade] || 1);
 
-const unidadeBase = (produto = {}) => produto.unidadeConteudo || (['kg', 'g', 'l', 'ml'].includes(produto.unidadeVenda) ? produto.unidadeVenda : 'g');
+const unidadesDiretas = ['mg', 'g', 'kg', 'ml', 'l', 'un'];
+const unidadesEmbalagem = ['lata', 'caixa', 'pacote', 'rolo'];
+
+const unidadeControle = (produto = {}) => produto.unidadeCompra || produto.unidadeControle || 'un';
+
+const unidadeBase = (produto = {}) => unidadesDiretas.includes(unidadeControle(produto))
+  ? unidadeControle(produto)
+  : (produto.unidadeConteudo || 'g');
 
 const conteudoPorEmbalagemBase = (produto = {}) => {
+  if (unidadesDiretas.includes(unidadeControle(produto))) return fatoresBase[unidadeControle(produto)];
   const conteudo = Number(produto.conteudoPorEmbalagem || 0);
   if (conteudo > 0) return paraBase(conteudo, unidadeBase(produto));
   const legado = Number(produto.rendimentoPorUnidadeCompra || 0);
@@ -43,13 +51,23 @@ const resumoEstoqueInsumo = (produto = {}) => {
 const consumirInsumo = (produto, quantidade, unidade) => {
   const quantidadeBase = paraBase(quantidade, unidade);
   const conteudoEmbalagem = conteudoPorEmbalagemBase(produto);
+  const controle = unidadeControle(produto);
   if (quantidadeBase <= 0) throw new Error(`Quantidade inválida para o insumo ${produto.nome}`);
-  if (conteudoEmbalagem <= 0 || !['g', 'kg', 'ml', 'l'].includes(unidadeBase(produto))) {
+  if (unidadesDiretas.includes(controle)) {
+    const estoqueBase = embalagensFechadas(produto) * conteudoEmbalagem;
+    if (estoqueBase < quantidadeBase) throw new Error(`Estoque insuficiente de ${produto.nome}: disponível ${estoqueBase / fatoresBase[controle]} ${controle}`);
+    const consumidoNaUnidade = quantidadeBase / fatoresBase[controle];
+    const estoqueAtual = embalagensFechadas(produto) - consumidoNaUnidade;
+    produto.estoqueEmbalagens = estoqueAtual;
+    produto.estoqueInsumos = estoqueAtual;
+    return { embalagensConsumidas: 0, conteudoConsumido: quantidadeBase, quantidadeConvertida: consumidoNaUnidade, unidadeControle: controle, conteudoRestante: 0, mensagem: `${quantidade} ${unidade} equivalem a ${consumidoNaUnidade} ${controle} - desconto aplicado` };
+  }
+  if (conteudoEmbalagem <= 0) {
     const disponivel = embalagensFechadas(produto);
     if (disponivel < quantidadeBase) throw new Error(`Estoque de insumos insuficiente para ${produto.nome}`);
     produto.estoqueEmbalagens = disponivel - quantidadeBase;
     produto.estoqueInsumos = produto.estoqueEmbalagens;
-    return { embalagensConsumidas: quantidadeBase, conteudoConsumido: quantidadeBase, conteudoRestante: 0 };
+    return { embalagensConsumidas: quantidadeBase, conteudoConsumido: quantidadeBase, quantidadeConvertida: quantidadeBase, unidadeControle: controle, conteudoRestante: 0, mensagem: `${quantidade} ${unidade} equivalem a ${quantidadeBase} ${controle} - desconto aplicado` };
   }
 
   if (estoqueTotalBase(produto) < quantidadeBase) throw new Error(`Estoque insuficiente de ${produto.nome}: faltam ${quantidadeBase} ${unidadeBase(produto)}`);
@@ -66,7 +84,8 @@ const consumirInsumo = (produto, quantidade, unidade) => {
   produto.estoqueEmbalagens = fechadas;
   produto.estoqueConteudoAberto = aberto;
   produto.estoqueInsumos = fechadas;
-  return { embalagensConsumidas, conteudoConsumido: quantidadeBase, conteudoRestante: aberto };
+  const quantidadeConvertida = quantidadeBase / conteudoEmbalagem;
+  return { embalagensConsumidas, conteudoConsumido: quantidadeBase, quantidadeConvertida, unidadeControle: controle, conteudoRestante: aberto, mensagem: `${quantidade} ${unidade} equivalem a ${Number(quantidadeConvertida.toFixed(4))} ${controle} - desconto aplicado` };
 };
 
 module.exports = { paraBase, unidadeBase, conteudoPorEmbalagemBase, embalagensFechadas, conteudoAberto, estoqueTotalBase, resumoEstoqueInsumo, custoPorBase, consumirInsumo };

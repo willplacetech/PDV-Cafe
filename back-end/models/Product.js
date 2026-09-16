@@ -124,11 +124,6 @@ const ProductSchema = new mongoose.Schema({
     }, 'Preço de compra é obrigatório para insumos'],
     min: [0, 'Preço de compra não pode ser negativo'],
   },
-  unidadeCompra: {
-    type: String,
-    enum: ['un', 'kg', 'g', 'l', 'L', 'ml', 'rolo', 'caixa', 'pacote', 'dz'],
-    default: 'kg',
-  },
   custoUnitarioBase: {
     type: Number,
     default: 0,

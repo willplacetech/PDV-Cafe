@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const RecipeItemSchema = new mongoose.Schema({
   produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   quantidade: { type: Number, required: true, min: 0.001 },
-  unidade: { type: String, enum: ['un', 'kg', 'g', 'l', 'ml'], required: true },
+  unidade: { type: String, enum: ['un', 'kg', 'g', 'mg', 'l', 'ml'], required: true },
 }, { _id: false });
 
 const RecipeSchema = new mongoose.Schema({

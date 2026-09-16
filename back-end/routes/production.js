@@ -12,9 +12,9 @@ const { paraBase, resumoEstoqueInsumo, consumirInsumo, estoqueTotalBase, unidade
 
 const router = express.Router();
 const locations = ['venda', 'insumos'];
-const units = ['un', 'kg', 'g', 'l', 'ml'];
+const units = ['un', 'kg', 'g', 'mg', 'l', 'ml'];
 const balanceField = (location) => location === 'insumos' ? 'estoqueInsumos' : 'estoque';
-const unidadeDoInsumo = (produto = {}) => produto.unidadeConteudo || (['kg', 'g', 'l', 'ml'].includes(produto.unidadeVenda) ? produto.unidadeVenda : 'un');
+const unidadeDoInsumo = (produto = {}) => ['un', 'kg', 'g', 'mg', 'l', 'ml'].includes(produto.unidadeCompra) ? produto.unidadeCompra : (produto.unidadeConteudo || 'g');
 
 const sincronizarCustoReceita = async (recipeId) => {
   const recipe = await Recipe.findById(recipeId).populate('ingredientes.produtoId');
@@ -64,7 +64,7 @@ router.post('/recipes', [
     const ids = ingredientes.map((item) => item.produtoId);
     const produtos = await Product.find({ _id: { $in: ids } });
     const byId = new Map(produtos.map((produtoItem) => [String(produtoItem._id), produtoItem]));
-    const itens = ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: unidadeDoInsumo(byId.get(String(item.produtoId))) }));
+    const itens = ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade || unidadeDoInsumo(byId.get(String(item.produtoId))) }));
     if (itens.some((item) => !byId.has(String(item.produtoId)) || !Number.isFinite(item.quantidade) || item.quantidade <= 0 || !units.includes(item.unidade))) return res.status(400).json({ msg: 'Ingrediente inválido' });
     if (itens.some((item) => byId.get(String(item.produtoId)).tipo !== 'insumo')) return res.status(400).json({ msg: 'A receita só pode usar produtos do tipo insumo' });
     const recipe = await Recipe.create({ nome: nome.trim(), produtoId, rendimento: Number(rendimento), unidadeRendimento, ingredientes: itens, createdBy: req.user.id });
@@ -99,7 +99,7 @@ router.put('/recipes/:id', [
       const ingredientTypes = new Map(ingredientProducts.map((produto) => [String(produto._id), produto.tipo]));
       if (req.body.ingredientes.some((item) => ingredientTypes.get(String(item.produtoId)) !== 'insumo')) return res.status(400).json({ msg: 'A receita só pode usar produtos do tipo insumo' });
       const ingredientById = new Map(ingredientProducts.map((produto) => [String(produto._id), produto]));
-      fields.ingredientes = req.body.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: unidadeDoInsumo(ingredientById.get(String(item.produtoId))) }));
+      fields.ingredientes = req.body.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade || unidadeDoInsumo(ingredientById.get(String(item.produtoId))) }));
     }
     const updated = await Recipe.findByIdAndUpdate(req.params.id, { $set: fields }, { new: true, runValidators: true }).populate('produtoId', 'nome codigo unidadeVenda producaoPropria');
     await Product.findByIdAndUpdate(updated.produtoId._id, { $set: { producaoPropria: updated.ativa } });
@@ -160,6 +160,7 @@ router.post('/produce', [body('receitaId').isMongoId(), body('quantidade').isFlo
   const session = await mongoose.startSession();
   try {
     let production;
+    const conversoes = [];
     await session.withTransaction(async () => {
       const recipe = await Recipe.findOne({ _id: req.body.receitaId, ativa: true }).populate('produtoId').populate('ingredientes.produtoId').session(session);
       if (!recipe) throw new Error('Receita não encontrada ou inativa');
@@ -169,7 +170,8 @@ router.post('/produce', [body('receitaId').isMongoId(), body('quantidade').isFlo
       for (const item of consumption) {
         const product = await Product.findById(item.product._id).session(session);
         if (!product) throw new Error(`Insumo não encontrado: ${item.product.nome}`);
-        consumirInsumo(product, item.quantity, item.unit);
+        const consumo = consumirInsumo(product, item.quantity, item.unit);
+        conversoes.push(consumo.mensagem);
         await product.save({ session });
         snapshots.push({ produtoId: item.product._id, nome: item.product.nome, quantidade: item.quantity, unidade: item.unit });
         await StockMovement.create([{ produtoId: item.product._id, produtoNome: item.product.nome, tipo: 'saida', origem: 'insumos', destino: null, quantidade: item.quantity, observacao: `Consumo da receita ${recipe.nome}`, createdBy: req.user.id }], { session });
@@ -179,7 +181,7 @@ router.post('/produce', [body('receitaId').isMongoId(), body('quantidade').isFlo
       [production] = await Production.create([{ receitaId: recipe._id, receitaNome: recipe.nome, produtoId: recipe.produtoId._id, produtoNome: recipe.produtoId.nome, quantidade: batches, rendimentoTotal: output, unidadeRendimento: recipe.unidadeRendimento, insumos: snapshots, observacao: req.body.observacao, createdBy: req.user.id }], { session });
       await StockMovement.create([{ produtoId: recipe.produtoId._id, produtoNome: recipe.produtoId.nome, tipo: 'producao', origem: null, destino: 'venda', quantidade: output, referenciaId: production._id, observacao: `Produção da receita ${recipe.nome}`, createdBy: req.user.id }], { session });
     });
-    res.status(201).json(production);
+    res.status(201).json({ ...production.toObject(), conversoes });
   } catch (error) { res.status(400).json({ msg: error.message }); } finally { await session.endSession(); }
 });
 

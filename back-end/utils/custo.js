@@ -8,7 +8,7 @@ const converterCustoBase = (precoCompra, unidadeCompra, unidadeReferencia = 'g')
 };
 
 const quantidadeNaBase = (quantidade, unidade) => {
-  const fatores = { kg: 1000, g: 1, l: 1000, ml: 1, un: 1, dz: 12 };
+  const fatores = { kg: 1000, g: 1, mg: 0.001, l: 1000, ml: 1, un: 1, dz: 12 };
   return Number(quantidade || 0) * (fatores[unidade] || 1);
 };
 

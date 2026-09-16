@@ -13,7 +13,7 @@ const vazio = {
   categoria: 'Bebidas Quentes',
   preco: '',
   precoCompra: '',
-  unidadeCompra: 'lata',
+  unidadeCompra: 'kg',
   conteudoPorEmbalagem: '',
   unidadeConteudo: 'g',
   estoqueEmbalagens: '',
@@ -63,14 +63,17 @@ export default function Products() {
   };
 
   const resumoInsumo = form.tipo === 'insumo' ? (() => {
-    const conteudo = Number(form.conteudoPorEmbalagem) || 0;
+    const unidadesDiretas = ['kg', 'g', 'mg', 'l', 'ml', 'un'];
+    const unidadeControle = form.unidadeCompra || 'kg';
+    const unidadeConteudo = unidadesDiretas.includes(unidadeControle) ? unidadeControle : form.unidadeConteudo;
+    const conteudo = unidadesDiretas.includes(unidadeControle) ? 1 : (Number(form.conteudoPorEmbalagem) || 0);
     const embalagens = Number(form.estoqueEmbalagens) || 0;
     const aberto = Number(form.estoqueConteudoAberto) || 0;
-    const fator = ['kg', 'l'].includes(form.unidadeConteudo) ? 1000 : 1;
+    const fator = ['kg', 'l'].includes(unidadeConteudo) ? 1000 : unidadeConteudo === 'mg' ? 0.001 : 1;
     const conteudoBase = conteudo * fator;
     const totalBase = (embalagens * conteudoBase) + (aberto * fator);
     const custoBase = Number(form.precoCompra) > 0 && conteudoBase > 0 ? Number(form.precoCompra) / conteudoBase : 0;
-    return { totalBase, totalKg: ['g', 'kg'].includes(form.unidadeConteudo) ? totalBase / 1000 : null, custoBase, custoKg: custoBase * 1000 };
+    return { total: totalBase / fator, totalBase, unidadeControle, unidadeConteudo, totalKg: ['g', 'kg'].includes(unidadeConteudo) ? totalBase / 1000 : null, custoBase, custoKg: custoBase * 1000 };
   })() : null;
 
   const submit = async (event) => {
@@ -93,12 +96,11 @@ export default function Products() {
       preco: tipo === 'venda' ? limparCampoNumerico(form.preco) ?? 0 : 0,
       precoVenda: tipo === 'venda' ? limparCampoNumerico(form.preco) ?? 0 : 0,
       precoCompra: tipo === 'insumo' ? limparCampoNumerico(form.precoCompra) ?? 0 : 0,
-      estoque: limparCampoNumerico(form.estoque) ?? 0,
       unidadeVenda: form.unidadeVenda || 'un',
       unidadeCompra: form.unidadeCompra || 'kg',
       custoUnitario: limparCampoNumerico(form.custo) ?? 0,
       custo: limparCampoNumerico(form.custo) ?? 0,
-      rendimentoPorUnidadeCompra: limparCampoNumerico(form.rendimentoPorUnidadeCompra) ?? 0,
+      rendimentoPorUnidadeCompra: 0,
       ativo: true,
     };
 
@@ -248,24 +250,24 @@ export default function Products() {
               <div className="product-section-title"><span>📦</span><div><strong>DADOS DE COMPRA</strong><small>Como você adquire e controla o insumo</small></div></div>
               <div className="product-form-grid">
                 <label>Preço de compra (R$) * <input type="number" step="0.01" min={0} value={form.precoCompra} required onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
-                <label>Peso/Conteúdo por embalagem * <small>Quanto há dentro de cada embalagem</small>
-                  <div className="product-input-with-unit"><input type="number" step="0.001" min={0} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /><select value={form.unidadeConteudo} onChange={(event) => setForm({ ...form, unidadeConteudo: event.target.value })}><option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="l">l</option></select></div>
-                </label>
-                <label>Unidade de compra/controle <small>Como as embalagens são contadas</small>
+                <label>Unidade de controle * <small>Como você compra e controla o estoque</small>
                   <select value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidadeCompra: event.target.value })}>
-                    {['lata', 'caixa', 'pacote', 'rolo', 'un', 'kg', 'g', 'l', 'ml'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
+                    {['kg', 'g', 'mg', 'l', 'ml', 'un', 'lata', 'caixa', 'pacote', 'rolo'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </select>
                 </label>
-                <label>Estoque atual (embalagens) <input type="number" step="1" min={0} value={form.estoqueEmbalagens} onChange={(event) => setForm({ ...form, estoqueEmbalagens: event.target.value })} /></label>
-                <label>Estoque mínimo (embalagens) <input type="number" step="1" min={0} value={form.estoqueMinimoEmbalagens} onChange={(event) => setForm({ ...form, estoqueMinimoEmbalagens: event.target.value })} /></label>
+                <label>Estoque atual ({form.unidadeCompra}) <input type="number" step="0.001" min={0} value={form.estoqueEmbalagens} onChange={(event) => setForm({ ...form, estoqueEmbalagens: event.target.value })} /></label>
+                <label>Estoque mínimo ({form.unidadeCompra}) <input type="number" step="0.001" min={0} value={form.estoqueMinimoEmbalagens} onChange={(event) => setForm({ ...form, estoqueMinimoEmbalagens: event.target.value })} /></label>
+                {['lata', 'caixa', 'pacote', 'rolo'].includes(form.unidadeCompra) && <label>Conteúdo de referência por unidade <small>Ex.: 395 g por lata</small>
+                  <div className="product-input-with-unit"><input type="number" step="0.001" min={0} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /><select value={form.unidadeConteudo} onChange={(event) => setForm({ ...form, unidadeConteudo: event.target.value })}><option value="un">un</option><option value="g">g</option><option value="kg">kg</option><option value="mg">mg</option><option value="ml">ml</option><option value="l">l</option></select></div>
+                </label>}
               </div>
             </section>
             <section className="product-form-section product-summary-section">
               <div className="product-section-title"><span>📊</span><div><strong>RESUMO AUTOMÁTICO</strong><small>Calculado a partir da compra e do conteúdo</small></div></div>
               <div className="product-summary-grid">
-                <div><span>Peso total disponível</span><strong>{resumoInsumo?.totalKg !== null ? `${(resumoInsumo?.totalKg || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg` : `${(resumoInsumo?.totalBase || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${form.unidadeConteudo}`}</strong></div>
-                <div><span>Custo por unidade base</span><strong>R$ {(resumoInsumo?.custoBase || 0).toLocaleString('pt-BR', { minimumFractionDigits: 6, maximumFractionDigits: 6 })}</strong></div>
-                <div><span>Custo por quilo/litro</span><strong>R$ {(resumoInsumo?.custoKg || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>
+                <div><span>Estoque total</span><strong>{(resumoInsumo?.total || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {resumoInsumo?.unidadeConteudo || form.unidadeCompra}</strong></div>
+                <div><span>Custo por unidade de controle</span><strong>R$ {Number(form.precoCompra || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {form.unidadeCompra}</strong></div>
+                <div><span>Custo por unidade de uso</span><strong>R$ {(resumoInsumo?.custoBase || 0).toLocaleString('pt-BR', { minimumFractionDigits: 6, maximumFractionDigits: 6 })} / {resumoInsumo?.unidadeConteudo || form.unidadeCompra}</strong></div>
               </div>
             </section>
             </>

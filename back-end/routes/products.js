@@ -13,7 +13,7 @@ const { resolverTipoProduto } = require('../utils/produtoTipo');
 const { resumoEstoqueInsumo, custoPorBase } = require('../utils/estoqueInsumo');
 
 const router = express.Router();
-const units = ['un', 'kg', 'g', 'l', 'ml'];
+const units = ['un', 'kg', 'g', 'mg', 'l', 'ml'];
 const compraUnits = ['un', 'kg', 'g', 'L', 'ml', 'lata', 'rolo', 'caixa', 'pacote', 'dz'];
 const dataLocal = () => { const agora = new Date(); return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`; };
 const antesDasOito = () => new Date().getHours() < 8;
@@ -32,7 +32,7 @@ const validations = [
   body('estoqueConteudoAberto').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
   body('estoqueMinimoEmbalagens').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
   body('conteudoPorEmbalagem').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
-  body('unidadeConteudo').optional().isIn(['g', 'kg', 'ml', 'l', 'un']),
+  body('unidadeConteudo').optional().isIn(['mg', 'g', 'kg', 'ml', 'l', 'un']),
   body('marcaReferencia').optional().trim(),
   body('unidadeVenda').optional().isIn(units),
   body('unidadeCompra').optional().isIn(compraUnits),
@@ -58,7 +58,7 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
     const receitaPorProduto = new Map(receitas.map((receita) => [String(receita.produtoId), receita._id]));
     res.json(produtos.map((produto) => ({
       ...produto.toObject(),
-      ...(produto.tipo === 'insumo' && produto.unidadeConteudo ? { unidadeVenda: produto.unidadeConteudo } : {}),
+      ...(produto.tipo === 'insumo' && produto.unidadeCompra ? { unidadeVenda: produto.unidadeCompra } : {}),
       ...dadosEstoqueProduto(produto),
       receitaId: receitaPorProduto.get(String(produto._id)) || null,
       temReceita: receitaPorProduto.has(String(produto._id)),
@@ -232,7 +232,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const tipo = resolverTipoProduto(data);
     if (tipo === 'venda' && (data.precoVenda == null && data.preco == null)) return res.status(400).json({ msg: 'Preço de venda é obrigatório para produtos à venda' });
     if (tipo === 'insumo' && (data.precoCompra === undefined || Number(data.precoCompra) < 0)) return res.status(400).json({ msg: 'Preço de compra é obrigatório para insumos' });
-    if (tipo === 'insumo' && (!Number.isFinite(Number(data.conteudoPorEmbalagem)) || Number(data.conteudoPorEmbalagem) <= 0)) return res.status(400).json({ msg: 'Informe o conteúdo por embalagem do insumo' });
+    if (tipo === 'insumo' && !['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(data.unidadeCompra || '') && (!Number.isFinite(Number(data.conteudoPorEmbalagem)) || Number(data.conteudoPorEmbalagem) <= 0)) return res.status(400).json({ msg: 'Informe o conteúdo de referência da embalagem' });
     const exists = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') } });
     if (exists) return res.status(400).json({ msg: 'Já existe um produto com este código' });
     const estoque = Number(data.estoque) || 0;
@@ -245,8 +245,8 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const categoria = tipo === 'insumo' ? 'Insumos' : (data.categoria || 'Outros');
     const precoVenda = Number(data.precoVenda ?? data.preco ?? 0);
     const precoCompra = Number(data.precoCompra || 0);
-    const conteudoPorEmbalagem = Number(data.conteudoPorEmbalagem || 0);
-    const unidadeConteudo = data.unidadeConteudo || 'g';
+    const unidadeConteudo = data.unidadeConteudo || (['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(unidadeCompra) ? unidadeCompra : 'g');
+    const conteudoPorEmbalagem = ['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(unidadeCompra) ? 1 : Number(data.conteudoPorEmbalagem || 0);
     const estoqueEmbalagens = tipo === 'insumo' ? Number(data.estoqueEmbalagens ?? estoque) || 0 : 0;
     const estoqueConteudoAberto = tipo === 'insumo' ? Number(data.estoqueConteudoAberto) || 0 : 0;
     const estoquePesoKg = pesoPorUnidade > 0 && ['kg', 'g'].includes(unidadeVenda)

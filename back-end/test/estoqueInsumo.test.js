@@ -1,6 +1,21 @@
 const assert = require('node:assert/strict');
 const { consumirInsumo, resumoEstoqueInsumo } = require('../utils/estoqueInsumo');
 
+const acucar = {
+  nome: 'Açúcar Refinado',
+  precoCompra: 7,
+  unidadeCompra: 'kg',
+  estoqueEmbalagens: 10,
+  estoqueInsumos: 10,
+};
+
+consumirInsumo(acucar, 50, 'g');
+assert.equal(acucar.estoqueEmbalagens, 9.95);
+assert.equal(resumoEstoqueInsumo(acucar).total, 9.95);
+
+consumirInsumo(acucar, 0.5, 'kg');
+assert.equal(acucar.estoqueEmbalagens, 9.45);
+
 const produto = {
   nome: 'Leite Condensado',
   precoCompra: 5,

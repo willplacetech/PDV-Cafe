@@ -2,13 +2,22 @@ import { useEffect, useState } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
-const units = ['un', 'kg', 'g', 'l', 'ml'];
+const units = ['un', 'kg', 'g', 'mg', 'l', 'ml'];
 const emptyRecipe = { nome: '', produtoId: '', rendimento: '1', unidadeRendimento: 'un', ingredientes: [{ produtoId: '', quantidade: '', unidade: 'un' }] };
 const emptyTransfer = { produtoId: '', origem: 'venda', destino: 'insumos', quantidade: '', observacao: '' };
 
 const number = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
-const unidadeDoInsumo = (produto = {}) => produto.unidadeConteudo || (['kg', 'g', 'l', 'ml'].includes(produto.unidadeVenda) ? produto.unidadeVenda : 'un');
-const descricaoDoInsumo = (produto = {}) => produto.conteudoPorEmbalagem ? `${number(produto.conteudoPorEmbalagem)} ${unidadeDoInsumo(produto)}/embalagem` : unidadeDoInsumo(produto);
+const unidadeDoInsumo = (produto = {}) => ['un', 'kg', 'g', 'mg', 'l', 'ml'].includes(produto.unidadeCompra) ? produto.unidadeCompra : (produto.unidadeConteudo || 'g');
+const descricaoDoInsumo = (produto = {}) => ['lata', 'caixa', 'pacote', 'rolo'].includes(unidadeDoInsumo(produto)) && produto.conteudoPorEmbalagem ? `${number(produto.conteudoPorEmbalagem)} ${produto.unidadeConteudo || 'g'}/${unidadeDoInsumo(produto)}` : unidadeDoInsumo(produto);
+const fatoresBase = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
+const textoConversao = (item, quantidade) => {
+  const produto = item.produtoId || {};
+  const unidadeControle = unidadeDoInsumo(produto);
+  const quantidadeBase = Number(quantidade || 0) * (fatoresBase[item.unidade] || 1);
+  const fatorControle = fatoresBase[unidadeControle] || 1;
+  const convertido = quantidadeBase / fatorControle;
+  return `${number(quantidade)} ${item.unidade} = ${number(convertido)} ${unidadeControle}`;
+};
 
 export default function Production() {
   const [tab, setTab] = useState('estoque');
@@ -56,17 +65,21 @@ export default function Production() {
 
   const getIngredientStock = (ingredientProductId) => {
     const ingredient = stockProducts.find((product) => String(product._id) === String(ingredientProductId));
-    return Number(ingredient?.resumoInsumo?.total || ingredient?.estoqueInsumos || 0);
+    return Number(ingredient?.resumoInsumo?.totalBase || ingredient?.estoqueInsumos || 0);
   };
 
   const getIngredientProduct = (ingredientProductId) => stockProducts.find((product) => String(product._id) === String(ingredientProductId));
 
   const getIngredientWarning = (ingredient) => {
     if (!ingredient?.produtoId || !ingredient.quantidade) return '';
+    const produto = getIngredientProduct(ingredient.produtoId);
     const estoque = getIngredientStock(ingredient.produtoId);
     const quantidade = Number(ingredient.quantidade || 0);
-    if (quantidade > estoque) {
-      return `Atenção: esta receita consome ${number(quantidade)} ${unidadeDoInsumo(getIngredientProduct(ingredient.produtoId))} por receita e o estoque disponível é ${number(estoque)} ${unidadeDoInsumo(getIngredientProduct(ingredient.produtoId))}.`;
+    const unidadeUso = ingredient.unidade || unidadeDoInsumo(produto);
+    const unidadeControle = unidadeDoInsumo(produto);
+    const quantidadeBase = quantidade * (fatoresBase[unidadeUso] || 1);
+    if (quantidadeBase > estoque) {
+      return `Atenção: ${number(quantidade)} ${unidadeUso} equivalem a ${number(quantidadeBase / (fatoresBase[unidadeControle] || 1))} ${unidadeControle}; o estoque disponível é insuficiente.`;
     }
     return '';
   };
@@ -79,7 +92,7 @@ export default function Production() {
     event.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...recipeForm, rendimento: Number(recipeForm.rendimento), ingredientes: recipeForm.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: unidadeDoInsumo(getIngredientProduct(item.produtoId)) })) };
+      const payload = { ...recipeForm, rendimento: Number(recipeForm.rendimento), ingredientes: recipeForm.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade || unidadeDoInsumo(getIngredientProduct(item.produtoId)) })) };
       if (editingRecipeId) {
         await api.put(`/production/recipes/${editingRecipeId}`, payload);
         showToast('Receita atualizada com sucesso', 'success');
@@ -104,7 +117,7 @@ export default function Production() {
       ingredientes: (recipe.ingredientes || []).map((item) => ({
         produtoId: item.produtoId?._id || item.produtoId || '',
         quantidade: String(item.quantidade ?? ''),
-        unidade: unidadeDoInsumo(item.produtoId || {}),
+        unidade: item.unidade || 'un',
       })),
     });
     setTab('receitas');
@@ -121,8 +134,9 @@ export default function Production() {
     if (!selectedRecipe) return showToast('Selecione uma receita', 'warning');
     setSaving(true);
     try {
-      await api.post('/production/produce', { receitaId: selectedRecipe, quantidade: Number(productionQuantity) });
-      showToast('Produção concluída e estoque abastecido', 'success');
+      const response = await api.post('/production/produce', { receitaId: selectedRecipe, quantidade: Number(productionQuantity) });
+      const conversoes = response.data?.conversoes?.filter(Boolean) || [];
+      showToast(conversoes.length ? `${conversoes.join(' | ')}` : 'Produção concluída e estoque abastecido', 'success');
       setProductionQuantity('1');
       await load();
     } catch (error) { showToast(error.response?.data?.msg || 'Não foi possível concluir a produção', 'error'); }
