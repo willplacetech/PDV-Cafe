@@ -153,15 +153,15 @@ export default function Products() {
           <section className="product-form-section">
             <div className="product-section-title"><span>📋</span><div><strong>TIPO DE PRODUTO</strong><small>Escolha o grupo do estoque</small></div></div>
             <div className="product-form-grid">
-              <div>
-                <span style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>Tipo *</span>
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', minHeight: 42, alignItems: 'center' }}>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                    <input type="radio" name="tipoProduto" value="venda" checked={form.tipo === 'venda'} onChange={() => setForm({ ...form, tipo: 'venda', categoria: 'Bebidas Quentes' })} />
+              <div className="product-type-field">
+                <span className="product-type-label">Tipo *</span>
+                <div className="product-radio-group">
+                  <label className="product-radio-option">
+                    <input className="product-radio" type="radio" name="tipoProduto" value="venda" checked={form.tipo === 'venda'} onChange={() => setForm({ ...form, tipo: 'venda', categoria: 'Bebidas Quentes' })} />
                     Produto à venda
                   </label>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                    <input type="radio" name="tipoProduto" value="insumo" checked={form.tipo === 'insumo'} onChange={() => setForm({ ...form, tipo: 'insumo', categoria: 'Insumos' })} />
+                  <label className="product-radio-option">
+                    <input className="product-radio" type="radio" name="tipoProduto" value="insumo" checked={form.tipo === 'insumo'} onChange={() => setForm({ ...form, tipo: 'insumo', categoria: 'Insumos' })} />
                     Insumo / Matéria-prima
                   </label>
                 </div>
@@ -299,6 +299,11 @@ export default function Products() {
         .product-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
         .product-form-section label { display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
         .product-form-section input, .product-form-section select { width: 100%; box-sizing: border-box; min-height: 42px; padding: 9px 11px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--input-text); font: inherit; }
+        .product-type-field { display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
+        .product-type-label { display: block; }
+        .product-radio-group { display: flex; align-items: center; gap: 18px; min-height: 42px; flex-wrap: wrap; }
+        .product-form-section .product-radio-option { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; color: var(--text-primary); font-weight: 600; cursor: pointer; }
+        .product-form-section .product-radio { width: 16px; height: 16px; min-width: 16px; min-height: 16px; margin: 0; padding: 0; accent-color: var(--accent-primary); }
         .product-form-section .product-checkbox-label { display: flex; align-items: center; gap: 10px; min-height: 42px; }
         .product-form-section .product-checkbox { width: 18px; height: 18px; min-width: 18px; min-height: 18px; margin: 0; padding: 0; accent-color: var(--accent-primary); }
         .product-admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
