@@ -41,8 +41,18 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
 
 router.get('/pdv', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
-    const produtos = await Product.find({ tipo: 'venda', ativo: true }).sort({ nome: 1 });
-    res.json(produtos.map((produto) => ({ ...produto.toObject(), ...dadosEstoqueProduto(produto) })));
+    const produtos = await Product.find({
+      ativo: { $ne: false },
+      $or: [
+        { tipo: 'venda' },
+        { tipo: { $exists: false }, controladoComoInsumo: { $ne: true } },
+      ],
+    }).sort({ nome: 1 });
+    res.json(produtos.map((produto) => ({
+      ...produto.toObject(),
+      tipo: resolverTipoProduto(produto),
+      ...dadosEstoqueProduto(produto),
+    })));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
