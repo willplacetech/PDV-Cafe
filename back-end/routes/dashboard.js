@@ -41,9 +41,9 @@ const periodoHistorico = (semanaInicio) => {
 };
 
 const inicioDoPeriodo = (periodo) => {
+  if (periodo === 'dia') return inicioHojeSaoPaulo();
   const agora = new Date();
   const inicio = new Date(agora);
-  if (periodo === 'dia') inicio.setHours(0, 0, 0, 0);
   if (periodo === 'semana') {
     inicio.setHours(0, 0, 0, 0);
     inicio.setDate(inicio.getDate() - inicio.getDay());
