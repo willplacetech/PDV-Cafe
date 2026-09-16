@@ -7,6 +7,12 @@ const IngredientSchema = new mongoose.Schema({
 }, { _id: false });
 
 const ProductSchema = new mongoose.Schema({
+  tipo: {
+    type: String,
+    enum: ['venda', 'insumo'],
+    default: 'venda',
+    index: true,
+  },
   codigo: {
     type: String,
     required: [true, 'Código é obrigatório'],
@@ -23,7 +29,7 @@ const ProductSchema = new mongoose.Schema({
   categoria: {
     type: String,
     required: true,
-    enum: ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Insumos', 'Outros'],
+    enum: ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Café da manhã', 'Congelados', 'Sorvetes', 'Insumos', 'Outros'],
     default: 'Outros',
   },
   unidadeVenda: {
@@ -80,12 +86,17 @@ const ProductSchema = new mongoose.Schema({
   },
   precoCompra: {
     type: Number,
-    default: 0,
+    default: function defaultPrecoCompra() {
+      return this.tipo === 'venda' && !this.controladoComoInsumo ? 0 : undefined;
+    },
+    required: [function precoCompraObrigatorio() {
+      return this.tipo === 'insumo' || this.controladoComoInsumo === true;
+    }, 'Preço de compra é obrigatório para insumos'],
     min: [0, 'Preço de compra não pode ser negativo'],
   },
   unidadeCompra: {
     type: String,
-    enum: ['kg', 'g', 'l', 'ml', 'un', 'dz'],
+    enum: ['un', 'kg', 'g', 'l', 'L', 'ml', 'rolo', 'caixa', 'pacote', 'dz'],
     default: 'kg',
   },
   custoUnitarioBase: {
@@ -132,6 +143,14 @@ const ProductSchema = new mongoose.Schema({
   controladoComoInsumo: {
     type: Boolean,
     default: false,
+  },
+  usavelEmReceita: {
+    type: Boolean,
+    default: false,
+  },
+  ativo: {
+    type: Boolean,
+    default: true,
   },
   estoqueMaximo: {
     type: Number,

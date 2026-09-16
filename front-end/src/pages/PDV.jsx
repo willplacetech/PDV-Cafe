@@ -15,7 +15,7 @@ const corCategoria = {
   Outros: { bg: 'var(--category-other-bg)', txt: 'var(--category-other-text)', border: 'var(--category-other-border)' }
 };
 
-const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Insumos', 'Outros'];
+const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Café da manhã', 'Congelados', 'Sorvetes', 'Outros'];
 const normalizarTexto = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 const permiteFracionar = (produto) => !Number(produto?.pesoPorUnidade) && (Boolean(produto?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(produto?.unidadeVenda));
 const precoPorUnidade = (produto) => {
@@ -48,7 +48,7 @@ export default function PDV() {
   const carregarDados = async () => {
     try {
       const [resProd, resCli, resMaisVendidos] = await Promise.all([
-        api.get('/products'), api.get('/customers'), api.get('/products/mais-vendidos?limite=8')
+        api.get('/products/pdv'), api.get('/customers'), api.get('/products/mais-vendidos?limite=8')
       ]);
       setProdutos(resProd.data);
       setClientes(resCli.data);
@@ -74,6 +74,7 @@ export default function PDV() {
   };
 
   const adicionarItem = (prod, opcoes = {}) => {
+    if (prod.tipo !== 'venda') return showToast('Este item não pode entrar no PDV', 'warning');
     if (prod.estoque <= 0) return showToast('Produto sem estoque!', 'error');
     const modificadoresItem = opcoes.modificadores || [];
     const assinatura = modificadoresItem.join('|');
@@ -280,7 +281,7 @@ Obrigado pela preferência! 🙏`
   const produtosMaisVendidos = maisVendidos
     .map((item) => produtos.find((produto) => produto._id === String(item.produtoId)))
     .filter(Boolean);
-  const filtrados = produtos.filter((produto) => produto.categoria !== 'Insumos').filter((produto) =>
+  const filtrados = produtos.filter((produto) => produto.tipo === 'venda').filter((produto) =>
     !termoBusca || [produto.nome, produto.codigo, produto.categoria].some((campo) => normalizarTexto(campo).includes(termoBusca))
   ).filter((produto) => {
     if (grupoAtivo === 'Todos') return true;
@@ -357,7 +358,7 @@ Obrigado pela preferência! 🙏`
                 <span style={{ fontSize: 11, color: 'var(--accent-primary)', fontWeight: 700 }}>ATENDIMENTO RÁPIDO</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
-                {produtosMaisVendidos.filter((produto) => produto.categoria !== 'Insumos').slice(0, 6).map((produto) => (
+                {produtosMaisVendidos.filter((produto) => produto.tipo === 'venda').slice(0, 6).map((produto) => (
                   <button key={produto._id} onClick={() => selecionarProduto(produto)} style={{ padding: '11px 10px', minHeight: 58, textAlign: 'left', border: '1px solid var(--accent-border)', borderRadius: 10, background: 'var(--accent-light)', color: 'var(--text-primary)', cursor: 'pointer' }}>
                     <strong style={{ display: 'block', fontSize: 12 }}>{produto.nome}</strong>
                     <span style={{ fontSize: 11, color: 'var(--accent-primary)' }}>R$ {produto.preco.toFixed(2).replace('.', ',')}</span>

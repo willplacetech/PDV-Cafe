@@ -9,20 +9,22 @@ const HistoricoCusto = require('../models/HistoricoCusto');
 const Recipe = require('../models/Recipe');
 const { pesoPorUnidadeEmKg } = require('../utils/pesoProduto');
 const { dadosEstoqueProduto, normalizarEstoqueLegado, produtoControlaPeso } = require('../utils/estoqueProduto');
+const { resolverTipoProduto } = require('../utils/produtoTipo');
 
 const router = express.Router();
 const units = ['un', 'kg', 'g', 'l', 'ml'];
 const compraUnits = ['un', 'kg', 'g', 'L', 'ml', 'rolo', 'caixa', 'pacote'];
 const dataLocal = () => { const agora = new Date(); return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`; };
 const antesDasOito = () => new Date().getHours() < 8;
-const validations = [body('codigo').trim().notEmpty(), body('nome').trim().notEmpty(), body('preco').optional().isFloat({ min: 0 }), body('precoCompra').optional().isFloat({ min: 0 }), body('custo').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueInsumos').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('estoqueMinimoInsumos').optional().isFloat({ min: 0 }), body('unidadeVenda').optional().isIn(units), body('unidadeCompra').optional().isIn(compraUnits), body('rendimentoPorUnidadeCompra').optional().isFloat({ min: 0 }), body('pesoPorUnidade').optional().isFloat({ min: 0 }), body('unidadePeso').optional().isIn(['kg', 'g']), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('producaoPropria').optional().isBoolean(), body('controladoComoInsumo').optional().isBoolean()];
+const validations = [body('codigo').trim().notEmpty(), body('nome').trim().notEmpty(), body('preco').optional().isFloat({ min: 0 }), body('precoCompra').optional().isFloat({ min: 0 }), body('custo').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueInsumos').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('estoqueMinimoInsumos').optional().isFloat({ min: 0 }), body('unidadeVenda').optional().isIn(units), body('unidadeCompra').optional().isIn(compraUnits), body('rendimentoPorUnidadeCompra').optional().isFloat({ min: 0 }), body('pesoPorUnidade').optional().isFloat({ min: 0 }), body('unidadePeso').optional().isIn(['kg', 'g']), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('producaoPropria').optional().isBoolean()];
 
 router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
-    const { search, categoria } = req.query;
+    const { search, categoria, tipo } = req.query;
     const query = {};
     if (search) query.$or = [{ nome: { $regex: search, $options: 'i' } }, { codigo: { $regex: search, $options: 'i' } }];
     if (categoria) query.categoria = categoria;
+    if (tipo === 'venda' || tipo === 'insumo') query.tipo = tipo;
     const [produtos, receitas] = await Promise.all([
       Product.find(query).sort({ nome: 1 }),
       Recipe.find({ ativa: true }).select('_id produtoId').lean(),
@@ -34,6 +36,13 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
       receitaId: receitaPorProduto.get(String(produto._id)) || null,
       temReceita: receitaPorProduto.has(String(produto._id)),
     })));
+  } catch (err) { res.status(500).json({ msg: err.message }); }
+});
+
+router.get('/pdv', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+  try {
+    const produtos = await Product.find({ tipo: 'venda', ativo: true }).sort({ nome: 1 });
+    res.json(produtos.map((produto) => ({ ...produto.toObject(), ...dadosEstoqueProduto(produto) })));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
@@ -70,6 +79,32 @@ router.post('/migracoes/normalizar-estoque-peso', auth, auth.allowRoles('admin')
     }
     res.json({ msg: 'Estoques pesáveis normalizados.', produtosCorrigidos: corrigidos });
   } catch (err) { res.status(500).json({ msg: err.message }); }
+});
+
+router.post('/migracoes/separar-tipos', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const produtos = await Product.find({ $or: [{ tipo: { $exists: false } }, { tipo: null }, { tipo: 'venda', controladoComoInsumo: true }] });
+    let insumos = 0;
+    let vendas = 0;
+    for (const produto of produtos) {
+      const tipo = produto.controladoComoInsumo ? 'insumo' : 'venda';
+      produto.tipo = tipo;
+      produto.categoria = tipo === 'insumo' ? 'Insumos' : (produto.categoria === 'Insumos' ? 'Outros' : produto.categoria);
+      if (tipo === 'insumo') {
+        produto.precoCompra = Number(produto.precoCompra || produto.preco || 0);
+        produto.estoqueInsumos = Number(produto.estoqueInsumos || produto.estoque || 0);
+        produto.estoque = 0;
+        produto.usavelEmReceita = true;
+        insumos += 1;
+      } else {
+        vendas += 1;
+      }
+      produto.controladoComoInsumo = undefined;
+      await produto.save();
+      await Product.updateOne({ _id: produto._id }, { $unset: { controladoComoInsumo: 1 } });
+    }
+    res.json({ msg: 'Produtos separados por tipo.', insumos, vendas });
+  } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
 router.get('/sem-custo', auth, auth.allowRoles('admin'), async (req, res) => {
@@ -152,6 +187,9 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
     const data = req.body;
+    const tipo = resolverTipoProduto(data);
+    if (tipo === 'venda' && (data.precoVenda == null && data.preco == null)) return res.status(400).json({ msg: 'Preço de venda é obrigatório para produtos à venda' });
+    if (tipo === 'insumo' && (data.precoCompra === undefined || Number(data.precoCompra) < 0)) return res.status(400).json({ msg: 'Preço de compra é obrigatório para insumos' });
     const exists = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') } });
     if (exists) return res.status(400).json({ msg: 'Já existe um produto com este código' });
     const estoque = Number(data.estoque) || 0;
@@ -161,12 +199,47 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const pesoPorUnidade = Number(data.pesoPorUnidade) || 0;
     const unidadeVenda = data.unidadeVenda || 'un';
     const unidadeCompra = data.unidadeCompra || 'kg';
+    const categoria = tipo === 'insumo' ? 'Insumos' : (data.categoria || 'Outros');
+    const precoVenda = Number(data.precoVenda ?? data.preco ?? 0);
+    const precoCompra = Number(data.precoCompra || 0);
     const estoquePesoKg = pesoPorUnidade > 0 && ['kg', 'g'].includes(unidadeVenda)
       ? estoque * (unidadeVenda === 'kg' ? pesoPorUnidade : pesoPorUnidade / 1000)
       : 0;
-    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco || 0), precoCompra: Number(data.precoCompra || 0), unidadeCompra, rendimentoPorUnidadeCompra: Number(data.rendimentoPorUnidadeCompra || 0), custo: custoUnitario, custoUnitario, estoque, estoquePesoKg, estoqueInsumos, estoqueInicialDia: estoque, estoqueInicialData: dataLocal(), estoqueInsumosInicial: estoqueInsumos, estoqueInsumosInicialData: dataLocal(), estoqueMinimoInsumos: Number(data.estoqueMinimoInsumos) || 0, unidadeVenda, pesoPorUnidade, unidadePeso: data.unidadePeso || 'kg', vendidoFracionado: Boolean(data.vendidoFracionado), aFazer: Boolean(data.aFazer), fichaTecnica, producaoPropria: Boolean(data.producaoPropria), controladoComoInsumo: Boolean(data.controladoComoInsumo), createdBy: req.user.id });
+    const product = await Product.create({
+      codigo: data.codigo.trim(),
+      nome: data.nome.trim(),
+      tipo,
+      categoria,
+      preco: tipo === 'venda' ? precoVenda : 0,
+      precoCompra,
+      unidadeCompra,
+      rendimentoPorUnidadeCompra: Number(data.rendimentoPorUnidadeCompra || 0),
+      custo: custoUnitario,
+      custoUnitario,
+      estoque: tipo === 'venda' ? estoque : 0,
+      estoquePesoKg,
+      estoqueInsumos: tipo === 'insumo' ? estoque : estoqueInsumos,
+      estoqueInicialDia: estoque,
+      estoqueInicialData: dataLocal(),
+      estoqueInsumosInicial: estoqueInsumos,
+      estoqueInsumosInicialData: dataLocal(),
+      estoqueMinimoInsumos: Number(data.estoqueMinimoInsumos) || 0,
+      unidadeVenda,
+      pesoPorUnidade,
+      unidadePeso: data.unidadePeso || 'kg',
+      vendidoFracionado: Boolean(data.vendidoFracionado),
+      aFazer: Boolean(data.aFazer),
+      fichaTecnica,
+      producaoPropria: Boolean(data.producaoPropria),
+      usavelEmReceita: Boolean(data.usavelEmReceita || tipo === 'insumo'),
+      ativo: data.ativo !== undefined ? Boolean(data.ativo) : true,
+      createdBy: req.user.id,
+    });
     res.status(201).json(product);
-  } catch (err) { res.status(400).json({ msg: err.code === 11000 ? 'Código duplicado' : err.message }); }
+  } catch (err) {
+    const message = err.code === 11000 ? 'Código duplicado' : err.message;
+    res.status(400).json({ error: message, msg: message });
+  }
 });
 
 router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().isIn(units), body('pesoPorUnidade').optional().isFloat({ min: 0 }), body('unidadePeso').optional().isIn(['kg', 'g']), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('fichaTecnica').optional().isArray()], async (req, res) => {
@@ -174,13 +247,22 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
     const data = req.body;
+    const tipo = resolverTipoProduto({ ...data, tipo: data.tipo ?? undefined });
     if (data.codigo) {
       const duplicate = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') }, _id: { $ne: req.params.id } });
       if (duplicate) return res.status(400).json({ msg: 'Já existe um produto com este código' });
     }
     const fields = {};
+    if (data.tipo !== undefined) fields.tipo = tipo;
     ['codigo', 'nome', 'categoria', 'unidadeVenda', 'unidadeCompra'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
     ['preco', 'precoCompra', 'estoque', 'estoqueInsumos', 'estoqueMaximo', 'estoqueMinimoInsumos', 'pesoPorUnidade', 'rendimentoPorUnidadeCompra'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
+    if (data.estoque !== undefined && tipo === 'insumo') {
+      fields.estoqueInsumos = Number(data.estoque);
+      delete fields.estoque;
+    }
+    if (data.precoVenda !== undefined) fields.preco = Number(data.precoVenda);
+    if (data.ativo !== undefined) fields.ativo = Boolean(data.ativo);
+    if (tipo === 'insumo' && !data.categoria) fields.categoria = 'Insumos';
     if (data.unidadePeso !== undefined) fields.unidadePeso = data.unidadePeso;
     if (data.estoque !== undefined || data.pesoPorUnidade !== undefined || data.unidadeVenda !== undefined || data.unidadePeso !== undefined) {
       const atual = await Product.findById(req.params.id).select('estoque pesoPorUnidade unidadeVenda unidadePeso').lean();
@@ -197,7 +279,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
         fields.custo = custoUnitario;
       }
     }
-    ['vendidoFracionado', 'aFazer', 'producaoPropria', 'controladoComoInsumo'].forEach((key) => { if (data[key] !== undefined) fields[key] = Boolean(data[key]); });
+    ['vendidoFracionado', 'aFazer', 'producaoPropria', 'usavelEmReceita'].forEach((key) => { if (data[key] !== undefined) fields[key] = Boolean(data[key]); });
     if (data.fichaTecnica !== undefined) fields.fichaTecnica = data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade }));
     if (data.estoque !== undefined && antesDasOito()) {
       fields.estoqueInicialDia = Number(data.estoque);
