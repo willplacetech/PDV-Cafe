@@ -8,11 +8,17 @@ const filtrosTipo = ['Todos', 'À Venda', 'Insumos'];
 const vazio = {
   codigo: '',
   nome: '',
+  marcaReferencia: '',
   tipo: 'venda',
   categoria: 'Bebidas Quentes',
   preco: '',
   precoCompra: '',
-  unidadeCompra: 'kg',
+  unidadeCompra: 'lata',
+  conteudoPorEmbalagem: '',
+  unidadeConteudo: 'g',
+  estoqueEmbalagens: '',
+  estoqueConteudoAberto: 0,
+  estoqueMinimoEmbalagens: '',
   rendimentoPorUnidadeCompra: '',
   custo: '',
   estoque: '',
@@ -56,6 +62,17 @@ export default function Products() {
     return Number(valor);
   };
 
+  const resumoInsumo = form.tipo === 'insumo' ? (() => {
+    const conteudo = Number(form.conteudoPorEmbalagem) || 0;
+    const embalagens = Number(form.estoqueEmbalagens) || 0;
+    const aberto = Number(form.estoqueConteudoAberto) || 0;
+    const fator = ['kg', 'l'].includes(form.unidadeConteudo) ? 1000 : 1;
+    const conteudoBase = conteudo * fator;
+    const totalBase = (embalagens * conteudoBase) + (aberto * fator);
+    const custoBase = Number(form.precoCompra) > 0 && conteudoBase > 0 ? Number(form.precoCompra) / conteudoBase : 0;
+    return { totalBase, totalKg: ['g', 'kg'].includes(form.unidadeConteudo) ? totalBase / 1000 : null, custoBase, custoKg: custoBase * 1000 };
+  })() : null;
+
   const submit = async (event) => {
     event.preventDefault();
     if (codigoJaExiste(form.codigo, editing?._id)) {
@@ -67,6 +84,11 @@ export default function Products() {
     const payload = {
       ...form,
       tipo,
+      estoque: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : limparCampoNumerico(form.estoque) ?? 0,
+      estoqueEmbalagens: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : undefined,
+      estoqueMinimoEmbalagens: tipo === 'insumo' ? limparCampoNumerico(form.estoqueMinimoEmbalagens) ?? 0 : undefined,
+      conteudoPorEmbalagem: tipo === 'insumo' ? limparCampoNumerico(form.conteudoPorEmbalagem) ?? 0 : undefined,
+      estoqueConteudoAberto: tipo === 'insumo' ? limparCampoNumerico(form.estoqueConteudoAberto) ?? 0 : undefined,
       categoria: tipo === 'insumo' ? 'Insumos' : (form.categoria || 'Outros'),
       preco: tipo === 'venda' ? limparCampoNumerico(form.preco) ?? 0 : 0,
       precoVenda: tipo === 'venda' ? limparCampoNumerico(form.preco) ?? 0 : 0,
@@ -98,11 +120,17 @@ export default function Products() {
     setForm({
       codigo: produto.codigo,
       nome: produto.nome,
+      marcaReferencia: produto.marcaReferencia || '',
       tipo: produto.tipo || (produto.controladoComoInsumo ? 'insumo' : 'venda'),
       categoria: produto.categoria || 'Bebidas Quentes',
       preco: produto.preco ?? '',
       precoCompra: produto.precoCompra ?? '',
-      unidadeCompra: produto.unidadeCompra || 'kg',
+      unidadeCompra: produto.unidadeCompra || 'lata',
+      conteudoPorEmbalagem: produto.conteudoPorEmbalagem ?? '',
+      unidadeConteudo: produto.unidadeConteudo || 'g',
+      estoqueEmbalagens: produto.estoqueEmbalagens ?? produto.estoqueInsumos ?? '',
+      estoqueConteudoAberto: produto.estoqueConteudoAberto ?? 0,
+      estoqueMinimoEmbalagens: produto.estoqueMinimoEmbalagens ?? produto.estoqueMinimoInsumos ?? '',
       rendimentoPorUnidadeCompra: produto.rendimentoPorUnidadeCompra ?? '',
       custo: produto.custoUnitario ?? produto.custo ?? '',
       estoque: produto.tipo === 'insumo' ? (produto.estoqueInsumos ?? '') : (produto.estoque ?? ''),
@@ -172,6 +200,9 @@ export default function Products() {
               <label>Nome *
                 <input value={form.nome} required onChange={(event) => setForm({ ...form, nome: event.target.value })} />
               </label>
+              {form.tipo === 'insumo' && <label>Marca/Referência <small>(opcional)</small>
+                <input value={form.marcaReferencia} onChange={(event) => setForm({ ...form, marcaReferencia: event.target.value })} />
+              </label>}
               {form.tipo === 'venda' ? (
                 <label>Categoria
                   <select value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value })}>
@@ -212,18 +243,32 @@ export default function Products() {
               </div>
             </section>
           ) : (
+            <>
             <section className="product-form-section">
-              <div className="product-section-title"><span>🧺</span><div><strong>INSUMO</strong><small>Insumos não aparecem no PDV</small></div></div>
+              <div className="product-section-title"><span>📦</span><div><strong>DADOS DE COMPRA</strong><small>Como você adquire e controla o insumo</small></div></div>
               <div className="product-form-grid">
                 <label>Preço de compra (R$) * <input type="number" step="0.01" min={0} value={form.precoCompra} required onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
-                <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label>
-                <label>Unidade de compra
+                <label>Peso/Conteúdo por embalagem * <small>Quanto há dentro de cada embalagem</small>
+                  <div className="product-input-with-unit"><input type="number" step="0.001" min={0} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /><select value={form.unidadeConteudo} onChange={(event) => setForm({ ...form, unidadeConteudo: event.target.value })}><option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="l">l</option></select></div>
+                </label>
+                <label>Unidade de compra/controle <small>Como as embalagens são contadas</small>
                   <select value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidadeCompra: event.target.value })}>
-                    {['un', 'kg', 'g', 'l', 'ml', 'rolo', 'caixa', 'pacote'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
+                    {['lata', 'caixa', 'pacote', 'rolo', 'un', 'kg', 'g', 'l', 'ml'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </select>
                 </label>
+                <label>Estoque atual (embalagens) <input type="number" step="1" min={0} value={form.estoqueEmbalagens} onChange={(event) => setForm({ ...form, estoqueEmbalagens: event.target.value })} /></label>
+                <label>Estoque mínimo (embalagens) <input type="number" step="1" min={0} value={form.estoqueMinimoEmbalagens} onChange={(event) => setForm({ ...form, estoqueMinimoEmbalagens: event.target.value })} /></label>
               </div>
             </section>
+            <section className="product-form-section product-summary-section">
+              <div className="product-section-title"><span>📊</span><div><strong>RESUMO AUTOMÁTICO</strong><small>Calculado a partir da compra e do conteúdo</small></div></div>
+              <div className="product-summary-grid">
+                <div><span>Peso total disponível</span><strong>{resumoInsumo?.totalKg !== null ? `${(resumoInsumo?.totalKg || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg` : `${(resumoInsumo?.totalBase || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${form.unidadeConteudo}`}</strong></div>
+                <div><span>Custo por unidade base</span><strong>R$ {(resumoInsumo?.custoBase || 0).toLocaleString('pt-BR', { minimumFractionDigits: 6, maximumFractionDigits: 6 })}</strong></div>
+                <div><span>Custo por quilo/litro</span><strong>R$ {(resumoInsumo?.custoKg || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>
+              </div>
+            </section>
+            </>
           )}
 
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
@@ -276,7 +321,8 @@ export default function Products() {
                   <div>
                     <strong>R$ {Number(produto.preco || 0).toFixed(2).replace('.', ',')}</strong>
                     <small>{produto.tipo === 'insumo' ? `Compra: R$ ${Number(produto.precoCompra || 0).toFixed(2).replace('.', ',')}` : `Categoria: ${produto.categoria}`}</small>
-                    <small className={Number(produto.tipo === 'insumo' ? produto.estoqueInsumos : produto.estoque) <= 5 ? 'low-stock' : ''}>{Number(produto.tipo === 'insumo' ? produto.estoqueInsumos : produto.estoque) || 0} em estoque</small>
+                    <small className={Number(produto.tipo === 'insumo' ? (produto.estoqueEmbalagens ?? produto.estoqueInsumos) : produto.estoque) <= 5 ? 'low-stock' : ''}>{Number(produto.tipo === 'insumo' ? (produto.estoqueEmbalagens ?? produto.estoqueInsumos) : produto.estoque) || 0} {produto.tipo === 'insumo' ? (produto.unidadeCompra || 'embalagens') : 'em estoque'}</small>
+                    {produto.tipo === 'insumo' && produto.resumoInsumo && <small>{Number(produto.resumoInsumo.totalKg || produto.resumoInsumo.total || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {produto.resumoInsumo.totalKg ? 'kg disponíveis' : produto.resumoInsumo.unidadeConteudo}</small>}
                   </div>
                   <div className="product-card-actions">
                     <button type="button" onClick={() => editarProduto(produto)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}>Editar</button>
@@ -299,6 +345,12 @@ export default function Products() {
         .product-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
         .product-form-section label { display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
         .product-form-section input, .product-form-section select { width: 100%; box-sizing: border-box; min-height: 42px; padding: 9px 11px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--input-text); font: inherit; }
+        .product-input-with-unit { display: grid; grid-template-columns: minmax(0, 1fr) 76px; gap: 8px; }
+        .product-summary-section { background: var(--bg-secondary); }
+        .product-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+        .product-summary-grid div { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--border-light); border-radius: 9px; }
+        .product-summary-grid span { color: var(--text-secondary); font-size: 11px; }
+        .product-summary-grid strong { color: var(--text-primary); font-size: 14px; }
         .product-type-field { display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
         .product-type-label { display: block; }
         .product-radio-group { display: flex; align-items: center; gap: 18px; min-height: 42px; flex-wrap: wrap; }
@@ -315,7 +367,7 @@ export default function Products() {
         .product-admin-footer strong { display: block; color: var(--accent-primary); font-size: 17px; }
         .product-admin-footer small { display: block; color: var(--text-secondary); font-size: 11px; margin-top: 3px; }
         .low-stock { color: var(--error-bg) !important; font-weight: 700; }
-        @media (max-width: 640px) { .product-form-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 640px) { .product-form-grid, .product-summary-grid { grid-template-columns: 1fr; } }
       `}</style>
     </div>
   );

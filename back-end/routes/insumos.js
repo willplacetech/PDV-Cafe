@@ -5,10 +5,11 @@ const Product = require('../models/Product');
 const Recipe = require('../models/Recipe');
 const HistoricoCusto = require('../models/HistoricoCusto');
 const { converterCustoBase, quantidadeNaBase, calcularVariacaoPercentual } = require('../utils/custo');
+const { custoPorBase } = require('../utils/estoqueInsumo');
 
 const router = express.Router();
 
-const normalizeUnit = (unit) => (['kg', 'g', 'l', 'ml', 'un', 'dz'].includes(unit) ? unit : 'kg');
+const normalizeUnit = (unit) => (['kg', 'g', 'l', 'ml', 'un', 'lata', 'caixa', 'pacote', 'dz'].includes(unit) ? unit : 'kg');
 
 const recalcularReceitasAfetadas = async (produtoId) => {
   const recipes = await Recipe.find({ ingredientes: { $elemMatch: { produtoId } } }).populate('ingredientes.produtoId').populate('produtoId');
@@ -66,14 +67,14 @@ const recalcularReceitasAfetadas = async (produtoId) => {
 router.use(auth);
 router.use(auth.allowRoles('admin'));
 
-router.put('/:id/preco-compra', [body('precoCompra').isFloat({ min: 0 }), body('unidadeCompra').optional().isIn(['kg', 'g', 'l', 'ml', 'un', 'dz'])], async (req, res) => {
+router.put('/:id/preco-compra', [body('precoCompra').isFloat({ min: 0 }), body('unidadeCompra').optional().isIn(['kg', 'g', 'l', 'ml', 'un', 'lata', 'caixa', 'pacote', 'dz'])], async (req, res) => {
   try {
     const produto = await Product.findById(req.params.id);
     if (!produto) return res.status(404).json({ msg: 'Insumo não encontrado' });
 
     const unidadeCompra = normalizeUnit(req.body.unidadeCompra || produto.unidadeCompra || 'kg');
     const precoCompra = Number(req.body.precoCompra ?? produto.precoCompra ?? 0);
-    const custoUnitarioBase = converterCustoBase(precoCompra, unidadeCompra, 'g');
+    const custoUnitarioBase = custoPorBase({ precoCompra, conteudoPorEmbalagem: produto.conteudoPorEmbalagem, unidadeConteudo: produto.unidadeConteudo }) || converterCustoBase(precoCompra, unidadeCompra, 'g');
 
     produto.precoCompra = precoCompra;
     produto.unidadeCompra = unidadeCompra;

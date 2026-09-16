@@ -8,11 +8,13 @@ const Production = require('../models/Production');
 const StockMovement = require('../models/StockMovement');
 const { calcularCustoReceita } = require('../utils/custo');
 const { dadosEstoqueProduto } = require('../utils/estoqueProduto');
+const { paraBase, resumoEstoqueInsumo, consumirInsumo, estoqueTotalBase, unidadeBase } = require('../utils/estoqueInsumo');
 
 const router = express.Router();
 const locations = ['venda', 'insumos'];
 const units = ['un', 'kg', 'g', 'l', 'ml'];
 const balanceField = (location) => location === 'insumos' ? 'estoqueInsumos' : 'estoque';
+const unidadeDoInsumo = (produto = {}) => produto.unidadeConteudo || (['kg', 'g', 'l', 'ml'].includes(produto.unidadeVenda) ? produto.unidadeVenda : 'un');
 
 const sincronizarCustoReceita = async (recipeId) => {
   const recipe = await Recipe.findById(recipeId).populate('ingredientes.produtoId');
@@ -41,7 +43,7 @@ const validate = (req, res) => {
 
 router.get('/recipes', async (req, res) => {
   try {
-    const recipes = await Recipe.find().populate('produtoId', 'nome codigo unidadeVenda producaoPropria').populate('ingredientes.produtoId', 'nome codigo unidadeVenda estoqueInsumos').sort({ nome: 1 });
+    const recipes = await Recipe.find().populate('produtoId', 'nome codigo unidadeVenda producaoPropria').populate('ingredientes.produtoId', 'nome codigo unidadeVenda unidadeConteudo conteudoPorEmbalagem estoqueInsumos estoqueEmbalagens estoqueConteudoAberto').sort({ nome: 1 });
     res.json(recipes);
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
@@ -62,7 +64,7 @@ router.post('/recipes', [
     const ids = ingredientes.map((item) => item.produtoId);
     const produtos = await Product.find({ _id: { $in: ids } });
     const byId = new Map(produtos.map((produtoItem) => [String(produtoItem._id), produtoItem]));
-    const itens = ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade || byId.get(String(item.produtoId))?.unidadeVenda || 'un' }));
+    const itens = ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: unidadeDoInsumo(byId.get(String(item.produtoId))) }));
     if (itens.some((item) => !byId.has(String(item.produtoId)) || !Number.isFinite(item.quantidade) || item.quantidade <= 0 || !units.includes(item.unidade))) return res.status(400).json({ msg: 'Ingrediente inválido' });
     if (itens.some((item) => byId.get(String(item.produtoId)).tipo !== 'insumo')) return res.status(400).json({ msg: 'A receita só pode usar produtos do tipo insumo' });
     const recipe = await Recipe.create({ nome: nome.trim(), produtoId, rendimento: Number(rendimento), unidadeRendimento, ingredientes: itens, createdBy: req.user.id });
@@ -93,10 +95,11 @@ router.put('/recipes/:id', [
     ['rendimento', 'ativa'].forEach((key) => { if (req.body[key] !== undefined) fields[key] = key === 'rendimento' ? Number(req.body[key]) : Boolean(req.body[key]); });
     if (req.body.ingredientes) {
       const ingredientIds = req.body.ingredientes.map((item) => item.produtoId);
-      const ingredientProducts = await Product.find({ _id: { $in: ingredientIds } }).select('tipo');
+      const ingredientProducts = await Product.find({ _id: { $in: ingredientIds } }).select('tipo unidadeConteudo unidadeVenda');
       const ingredientTypes = new Map(ingredientProducts.map((produto) => [String(produto._id), produto.tipo]));
       if (req.body.ingredientes.some((item) => ingredientTypes.get(String(item.produtoId)) !== 'insumo')) return res.status(400).json({ msg: 'A receita só pode usar produtos do tipo insumo' });
-      fields.ingredientes = req.body.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade }));
+      const ingredientById = new Map(ingredientProducts.map((produto) => [String(produto._id), produto]));
+      fields.ingredientes = req.body.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: unidadeDoInsumo(ingredientById.get(String(item.produtoId))) }));
     }
     const updated = await Recipe.findByIdAndUpdate(req.params.id, { $set: fields }, { new: true, runValidators: true }).populate('produtoId', 'nome codigo unidadeVenda producaoPropria');
     await Product.findByIdAndUpdate(updated.produtoId._id, { $set: { producaoPropria: updated.ativa } });
@@ -121,7 +124,10 @@ router.get('/stock', async (req, res) => {
     const location = locations.includes(req.query.location) ? req.query.location : 'insumos';
     const field = balanceField(location);
     const products = await Product.find({ tipo: location === 'insumos' ? 'insumo' : 'venda', $or: [{ [field]: { $gt: 0 } }, { [field]: 0 }] }).sort({ nome: 1 });
-    res.json(products.map((product) => ({ ...product.toObject(), ...dadosEstoqueProduto(product), local: location, saldo: location === 'venda' ? dadosEstoqueProduto(product).estoque : Number(product[field] || 0), minimo: Number(location === 'insumos' ? product.estoqueMinimoInsumos : product.estoqueMinimo || 0) })));
+    res.json(products.map((product) => {
+      const resumo = location === 'insumos' ? resumoEstoqueInsumo(product) : null;
+      return { ...product.toObject(), ...dadosEstoqueProduto(product), local: location, saldo: location === 'venda' ? dadosEstoqueProduto(product).estoque : resumo.embalagensFechadas, totalDisponivel: resumo?.total || 0, totalKgDisponivel: resumo?.totalKg, unidadeDisponivel: resumo?.unidadeConteudo, conteudoAberto: resumo?.conteudoAberto || 0, minimo: Number(location === 'insumos' ? (product.estoqueMinimoEmbalagens ?? product.estoqueMinimoInsumos) : product.estoqueMinimo || 0) };
+    }));
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
@@ -161,8 +167,10 @@ router.post('/produce', [body('receitaId').isMongoId(), body('quantidade').isFlo
       const consumption = recipe.ingredientes.map((item) => ({ product: item.produtoId, quantity: Number(item.quantidade) * batches, unit: item.unidade }));
       const snapshots = [];
       for (const item of consumption) {
-        const updated = await Product.findOneAndUpdate({ _id: item.product._id, estoqueInsumos: { $gte: item.quantity } }, { $inc: { estoqueInsumos: -item.quantity } }, { new: true, session });
-        if (!updated) throw new Error(`Insumo insuficiente: ${item.product.nome}`);
+        const product = await Product.findById(item.product._id).session(session);
+        if (!product) throw new Error(`Insumo não encontrado: ${item.product.nome}`);
+        consumirInsumo(product, item.quantity, item.unit);
+        await product.save({ session });
         snapshots.push({ produtoId: item.product._id, nome: item.product.nome, quantidade: item.quantity, unidade: item.unit });
         await StockMovement.create([{ produtoId: item.product._id, produtoNome: item.product.nome, tipo: 'saida', origem: 'insumos', destino: null, quantidade: item.quantity, observacao: `Consumo da receita ${recipe.nome}`, createdBy: req.user.id }], { session });
       }
@@ -178,26 +186,27 @@ router.post('/produce', [body('receitaId').isMongoId(), body('quantidade').isFlo
 router.get('/dashboard', async (req, res) => {
   try {
     const [products, recipes, recentProductions, lowStock] = await Promise.all([
-      Product.find({ tipo: 'insumo' }).select('nome codigo estoqueInsumos estoqueMinimoInsumos unidadeCompra unidadeVenda'),
-      Recipe.find({ ativa: true }).populate('produtoId', 'nome estoque unidadeVenda').populate('ingredientes.produtoId', 'nome estoqueInsumos'),
+      Product.find({ tipo: 'insumo' }).select('nome codigo estoqueInsumos estoqueEmbalagens estoqueConteudoAberto estoqueMinimoInsumos estoqueMinimoEmbalagens unidadeCompra unidadeConteudo conteudoPorEmbalagem unidadeVenda'),
+      Recipe.find({ ativa: true }).populate('produtoId', 'nome estoque unidadeVenda').populate('ingredientes.produtoId', 'nome estoqueInsumos estoqueEmbalagens estoqueConteudoAberto unidadeConteudo conteudoPorEmbalagem'),
       Production.find().sort({ createdAt: -1 }).limit(10),
-      Product.find({ tipo: 'insumo', $expr: { $lte: ['$estoqueInsumos', '$estoqueMinimoInsumos'] } }).select('nome codigo estoqueInsumos estoqueMinimoInsumos unidadeCompra unidadeVenda'),
+      Product.find({ tipo: 'insumo', $expr: { $lte: ['$estoqueEmbalagens', { $ifNull: ['$estoqueMinimoEmbalagens', '$estoqueMinimoInsumos'] }] } }).select('nome codigo estoqueInsumos estoqueEmbalagens estoqueConteudoAberto estoqueMinimoInsumos estoqueMinimoEmbalagens unidadeCompra unidadeConteudo conteudoPorEmbalagem unidadeVenda'),
     ]);
     const formatNumber = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
     const possible = recipes.map((recipe) => {
       const ingredienteLimite = recipe.ingredientes
         .filter((item) => item.produtoId && Number(item.quantidade || 0) > 0)
         .map((item) => {
-          const estoque = Number(item.produtoId?.estoqueInsumos || 0);
+          const estoque = estoqueTotalBase(item.produtoId);
           const consumo = Number(item.quantidade || 0);
-          const producoes = consumo > 0 ? estoque / consumo : 0;
+          const consumoBase = paraBase(consumo, item.unidade);
+          const producoes = consumoBase > 0 ? estoque / consumoBase : 0;
           return { nome: item.produtoId?.nome, estoque, consumo, producoes };
         })
         .sort((a, b) => a.producoes - b.producoes)[0];
       const producoesPossiveis = ingredienteLimite ? Number((ingredienteLimite.producoes).toFixed(3)) : 0;
       const unidadesProntas = Number((producoesPossiveis * Number(recipe.rendimento || 0)).toFixed(3));
       const calculo = ingredienteLimite && producoesPossiveis > 0
-        ? `${formatNumber(ingredienteLimite.estoque)} em estoque ÷ ${formatNumber(ingredienteLimite.consumo)} por receita = ${formatNumber(producoesPossiveis)} produções → ${formatNumber(unidadesProntas)} unidades prontas`
+        ? `${formatNumber(ingredienteLimite.estoque)} em unidade base ÷ ${formatNumber(ingredienteLimite.consumo)} por receita = ${formatNumber(producoesPossiveis)} produções → ${formatNumber(unidadesProntas)} unidades prontas`
         : 'Insumos insuficientes';
       return {
         receitaId: recipe._id,

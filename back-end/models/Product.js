@@ -39,8 +39,38 @@ const ProductSchema = new mongoose.Schema({
   },
   unidadeCompra: {
     type: String,
-    enum: ['un', 'kg', 'g', 'l', 'L', 'ml', 'rolo', 'caixa', 'pacote'],
-    default: 'kg',
+    enum: ['un', 'kg', 'g', 'l', 'L', 'ml', 'lata', 'caixa', 'pacote', 'rolo', 'dz'],
+    default: 'un',
+  },
+  marcaReferencia: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  conteudoPorEmbalagem: {
+    type: Number,
+    min: [0, 'Conteúdo por embalagem não pode ser negativo'],
+    default: 0,
+  },
+  unidadeConteudo: {
+    type: String,
+    enum: ['g', 'kg', 'ml', 'l', 'un'],
+    default: 'g',
+  },
+  estoqueEmbalagens: {
+    type: Number,
+    min: [0, 'Estoque de embalagens não pode ser negativo'],
+    default: 0,
+  },
+  estoqueConteudoAberto: {
+    type: Number,
+    min: [0, 'Conteúdo aberto não pode ser negativo'],
+    default: 0,
+  },
+  estoqueMinimoEmbalagens: {
+    type: Number,
+    min: [0, 'Estoque mínimo não pode ser negativo'],
+    default: 0,
   },
   rendimentoPorUnidadeCompra: {
     type: Number,
