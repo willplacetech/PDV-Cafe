@@ -11,6 +11,7 @@ const itemSchema = new mongoose.Schema({
   unidadePeso: { type: String, enum: ['kg', 'g'] },
   tipoVenda: { type: String, enum: ['inteiro', 'peso', 'unidade'], default: 'unidade' },
   pesoVendidoKg: { type: Number, min: 0 },
+  quantidadePecas: { type: Number, min: 0 },
   modificadores: { type: [String], default: [] },
   aFazer: { type: Boolean, default: false },
   insumosConsumidos: [{

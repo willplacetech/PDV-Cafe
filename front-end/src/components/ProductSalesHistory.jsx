@@ -78,15 +78,15 @@ export default function ProductSalesHistory({ products, topProducts = [] }) {
     </div>
     {loading ? <p className="product-history-message">Carregando histórico...</p> : error ? <p className="product-history-message">{error}</p> : <>
       <div className="product-history-summary">
-        <div><small>Itens vendidos</small><b>{quantity(summary.quantidade)}</b></div>
+        <div><small>Quantidade vendida (unidade base)</small><b>{quantity(summary.quantidade)}</b></div>
         <div><small>Pedidos com o produto</small><b>{summary.pedidos}</b></div>
-        <div><small>Média por pedido</small><b>{quantity(summary.pedidos ? summary.quantidade / summary.pedidos : 0)}</b></div>
+        <div><small>Média por pedido (unidade base)</small><b>{quantity(summary.pedidos ? summary.quantidade / summary.pedidos : 0)}</b></div>
       </div>
       <div className="product-history-list">
         {points.map((point) => <article className="product-history-point" key={point.chave}>
-          <div className="product-history-point-title"><strong>{point.rotulo}</strong><span>{quantity(point.quantidade)} item(ns) · {point.pedidos} pedido(s)</span></div>
+          <div className="product-history-point-title"><strong>{point.rotulo}</strong><span>{quantity(point.quantidade)} unidade base · {point.pedidos} pedido(s)</span></div>
           <div className="product-history-bar" aria-hidden="true"><i style={{ width: `${(Number(point.quantidade || 0) / maxQuantity) * 100}%` }} /></div>
-          <b>{quantity(point.quantidade)} item(ns)</b>
+          <b>{quantity(point.quantidade)} unidade base</b>
         </article>)}
       </div>
     </>}</>}

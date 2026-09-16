@@ -15,19 +15,8 @@ const corCategoria = {
   Outros: { bg: 'var(--category-other-bg)', txt: 'var(--category-other-text)', border: 'var(--category-other-border)' }
 };
 
-const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Salgados', 'Doces', 'Bebidas geladas'];
+const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Insumos', 'Outros'];
 const normalizarTexto = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-
-// FIX: 'gelad' verificado ANTES de 'café/espresso' para classificar corretamente
-// "Café Gelado" / "Espresso Gelado" → Bebidas geladas (não Bebidas Quentes)
-const grupoProduto = (produto) => {
-  const nome = produto.nome.toLowerCase();
-  if (nome.includes('gelad') || nome.includes('suco') || nome.includes('refrigerante')) return 'Bebidas geladas';
-  if (nome.includes('cappuccino') || nome.includes('café') || nome.includes('cafe') || nome.includes('espresso') || nome.includes('expresso') || nome.includes('filtro')) return 'Bebidas Quentes';
-  if (nome.includes('doce') || nome.includes('bolo') || nome.includes('torta') || nome.includes('cookie')) return 'Doces';
-  if (nome.includes('pão') || nome.includes('salgad') || nome.includes('croissant') || produto.categoria === 'Salgados') return 'Salgados';
-  return 'Outros';
-};
 const permiteFracionar = (produto) => !Number(produto?.pesoPorUnidade) && (Boolean(produto?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(produto?.unidadeVenda));
 const precoPorUnidade = (produto) => {
   const pesoEmKg = Number(produto?.pesoPorUnidade || 0) * (produto?.unidadePeso === 'g' ? 0.001 : 1);
@@ -296,7 +285,7 @@ Obrigado pela preferência! 🙏`
   ).filter((produto) => {
     if (grupoAtivo === 'Todos') return true;
     if (grupoAtivo === 'Favoritos') return idsMaisVendidos.has(String(produto._id));
-    return grupoProduto(produto) === grupoAtivo;
+    return produto.categoria === grupoAtivo;
   });
 
 
@@ -368,7 +357,7 @@ Obrigado pela preferência! 🙏`
                 <span style={{ fontSize: 11, color: 'var(--accent-primary)', fontWeight: 700 }}>ATENDIMENTO RÁPIDO</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
-                {produtosMaisVendidos.filter((produto) => produto.categoria !== 'Insumos' && grupoProduto(produto) !== 'Bebidas geladas').slice(0, 6).map((produto) => (
+                {produtosMaisVendidos.filter((produto) => produto.categoria !== 'Insumos').slice(0, 6).map((produto) => (
                   <button key={produto._id} onClick={() => selecionarProduto(produto)} style={{ padding: '11px 10px', minHeight: 58, textAlign: 'left', border: '1px solid var(--accent-border)', borderRadius: 10, background: 'var(--accent-light)', color: 'var(--text-primary)', cursor: 'pointer' }}>
                     <strong style={{ display: 'block', fontSize: 12 }}>{produto.nome}</strong>
                     <span style={{ fontSize: 11, color: 'var(--accent-primary)' }}>R$ {produto.preco.toFixed(2).replace('.', ',')}</span>

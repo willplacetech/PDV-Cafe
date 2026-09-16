@@ -46,6 +46,10 @@ const dadosMovimentoEstoque = (produto, item = {}) => {
   const quantidade = Number(item.quantidade || 0);
   const porPeso = produtoControlaPeso(produto) && (item.tipoVenda === 'peso' || Number(item.pesoVendidoKg || 0) > 0);
   if (porPeso) return { pecas: 0, pesoKg: Number(item.pesoVendidoKg || item.quantidade || 0), tipoVenda: 'peso' };
+  if (produtoControlaPeso(produto) && item.tipoVenda === undefined && quantidade >= 100) {
+    const pesoKg = quantidade / 1000;
+    return { pecas: 0, pesoKg, tipoVenda: 'peso' };
+  }
   if (produtoControlaPeso(produto)) return { pecas: quantidade, pesoKg: quantidade * pesoPorUnidadeEmKg(produto), tipoVenda: 'inteiro' };
   return { pecas: quantidade, pesoKg: 0, tipoVenda: 'unidade' };
 };

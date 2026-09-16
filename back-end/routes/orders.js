@@ -6,6 +6,7 @@ const Product = require('../models/Product');
 const auth = require('../middleware/auth');
 const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
 const { precoPorUnidade } = require('../utils/pesoProduto');
+const { normalizarEstoqueLegado, produtoControlaPeso, dadosMovimentoEstoque } = require('../utils/estoqueProduto');
 
 const router = express.Router();
 const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda));
@@ -17,19 +18,36 @@ async function buildOrderItems(rawItems, session) {
   for (const item of rawItems) {
     const quantity = Number(item.quantidade);
     if (!mongoose.isValidObjectId(item.produtoId) || !Number.isFinite(quantity) || quantity < 0.001) throw new Error('Item de pedido inválido');
-    totals.set(String(item.produtoId), money((totals.get(String(item.produtoId)) || 0) + quantity));
+    totals.set(String(item.produtoId), (totals.get(String(item.produtoId)) || 0) + quantity);
   }
   const products = await Product.find({ _id: { $in: [...totals.keys()] } }).session(session);
   const byId = new Map(products.map((product) => [product.id, product]));
+  totals.clear();
   const items = rawItems.map((item) => {
     const product = byId.get(String(item.produtoId));
-    const quantity = Number(item.quantidade);
+    const vendaPorPeso = produtoControlaPeso(product) && item.tipoVenda === 'peso';
+    const pesoVendidoKg = vendaPorPeso ? Number(item.pesoVendidoKg) : 0;
+    const quantity = vendaPorPeso ? 1 : Number(item.quantidade);
     if (!product) throw new Error('Produto não encontrado');
+    if (vendaPorPeso && (!Number.isFinite(pesoVendidoKg) || pesoVendidoKg <= 0)) throw new Error('Informe o peso vendido');
     if (!permiteFracionar(product) && !Number.isInteger(quantity)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
-    return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: precoPorUnidade(product), quantidade, unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso };
+    normalizarEstoqueLegado(product);
+    const movimento = dadosMovimentoEstoque(product, { quantidade: quantity, tipoVenda: vendaPorPeso ? 'peso' : undefined, pesoVendidoKg });
+    const atual = totals.get(String(item.produtoId));
+    totals.set(String(item.produtoId), { pecas: (typeof atual === 'number' ? atual : atual?.pecas || 0) + movimento.pecas, pesoKg: (typeof atual === 'number' ? 0 : atual?.pesoKg || 0) + movimento.pesoKg });
+    return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product), quantidade, quantidadePecas: vendaPorPeso ? 0 : quantity, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso };
   });
   for (const [productId, quantity] of totals) {
-    const updated = await Product.findOneAndUpdate({ _id: productId, estoque: { $gte: quantity } }, { $inc: { estoque: -quantity } }, { new: true, session });
+    const product = byId.get(productId);
+    if (product.isModified('estoque') || product.isModified('estoquePesoKg')) await product.save({ session });
+    const movimento = typeof quantity === 'number' ? { pecas: quantity, pesoKg: 0 } : quantity;
+    const filtro = produtoControlaPeso(product)
+      ? { _id: productId, estoque: { $gte: movimento.pecas }, estoquePesoKg: { $gte: movimento.pesoKg } }
+      : { _id: productId, estoque: { $gte: movimento.pecas } };
+    const inc = produtoControlaPeso(product)
+      ? { $inc: { estoque: -movimento.pecas, estoquePesoKg: -movimento.pesoKg } }
+      : { $inc: { estoque: -movimento.pecas } };
+    const updated = await Product.findOneAndUpdate(filtro, inc, { new: true, session });
     if (!updated) throw new Error(`Estoque insuficiente para "${byId.get(productId)?.nome || productId}"`);
   }
   return items;

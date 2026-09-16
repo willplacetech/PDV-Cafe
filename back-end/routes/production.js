@@ -7,6 +7,7 @@ const Recipe = require('../models/Recipe');
 const Production = require('../models/Production');
 const StockMovement = require('../models/StockMovement');
 const { calcularCustoReceita } = require('../utils/custo');
+const { dadosEstoqueProduto } = require('../utils/estoqueProduto');
 
 const router = express.Router();
 const locations = ['venda', 'insumos'];
@@ -108,7 +109,7 @@ router.get('/stock', async (req, res) => {
     const location = locations.includes(req.query.location) ? req.query.location : 'insumos';
     const field = balanceField(location);
     const products = await Product.find({ $or: [{ [field]: { $gt: 0 } }, { controladoComoInsumo: location === 'insumos' }] }).sort({ nome: 1 });
-    res.json(products.map((product) => ({ ...product.toObject(), local: location, saldo: Number(product[field] || 0), minimo: Number(location === 'insumos' ? product.estoqueMinimoInsumos : product.estoqueMinimo || 0) })));
+    res.json(products.map((product) => ({ ...product.toObject(), ...dadosEstoqueProduto(product), local: location, saldo: location === 'venda' ? dadosEstoqueProduto(product).estoque : Number(product[field] || 0), minimo: Number(location === 'insumos' ? product.estoqueMinimoInsumos : product.estoqueMinimo || 0) })));
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 

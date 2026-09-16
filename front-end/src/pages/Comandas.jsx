@@ -5,6 +5,7 @@ import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda
 
 const formatMoney = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const formatQuantity = (item) => {
+  if (item.tipoVenda === 'peso') return `${Number(item.pesoVendidoKg || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg vendidos`;
   const quantidade = Number(item.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
   if (Number(item.pesoPorUnidade) > 0) {
     const peso = Number(item.pesoPorUnidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
@@ -13,6 +14,7 @@ const formatQuantity = (item) => {
   return `${quantidade} ${item.unidadeVenda || 'un'}`;
 };
 const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda));
+const produtoPorPeso = (product) => Number(product?.pesoPorUnidade) > 0 && ['kg', 'g'].includes(product?.unidadeVenda);
 
 // ─── helpers de cupom / whatsapp ─────────────────────────────────────────────
 
@@ -122,6 +124,8 @@ export default function Comandas() {
   const [newCommand, setNewCommand] = useState({ clienteNome: '', observacao: '' });
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState('1');
+  const [tipoVenda, setTipoVenda] = useState('inteiro');
+  const [pesoVendidoKg, setPesoVendidoKg] = useState('');
 
   // modal de fechamento
   const [modalFechamento, setModalFechamento] = useState(false);
@@ -164,7 +168,10 @@ export default function Comandas() {
   const addItem = async (event) => {
     event.preventDefault();
     if (!selected || !productId) return;
-    try { await api.post(`/comandas/${selected._id}/itens`, { produtoId: productId, quantidade: Number(quantity) }); setProductId(''); setQuantity('1'); load(); }
+    try {
+      await api.post(`/comandas/${selected._id}/itens`, { produtoId: productId, quantidade: Number(quantity), tipoVenda: produtoPorPeso(produtoSelecionado) ? tipoVenda : 'unidade', pesoVendidoKg: tipoVenda === 'peso' ? Number(pesoVendidoKg) : undefined });
+      setProductId(''); setQuantity('1'); setTipoVenda('inteiro'); setPesoVendidoKg(''); load();
+    }
     catch (error) { showToast(error.response?.data?.msg || 'Erro ao adicionar item', 'error'); }
   };
 
@@ -280,8 +287,9 @@ export default function Comandas() {
             <button type="button" className="comandas-mobile-back" onClick={() => setMobileView('list')}>← Voltar para comandas</button>
             <h2 style={{ marginTop: 0 }}>Comanda #{selected.numero} <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}>— {selected.clienteNome}</small></h2>
             <form onSubmit={addItem} className="comandas-add-form">
-              <select className="comandas-field" required value={productId} onChange={(e) => setProductId(e.target.value)}><option value="">Adicionar produto…</option>{products.filter((product) => product.categoria !== 'Insumos').map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}</option>)}</select>
-              <input className="comandas-field quantity-field" required type="number" min={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} step={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              <select className="comandas-field" required value={productId} onChange={(e) => { setProductId(e.target.value); setTipoVenda('inteiro'); setPesoVendidoKg(''); }}><option value="">Adicionar produto…</option>{products.filter((product) => product.categoria !== 'Insumos').map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}{produtoPorPeso(product) ? '/kg' : ''}</option>)}</select>
+              {produtoPorPeso(produtoSelecionado) && <select className="comandas-field" value={tipoVenda} onChange={(e) => setTipoVenda(e.target.value)}><option value="inteiro">Bolo inteiro</option><option value="peso">Fatia pesada</option></select>}
+              {tipoVenda === 'peso' && produtoPorPeso(produtoSelecionado) ? <input className="comandas-field quantity-field" required type="number" min="0.001" step="0.001" placeholder="Peso vendido (kg)" value={pesoVendidoKg} onChange={(e) => setPesoVendidoKg(e.target.value)} /> : <input className="comandas-field quantity-field" required type="number" min={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} step={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} value={quantity} onChange={(e) => setQuantity(e.target.value)} />}
               <button type="submit" className="comandas-secondary-button">Adicionar</button>
             </form>
 

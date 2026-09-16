@@ -4,9 +4,11 @@ const Comanda = require('../models/Comanda');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Customer = require('../models/Customer');
+const StockMovement = require('../models/StockMovement');
 const auth = require('../middleware/auth');
 const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
 const { precoPorUnidade } = require('../utils/pesoProduto');
+const { normalizarEstoqueLegado, produtoControlaPeso, dadosMovimentoEstoque } = require('../utils/estoqueProduto');
 
 const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -20,6 +22,7 @@ async function ajustarEstoque(itens, operacao, session) {
   itens.forEach((item) => {
     const quantidade = Number(item.quantidade || 0);
     const produto = porId.get(String(item.produtoId));
+    if (produto) normalizarEstoqueLegado(produto);
     const ficha = item.insumosConsumidos?.length ? item.insumosConsumidos : produto?.fichaTecnica;
     if (produto?.aFazer && ficha?.length) {
       ficha.forEach((ingrediente) => {
@@ -28,16 +31,43 @@ async function ajustarEstoque(itens, operacao, session) {
       });
     } else {
       const key = String(item.produtoId);
-      totais.set(key, (totais.get(key) || 0) + quantidade);
+      const movimento = dadosMovimentoEstoque(produto, item);
+      const atual = totais.get(key) || { pecas: 0, pesoKg: 0 };
+      totais.set(key, { pecas: atual.pecas + movimento.pecas, pesoKg: atual.pesoKg + movimento.pesoKg });
     }
   });
-  for (const [produtoId, quantidade] of totais) {
+  for (const produto of porId.values()) {
+    if (produto.isModified('estoque') || produto.isModified('estoquePesoKg')) await produto.save({ session });
+  }
+  for (const [produtoId, movimento] of totais) {
+    const produto = porId.get(String(produtoId));
     if (operacao === 'baixar') {
-      const product = await Product.findOneAndUpdate({ _id: produtoId, estoque: { $gte: quantidade } }, { $inc: { estoque: -quantidade } }, { new: true, session });
+      const filtro = produtoControlaPeso(produto)
+        ? { _id: produtoId, estoque: { $gte: movimento.pecas }, estoquePesoKg: { $gte: movimento.pesoKg } }
+        : { _id: produtoId, estoque: { $gte: movimento.pecas } };
+      const inc = produtoControlaPeso(produto)
+        ? { $inc: { estoque: -movimento.pecas, estoquePesoKg: -movimento.pesoKg } }
+        : { $inc: { estoque: -movimento.pecas } };
+      const product = await Product.findOneAndUpdate(filtro, inc, { new: true, session });
       if (!product) throw new Error(`Estoque insuficiente para o produto ${produtoId}`);
     } else {
-      await Product.findByIdAndUpdate(produtoId, { $inc: { estoque: quantidade } }, { session });
+      const inc = produtoControlaPeso(produto)
+        ? { $inc: { estoque: movimento.pecas, estoquePesoKg: movimento.pesoKg } }
+        : { $inc: { estoque: movimento.pecas } };
+      await Product.findByIdAndUpdate(produtoId, inc, { session });
     }
+    await StockMovement.create([{
+      produtoId,
+      produtoNome: produto?.nome || produtoId,
+      tipo: operacao === 'baixar' ? 'saida' : 'entrada',
+      origem: operacao === 'baixar' ? 'venda' : null,
+      destino: operacao === 'baixar' ? null : 'venda',
+      quantidade: Math.max(0.001, movimento.pesoKg || movimento.pecas),
+      quantidadePecas: movimento.pecas,
+      pesoKg: movimento.pesoKg,
+      tipoVenda: movimento.pesoKg > 0 && movimento.pecas === 0 ? 'peso' : (produtoControlaPeso(produto) ? 'inteiro' : 'unidade'),
+      createdBy: null,
+    }], { session });
   }
   for (const [produtoId, quantidade] of insumos) {
     if (operacao === 'baixar') {
@@ -80,14 +110,17 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
     session.startTransaction();
     const itens = [];
     for (const item of Array.isArray(req.body.itens) ? req.body.itens : []) {
-      const quantidade = Number(item.quantidade);
       const product = await Product.findById(item.produtoId).session(session);
+      const vendaPorPeso = produtoControlaPeso(product) && item.tipoVenda === 'peso';
+      const pesoVendidoKg = vendaPorPeso ? Number(item.pesoVendidoKg) : 0;
+      const quantidade = vendaPorPeso ? 1 : Number(item.quantidade);
       if (!product || !Number.isFinite(quantidade) || quantidade < 0.001) throw new Error('Item inválido');
+      if (vendaPorPeso && (!Number.isFinite(pesoVendidoKg) || pesoVendidoKg <= 0)) throw new Error('Informe o peso vendido');
       if (!permiteFracionar(product) && !Number.isInteger(quantidade)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
       const modificadores = Array.isArray(item.modificadores)
         ? item.modificadores.filter((value) => typeof value === 'string').slice(0, 10)
         : [];
-      itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: precoPorUnidade(product), quantidade, unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
+      itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product), quantidade, quantidadePecas: vendaPorPeso ? 0 : quantidade, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
     }
     await ajustarEstoque(itens, 'baixar', session);
     const [comanda] = await Comanda.create([{ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, itens, estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
@@ -104,16 +137,19 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
   try {
     session.startTransaction();
     const comanda = await Comanda.findById(req.params.id).session(session);
-    const quantidade = Number(req.body.quantidade);
     const product = await Product.findById(req.body.produtoId).session(session);
+    const vendaPorPeso = produtoControlaPeso(product) && req.body.tipoVenda === 'peso';
+    const pesoVendidoKg = vendaPorPeso ? Number(req.body.pesoVendidoKg) : 0;
+    const quantidade = vendaPorPeso ? 1 : Number(req.body.quantidade);
     if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
     if (!product || !Number.isFinite(quantidade) || quantidade < 0.001) return res.status(400).json({ msg: 'Item inválido' });
+    if (vendaPorPeso && (!Number.isFinite(pesoVendidoKg) || pesoVendidoKg <= 0)) return res.status(400).json({ msg: 'Informe o peso vendido' });
     if (!permiteFracionar(product) && !Number.isInteger(quantidade)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
     const modificadores = Array.isArray(req.body.modificadores)
       ? req.body.modificadores.filter((item) => typeof item === 'string').slice(0, 10)
       : [];
     await ajustarEstoque([{ produtoId: product.id, quantidade }], 'baixar', session);
-    comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: precoPorUnidade(product), quantidade, unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
+    comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product), quantidade, quantidadePecas: vendaPorPeso ? 0 : quantidade, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
     comanda.estoqueBaixado = true;
     await comanda.save({ session });
     await session.commitTransaction();
