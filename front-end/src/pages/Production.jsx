@@ -187,6 +187,8 @@ const styles = `
 .recipe-form, .action-form { display:grid; gap:12px; margin-bottom:20px; }
 .recipe-form label, .action-form label { display:grid; gap:5px; color:var(--text-secondary); font-size:12px; font-weight:700; }
 .recipe-form input, .recipe-form select, .action-form input, .action-form select { box-sizing:border-box; width:100%; min-height:44px; padding:9px 11px; border:1px solid var(--border-color); border-radius:8px; background:var(--input-bg); color:var(--input-text); font:inherit; }
+.cost-step .form-grid label { display:grid; gap:5px; color:var(--text-secondary); font-size:12px; font-weight:700; }
+.cost-step .form-grid input, .cost-step .form-grid select { box-sizing:border-box; width:100%; min-height:44px; padding:9px 11px; border:1px solid var(--input-border); border-radius:8px; background:var(--input-bg); color:var(--input-text); font:inherit; }
 .ingredient-row { display:grid; grid-template-columns:minmax(0,2fr) minmax(100px,1fr) 80px 36px; gap:8px; }
 .secondary, .primary, .danger, .icon-button { min-height:38px; padding:8px 12px; border-radius:8px; font-weight:700; cursor:pointer; }
 .secondary { border:1px solid var(--accent-border); background:var(--accent-light); color:var(--accent-primary); }
