@@ -171,10 +171,34 @@ router.get('/dashboard', async (req, res) => {
       Production.find().sort({ createdAt: -1 }).limit(10),
       Product.find({ controladoComoInsumo: true, $expr: { $lte: ['$estoqueInsumos', '$estoqueMinimoInsumos'] } }).select('nome codigo estoqueInsumos estoqueMinimoInsumos unidadeVenda'),
     ]);
+    const formatNumber = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
     const possible = recipes.map((recipe) => {
-      const quantities = recipe.ingredientes.map((item) => Number(item.produtoId?.estoqueInsumos || 0) / Number(item.quantidade || 1));
-      const batches = quantities.length ? Math.floor(Math.min(...quantities) / Number(recipe.rendimento > 0 ? 1 : 1) * 1000) / 1000 : 0;
-      return { receitaId: recipe._id, receitaNome: recipe.nome, produtoNome: recipe.produtoId?.nome, producoesPossiveis: batches, rendimentoPorProducao: recipe.rendimento, unidade: recipe.unidadeRendimento };
+      const ingredienteLimite = recipe.ingredientes
+        .filter((item) => item.produtoId && Number(item.quantidade || 0) > 0)
+        .map((item) => {
+          const estoque = Number(item.produtoId?.estoqueInsumos || 0);
+          const consumo = Number(item.quantidade || 0);
+          const producoes = consumo > 0 ? estoque / consumo : 0;
+          return { nome: item.produtoId?.nome, estoque, consumo, producoes };
+        })
+        .sort((a, b) => a.producoes - b.producoes)[0];
+      const producoesPossiveis = ingredienteLimite ? Number((ingredienteLimite.producoes).toFixed(3)) : 0;
+      const unidadesProntas = Number((producoesPossiveis * Number(recipe.rendimento || 0)).toFixed(3));
+      const calculo = ingredienteLimite && producoesPossiveis > 0
+        ? `${formatNumber(ingredienteLimite.estoque)} em estoque ÷ ${formatNumber(ingredienteLimite.consumo)} por receita = ${formatNumber(producoesPossiveis)} produções → ${formatNumber(unidadesProntas)} unidades prontas`
+        : 'Insumos insuficientes';
+      return {
+        receitaId: recipe._id,
+        receitaNome: recipe.nome,
+        produtoNome: recipe.produtoId?.nome,
+        producoesPossiveis,
+        rendimentoPorProducao: recipe.rendimento,
+        unidade: recipe.unidadeRendimento,
+        estoquePorReceita: ingredienteLimite?.estoque ?? 0,
+        consumoPorReceita: ingredienteLimite?.consumo ?? 0,
+        unidadesProntas,
+        calculo,
+      };
     });
     res.json({ estoqueInsumos: products, baixoEstoque: lowStock, receitasPossiveis: possible, producoesRecentes: recentProductions });
   } catch (error) { res.status(500).json({ msg: error.message }); }
