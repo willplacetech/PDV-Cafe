@@ -196,6 +196,14 @@ export default function Products() {
                   <input className="product-checkbox" type="checkbox" checked={form.vendidoFracionado} onChange={(event) => setForm({ ...form, vendidoFracionado: event.target.checked })} />
                   Permitir venda fracionada
                 </label>
+                <label className="product-checkbox-label">
+                  <input className="product-checkbox" type="checkbox" checked={Boolean(form.aFazer)} onChange={(event) => setForm({ ...form, aFazer: event.target.checked })} />
+                  Coz — preparado na cozinha (precisa de ficha técnica)
+                </label>
+                <label className="product-checkbox-label">
+                  <input className="product-checkbox" type="checkbox" checked={Boolean(form.producaoPropria)} onChange={(event) => setForm({ ...form, producaoPropria: event.target.checked })} />
+                  PP — produção própria (precisa de receita)
+                </label>
               </div>
             </section>
           ) : (
