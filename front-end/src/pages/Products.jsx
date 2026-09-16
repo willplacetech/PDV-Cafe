@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
-const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Café da manhã', 'Congelados', 'Sorvetes', 'Outros'];
+const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Outros'];
 const filtrosTipo = ['Todos', 'À Venda', 'Insumos'];
 
 const vazio = {
@@ -186,8 +186,8 @@ export default function Products() {
                     {['un', 'kg', 'g', 'l', 'ml'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </select>
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <input type="checkbox" checked={form.vendidoFracionado} onChange={(event) => setForm({ ...form, vendidoFracionado: event.target.checked })} />
+                <label className="product-checkbox-label">
+                  <input className="product-checkbox" type="checkbox" checked={form.vendidoFracionado} onChange={(event) => setForm({ ...form, vendidoFracionado: event.target.checked })} />
                   Permitir venda fracionada
                 </label>
               </div>
@@ -203,8 +203,8 @@ export default function Products() {
                     {['un', 'kg', 'g', 'l', 'ml', 'rolo', 'caixa', 'pacote'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </select>
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <input type="checkbox" checked={form.temReceita} onChange={(event) => setForm({ ...form, temReceita: event.target.checked })} />
+                <label className="product-checkbox-label">
+                  <input className="product-checkbox" type="checkbox" checked={form.temReceita} onChange={(event) => setForm({ ...form, temReceita: event.target.checked })} />
                   Usável em receita
                 </label>
               </div>
@@ -284,6 +284,8 @@ export default function Products() {
         .product-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
         .product-form-section label { display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
         .product-form-section input, .product-form-section select { width: 100%; box-sizing: border-box; min-height: 42px; padding: 9px 11px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--input-text); font: inherit; }
+        .product-form-section .product-checkbox-label { display: flex; align-items: center; gap: 10px; min-height: 42px; }
+        .product-form-section .product-checkbox { width: 18px; height: 18px; min-width: 18px; min-height: 18px; margin: 0; padding: 0; accent-color: var(--accent-primary); }
         .product-admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
         .product-admin-card { min-height: 170px; display: flex; flex-direction: column; padding: 14px; border: 1px solid var(--border-color); border-radius: 14px; background: var(--bg-tertiary); }
         .product-admin-card h4 { margin: 12px 0 4px; color: var(--text-primary); font-size: 14px; }

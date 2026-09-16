@@ -1,6 +1,6 @@
 const resolverTipoProduto = (produto = {}) => {
+  if (produto.controladoComoInsumo || produto.controlarComoInsumo) return 'insumo';
   if (produto.tipo === 'insumo' || produto.tipo === 'venda') return produto.tipo;
-  if (produto.controladoComoInsumo) return 'insumo';
   return 'venda';
 };
 

@@ -16,7 +16,8 @@ const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGO_URI);
     await Promise.all(models.map((model) => model.createCollection()));
-    await Product.updateMany({ categoria: 'Alimentos' }, { $set: { categoria: 'Café da manhã' } });
+    await Product.updateMany({ categoria: 'Alimentos' }, { $set: { categoria: 'Outros' } });
+    await Product.updateMany({ categoria: 'Café da manhã' }, { $set: { categoria: 'Outros' } });
     await Product.updateMany({ categoria: 'Bebidas' }, { $set: { categoria: 'Bebidas geladas' } });
     await Product.updateMany({ categoria: 'Padaria' }, { $set: { categoria: 'Salgados' } });
     await Product.updateMany({ categoria: 'Grãos e insumos' }, { $set: { categoria: 'Insumos' } });

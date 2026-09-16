@@ -194,7 +194,10 @@ router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (
 
 router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) => {
   const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+  if (!errors.isEmpty()) {
+    const details = errors.array();
+    return res.status(400).json({ error: details.map((item) => item.msg).join('; '), errors: details });
+  }
   try {
     const data = req.body;
     const tipo = resolverTipoProduto(data);

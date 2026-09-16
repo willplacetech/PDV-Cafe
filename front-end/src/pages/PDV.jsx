@@ -10,12 +10,11 @@ const corCategoria = {
   'Bebidas geladas': { bg: 'var(--category-cold-bg)', txt: 'var(--category-cold-text)', border: 'var(--category-cold-border)' },
   Salgados: { bg: 'var(--category-savory-bg)', txt: 'var(--category-savory-text)', border: 'var(--category-savory-border)' },
   Doces: { bg: 'var(--category-sweet-bg)', txt: 'var(--category-sweet-text)', border: 'var(--category-sweet-border)' },
-  'Café da manhã': { bg: 'var(--category-breakfast-bg)', txt: 'var(--category-breakfast-text)', border: 'var(--category-breakfast-border)' },
   Insumos: { bg: 'var(--category-supply-bg)', txt: 'var(--category-supply-text)', border: 'var(--category-supply-border)' },
   Outros: { bg: 'var(--category-other-bg)', txt: 'var(--category-other-text)', border: 'var(--category-other-border)' }
 };
 
-const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Café da manhã', 'Congelados', 'Sorvetes', 'Outros'];
+const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Outros'];
 const normalizarTexto = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 const permiteFracionar = (produto) => !Number(produto?.pesoPorUnidade) && (Boolean(produto?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(produto?.unidadeVenda));
 const precoPorUnidade = (produto) => {
