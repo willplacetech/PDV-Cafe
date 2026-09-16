@@ -7,6 +7,8 @@ const emptyRecipe = { nome: '', produtoId: '', rendimento: '1', unidadeRendiment
 const emptyTransfer = { produtoId: '', origem: 'venda', destino: 'insumos', quantidade: '', observacao: '' };
 
 const number = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+const unidadeDoInsumo = (produto = {}) => produto.unidadeConteudo || (['kg', 'g', 'l', 'ml'].includes(produto.unidadeVenda) ? produto.unidadeVenda : 'un');
+const descricaoDoInsumo = (produto = {}) => produto.conteudoPorEmbalagem ? `${number(produto.conteudoPorEmbalagem)} ${unidadeDoInsumo(produto)}/embalagem` : unidadeDoInsumo(produto);
 
 export default function Production() {
   const [tab, setTab] = useState('estoque');
@@ -25,7 +27,7 @@ export default function Production() {
   const [costHistory, setCostHistory] = useState([]);
   const [ingredientPrices, setIngredientPrices] = useState({});
   const [ingredientUnits, setIngredientUnits] = useState({});
-  const [cascadeResult, setCascadeResult] = useState(null);
+  const [cascadeResult] = useState(null);
   const { showToast } = useToast();
 
   const load = async () => {
@@ -54,28 +56,30 @@ export default function Production() {
 
   const getIngredientStock = (ingredientProductId) => {
     const ingredient = stockProducts.find((product) => String(product._id) === String(ingredientProductId));
-    return Number(ingredient?.estoqueInsumos || 0);
+    return Number(ingredient?.resumoInsumo?.total || ingredient?.estoqueInsumos || 0);
   };
+
+  const getIngredientProduct = (ingredientProductId) => stockProducts.find((product) => String(product._id) === String(ingredientProductId));
 
   const getIngredientWarning = (ingredient) => {
     if (!ingredient?.produtoId || !ingredient.quantidade) return '';
     const estoque = getIngredientStock(ingredient.produtoId);
     const quantidade = Number(ingredient.quantidade || 0);
     if (quantidade > estoque) {
-      return `Atenção: esta receita consome ${number(quantidade)} unidades mas você só tem ${number(estoque)} em estoque.`;
+      return `Atenção: esta receita consome ${number(quantidade)} ${unidadeDoInsumo(getIngredientProduct(ingredient.produtoId))} por receita e o estoque disponível é ${number(estoque)} ${unidadeDoInsumo(getIngredientProduct(ingredient.produtoId))}.`;
     }
     return '';
   };
 
   const updateIngredient = (index, field, value) => {
-    setRecipeForm((form) => ({ ...form, ingredientes: form.ingredientes.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
+    setRecipeForm((form) => ({ ...form, ingredientes: form.ingredientes.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value, ...(field === 'produtoId' ? { unidade: unidadeDoInsumo(getIngredientProduct(value)) } : {}) } : item) }));
   };
 
   const saveRecipe = async (event) => {
     event.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...recipeForm, rendimento: Number(recipeForm.rendimento), ingredientes: recipeForm.ingredientes.map((item) => ({ ...item, quantidade: Number(item.quantidade) })) };
+      const payload = { ...recipeForm, rendimento: Number(recipeForm.rendimento), ingredientes: recipeForm.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: unidadeDoInsumo(getIngredientProduct(item.produtoId)) })) };
       if (editingRecipeId) {
         await api.put(`/production/recipes/${editingRecipeId}`, payload);
         showToast('Receita atualizada com sucesso', 'success');
@@ -100,7 +104,7 @@ export default function Production() {
       ingredientes: (recipe.ingredientes || []).map((item) => ({
         produtoId: item.produtoId?._id || item.produtoId || '',
         quantidade: String(item.quantidade ?? ''),
-        unidade: item.unidade || 'un',
+        unidade: unidadeDoInsumo(item.produtoId || {}),
       })),
     });
     setTab('receitas');
@@ -144,16 +148,7 @@ export default function Production() {
     catch (error) { showToast(error.response?.data?.msg || 'Não foi possível excluir a receita', 'error'); }
   };
 
-  const saveIngredientPrice = async (product) => {
-    const value = ingredientPrices[product._id] ?? product.precoCompra ?? '';
-    try {
-      const unidadeCompra = ingredientUnits[product._id] || product.unidadeCompra || 'kg';
-      const response = await api.put(`/insumos/${product._id}/preco-compra`, { precoCompra: Number(value), unidadeCompra });
-      setCascadeResult(response.data);
-      showToast('Preço de compra atualizado e receitas recalculadas', 'success');
-      await load();
-    } catch (error) { showToast(error.response?.data?.msg || 'Não foi possível atualizar o preço do insumo', 'error'); }
-  };
+  const saveIngredientPrice = () => {};
 
   const calculateCost = async (event) => {
     event.preventDefault();
@@ -238,7 +233,8 @@ const styles = `
 .cost-step .form-grid label { display:grid; grid-template-columns:1fr; gap:5px; align-content:start; color:var(--text-secondary); font-size:12px; font-weight:700; }
 .cost-step .form-grid label > span { display:block; }
 .cost-step .form-grid input, .cost-step .form-grid select { display:block; box-sizing:border-box; width:100%; min-height:44px; padding:9px 11px; border:1px solid var(--input-border); border-radius:8px; background:var(--input-bg); color:var(--input-text); font:inherit; }
-.ingredient-row { display:grid; grid-template-columns:minmax(0,2fr) minmax(100px,1fr) 80px 36px; gap:8px; }
+.ingredient-row { display:grid; grid-template-columns:minmax(0,2fr) minmax(100px,1fr) 36px; gap:8px; }
+.ingredient-row > select:nth-of-type(2) { display:none; }
 .secondary, .primary, .danger, .icon-button { min-height:38px; padding:8px 12px; border-radius:8px; font-weight:700; cursor:pointer; }
 .secondary { border:1px solid var(--accent-border); background:var(--accent-light); color:var(--accent-primary); }
 .primary { border:0; background:var(--accent-primary); color:#fff; }
@@ -259,7 +255,14 @@ const styles = `
 .cost-step, .cost-result { padding:20px 0; border:0; border-bottom:1px solid var(--border-light); border-radius:0; background:transparent; }
 .cost-step h3, .cost-result h3 { margin:0 0 14px; color:var(--text-primary); font-size:14px; }
 .cost-step h3::first-letter { color:var(--accent-primary); }
-.cost-ingredient-list { display:grid; gap:0; border:1px solid var(--border-color); border-radius:10px; overflow:hidden; background:var(--bg-secondary); }
+.cost-ingredient-list { display:none; }
+.cost-calculator .cost-step:has(.cost-ingredient-list) { display:none; }
+.cost-calculator .cost-step:not(:has(.cost-ingredient-list)) > h3 { font-size:0; }
+.cost-calculator .cost-step:not(:has(.cost-ingredient-list)) > h3::after { content:'Custos adicionais da produção'; font-size:16px; }
+.cost-calculator > .section-heading h2 { font-size:0; }
+.cost-calculator > .section-heading h2::after { content:'Custos fora da receita'; font-size:17px; }
+.cost-calculator > .section-heading p { font-size:0; }
+.cost-calculator > .section-heading p::after { content:'O custo dos insumos vem do cadastro e é calculado ao salvar a receita.'; font-size:13px; }
 .cost-ingredient-row { display:grid; grid-template-columns:minmax(0,1fr) 150px 92px 86px; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--border-light); }
 .cost-ingredient-row:last-child { border-bottom:0; }
 .cost-ingredient-row:hover { background:var(--bg-tertiary); }

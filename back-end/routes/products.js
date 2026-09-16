@@ -58,6 +58,7 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
     const receitaPorProduto = new Map(receitas.map((receita) => [String(receita.produtoId), receita._id]));
     res.json(produtos.map((produto) => ({
       ...produto.toObject(),
+      ...(produto.tipo === 'insumo' && produto.unidadeConteudo ? { unidadeVenda: produto.unidadeConteudo } : {}),
       ...dadosEstoqueProduto(produto),
       receitaId: receitaPorProduto.get(String(produto._id)) || null,
       temReceita: receitaPorProduto.has(String(produto._id)),
