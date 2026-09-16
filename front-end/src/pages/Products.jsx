@@ -52,6 +52,11 @@ export default function Products() {
 
   const codigoJaExiste = (codigo, idEdicao = null) => produtos.some((produto) => String(produto.codigo) === String(codigo) && produto._id !== idEdicao);
 
+  const limparCampoNumerico = (valor) => {
+    if (valor === '' || valor === null || valor === undefined) return undefined;
+    return Number(valor);
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     if (codigoJaExiste(form.codigo, editing?._id)) {
@@ -64,14 +69,15 @@ export default function Products() {
       ...form,
       tipo,
       categoria: tipo === 'insumo' ? 'Insumos' : (form.categoria || 'Outros'),
-      preco: tipo === 'venda' ? Number(form.preco || 0) : 0,
-      precoVenda: tipo === 'venda' ? Number(form.preco || 0) : 0,
-      precoCompra: tipo === 'insumo' ? Number(form.precoCompra || 0) : 0,
-      estoque: Number(form.estoque || 0),
+      preco: tipo === 'venda' ? limparCampoNumerico(form.preco) ?? 0 : 0,
+      precoVenda: tipo === 'venda' ? limparCampoNumerico(form.preco) ?? 0 : 0,
+      precoCompra: tipo === 'insumo' ? limparCampoNumerico(form.precoCompra) ?? 0 : 0,
+      estoque: limparCampoNumerico(form.estoque) ?? 0,
       unidadeVenda: form.unidadeVenda || 'un',
       unidadeCompra: form.unidadeCompra || 'kg',
-      custoUnitario: Number(form.custo || 0),
-      custo: Number(form.custo || 0),
+      custoUnitario: limparCampoNumerico(form.custo) ?? 0,
+      custo: limparCampoNumerico(form.custo) ?? 0,
+      rendimentoPorUnidadeCompra: limparCampoNumerico(form.rendimentoPorUnidadeCompra) ?? 0,
       ativo: true,
     };
 

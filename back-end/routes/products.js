@@ -16,7 +16,26 @@ const units = ['un', 'kg', 'g', 'l', 'ml'];
 const compraUnits = ['un', 'kg', 'g', 'L', 'ml', 'rolo', 'caixa', 'pacote'];
 const dataLocal = () => { const agora = new Date(); return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`; };
 const antesDasOito = () => new Date().getHours() < 8;
-const validations = [body('codigo').trim().notEmpty(), body('nome').trim().notEmpty(), body('preco').optional().isFloat({ min: 0 }), body('precoCompra').optional().isFloat({ min: 0 }), body('custo').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueInsumos').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('estoqueMinimoInsumos').optional().isFloat({ min: 0 }), body('unidadeVenda').optional().isIn(units), body('unidadeCompra').optional().isIn(compraUnits), body('rendimentoPorUnidadeCompra').optional().isFloat({ min: 0 }), body('pesoPorUnidade').optional().isFloat({ min: 0 }), body('unidadePeso').optional().isIn(['kg', 'g']), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('producaoPropria').optional().isBoolean()];
+const limparCampoOpcional = (valor) => (valor === '' || valor === null || valor === undefined ? undefined : valor);
+const validations = [
+  body('codigo').trim().notEmpty(),
+  body('nome').trim().notEmpty(),
+  body('preco').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
+  body('precoCompra').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
+  body('custo').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
+  body('estoque').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
+  body('estoqueInsumos').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
+  body('estoqueMaximo').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0.001 }),
+  body('estoqueMinimoInsumos').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
+  body('unidadeVenda').optional().isIn(units),
+  body('unidadeCompra').optional().isIn(compraUnits),
+  body('rendimentoPorUnidadeCompra').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
+  body('pesoPorUnidade').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
+  body('unidadePeso').optional().isIn(['kg', 'g']),
+  body('vendidoFracionado').optional().isBoolean(),
+  body('aFazer').optional().isBoolean(),
+  body('producaoPropria').optional().isBoolean(),
+];
 
 router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
