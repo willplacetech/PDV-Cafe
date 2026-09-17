@@ -28,4 +28,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://pdv-cafe-api-willplacetech.onrender.com/api
+        value: https://pdv-cafe-8puu.onrender.com/api
