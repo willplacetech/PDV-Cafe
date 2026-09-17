@@ -14,6 +14,7 @@ import Users from './pages/Users';
 import Comandas from './pages/Comandas.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Production from './pages/Production.jsx';
+import FichasTecnicas from './pages/FichasTecnicas.jsx';
 import Purchases from './pages/Purchases.jsx';
 import Kitchen from './pages/Kitchen.jsx';
 import Financeiro from './pages/Financeiro.jsx';
@@ -44,6 +45,9 @@ export default function App() {
                     <Route path="/producao" element={<Production />} />
                     <Route path="/compras" element={<Purchases />} />
                     <Route path="/financeiro" element={<Financeiro />} />
+                  </Route>
+                  <Route element={<RoleRoute roles={['admin', 'cozinha']} />}>
+                    <Route path="/producao/fichas" element={<FichasTecnicas />} />
                   </Route>
                   <Route path="*" element={<Navigate to="/pdv" />} />
                 </Route>

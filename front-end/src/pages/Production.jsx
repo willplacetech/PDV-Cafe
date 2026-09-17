@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
@@ -11,7 +12,8 @@ const unidadeDoInsumo = (produto = {}) => produto.tipo === 'venda' && produto.us
 const fatoresBase = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
 
 export default function Production() {
-  const [tab, setTab] = useState('estoque');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get('tab') === 'fichas' ? 'fichas' : 'estoque');
   const [products, setProducts] = useState([]);
   const [stock, setStock] = useState([]);
   const [recipes, setRecipes] = useState([]);
@@ -31,6 +33,8 @@ export default function Production() {
   const [movForm, setMovForm] = useState({ produtoId: '', quantidadeEmbalagens: '', motivo: '' });
   const [movPreview, setMovPreview] = useState(null);
   const [movimentos, setMovimentos] = useState([]);
+  const [filtroFicha, setFiltroFicha] = useState('todos');
+  const [buscaFicha, setBuscaFicha] = useState('');
   const { showToast } = useToast();
 
   const load = async () => {
@@ -55,7 +59,15 @@ export default function Production() {
     loadInitialData();
   }, []);
 
-  const producibleProducts = products.filter((product) => product.tipo === 'venda' || product.producaoPropria);
+  const producibleProducts = products.filter((product) => product.tipo === 'venda' && (product.aFazer || product.producaoPropria));
+  const fichasFiltradas = recipes.filter((recipe) => {
+    const tipoOk = filtroFicha === 'todos' || (filtroFicha === 'coz' ? recipe.produtoId?.aFazer : recipe.produtoId?.producaoPropria && !recipe.produtoId?.aFazer);
+    return tipoOk && String(recipe.produtoId?.nome || recipe.nome).toLowerCase().includes(buscaFicha.toLowerCase());
+  });
+  const alterarTab = (novaTab) => {
+    setTab(novaTab);
+    setSearchParams(novaTab === 'fichas' ? { tab: 'fichas' } : {});
+  };
   const stockProducts = products.filter((product) => product.tipo === 'insumo' || product.usavelEmReceita);
   const currentRecipe = recipes.find((recipe) => recipe._id === selectedRecipe);
   const costRecipe = recipes.find((recipe) => recipe._id === costForm.receitaId);
@@ -119,13 +131,22 @@ export default function Production() {
         unidade: item.unidade || 'un',
       })),
     });
-    setTab('receitas');
+    alterarTab('fichas');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const cancelEditRecipe = () => {
     setEditingRecipeId(null);
     setRecipeForm(emptyRecipe);
+  };
+
+  const duplicateRecipe = (recipe) => {
+    setEditingRecipeId(null);
+    setRecipeForm({
+      nome: `${recipe.nome} (cópia)`, produtoId: '', rendimento: String(recipe.rendimento), unidadeRendimento: recipe.unidadeRendimento,
+      ingredientes: recipe.ingredientes.map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: String(item.quantidade), unidade: item.unidade })),
+    });
+    alterarTab('fichas');
   };
 
   const produce = async (event) => {
@@ -234,7 +255,7 @@ export default function Production() {
   return <div className="production-page">
     <header className="production-heading page-heading"><div><span className="production-eyebrow">GESTÃO DE INSUMOS</span><h1>Produção</h1><p>Controle ingredientes, receitas e produtos produzidos na casa.</p></div><div className="production-header-actions"><button type="button" className="production-alert" onClick={() => setTab('custos')}><strong>{produtosSemCusto.length}</strong><span>produtos sem custo</span></button><button type="button" className="production-alert" onClick={() => setTab('custos')}><strong>{produtosReajuste.length}</strong><span>reajustes recomendados</span></button><div className="production-kpi"><strong>{productionDashboard?.receitasPossiveis?.filter((recipe) => recipe.producoesPossiveis > 0).length || 0}</strong><span>receitas possíveis</span></div></div></header>
     <nav className="production-tabs" aria-label="Seções da produção">
-      {[['estoque', 'Estoque de insumos'], ['receitas', 'Receitas'], ['produzir', 'Nova produção'], ['transferir', 'Transferências'], ['historico', 'Histórico de movimentos'], ['custos', 'Custo das receitas']].map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}</button>)}
+      {[['estoque', '📦 Estoque de insumos'], ['produzir', '🔄 Nova produção'], ['transferir', '⚖️ Ajuste de inventário'], ['historico', '📜 Histórico de movimentos'], ['custos', 'Custo das receitas']].map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => alterarTab(key)}>{label}</button>)}
     </nav>
 
     {tab === 'estoque' && <section className="production-section"><div className="section-heading"><div><h2>Estoque de insumos</h2><p>Itens abaixo do mínimo aparecem destacados.</p></div><strong>{stock.length} itens</strong></div><div className="stock-grid">{stock.length ? stock.map((product) => <article className={product.saldo <= product.minimo ? 'stock-card low' : 'stock-card'} key={product._id}><div><span>{product.codigo}</span><h3>{product.nome}</h3></div><b>{number(product.saldo)} <small>{product.unidadeCompra || 'embalagens'}</small></b>{product.totalDisponivel > 0 && <p>📦 Total: {number(product.totalKgDisponivel || product.totalDisponivel)} {product.totalKgDisponivel ? 'kg' : product.unidadeDisponivel} disponível{product.conteudoAberto > 0 ? ` · aberto: ${number(product.conteudoAberto)} ${product.unidadeDisponivel}` : ''}</p>}<p>Mínimo: {number(product.minimo)} {product.unidadeCompra || 'embalagens'}</p></article>) : <p className="empty">Nenhum insumo em estoque. Cadastre um produto do tipo insumo.</p>}</div></section>}

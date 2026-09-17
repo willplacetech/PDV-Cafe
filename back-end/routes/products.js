@@ -68,7 +68,7 @@ const validations = [
   body('producaoPropria').optional().isBoolean(),
 ];
 
-router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom', 'cozinha'), async (req, res) => {
   try {
     const { search, categoria, tipo } = req.query;
     const query = {};
@@ -263,7 +263,6 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const estoque = Number(data.estoque) || 0;
     const estoqueInsumos = Number(data.estoqueInsumos) || 0;
     const fichaTecnica = Array.isArray(data.fichaTecnica) ? data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })).filter((item) => item.produtoId && Number.isFinite(item.quantidade) && item.quantidade > 0 && units.includes(item.unidade)) : [];
-    if (Boolean(data.aFazer) && fichaTecnica.length === 0) return res.status(400).json({ msg: 'Produtos Coz precisam de uma ficha técnica com pelo menos um ingrediente' });
     const custoUnitario = Number(data.custoUnitario ?? data.custo) || 0;
     const pesoPorUnidade = Number(data.pesoPorUnidade) || 0;
     const unidadeVenda = data.unidadeVenda || 'un';
@@ -338,8 +337,6 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
       return res.status(403).json({ msg: 'Custo e conteúdo de insumo só podem ser alterados por uma compra' });
     }
     const tipo = resolverTipoProduto({ ...data, tipo: data.tipo ?? undefined });
-    const fichaRecebida = data.fichaTecnica === undefined ? produtoAtual.fichaTecnica : data.fichaTecnica;
-    if (Boolean(data.aFazer ?? produtoAtual.aFazer) && (!Array.isArray(fichaRecebida) || fichaRecebida.length === 0)) return res.status(400).json({ msg: 'Produtos Coz precisam de uma ficha técnica com pelo menos um ingrediente' });
     if (data.codigo) {
       const duplicate = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') }, _id: { $ne: req.params.id } });
       if (duplicate) return res.status(400).json({ msg: 'Já existe um produto com este código' });

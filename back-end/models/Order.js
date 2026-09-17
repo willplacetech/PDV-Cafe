@@ -17,6 +17,12 @@ const itemSchema = new mongoose.Schema({
   pesoVendidoKg: { type: Number, min: 0 },
   quantidadePecas: { type: Number, min: 0 },
   modificadores: { type: [String], default: [] },
+  aFazer: { type: Boolean, default: false },
+  insumosConsumidos: [{
+    produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+    quantidade: { type: Number, min: 0.001 },
+    unidade: { type: String, enum: ['un', 'kg', 'g', 'l', 'ml'] },
+  }],
 });
 
 const pagamentoSchema = new mongoose.Schema({

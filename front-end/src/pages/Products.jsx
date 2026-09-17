@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
@@ -37,6 +37,7 @@ const vazio = {
 export default function Products() {
   const [searchParams] = useSearchParams();
   const [produtos, setProdutos] = useState([]);
+  const [fichas, setFichas] = useState([]);
   const [form, setForm] = useState(vazio);
   const [editing, setEditing] = useState(null);
   const [filtroTexto, setFiltroTexto] = useState('');
@@ -45,10 +46,12 @@ export default function Products() {
   const { showToast } = useToast();
   const editingInsumo = Boolean(editing?.tipo === 'insumo');
   const editingCustoBloqueado = Boolean(editing?.tipo === 'insumo' || editing?.usavelEmReceita);
+  const fichaProduto = fichas.find((ficha) => String(ficha.produtoId?._id || ficha.produtoId) === String(editing?._id));
 
   const carregar = async () => {
-    const res = await api.get('/products');
-    setProdutos(res.data);
+    const [productsResponse, recipesResponse] = await Promise.all([api.get('/products'), api.get('/production/recipes')]);
+    setProdutos(productsResponse.data);
+    setFichas(recipesResponse.data || []);
   };
 
   useEffect(() => {
@@ -134,10 +137,6 @@ export default function Products() {
     }
 
     const tipo = form.tipo;
-    if (tipo === 'venda' && form.aFazer && form.fichaTecnica.length === 0) {
-      showToast('⚠️ Produtos Coz precisam de pelo menos um ingrediente na ficha técnica.', 'warning');
-      return;
-    }
     if (tipo === 'venda') {
       const descontos = (form.descontosPorQuantidade || []).map((faixa) => ({ quantidadeMinima: Number(faixa.quantidadeMinima), precoUnitario: Number(faixa.precoUnitario), ativo: faixa.ativo !== false }));
       for (let indice = 0; indice < descontos.length; indice += 1) {
@@ -397,18 +396,7 @@ export default function Products() {
                   <input className="product-checkbox" type="checkbox" checked={Boolean(form.aFazer)} onChange={(event) => setForm({ ...form, aFazer: event.target.checked })} />
                   Coz — preparado na cozinha (precisa de ficha técnica)
                 </label>
-                {form.aFazer && <div className="coz-recipe-panel">
-                  <div className="coz-recipe-heading"><div><strong>📋 FICHA TÉCNICA — {form.nome || 'Novo produto'}</strong><small>Quantidade de cada ingrediente por porção</small></div><button type="button" className="secondary" onClick={adicionarIngrediente}>+ Ingrediente</button></div>
-                  <div className="coz-recipe-fields">{form.fichaTecnica.map((item, indice) => <div className="coz-ingredient-row" key={`coz-ingredient-${indice}`}>
-                    <label>Ingrediente<select required value={item.produtoId?._id || item.produtoId || ''} onChange={(event) => atualizarIngrediente(indice, 'produtoId', event.target.value)}><option value="">Selecione um insumo</option>{produtosIngredientes.map((produto) => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select></label>
-                    <label>Qtd. por porção<input required type="number" min="0.001" step="0.001" value={item.quantidade} onChange={(event) => atualizarIngrediente(indice, 'quantidade', event.target.value)} /></label>
-                    <label>Unidade<select required value={item.unidade || 'un'} onChange={(event) => atualizarIngrediente(indice, 'unidade', event.target.value)}>{['un', 'g', 'kg', 'ml', 'l'].map((unidade) => <option key={unidade}>{unidade}</option>)}</select></label>
-                    <button type="button" className="danger" onClick={() => removerIngrediente(indice)} disabled={form.fichaTecnica.length === 1}>Remover</button>
-                  </div>)}</div>
-                  {!form.fichaTecnica.length && <p className="coz-empty-recipe">Adicione pelo menos um ingrediente para liberar o cadastro.</p>}
-                  <div className="coz-recipe-summary"><span><strong>Disponível para vender:</strong> {Number.isFinite(resumoFichaCoz.disponivel) ? resumoFichaCoz.disponivel : 0} porções</span><span><strong>Custo por porção:</strong> R$ {resumoFichaCoz.custo.toFixed(2).replace('.', ',')}</span>{resumoFichaCoz.faltantes.length > 0 && <span className="coz-warning">⚠️ Sem estoque: {resumoFichaCoz.faltantes.join(', ')}</span>}</div>
-                  <label className="product-checkbox-label"><input className="product-checkbox" type="checkbox" checked={Boolean(form.permitirVendaSemInsumo)} onChange={(event) => setForm({ ...form, permitirVendaSemInsumo: event.target.checked })} /> Permitir venda com aviso quando faltar insumo</label>
-                </div>}
+                {form.aFazer && <div className="coz-recipe-panel"><strong>📋 Ficha Técnica Vinculada</strong>{fichaProduto ? <><span>Custo/unidade: <b>{`R$ ${Number(fichaProduto.custoPorUnidade || 0).toFixed(2).replace('.', ',')}`}</b></span><span>Disponível: <b>{Number(fichaProduto.disponibilidade?.quantidade || 0)} {fichaProduto.unidadeRendimento}</b></span><small>Ingrediente limitante: {fichaProduto.disponibilidade?.limitante || 'nenhum'}</small></> : <span>Este produto ainda não tem ficha. Crie-a em Produção para liberar a disponibilidade.</span>}<Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>{fichaProduto ? 'Editar ficha na Produção →' : 'Criar ficha na Produção →'}</Link></div>}
                 <label className="product-checkbox-label">
                   <input className="product-checkbox" type="checkbox" checked={Boolean(form.producaoPropria)} onChange={(event) => setForm({ ...form, producaoPropria: event.target.checked })} />
                   PP — produção própria (precisa de receita)
@@ -550,6 +538,9 @@ export default function Products() {
         .coz-stock-notice { display: grid; gap: 5px; grid-column: 1 / -1; padding: 12px; border: 1px solid var(--accent-border); border-radius: 10px; background: var(--accent-light); color: var(--accent-primary); font-size: 12px; }
         .coz-stock-notice span { color: var(--text-secondary); }
         .coz-recipe-panel { display: grid; gap: 12px; grid-column: 1 / -1; padding: 14px; border: 1px solid var(--accent-border); border-radius: 12px; background: var(--bg-secondary); }
+        .coz-recipe-panel > span, .coz-recipe-panel > small { color: var(--text-secondary); font-size: 12px; }
+        .coz-recipe-panel b { color: var(--accent-primary); }
+        .coz-recipe-link { width: fit-content; color: var(--accent-primary); font-size: 12px; font-weight: 800; }
         .coz-recipe-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
         .coz-recipe-heading div { display: grid; gap: 4px; }
         .coz-recipe-heading strong { color: var(--accent-primary); font-size: 12px; }
