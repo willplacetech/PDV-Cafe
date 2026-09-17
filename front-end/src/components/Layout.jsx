@@ -6,59 +6,60 @@ import { ThemeContext } from '../context/ThemeContext.jsx';
 const gruposMenu = [
   {
     chave: 'atendimento',
-    label: 'Atendimento',
+    label: '🏪 Atendimento',
     sempreVisivel: true,
     items: [
-      { label: 'Novo Pedido', icon: '', to: '/pdv' },
-      { label: 'Comandas', icon: '', to: '/comandas' },
+      { label: 'Novo Pedido', icon: '🛒', to: '/pdv' },
+      { label: 'Comandas', icon: '📋', to: '/comandas' },
+      { label: 'A Receber', icon: '💰', to: '/contas-receber', admin: true },
     ],
   },
   {
     chave: 'compras',
-    label: 'COMPRAS',
+    label: '📦 COMPRAS',
     items: [
-      { label: 'Compras', icon: '', to: '/compras', admin: true },
-      { label: 'Produtos', icon: '', to: '/produtos', admin: true },
+      { label: 'Compras', icon: '🧾', to: '/compras', admin: true },
+      { label: 'Produtos', icon: '📦', to: '/produtos', admin: true },
     ],
   },
   {
     chave: 'producao',
-    label: 'Produção',
+    label: '🧪 Produção',
     items: [
-      { label: 'Produção', icon: '', to: '/producao', admin: true },
-      { label: 'Cozinha', icon: '', to: '/cozinha', roles: ['admin', 'operador', 'cozinha'] },
+      { label: 'Produção', icon: '🧪', to: '/producao', admin: true },
+      { label: 'Cozinha', icon: '🍳', to: '/cozinha', roles: ['admin', 'operador', 'cozinha'] },
     ],
   },
   {
     chave: 'pessoas',
-    label: 'PESSOAS',
+    label: '👥 PESSOAS',
     items: [
-      { label: 'Clientes', icon: '', to: '/clientes', admin: true },
-      { label: 'Usuários', icon: '', to: '/usuarios', admin: true },
+      { label: 'Clientes', icon: '👤', to: '/clientes', admin: true },
+      { label: 'Usuários', icon: '👥', to: '/usuarios', admin: true },
     ],
   },
   {
     chave: 'dashboard',
-    label: 'DASHBOARD',
+    label: '📊 DASHBOARD',
     items: [
-      { label: 'Dashboard', icon: '', to: '/dashboard', admin: true },
-      { label: 'Financeiro', icon: '', to: '/financeiro', admin: true },
+      { label: 'Dashboard', icon: '📊', to: '/dashboard', admin: true },
+      { label: 'Financeiro', icon: '💵', to: '/financeiro', admin: true },
     ],
   },
 ];
 
 const pageIcons = {
-  '/pdv': { icon: '', title: 'Atendimento' },
-  '/produtos': { icon: '', title: 'Produtos' },
-  '/clientes': { icon: '', title: 'Clientes' },
-  '/comandas': { icon: '', title: 'Comandas' },
-  '/cozinha': { icon: '', title: 'Cozinha' },
-  '/contas-receber': { icon: '', title: 'A Receber' },
-  '/usuarios': { icon: '', title: 'Usuários' },
-  '/dashboard': { icon: '', title: 'Dashboard' },
-  '/producao': { icon: '', title: 'Produção' },
-  '/compras': { icon: '', title: 'Compras' },
-  '/financeiro': { icon: '', title: 'Financeiro' },
+  '/pdv': { icon: '🛒', title: 'Atendimento' },
+  '/produtos': { icon: '📦', title: 'Produtos' },
+  '/clientes': { icon: '👤', title: 'Clientes' },
+  '/comandas': { icon: '📋', title: 'Comandas' },
+  '/cozinha': { icon: '🍳', title: 'Cozinha' },
+  '/contas-receber': { icon: '💰', title: 'A Receber' },
+  '/usuarios': { icon: '👥', title: 'Usuários' },
+  '/dashboard': { icon: '📊', title: 'Dashboard' },
+  '/producao': { icon: '🧪', title: 'Produção' },
+  '/compras': { icon: '🧾', title: 'Compras' },
+  '/financeiro': { icon: '💵', title: 'Financeiro' },
 };
 
 export default function Layout() {
@@ -136,7 +137,7 @@ export default function Layout() {
             aria-expanded={isOpen}
           >
             <span className="nav-group-label">{grupo.label}</span>
-            <span className="nav-group-arrow">{isOpen ? '' : ''}</span>
+            <span className="nav-group-arrow">{isOpen ? '▼' : '▶'}</span>
           </button>
         )}
         {grupo.sempreVisivel && (
@@ -203,7 +204,7 @@ export default function Layout() {
             display: 'flex', alignItems: 'center', gap: 4,
             transition: 'all 0.2s ease'
           }} title={isDark ? 'Modo claro' : 'Modo escuro'}>
-            {isDark ? '' : ''}
+            {isDark ? '☀️' : '🌙'}
           </button>
           <div style={{
             background: 'var(--success-bg)', color: 'var(--success-text)',
@@ -257,7 +258,7 @@ export default function Layout() {
           gap: '6px',
           transition: 'all 0.2s ease'
         }} title={isDark ? 'Modo claro' : 'Modo escuro'}>
-          {isDark ? '' : ''}
+          {isDark ? '☀️ Modo Claro' : '🌙 Modo Escuro'}
         </button>
 
         <nav className="sidebar-nav">
