@@ -10,6 +10,7 @@ const StockMovementSchema = new mongoose.Schema({
   quantidadePecas: { type: Number, min: 0 },
   pesoKg: { type: Number, min: 0 },
   tipoVenda: { type: String, enum: ['inteiro', 'peso', 'unidade'] },
+  unidade: { type: String, trim: true },
   referenciaId: { type: mongoose.Schema.Types.ObjectId },
   observacao: { type: String, trim: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

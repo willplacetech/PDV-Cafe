@@ -89,13 +89,10 @@ export function compartilharNotaWhatsApp(pedido, opcoes = {}, telefone = '') {
   const fone = telefone ? telefone.replace(/\D/g, '') : (pedido.clienteTelefone || '').replace(/\D/g, '');
   const encodedText = encodeURIComponent(texto);
   const appUrl = fone ? `whatsapp://send?phone=55${fone}&text=${encodedText}` : `whatsapp://send?text=${encodedText}`;
-  const webUrl = fone ? `https://web.whatsapp.com/send?phone=55${fone}&text=${encodedText}` : `https://web.whatsapp.com/send?text=${encodedText}`;
-  const fallback = window.setTimeout(() => window.open(webUrl, '_blank'), 1200);
-  const appWindow = window.open(appUrl, '_blank');
-  if (!appWindow) {
-    window.clearTimeout(fallback);
-    window.open(webUrl, '_blank');
-  }
+  const link = document.createElement('a');
+  link.href = appUrl;
+  link.rel = 'noreferrer';
+  link.click();
 }
 
 function buildNotaVendaTextoBase(pedido, { comandaNumero, titulo = 'NOTA DE VENDA' } = {}) {

@@ -149,16 +149,21 @@ const ProductSchema = new mongoose.Schema({
     default: 0,
     min: [0, 'Estoque de insumos não pode ser negativo'],
   },
-  estoqueMinimo: {
-    type: Number,
-    default: 0,
-    min: [0, 'Estoque mínimo não pode ser negativo'],
-  },
-  estoqueMinimoInsumos: {
-    type: Number,
-    default: 0,
-    min: [0, 'Estoque mínimo de insumos não pode ser negativo'],
-  },
+   estoqueMinimo: {
+     type: Number,
+     default: 0,
+     min: [0, 'Estoque mínimo não pode ser negativo'],
+   },
+   estoqueMinimoInsumos: {
+     type: Number,
+     default: 0,
+     min: [0, 'Estoque mínimo de insumos não pode ser negativo'],
+   },
+   estoqueMinimoBase: {
+     type: Number,
+     default: 0,
+     min: [0, 'Estoque mínimo base não pode ser negativo'],
+   },
   estoqueInsumosInicial: { type: Number, min: 0 },
   estoqueInsumosInicialData: { type: String },
   producaoPropria: {

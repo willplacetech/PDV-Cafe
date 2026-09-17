@@ -23,6 +23,7 @@ export default function Layout() {
   const ativoUsuarios = location.pathname.startsWith('/usuarios');
   const ativoDashboard = location.pathname.startsWith('/dashboard');
   const ativoProducao = location.pathname.startsWith('/producao');
+  const ativoCompras = location.pathname.startsWith('/compras');
   const ativoFinanceiro = location.pathname.startsWith('/financeiro');
 
   // ✅ Título e ícone — UMA POR UMA, sem função
@@ -64,6 +65,10 @@ export default function Layout() {
   if (location.pathname.startsWith('/producao')) {
     iconePagina = '🧪';
     tituloPagina = 'Produção';
+  }
+  if (location.pathname.startsWith('/compras')) {
+    iconePagina = '🧾';
+    tituloPagina = 'Compras';
   }
   if (location.pathname.startsWith('/financeiro')) {
     iconePagina = '💰';
@@ -174,6 +179,7 @@ export default function Layout() {
             <span style={{ whiteSpace: 'nowrap' }}>Produtos</span>
           </Link>}
           {user?.role === 'admin' && <Link to="/producao" className={ativoProducao ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>🧪</span><span style={{ whiteSpace: 'nowrap' }}>Produção</span></Link>}
+          {user?.role === 'admin' && <Link to="/compras" className={ativoCompras ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>🧾</span><span style={{ whiteSpace: 'nowrap' }}>Compras</span></Link>}
           {(user?.role === 'admin' || user?.role === 'operador' || user?.role === 'cozinha') && <Link to="/cozinha" className={ativoCozinha ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>🍳</span><span style={{ whiteSpace: 'nowrap' }}>Cozinha</span></Link>}
           {user?.role === 'admin' && (
             <Link to="/usuarios" className={ativoUsuarios ? 'nav-link active' : 'nav-link'}>
@@ -242,6 +248,7 @@ export default function Layout() {
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Produtos</span>
         </Link>}
         {user?.role === 'admin' && <Link to="/producao" className={ativoProducao ? 'bottom-link active' : 'bottom-link'}><span style={{ fontSize: 20, lineHeight: 1 }}>🧪</span><span style={{ fontSize: '10px' }}>Produção</span></Link>}
+        {user?.role === 'admin' && <Link to="/compras" className={ativoCompras ? 'bottom-link active' : 'bottom-link'}><span style={{ fontSize: 20, lineHeight: 1 }}>🧾</span><span style={{ fontSize: '10px' }}>Compras</span></Link>}
         {(user?.role === 'admin' || user?.role === 'operador' || user?.role === 'cozinha') && <Link to="/cozinha" className={ativoCozinha ? 'bottom-link active' : 'bottom-link'}><span style={{ fontSize: 20, lineHeight: 1 }}>🍳</span><span style={{ fontSize: '10px' }}>Cozinha</span></Link>}
         {user?.role === 'admin' && (
           <Link to="/usuarios" className={ativoUsuarios ? 'bottom-link active' : 'bottom-link'}>

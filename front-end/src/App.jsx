@@ -14,6 +14,7 @@ import Users from './pages/Users';
 import Comandas from './pages/Comandas.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Production from './pages/Production.jsx';
+import Purchases from './pages/Purchases.jsx';
 import Kitchen from './pages/Kitchen.jsx';
 import Financeiro from './pages/Financeiro.jsx';
 
@@ -41,6 +42,7 @@ export default function App() {
                     <Route path="/usuarios" element={<Users />} />
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/producao" element={<Production />} />
+                    <Route path="/compras" element={<Purchases />} />
                     <Route path="/financeiro" element={<Financeiro />} />
                   </Route>
                   <Route path="*" element={<Navigate to="/pdv" />} />

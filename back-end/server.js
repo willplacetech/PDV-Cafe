@@ -71,6 +71,7 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/despesas', require('./routes/despesas'));
 app.use('/api/contabil', require('./routes/contabil'));
 app.use('/api/insumos', require('./routes/insumos'));
+app.use('/api/compras', require('./routes/purchases'));
 app.use('/api/receitas', require('./routes/receitas'));
 app.use('/api/produtos', require('./routes/products'));
 

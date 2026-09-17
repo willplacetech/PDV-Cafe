@@ -1,15 +1,16 @@
 const express = require('express');
-const { body } = require('express-validator');
+const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
 const Product = require('../models/Product');
 const Recipe = require('../models/Recipe');
 const HistoricoCusto = require('../models/HistoricoCusto');
+const StockMovement = require('../models/StockMovement');
 const { converterCustoBase, quantidadeNaBase, calcularVariacaoPercentual } = require('../utils/custo');
-const { custoPorBase } = require('../utils/estoqueInsumo');
+const { calcularResumoCompleto, ajustarEstoque, calcularCustoUnitarioBase } = require('../utils/estoqueInsumo');
 
 const router = express.Router();
 
-const normalizeUnit = (unit) => (['kg', 'g', 'l', 'ml', 'un', 'lata', 'caixa', 'pacote', 'dz'].includes(unit) ? unit : 'kg');
+const normalizeUnit = (unit) => (['kg', 'g', 'mg', 'l', 'ml', 'un', 'lata', 'caixa', 'pacote', 'dz'].includes(unit) ? unit : 'kg');
 
 const recalcularReceitasAfetadas = async (produtoId) => {
   const recipes = await Recipe.find({ ingredientes: { $elemMatch: { produtoId } } }).populate('ingredientes.produtoId').populate('produtoId');
@@ -74,7 +75,7 @@ router.put('/:id/preco-compra', [body('precoCompra').isFloat({ min: 0 }), body('
 
     const unidadeCompra = normalizeUnit(req.body.unidadeCompra || produto.unidadeCompra || 'kg');
     const precoCompra = Number(req.body.precoCompra ?? produto.precoCompra ?? 0);
-    const custoUnitarioBase = custoPorBase({ precoCompra, conteudoPorEmbalagem: produto.conteudoPorEmbalagem, unidadeConteudo: produto.unidadeConteudo }) || converterCustoBase(precoCompra, unidadeCompra, 'g');
+    const custoUnitarioBase = calcularCustoUnitarioBase(precoCompra, produto.conteudoPorEmbalagem, produto.unidadeConteudo) || converterCustoBase(precoCompra, unidadeCompra, 'g');
 
     produto.precoCompra = precoCompra;
     produto.unidadeCompra = unidadeCompra;
@@ -94,6 +95,62 @@ router.put('/:id/preco-compra', [body('precoCompra').isFloat({ min: 0 }), body('
     res.json({ produto, afetados, reajusteRecomendado: comReajuste.length > 0 });
   } catch (error) {
     res.status(400).json({ msg: error.message });
+  }
+});
+
+router.get('/:id', async (req, res) => {
+  try {
+    const produto = await Product.findById(req.params.id);
+    if (!produto) return res.status(404).json({ msg: 'Insumo não encontrado' });
+    res.json({ ...produto.toObject(), resumo: calcularResumoCompleto(produto) });
+  } catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
+router.get('/:id/historico', async (req, res) => {
+  try {
+    const produto = await Product.findById(req.params.id);
+    if (!produto) return res.status(404).json({ msg: 'Insumo não encontrado' });
+    const movimentos = await StockMovement.find({ produtoId: produto._id })
+      .populate('createdBy', 'username')
+      .sort({ createdAt: -1 })
+      .limit(200);
+    res.json({ produto: produto.nome, movimentos });
+  } catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
+router.post('/:id/movimentar', [
+  body('quantidadeEmbalagens').isFloat({ min: -1000000 }),
+  body('motivo').trim().notEmpty().withMessage('Informe a justificativa do ajuste de inventário'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+  const session = await require('mongoose').startSession();
+  try {
+    let resultado;
+    await session.withTransaction(async () => {
+      const produto = await Product.findById(req.params.id).session(session);
+      if (!produto) throw new Error('Insumo não encontrado');
+      if (produto.tipo !== 'insumo') throw new Error('O produto selecionado não é um insumo');
+      const delta = Number(req.body.quantidadeEmbalagens);
+      if (delta === 0) throw new Error('Informe uma quantidade diferente de zero');
+      resultado = ajustarEstoque(produto, delta);
+      await produto.save({ session });
+      await StockMovement.create([{
+        produtoId: produto._id,
+        produtoNome: produto.nome,
+        tipo: delta > 0 ? 'entrada' : 'saida',
+        quantidade: Math.abs(delta),
+        unidade: 'embalagem',
+        quantidadePecas: Math.abs(delta),
+        observacao: req.body.motivo || null,
+        createdBy: req.user.id,
+      }], { session });
+    });
+    res.json({ produtoId: req.params.id, ...resultado });
+  } catch (error) {
+    res.status(400).json({ msg: error.message });
+  } finally {
+    await session.endSession();
   }
 });
 

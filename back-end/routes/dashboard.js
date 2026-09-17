@@ -246,10 +246,10 @@ router.get('/', async (req, res) => {
     const inicioEstoqueParado = new Date();
     inicioEstoqueParado.setDate(inicioEstoqueParado.getDate() - 60);
     const vendasUltimos60Dias = new Set();
-    const vendasPorHora = Array.from({ length: 12 }, (_, indice) => ({ hora: indice + 8, pedidos: 0, itens: 0, total: 0 }));
+    const vendasPorHora = Array.from({ length: 13 }, (_, indice) => ({ hora: indice + 8, pedidos: 0, itens: 0, total: 0 }));
     pedidosInsights.filter((pedido) => pedido.status !== 'cancelado').forEach((pedido) => {
       const hora = horaSaoPaulo(pedido.createdAt);
-      if (hora < 8 || hora > 19) return;
+      if (hora < 8 || hora > 20) return;
       const vendaHora = vendasPorHora[hora - 8];
       vendaHora.pedidos += 1;
       vendaHora.total += Number(pedido.total || 0);
@@ -300,7 +300,7 @@ router.get('/', async (req, res) => {
     const clientesComCompra = clientesInsight.size;
     const clientesRecorrentes = [...clientesInsight.values()].filter((cliente) => cliente.compras > 1).length;
     const insights = {
-      vendasPorHora: vendasPorHora.filter((item) => item.pedidos > 0),
+      vendasPorHora,
       horarioPico: vendasPorHora.reduce((pico, item) => item.total > pico.total ? item : pico, { hora: null, total: 0, pedidos: 0, itens: 0 }),
       curvaABC,
       margemProdutos,

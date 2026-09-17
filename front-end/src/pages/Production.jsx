@@ -8,16 +8,7 @@ const emptyTransfer = { produtoId: '', origem: 'venda', destino: 'insumos', quan
 
 const number = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 const unidadeDoInsumo = (produto = {}) => ['un', 'kg', 'g', 'mg', 'l', 'ml'].includes(produto.unidadeCompra) ? produto.unidadeCompra : (produto.unidadeConteudo || 'g');
-const descricaoDoInsumo = (produto = {}) => ['lata', 'caixa', 'pacote', 'rolo'].includes(unidadeDoInsumo(produto)) && produto.conteudoPorEmbalagem ? `${number(produto.conteudoPorEmbalagem)} ${produto.unidadeConteudo || 'g'}/${unidadeDoInsumo(produto)}` : unidadeDoInsumo(produto);
 const fatoresBase = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
-const textoConversao = (item, quantidade) => {
-  const produto = item.produtoId || {};
-  const unidadeControle = unidadeDoInsumo(produto);
-  const quantidadeBase = Number(quantidade || 0) * (fatoresBase[item.unidade] || 1);
-  const fatorControle = fatoresBase[unidadeControle] || 1;
-  const convertido = quantidadeBase / fatorControle;
-  return `${number(quantidade)} ${item.unidade} = ${number(convertido)} ${unidadeControle}`;
-};
 
 export default function Production() {
   const [tab, setTab] = useState('estoque');
@@ -37,24 +28,32 @@ export default function Production() {
   const [ingredientPrices, setIngredientPrices] = useState({});
   const [ingredientUnits, setIngredientUnits] = useState({});
   const [cascadeResult] = useState(null);
+  const [movForm, setMovForm] = useState({ produtoId: '', quantidadeEmbalagens: '', motivo: '' });
+  const [movPreview, setMovPreview] = useState(null);
+  const [movimentos, setMovimentos] = useState([]);
   const { showToast } = useToast();
 
   const load = async () => {
     try {
-      const [productsResponse, stockResponse, recipesResponse, dashboardResponse] = await Promise.all([
+      const [productsResponse, stockResponse, recipesResponse, dashboardResponse, movimentosResponse] = await Promise.all([
         api.get('/products'),
         api.get('/production/stock?location=insumos'),
         api.get('/production/recipes'),
         api.get('/production/dashboard'),
+        api.get('/production/movements'),
       ]);
       setProducts(productsResponse.data);
       setStock(stockResponse.data);
       setRecipes(recipesResponse.data);
       setProductionDashboard(dashboardResponse.data);
+      setMovimentos(movimentosResponse.data || []);
     } catch (error) { showToast(error.response?.data?.msg || 'Não foi possível carregar a produção', 'error'); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const loadInitialData = async () => { await load(); };
+    loadInitialData();
+  }, []);
 
   const producibleProducts = products.filter((product) => product.tipo === 'venda' || product.producaoPropria);
   const stockProducts = products.filter((product) => product.tipo === 'insumo' || Number(product.estoqueInsumos) > 0);
@@ -164,6 +163,48 @@ export default function Production() {
 
   const saveIngredientPrice = () => {};
 
+  const movimentarEstoque = async (event) => {
+    event.preventDefault();
+    if (!movForm.produtoId) return showToast('Selecione um insumo', 'warning');
+    const delta = Number(movForm.quantidadeEmbalagens);
+    if (!Number.isFinite(delta) || delta === 0) return showToast('Informe uma quantidade (use + para entrada, - para saída)', 'warning');
+    setSaving(true);
+    try {
+      const response = await api.post(`/insumos/${movForm.produtoId}/movimentar`, { quantidadeEmbalagens: delta, motivo: movForm.motivo });
+      showToast(`Estoque atualizado: ${response.data.embalagensAntes} → ${response.data.embalagensDepois} ${response.data.unidadeEmbalagem}`, 'success');
+      setMovForm({ produtoId: '', quantidadeEmbalagens: '', motivo: '' });
+      setMovPreview(null);
+      await load();
+    } catch (error) { showToast(error.response?.data?.msg || 'Não foi possível movimentar o estoque', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  const atualizarPreview = () => {
+    if (!movForm.produtoId || !movForm.quantidadeEmbalagens) { setMovPreview(null); return; }
+    const produto = stockProducts.find((product) => String(product._id) === String(movForm.produtoId));
+    if (!produto) { setMovPreview(null); return; }
+    const delta = Number(movForm.quantidadeEmbalagens);
+    const atual = Number(produto.estoqueEmbalagens ?? produto.estoqueInsumos ?? 0);
+    const novoTotal = atual + delta;
+    if (novoTotal < 0) {
+      setMovPreview({ erro: `Não é possível reduzir ${Math.abs(delta)} embalagem(s): o estoque atual é ${atual}` });
+      return;
+    }
+    const resumo = produto.resumoInsumo || {};
+    const fator = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, un: 1 }[resumo.unidadeConteudo || produto.unidadeCompra] || 1;
+    const conteudoBase = Number(resumo.conteudoPorEmbalagem || 0) * fator;
+    setMovPreview({
+      produto: produto.nome,
+      unidadeCompra: produto.unidadeCompra,
+      embalagensAntes: atual,
+      embalagensDepois: novoTotal,
+      delta,
+      unidadeConteudo: resumo.unidadeConteudo || produto.unidadeConteudo || 'g',
+      totalAntes: (atual * conteudoBase) / fator,
+      totalDepois: (novoTotal * conteudoBase) / fator,
+    });
+  };
+
   const calculateCost = async (event) => {
     event.preventDefault();
     if (!costForm.receitaId) return showToast('Selecione uma receita', 'warning');
@@ -193,7 +234,7 @@ export default function Production() {
   return <div className="production-page">
     <header className="production-heading page-heading"><div><span className="production-eyebrow">GESTÃO DE INSUMOS</span><h1>Produção</h1><p>Controle ingredientes, receitas e produtos produzidos na casa.</p></div><div className="production-header-actions"><button type="button" className="production-alert" onClick={() => setTab('custos')}><strong>{produtosSemCusto.length}</strong><span>produtos sem custo</span></button><button type="button" className="production-alert" onClick={() => setTab('custos')}><strong>{produtosReajuste.length}</strong><span>reajustes recomendados</span></button><div className="production-kpi"><strong>{productionDashboard?.receitasPossiveis?.filter((recipe) => recipe.producoesPossiveis > 0).length || 0}</strong><span>receitas possíveis</span></div></div></header>
     <nav className="production-tabs" aria-label="Seções da produção">
-      {[['estoque', 'Estoque de insumos'], ['receitas', 'Receitas'], ['produzir', 'Nova produção'], ['transferir', 'Transferências'], ['custos', 'Calculadora de custo']].map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}</button>)}
+      {[['estoque', 'Estoque de insumos'], ['receitas', 'Receitas'], ['produzir', 'Nova produção'], ['transferir', 'Transferências'], ['historico', 'Histórico de movimentos'], ['custos', 'Custo das receitas']].map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}</button>)}
     </nav>
 
     {tab === 'estoque' && <section className="production-section"><div className="section-heading"><div><h2>Estoque de insumos</h2><p>Itens abaixo do mínimo aparecem destacados.</p></div><strong>{stock.length} itens</strong></div><div className="stock-grid">{stock.length ? stock.map((product) => <article className={product.saldo <= product.minimo ? 'stock-card low' : 'stock-card'} key={product._id}><div><span>{product.codigo}</span><h3>{product.nome}</h3></div><b>{number(product.saldo)} <small>{product.unidadeCompra || 'embalagens'}</small></b>{product.totalDisponivel > 0 && <p>📦 Total: {number(product.totalKgDisponivel || product.totalDisponivel)} {product.totalKgDisponivel ? 'kg' : product.unidadeDisponivel} disponível{product.conteudoAberto > 0 ? ` · aberto: ${number(product.conteudoAberto)} ${product.unidadeDisponivel}` : ''}</p>}<p>Mínimo: {number(product.minimo)} {product.unidadeCompra || 'embalagens'}</p></article>) : <p className="empty">Nenhum insumo em estoque. Cadastre um produto do tipo insumo.</p>}</div></section>}
@@ -203,6 +244,10 @@ export default function Production() {
     {tab === 'produzir' && <section className="production-section"><div className="section-heading"><div><h2>Iniciar nova produção</h2><p>Os insumos serão baixados e o produto vinculado será abastecido automaticamente.</p></div></div><form className="action-form" onSubmit={produce}><label>Receita<select required value={selectedRecipe} onChange={(event) => setSelectedRecipe(event.target.value)}><option value="">Selecione uma receita</option>{recipes.filter((recipe) => recipe.ativa).map((recipe) => <option key={recipe._id} value={recipe._id}>{recipe.nome} · {recipe.produtoId?.nome}</option>)}</select></label><label>Quantidade de receitas<input type="number" min="0.001" step="0.001" required value={productionQuantity} onChange={(event) => setProductionQuantity(event.target.value)} /></label>{currentRecipe && <div className="recipe-preview"><strong>Consumo previsto</strong>{currentRecipe.ingredientes.map((item) => <span key={String(item.produtoId?._id || item.produtoId)}>{item.produtoId?.nome}: {number(Number(item.quantidade) * Number(productionQuantity || 0))} {item.unidade}</span>)}<b>Entrada: {number(Number(currentRecipe.rendimento) * Number(productionQuantity || 0))} {currentRecipe.unidadeRendimento} de {currentRecipe.produtoId?.nome}</b></div>}<button className="primary" disabled={saving || !currentRecipe}>{saving ? 'Produzindo...' : 'Confirmar produção'}</button></form><div className="possible-list"><h3>Podem ser produzidas agora</h3>{productionDashboard?.receitasPossiveis?.map((recipe) => <div key={String(recipe.receitaId)}><span>{recipe.receitaNome} · {recipe.produtoNome}</span><div className="possible-meta"><b>{recipe.producoesPossiveis > 0 ? `${number(recipe.producoesPossiveis)} produção(ões)` : 'Insumos insuficientes'}</b>{recipe.calculo && <small>{recipe.calculo}</small>}</div></div>)}</div></section>}
 
     {tab === 'transferir' && <section className="production-section"><div className="section-heading"><div><h2>Transferir entre estoques</h2><p>O mesmo produto pode existir nos dois estoques. A origem precisa ter saldo disponível.</p></div></div><form className="action-form" onSubmit={transferStock}><label>Produto<select required value={transfer.produtoId} onChange={(event) => setTransfer({ ...transfer, produtoId: event.target.value })}><option value="">Selecione</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} · venda {number(product.estoque)} · insumos {number(product.estoqueInsumos)}</option>)}</select></label><div className="form-grid"><label>Origem<select value={transfer.origem} onChange={(event) => setTransfer({ ...transfer, origem: event.target.value })}><option value="venda">Estoque de venda</option><option value="insumos">Estoque de insumos</option></select></label><label>Destino<select value={transfer.destino} onChange={(event) => setTransfer({ ...transfer, destino: event.target.value })}><option value="insumos">Estoque de insumos</option><option value="venda">Estoque de venda</option></select></label></div><label>Quantidade<input type="number" min="0.001" step="0.001" required value={transfer.quantidade} onChange={(event) => setTransfer({ ...transfer, quantidade: event.target.value })} /></label><label>Observação<input value={transfer.observacao} onChange={(event) => setTransfer({ ...transfer, observacao: event.target.value })} placeholder="Motivo da transferência" /></label><button className="primary" disabled={saving}>{saving ? 'Transferindo...' : 'Confirmar transferência'}</button></form></section>}
+
+    {tab === 'movimentar' && <section className="production-section"><div className="section-heading"><div><h2>Movimentar estoque de insumo</h2><p>Adicionar ou remover embalagens do estoque. Use números positivos para entrada e negativos para saída.</p></div></div><form className="action-form" onSubmit={movimentarEstoque}><label>Insumo<select required value={movForm.produtoId} onChange={(event) => { setMovForm({ ...movForm, produtoId: event.target.value }); }}><option value="">Selecione um insumo</option>{stockProducts.filter((product) => product.tipo === 'insumo').map((product) => <option key={product._id} value={product._id}>{product.nome} · {number(product.resumoInsumo?.total || product.estoqueEmbalagens || 0)} {product.resumoInsumo?.unidadeConteudo || product.unidadeCompra || 'und'}</option>)}</select></label><label>Quantidade de embalagens (+ ou -)<input type="number" step="0.001" min={-999999} value={movForm.quantidadeEmbalagens} onChange={(event) => { setMovForm({ ...movForm, quantidadeEmbalagens: event.target.value }); atualizarPreview(); }} placeholder="Ex.: +5 ou -3" required /></label><label>Motivo<small>Opcional</small><select value={movForm.motivo} onChange={(event) => setMovForm({ ...movForm, motivo: event.target.value })}><option value="">Selecione...</option><option value="compra">Compra</option><option value="devolucao">Devolução</option><option value="ajuste">Ajuste</option><option value="perda">Perda</option><option value="uso">Uso interno</option></select></label>{movPreview && <div className="mov-preview">{movPreview.erro ? <span style={{ color: 'var(--error-bg)', fontWeight: 700 }}>{movPreview.erro}</span> : <><div><span>Antes:</span> <strong>{movPreview.embalagensAntes} embalagens ({number(movPreview.totalAntes)} {movPreview.unidadeConteudo})</strong></div><div><span>Após:</span> <strong>{movPreview.embalagensDepois} embalagens ({number(movPreview.totalDepois)} {movPreview.unidadeConteudo})</strong></div></>}</div>}{!movPreview && <div className="mov-preview"><span style={{ color: 'var(--text-secondary)' }}>Selecione um insumo e informe a quantidade para visualizar o impacto.</span></div>}<button className="primary" disabled={saving || !movForm.produtoId || !movForm.quantidadeEmbalagens || (movPreview && !!movPreview.erro)}>{saving ? 'Salvando...' : 'Confirmar movimentação'}</button></form></section>}
+
+    {tab === 'historico' && <section className="production-section"><div className="section-heading"><div><h2>Histórico de movimentos de estoque</h2><p>Últimas 100 entradas, saídas e ajustes.</p></div><strong>{movimentos.length} movimentos</strong></div>{movimentos.length === 0 ? <p className="empty">Nenhum movimento registrado.</p> : <div className="movimentos-list">{movimentos.map((mov) => <div className="movimento-row" key={mov._id}><div className="movimento-info"><span className={'movimento-tipo ' + (mov.tipo === 'entrada' ? 'mov-entrada' : mov.tipo === 'saida' ? 'mov-saida' : mov.tipo === 'producao' ? 'mov-producao' : mov.tipo === 'transferencia' ? 'mov-transferencia' : 'mov-ajuste')}>{mov.tipo}</span><strong>{mov.produtoNome || 'Produto'}</strong><small>{mov.observacao || (mov.tipo === 'saida' ? 'Consumo' : mov.tipo === 'entrada' ? 'Entrada' : 'Ajuste')}</small></div><div className="movimento-valores"><span className="movimento-quantidade">{mov.quantidadePecas > 0 ? mov.quantidadePecas + ' ' + (mov.unidade || 'und') : mov.quantidade + ' ' + (mov.unidade || mov.tipoVenda || 'und')}</span><small>{new Date(mov.createdAt).toLocaleString('pt-BR')} · {mov.createdBy?.username || 'sistema'}</small></div></div>)}</div>}</section>}
 
     {tab === 'custos' && <section className="production-section cost-calculator"><div className="section-heading"><div><h2>Calculadora de custo e precificação</h2><p>Atualize insumos e calcule o custo real das receitas.</p></div></div>{produtosReajuste.length > 0 && <div className="cost-alert"><strong>Reajuste recomendado</strong>{produtosReajuste.map((product) => <div key={product._id}>{product.nome} · custo R$ {number(product.custoUnitario || product.custo)} · preço R$ {number(product.preco)}</div>)}</div>}<div className="cost-step"><h3>Passo 1 · Preço de compra dos insumos</h3><div className="cost-ingredient-list">{stockProducts.map((product) => <div className="cost-ingredient-row" key={product._id}><span><strong>{product.nome}</strong><small>Custo base: R$ {Number(product.custoUnitarioBase || 0).toFixed(6)}</small></span><input type="number" min="0" step="0.01" placeholder="Preço de compra" value={ingredientPrices[product._id] ?? product.precoCompra ?? ''} onChange={(event) => setIngredientPrices({ ...ingredientPrices, [product._id]: event.target.value })} /><select value={ingredientUnits[product._id] || product.unidadeCompra || 'kg'} onChange={(event) => setIngredientUnits({ ...ingredientUnits, [product._id]: event.target.value })}>{['kg', 'g', 'l', 'ml', 'un', 'dz'].map((unit) => <option key={unit}>{unit}</option>)}</select><button type="button" className="secondary" onClick={() => saveIngredientPrice(product)}>Salvar</button></div>)}</div>{cascadeResult?.afetados?.length > 0 && <div className="cost-alert">A alteração afetou {cascadeResult.afetados.length} receitas. Veja quais produtos precisam de reajuste: {cascadeResult.afetados.map((item) => <div key={item.produtoId}>{item.nome}: R$ {number(item.custoAntigo)} → R$ {number(item.custoNovo)} ({item.variacaoPercentual}%)</div>)}</div>}</div><div className="cost-step"><h3>Passo 2 e 3 · Receita e custos adicionais</h3><form className="form-grid" onSubmit={calculateCost}><label><span>Receita</span><select required value={costForm.receitaId} onChange={(event) => { setCostForm({ ...costForm, receitaId: event.target.value }); setCostResult(null); }}><option value="">Selecione</option>{recipes.map((recipe) => <option key={recipe._id} value={recipe._id}>{recipe.nome} · {recipe.produtoId?.nome}</option>)}</select></label><label><span>Embalagem por unidade</span><input type="number" min="0" step="0.01" value={costForm.custoEmbalagem} onChange={(event) => setCostForm({ ...costForm, custoEmbalagem: event.target.value })} /></label><label><span>Gás / energia</span><input type="number" min="0" step="0.01" value={costForm.custoIndireto} onChange={(event) => setCostForm({ ...costForm, custoIndireto: event.target.value })} /></label><label><span>Mão de obra</span><input type="number" min="0" step="0.01" value={costForm.maoDeObra} onChange={(event) => setCostForm({ ...costForm, maoDeObra: event.target.value })} /></label><button className="primary" disabled={saving}>{saving ? 'Calculando...' : 'Calcular custo'}</button></form>{costRecipe && <div className="recipe-preview"><strong>Ingredientes</strong>{costRecipe.ingredientes.map((item) => <span key={String(item.produtoId?._id || item.produtoId)}>{item.produtoId?.nome}: {number(item.quantidade)} {item.unidade} · custo base R$ {Number(item.produtoId?.custoUnitarioBase || 0).toFixed(6)}</span>)}</div>}</div>{costResult && <div className="cost-result"><h3>Passo 4 · Resultado</h3><div className="cost-result-grid"><div><small>Custo total</small><strong>R$ {number(costResult.custoTotal)}</strong></div><div className="cost-highlight"><small>Custo por unidade</small><strong>R$ {number(costResult.custoUnitario)}</strong></div><div><small>Markup 2x / 2,5x / 3x</small><strong>R$ {number(costResult.sugeridos.markup2x)} · R$ {number(costResult.sugeridos.markup2_5x)} · R$ {number(costResult.sugeridos.markup3x)}</strong></div><div><small>Margem 50% / 60% / 70%</small><strong>R$ {number(costResult.sugeridos.margem50)} · R$ {number(costResult.sugeridos.margem60)} · R$ {number(costResult.sugeridos.markup3x)}</strong></div></div><div className="apply-price"><input type="number" min="0" step="0.01" placeholder="Preço de venda definido" value={costForm.precoVenda} onChange={(event) => setCostForm({ ...costForm, precoVenda: event.target.value })} /><button type="button" className="primary" onClick={applyCostPrice}>Aplicar preço no produto</button></div><h4>Histórico de custo</h4>{costHistory.map((item) => <div className="history-row" key={item._id}>{new Date(item.data).toLocaleDateString('pt-BR')} · R$ {number(item.custoUnitario)} · {item.motivo}</div>)}</div>}</section>}
 
@@ -226,6 +271,23 @@ const styles = `
 .production-tabs button { flex-shrink:0; min-height:42px; padding:8px 13px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--text-secondary); font-weight:700; cursor:pointer; }
 .production-tabs button.active { border-color:var(--accent-primary); color:var(--accent-primary); }
 .production-section { padding:18px; border:1px solid var(--border-color); border-radius:16px; background:var(--bg-secondary); box-shadow:var(--shadow-sm); }
+.mov-preview { display:grid; gap:8px; padding:14px; border:1px solid var(--border-light); border-radius:10px; background:var(--bg-tertiary); margin-top:12px; }
+.mov-preview div { display:grid; gap:2px; }
+.mov-preview span { color:var(--text-secondary); font-size:11px; }
+.mov-preview strong { color:var(--text-primary); font-size:14px; }
+.movimentos-list { display:grid; gap:8px; }
+.movimento-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--border-light); border-radius:8px; background:var(--bg-tertiary); }
+.movimento-info { display:grid; gap:3px; }
+.movimento-info strong { color:var(--text-primary); font-size:13px; }
+.movimento-info small { color:var(--text-secondary); font-size:11px; }
+.movimento-tipo { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
+.mov-entrada { background:rgba(34,197,94,.1); color:var(--success-bg, #22c55e); }
+.mov-saida { background:rgba(239,68,68,.1); color:var(--error-bg); }
+.mov-producao { background:rgba(59,130,246,.1); color:var(--accent-primary); }
+.mov-transferencia { background:rgba(168,85,212,.1); color:#a855f7; }
+.mov-ajuste { background:rgba(140,140,140,.1); color:var(--text-secondary); }
+.movimento-valores { display:grid; justify-items:end; gap:3px; }
+.movimento-quantidade { color:var(--accent-primary); font-size:13px; font-weight:700; }
 .section-heading, .ingredients-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
 .section-heading h2, .ingredients-heading h3, .possible-list h3 { margin:0 0 4px; font-size:17px; }
 .section-heading > strong { color:var(--accent-primary); }

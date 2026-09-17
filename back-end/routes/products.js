@@ -10,7 +10,7 @@ const Recipe = require('../models/Recipe');
 const { pesoPorUnidadeEmKg } = require('../utils/pesoProduto');
 const { dadosEstoqueProduto, normalizarEstoqueLegado, produtoControlaPeso } = require('../utils/estoqueProduto');
 const { resolverTipoProduto } = require('../utils/produtoTipo');
-const { resumoEstoqueInsumo, custoPorBase } = require('../utils/estoqueInsumo');
+const { calcularResumoCompleto, calcularCustoUnitarioBase, calcularEstoqueMinimoBase } = require('../utils/estoqueInsumo');
 
 const router = express.Router();
 const units = ['un', 'kg', 'g', 'mg', 'l', 'ml'];
@@ -62,7 +62,7 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
       ...dadosEstoqueProduto(produto),
       receitaId: receitaPorProduto.get(String(produto._id)) || null,
       temReceita: receitaPorProduto.has(String(produto._id)),
-      resumoInsumo: produto.tipo === 'insumo' ? resumoEstoqueInsumo(produto) : null,
+       resumoInsumo: produto.tipo === 'insumo' ? calcularResumoCompleto(produto) : null,
     })));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
@@ -217,7 +217,7 @@ router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
-    res.json({ ...product.toObject(), ...dadosEstoqueProduto(product) });
+    res.json({ ...product.toObject(), ...dadosEstoqueProduto(product), resumoInsumo: product.tipo === 'insumo' ? calcularResumoCompleto(product) : null });
   } catch (_) { res.status(404).json({ msg: 'Produto não encontrado' }); }
 });
 
@@ -265,11 +265,12 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
       unidadeConteudo,
       estoqueEmbalagens,
       estoqueConteudoAberto,
-      estoqueMinimoEmbalagens: Number(data.estoqueMinimoEmbalagens ?? data.estoqueMinimoInsumos) || 0,
-      rendimentoPorUnidadeCompra: Number(data.rendimentoPorUnidadeCompra || 0),
-      custo: custoUnitario,
-      custoUnitario,
-      custoUnitarioBase: tipo === 'insumo' ? custoPorBase({ precoCompra, conteudoPorEmbalagem, unidadeConteudo }) : Number(data.custoUnitarioBase) || 0,
+       estoqueMinimoEmbalagens: Number(data.estoqueMinimoEmbalagens ?? data.estoqueMinimoInsumos) || 0,
+       estoqueMinimoBase: tipo === 'insumo' ? calcularEstoqueMinimoBase(Number(data.estoqueMinimoEmbalagens ?? data.estoqueMinimoInsumos) || 0, unidadeConteudo) : 0,
+       rendimentoPorUnidadeCompra: Number(data.rendimentoPorUnidadeCompra || 0),
+       custo: custoUnitario,
+       custoUnitario,
+       custoUnitarioBase: tipo === 'insumo' ? calcularCustoUnitarioBase(precoCompra, conteudoPorEmbalagem, unidadeConteudo) : Number(data.custoUnitarioBase) || 0,
       estoque: tipo === 'venda' ? estoque : 0,
       estoquePesoKg,
       estoqueInsumos: tipo === 'insumo' ? estoqueEmbalagens : estoqueInsumos,
@@ -301,6 +302,11 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
     const data = req.body;
+    const produtoAtual = await Product.findById(req.params.id).select('tipo');
+    if (!produtoAtual) return res.status(404).json({ msg: 'Produto não encontrado' });
+    if (produtoAtual.tipo === 'insumo' && ['precoCompra', 'custo', 'custoUnitario', 'conteudoPorEmbalagem', 'unidadeConteudo'].some((campo) => data[campo] !== undefined)) {
+      return res.status(403).json({ msg: 'Custo e conteúdo de insumo só podem ser alterados por uma compra' });
+    }
     const tipo = resolverTipoProduto({ ...data, tipo: data.tipo ?? undefined });
     if (data.codigo) {
       const duplicate = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') }, _id: { $ne: req.params.id } });
@@ -320,8 +326,14 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     if (data.unidadeConteudo !== undefined) fields.unidadeConteudo = data.unidadeConteudo;
     if (data.estoqueEmbalagens !== undefined) fields.estoqueInsumos = Number(data.estoqueEmbalagens);
     if (tipo === 'insumo' && (data.precoCompra !== undefined || data.conteudoPorEmbalagem !== undefined || data.unidadeConteudo !== undefined)) {
-      const atual = await Product.findById(req.params.id).select('precoCompra conteudoPorEmbalagem unidadeConteudo').lean();
-      fields.custoUnitarioBase = custoPorBase({ precoCompra: data.precoCompra ?? atual?.precoCompra, conteudoPorEmbalagem: data.conteudoPorEmbalagem ?? atual?.conteudoPorEmbalagem, unidadeConteudo: data.unidadeConteudo ?? atual?.unidadeConteudo });
+      const atual = await Product.findById(req.params.id).select('precoCompra conteudoPorEmbalagem unidadeConteudo estoqueMinimoEmbalagens unidadeConteudo').lean();
+      fields.custoUnitarioBase = calcularCustoUnitarioBase(data.precoCompra ?? atual?.precoCompra, data.conteudoPorEmbalagem ?? atual?.conteudoPorEmbalagem, data.unidadeConteudo ?? atual?.unidadeConteudo);
+      const unidadeConteudoAtual = data.unidadeConteudo ?? atual?.unidadeConteudo;
+      const minimoAtual = fields.estoqueMinimoEmbalagens ?? atual?.estoqueMinimoEmbalagens ?? 0;
+      fields.estoqueMinimoBase = calcularEstoqueMinimoBase(minimoAtual, unidadeConteudoAtual);
+    } else if (tipo === 'insumo' && data.estoqueMinimoEmbalagens !== undefined) {
+      const atual = await Product.findById(req.params.id).select('estoqueMinimoEmbalagens unidadeConteudo').lean();
+      fields.estoqueMinimoBase = calcularEstoqueMinimoBase(fields.estoqueMinimoEmbalagens ?? 0, atual?.unidadeConteudo);
     }
     if (data.precoVenda !== undefined) fields.preco = Number(data.precoVenda);
     if (data.ativo !== undefined) fields.ativo = Boolean(data.ativo);
@@ -354,7 +366,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     }
     const product = await Product.findByIdAndUpdate(req.params.id, { $set: fields }, { new: true, runValidators: true });
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
-    res.json({ ...product.toObject(), ...dadosEstoqueProduto(product) });
+    res.json({ ...product.toObject(), ...dadosEstoqueProduto(product), resumoInsumo: product.tipo === 'insumo' ? calcularResumoCompleto(product) : null });
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 

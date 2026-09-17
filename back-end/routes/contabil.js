@@ -6,6 +6,7 @@ const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
 const Recipe = require('../models/Recipe');
 const Despesa = require('../models/Despesa');
 const PaymentSettings = require('../models/PaymentSettings');
+const Purchase = require('../models/Purchase');
 
 const router = express.Router();
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -105,10 +106,10 @@ router.patch('/taxas-cartao', async (req, res) => {
 router.get('/dre', async (req, res) => {
   try {
     const { inicio, fim } = getMesRange(req.query.mes || req.query.data || null);
-    const periodoVendas = await Order.find({
-      createdAt: { $gte: inicio, $lt: fim },
-      status: { $in: ['pago', 'parcial'] },
-    }).lean();
+    const [periodoVendas, comprasPeriodo] = await Promise.all([
+      Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $in: ['pago', 'parcial'] } }).lean(),
+      Purchase.find({ data: { $gte: inicio, $lt: fim } }).select('valorTotal').lean(),
+    ]);
 
     let receitaBruta = 0;
     let cmv = 0;
@@ -121,7 +122,7 @@ router.get('/dre', async (req, res) => {
         const produtoId = String(item.produtoId || '');
         const quantidade = quantidadeNaUnidadeBase(item);
         const produto = produtoId ? await Product.findById(produtoId).lean() : null;
-        const custoUnitario = Number(produto?.custoUnitario || 0);
+        const custoUnitario = Number(produto?.custoUnitario || produto?.custoUnitarioBase || 0);
         if (custoUnitario > 0) {
           cmv += quantidade * custoUnitario;
         } else {
@@ -148,24 +149,31 @@ router.get('/dre', async (req, res) => {
 
     const depreciacao = Number(req.query.depreciacao || 0);
     const impostos = Number(req.query.impostos || 0);
-    const receitaLiquida = receitaBruta - taxasCartao;
+    const deducoes = dinheiro(taxasCartao + impostos);
+    const receitaLiquida = dinheiro(receitaBruta - deducoes);
     const lucroBruto = receitaLiquida - cmv;
-    const ebit = dinheiro(lucroBruto - despesasOperacionais);
-    const ebitda = dinheiro(ebit + depreciacao);
-    const lucroLiquido = dinheiro(ebit - impostos);
+    const ebitda = dinheiro(lucroBruto - despesasOperacionais);
+    const ebit = dinheiro(ebitda - depreciacao);
+    const despesasFinanceiras = 0;
+    const lucroLiquido = dinheiro(ebit - despesasFinanceiras);
+    const compras = dinheiro(comprasPeriodo.reduce((total, compra) => total + Number(compra.valorTotal || 0), 0));
 
     res.json({
       periodo: { mes: req.query.mes || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`, inicio, fim },
       receitaBruta,
       receitaLiquida,
+      deducoes,
       taxasCartao,
       cmv,
+      cmvFormula: 'Estoque inicial + Compras - Estoque final',
+      cmvComponentes: { estoqueInicial: null, compras, estoqueFinal: null, metodoAtual: 'custo dos itens vendidos' },
       lucroBruto,
       despesasOperacionais,
       despesasPorCategoria,
       ebit,
       depreciacaoAmortizacao: depreciacao,
       ebitda,
+      despesasFinanceiras,
       impostosEstimados: impostos,
       lucroLiquido,
       margemBruta: receitaBruta > 0 ? (lucroBruto / receitaBruta) * 100 : 0,

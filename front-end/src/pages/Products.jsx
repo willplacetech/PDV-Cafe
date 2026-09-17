@@ -3,7 +3,7 @@ import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Outros'];
-const filtrosTipo = ['Todos', 'À Venda', 'Insumos'];
+const filtrosTipo = ['Todos', 'Estoque de Venda', 'Estoque de Insumos'];
 
 const vazio = {
   codigo: '',
@@ -14,8 +14,8 @@ const vazio = {
   preco: '',
   precoCompra: '',
   unidadeCompra: 'kg',
-  conteudoPorEmbalagem: '',
-  unidadeConteudo: 'g',
+  conteudoPorEmbalagem: 1,
+  unidadeConteudo: 'kg',
   estoqueEmbalagens: '',
   estoqueConteudoAberto: 0,
   estoqueMinimoEmbalagens: '',
@@ -37,13 +37,17 @@ export default function Products() {
   const [filtroTipo, setFiltroTipo] = useState('Todos');
   const [filtroCategoria, setFiltroCategoria] = useState('Todos');
   const { showToast } = useToast();
+  const editingInsumo = Boolean(editing?.tipo === 'insumo');
 
   const carregar = async () => {
     const res = await api.get('/products');
     setProdutos(res.data);
   };
 
-  useEffect(() => { carregar(); }, []);
+  useEffect(() => {
+    const carregarInicial = async () => { await carregar(); };
+    carregarInicial();
+  }, []);
 
   useEffect(() => {
     if (!editing && produtos.length > 0) {
@@ -51,7 +55,7 @@ export default function Products() {
         const codigo = Number(atual.codigo) || 0;
         return codigo > maior ? codigo : maior;
       }, 0);
-      setForm((prev) => ({ ...prev, codigo: String(maiorCodigo + 1) }));
+      queueMicrotask(() => setForm((prev) => ({ ...prev, codigo: String(maiorCodigo + 1) })));
     }
   }, [produtos, editing]);
 
@@ -64,16 +68,32 @@ export default function Products() {
 
   const resumoInsumo = form.tipo === 'insumo' ? (() => {
     const unidadesDiretas = ['kg', 'g', 'mg', 'l', 'ml', 'un'];
-    const unidadeControle = form.unidadeCompra || 'kg';
-    const unidadeConteudo = unidadesDiretas.includes(unidadeControle) ? unidadeControle : form.unidadeConteudo;
-    const conteudo = unidadesDiretas.includes(unidadeControle) ? 1 : (Number(form.conteudoPorEmbalagem) || 0);
+    const unidade = unidadesDiretas.includes(form.unidadeCompra) ? form.unidadeCompra : form.unidadeConteudo;
+    const conteudo = Number(form.conteudoPorEmbalagem) || 0;
     const embalagens = Number(form.estoqueEmbalagens) || 0;
     const aberto = Number(form.estoqueConteudoAberto) || 0;
-    const fator = ['kg', 'l'].includes(unidadeConteudo) ? 1000 : unidadeConteudo === 'mg' ? 0.001 : 1;
+    const fatores = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
+    const fator = fatores[unidade] || 1;
     const conteudoBase = conteudo * fator;
     const totalBase = (embalagens * conteudoBase) + (aberto * fator);
-    const custoBase = Number(form.precoCompra) > 0 && conteudoBase > 0 ? Number(form.precoCompra) / conteudoBase : 0;
-    return { total: totalBase / fator, totalBase, unidadeControle, unidadeConteudo, totalKg: ['g', 'kg'].includes(unidadeConteudo) ? totalBase / 1000 : null, custoBase, custoKg: custoBase * 1000 };
+    const precoCompra = Number(form.precoCompra) || 0;
+    const custoBase = precoCompra > 0 && conteudoBase > 0 ? precoCompra / conteudoBase : 0;
+    const ePeso = ['g', 'kg', 'mg'].includes(unidade);
+    const eVolume = ['l', 'ml'].includes(unidade);
+    const eUnidade = unidade === 'un';
+    return {
+      total: totalBase / fator,
+      totalBase,
+      unidadeConteudo: unidade,
+      totalKg: ePeso ? totalBase / 1000 : undefined,
+      custoUnitarioBase: custoBase,
+      custoPorKg: ePeso ? custoBase * 1000 : undefined,
+      custoPor100g: ePeso ? custoBase * 100 : undefined,
+      custoPorGrama: ePeso ? custoBase : undefined,
+      custoPorLitro: eVolume ? custoBase * 1000 : undefined,
+      custoPor100ml: eVolume ? custoBase * 100 : undefined,
+      custoPorUnidade: eUnidade ? custoBase : undefined,
+    };
   })() : null;
 
   const submit = async (event) => {
@@ -84,6 +104,11 @@ export default function Products() {
     }
 
     const tipo = form.tipo;
+    if (tipo === 'insumo') {
+      if (Number(form.precoCompra || 0) <= 0) { showToast('⚠️ Preço de compra por embalagem deve ser maior que zero.', 'warning'); return; }
+      if (Number(form.conteudoPorEmbalagem || 0) <= 0) { showToast('⚠️ Conteúdo da embalagem deve ser maior que zero.', 'warning'); return; }
+      if (Number(form.estoqueEmbalagens || 0) < 0) { showToast('⚠️ Quantidade de embalagens não pode ser negativa.', 'warning'); return; }
+    }
     const payload = {
       ...form,
       tipo,
@@ -103,6 +128,14 @@ export default function Products() {
       rendimentoPorUnidadeCompra: 0,
       ativo: true,
     };
+    if (editingInsumo) {
+      delete payload.precoCompra;
+      delete payload.custoUnitario;
+      delete payload.custo;
+      delete payload.conteudoPorEmbalagem;
+      delete payload.unidadeConteudo;
+      delete payload.unidadeCompra;
+    }
 
     try {
       if (editing) await api.put(`/products/${editing._id}`, payload);
@@ -119,6 +152,11 @@ export default function Products() {
 
   const editarProduto = (produto) => {
     setEditing(produto);
+    const unidadesDiretas = ['kg', 'g', 'mg', 'l', 'ml', 'un'];
+    const unidadeCompra = produto.unidadeCompra || 'kg';
+    const isDireta = unidadesDiretas.includes(unidadeCompra);
+    const conteudoPorEmbalagem = isDireta ? (Number(produto.conteudoPorEmbalagem) || 1) : (produto.conteudoPorEmbalagem ?? '');
+    const unidadeConteudo = produto.unidadeConteudo || (isDireta ? unidadeCompra : 'g');
     setForm({
       codigo: produto.codigo,
       nome: produto.nome,
@@ -127,9 +165,9 @@ export default function Products() {
       categoria: produto.categoria || 'Bebidas Quentes',
       preco: produto.preco ?? '',
       precoCompra: produto.precoCompra ?? '',
-      unidadeCompra: produto.unidadeCompra || 'lata',
-      conteudoPorEmbalagem: produto.conteudoPorEmbalagem ?? '',
-      unidadeConteudo: produto.unidadeConteudo || 'g',
+      unidadeCompra: unidadeCompra,
+      conteudoPorEmbalagem: conteudoPorEmbalagem,
+      unidadeConteudo: unidadeConteudo,
       estoqueEmbalagens: produto.estoqueEmbalagens ?? produto.estoqueInsumos ?? '',
       estoqueConteudoAberto: produto.estoqueConteudoAberto ?? 0,
       estoqueMinimoEmbalagens: produto.estoqueMinimoEmbalagens ?? produto.estoqueMinimoInsumos ?? '',
@@ -162,7 +200,7 @@ export default function Products() {
   };
 
   const filtrados = produtos.filter((produto) => {
-    const tipoOk = filtroTipo === 'Todos' || (filtroTipo === 'À Venda' ? produto.tipo === 'venda' : produto.tipo === 'insumo');
+    const tipoOk = filtroTipo === 'Todos' || (filtroTipo === 'Estoque de Venda' ? produto.tipo === 'venda' : produto.tipo === 'insumo');
     const categoriaOk = filtroCategoria === 'Todos' || (produto.categoria === filtroCategoria);
     const textoOk = [produto.nome, produto.codigo].join(' ').toLowerCase().includes(filtroTexto.toLowerCase());
     return tipoOk && categoriaOk && textoOk;
@@ -187,11 +225,11 @@ export default function Products() {
                 <span className="product-type-label">Tipo *</span>
                 <div className="product-radio-group">
                   <label className="product-radio-option">
-                    <input className="product-radio" type="radio" name="tipoProduto" value="venda" checked={form.tipo === 'venda'} onChange={() => setForm({ ...form, tipo: 'venda', categoria: 'Bebidas Quentes' })} />
+                    <input className="product-radio" type="radio" name="tipoProduto" value="venda" disabled={Boolean(editing)} checked={form.tipo === 'venda'} onChange={() => setForm({ ...form, tipo: 'venda', categoria: 'Bebidas Quentes' })} />
                     Produto à venda
                   </label>
                   <label className="product-radio-option">
-                    <input className="product-radio" type="radio" name="tipoProduto" value="insumo" checked={form.tipo === 'insumo'} onChange={() => setForm({ ...form, tipo: 'insumo', categoria: 'Insumos' })} />
+                    <input className="product-radio" type="radio" name="tipoProduto" value="insumo" disabled={Boolean(editing)} checked={form.tipo === 'insumo'} onChange={() => setForm({ ...form, tipo: 'insumo', categoria: 'Insumos' })} />
                     Insumo / Matéria-prima
                   </label>
                 </div>
@@ -247,27 +285,34 @@ export default function Products() {
           ) : (
             <>
             <section className="product-form-section">
-              <div className="product-section-title"><span>📦</span><div><strong>DADOS DE COMPRA</strong><small>Como você adquire e controla o insumo</small></div></div>
+              <div className="product-section-title"><span>💰</span><div><strong>COMPRA</strong><small>Preço, conteúdo e quantidade de embalagens</small></div></div>
               <div className="product-form-grid">
-                <label>Preço de compra (R$) * <input type="number" step="0.01" min={0} value={form.precoCompra} required onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
-                <label>Unidade de controle * <small>Como você compra e controla o estoque</small>
-                  <select value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidadeCompra: event.target.value })}>
+                <label>Preço de compra POR EMBALAGEM (R$) * <input type="number" step="0.01" min={0} value={form.precoCompra} required={!editingInsumo} readOnly={editingInsumo} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
+                <label>Tipo de embalagem * <small>Unidade em que você compra</small>
+                  <select value={form.unidadeCompra} disabled={editingInsumo} onChange={(event) => {
+                    const direta = ['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(event.target.value);
+                    setForm({ ...form, unidadeCompra: event.target.value, conteudoPorEmbalagem: direta ? 1 : '', unidadeConteudo: direta ? event.target.value : 'g' });
+                  }}>
                     {['kg', 'g', 'mg', 'l', 'ml', 'un', 'lata', 'caixa', 'pacote', 'rolo'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </select>
                 </label>
-                <label>Estoque atual ({form.unidadeCompra}) <input type="number" step="0.001" min={0} value={form.estoqueEmbalagens} onChange={(event) => setForm({ ...form, estoqueEmbalagens: event.target.value })} /></label>
-                <label>Estoque mínimo ({form.unidadeCompra}) <input type="number" step="0.001" min={0} value={form.estoqueMinimoEmbalagens} onChange={(event) => setForm({ ...form, estoqueMinimoEmbalagens: event.target.value })} /></label>
-                {['lata', 'caixa', 'pacote', 'rolo'].includes(form.unidadeCompra) && <label>Conteúdo de referência por unidade <small>Ex.: 395 g por lata</small>
-                  <div className="product-input-with-unit"><input type="number" step="0.001" min={0} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /><select value={form.unidadeConteudo} onChange={(event) => setForm({ ...form, unidadeConteudo: event.target.value })}><option value="un">un</option><option value="g">g</option><option value="kg">kg</option><option value="mg">mg</option><option value="ml">ml</option><option value="l">l</option></select></div>
-                </label>}
+                <label>Conteúdo da embalagem * <small>Quanto tem dentro de cada embalagem</small>
+                  <div className="product-input-with-unit"><input type="number" step="0.001" min={0} required={!editingInsumo} readOnly={editingInsumo} value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /><select value={form.unidadeConteudo} disabled={editingInsumo} onChange={(event) => setForm({ ...form, unidadeConteudo: event.target.value })}>{['un', 'g', 'kg', 'mg', 'ml', 'l'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}</select></div>
+                </label>
+                <label>Quantidade de embalagens em estoque * <input type="number" step="0.001" min={0} value={form.estoqueEmbalagens} required onChange={(event) => setForm({ ...form, estoqueEmbalagens: event.target.value })} /></label>
+                <label>Estoque mínimo ({form.unidadeConteudo}) <small>Mínimo em unidade de conteúdo</small><input type="number" step="0.001" min={0} value={form.estoqueMinimoEmbalagens} onChange={(event) => setForm({ ...form, estoqueMinimoEmbalagens: event.target.value })} /></label>
               </div>
             </section>
             <section className="product-form-section product-summary-section">
-              <div className="product-section-title"><span>📊</span><div><strong>RESUMO AUTOMÁTICO</strong><small>Calculado a partir da compra e do conteúdo</small></div></div>
+              <div className="product-section-title"><span>📊</span><div><strong>RESUMO AUTOMÁTICO</strong><small>Calculado — nenhuma conta manual</small></div></div>
               <div className="product-summary-grid">
                 <div><span>Estoque total</span><strong>{(resumoInsumo?.total || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {resumoInsumo?.unidadeConteudo || form.unidadeCompra}</strong></div>
-                <div><span>Custo por unidade de controle</span><strong>R$ {Number(form.precoCompra || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {form.unidadeCompra}</strong></div>
-                <div><span>Custo por unidade de uso</span><strong>R$ {(resumoInsumo?.custoBase || 0).toLocaleString('pt-BR', { minimumFractionDigits: 6, maximumFractionDigits: 6 })} / {resumoInsumo?.unidadeConteudo || form.unidadeCompra}</strong></div>
+                <div><span>Custo por kg</span><strong>R$ {(resumoInsumo?.custoPorKg || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>
+                <div><span>Custo por 100g</span><strong>R$ {(resumoInsumo?.custoPor100g || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>
+                <div><span>Custo por grama</span><strong>R$ {(resumoInsumo?.custoPorGrama || 0).toLocaleString('pt-BR', { minimumFractionDigits: 6, maximumFractionDigits: 6 })}</strong></div>
+                <div><span>Custo por unidade base</span><strong>R$ {(resumoInsumo?.custoUnitarioBase || 0).toLocaleString('pt-BR', { minimumFractionDigits: 6, maximumFractionDigits: 6 })} / {resumoInsumo?.unidadeConteudo || form.unidadeCompra}</strong></div>
+                {resumoInsumo?.esgotado && <div><span style={{ color: 'var(--error-bg)' }}>⚠️ Estoque esgotado!</span></div>}
+                {resumoInsumo?.abaixoMinimo && <div><span style={{ color: 'var(--warning-bg)' }}>⚠️ Abaixo do mínimo!</span></div>}
               </div>
             </section>
             </>
@@ -323,8 +368,8 @@ export default function Products() {
                   <div>
                     <strong>R$ {Number(produto.preco || 0).toFixed(2).replace('.', ',')}</strong>
                     <small>{produto.tipo === 'insumo' ? `Compra: R$ ${Number(produto.precoCompra || 0).toFixed(2).replace('.', ',')}` : `Categoria: ${produto.categoria}`}</small>
-                    <small className={Number(produto.tipo === 'insumo' ? (produto.estoqueEmbalagens ?? produto.estoqueInsumos) : produto.estoque) <= 5 ? 'low-stock' : ''}>{Number(produto.tipo === 'insumo' ? (produto.estoqueEmbalagens ?? produto.estoqueInsumos) : produto.estoque) || 0} {produto.tipo === 'insumo' ? (produto.unidadeCompra || 'embalagens') : 'em estoque'}</small>
-                    {produto.tipo === 'insumo' && produto.resumoInsumo && <small>{Number(produto.resumoInsumo.totalKg || produto.resumoInsumo.total || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {produto.resumoInsumo.totalKg ? 'kg disponíveis' : produto.resumoInsumo.unidadeConteudo}</small>}
+                    <small className={produto.tipo === 'insumo' ? ((produto.resumoInsumo?.abaixoMinimo || produto.resumoInsumo?.esgotado) ? 'low-stock' : '') : (Number(produto.estoque || 0) <= 5 ? 'low-stock' : '')}>{produto.tipo === 'insumo' ? (Number(produto.resumoInsumo?.embalagensFechadas || produto.estoqueEmbalagens || produto.estoqueInsumos || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })) : (Number(produto.estoque) || 0)} {produto.tipo === 'insumo' ? (produto.unidadeCompra || 'embalagens') : 'em estoque'}</small>
+                    {produto.tipo === 'insumo' && produto.resumoInsumo && <small>{Number(produto.resumoInsumo.totalKg || produto.resumoInsumo.total || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {produto.resumoInsumo.totalKg ? 'kg disponíveis' : produto.resumoInsumo.unidadeConteudo} · R$ {(produto.resumoInsumo.custoUnitarioBase || 0).toLocaleString('pt-BR', { minimumFractionDigits: 6, maximumFractionDigits: 6 })}/{produto.resumoInsumo.unidadeConteudo}</small>}
                   </div>
                   <div className="product-card-actions">
                     <button type="button" onClick={() => editarProduto(produto)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}>Editar</button>
@@ -349,7 +394,7 @@ export default function Products() {
         .product-form-section input, .product-form-section select { width: 100%; box-sizing: border-box; min-height: 42px; padding: 9px 11px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--input-text); font: inherit; }
         .product-input-with-unit { display: grid; grid-template-columns: minmax(0, 1fr) 76px; gap: 8px; }
         .product-summary-section { background: var(--bg-secondary); }
-        .product-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+        .product-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
         .product-summary-grid div { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--border-light); border-radius: 9px; }
         .product-summary-grid span { color: var(--text-secondary); font-size: 11px; }
         .product-summary-grid strong { color: var(--text-primary); font-size: 14px; }

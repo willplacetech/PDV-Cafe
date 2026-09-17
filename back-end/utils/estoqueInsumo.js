@@ -32,6 +32,23 @@ const custoPorBase = (produto = {}) => {
   return preco > 0 && conteudo > 0 ? preco / conteudo : 0;
 };
 
+const calcularCustoUnitarioBase = (precoCompra, conteudoPorEmbalagem, unidadeConteudo) => {
+  const preco = Number(precoCompra || 0);
+  const conteudo = Number(conteudoPorEmbalagem || 0);
+  const unidade = (unidadesDiretas.includes(unidadeConteudo) ? unidadeConteudo : 'g') || 'g';
+  if (preco <= 0 || conteudo <= 0) return 0;
+  const base = paraBase(conteudo, unidade);
+  if (base <= 0) return 0;
+  return preco / base;
+};
+
+const calcularEstoqueMinimoBase = (estoqueMinimo, unidadeConteudo) => {
+  const minimo = Number(estoqueMinimo || 0);
+  const unidade = (unidadesDiretas.includes(unidadeConteudo) ? unidadeConteudo : 'g') || 'g';
+  if (minimo <= 0) return 0;
+  return paraBase(minimo, unidade);
+};
+
 const resumoEstoqueInsumo = (produto = {}) => {
   const totalBase = estoqueTotalBase(produto);
   const conteudoBase = conteudoPorEmbalagemBase(produto);
@@ -45,6 +62,74 @@ const resumoEstoqueInsumo = (produto = {}) => {
     totalBase,
     total: totalBase / fator,
     totalKg: ['g', 'kg'].includes(unidade) ? totalBase / 1000 : undefined,
+    custoUnitarioBase: custoPorBase(produto),
+    precoPorEmbalagem: Number(produto.precoCompra || 0),
+  };
+};
+
+const conversaoUnidadeMedida = (produto = {}) => {
+  const fator = fatoresBase[unidadeBase(produto)] || 1;
+  const base = Number(produto.estoqueMinimoBase || 0);
+  return base > 0 ? base / fator : undefined;
+};
+
+const calcularResumoCompleto = (produto = {}) => {
+  const resumo = resumoEstoqueInsumo(produto);
+  const unidade = resumo.unidadeConteudo;
+  const fator = fatoresBase[unidade] || 1;
+  const precoPorEmbalagem = Number(produto.precoCompra || 0);
+  const conteudoBase = resumo.conteudoPorEmbalagem * fator;
+  const custoBase = precoPorEmbalagem > 0 && conteudoBase > 0 ? precoPorEmbalagem / conteudoBase : 0;
+  const ePeso = ['g', 'kg', 'mg'].includes(unidade);
+  const eVolume = ['l', 'ml'].includes(unidade);
+  const eUnidade = unidade === 'un';
+  return {
+    ...resumo,
+    precoPorEmbalagem,
+    conteudoPorEmbalagem: resumo.conteudoPorEmbalagem,
+    unidadeConteudo: unidade,
+    embalagensFechadas: resumo.embalagensFechadas,
+    total: resumo.total,
+    totalBase: resumo.totalBase,
+    totalKg: resumo.totalKg,
+    custoUnitarioBase: custoBase,
+    custoPorKg: ePeso ? custoBase * 1000 : undefined,
+    custoPor100g: ePeso ? custoBase * 100 : undefined,
+    custoPorGrama: ePeso ? custoBase : undefined,
+    custoPorLitro: eVolume ? custoBase * 1000 : undefined,
+    custoPor100ml: eVolume ? custoBase * 100 : undefined,
+    custoPorGramaBase: custoBase,
+    custoPorUnidade: eUnidade ? custoBase : undefined,
+    estoqueMinimo: conversaoUnidadeMedida(produto),
+    estoqueMinimoBase: Number(produto.estoqueMinimoBase || 0),
+    unidadeMinimo: unidade,
+    abaixoMinimo: resumo.totalBase > 0 && Number(produto.estoqueMinimoBase || 0) > 0 && resumo.totalBase < Number(produto.estoqueMinimoBase || 0),
+    esgotado: resumo.totalBase <= 0,
+  };
+};
+
+const ajustarEstoque = (produto, deltaEmbalagens) => {
+  const embalagensAntes = embalagensFechadas(produto);
+  const conteudoBase = conteudoPorEmbalagemBase(produto);
+  const unidade = unidadeBase(produto);
+  const fator = fatoresBase[unidade] || 1;
+  const totalAntes = (embalagensAntes * conteudoBase) / fator;
+  const novoTotal = embalagensAntes + deltaEmbalagens;
+  if (novoTotal < 0) throw new Error(`Não é possível reduzir ${Math.abs(deltaEmbalagens)} embalagem(s): o estoque atual é ${embalagensAntes}`);
+  produto.estoqueEmbalagens = novoTotal;
+  produto.estoqueInsumos = novoTotal;
+  const embalagensDepois = embalagensFechadas(produto);
+  const totalDepois = (embalagensDepois * conteudoBase) / fator;
+  return {
+    embalagensAntes,
+    embalagensDepois,
+    delta: deltaEmbalagens,
+    unidadeConteudo: unidade,
+    unidadeEmbalagem: produto.unidadeCompra || 'embalagem',
+    totalAntes,
+    totalDepois,
+    totalAntesKg: ['g', 'kg'].includes(unidade) ? (embalagensAntes * conteudoBase) / 1000 : undefined,
+    totalDepoisKg: ['g', 'kg'].includes(unidade) ? (embalagensDepois * conteudoBase) / 1000 : undefined,
   };
 };
 
@@ -88,4 +173,4 @@ const consumirInsumo = (produto, quantidade, unidade) => {
   return { embalagensConsumidas, conteudoConsumido: quantidadeBase, quantidadeConvertida, unidadeControle: controle, conteudoRestante: aberto, mensagem: `${quantidade} ${unidade} equivalem a ${Number(quantidadeConvertida.toFixed(4))} ${controle} - desconto aplicado` };
 };
 
-module.exports = { paraBase, unidadeBase, conteudoPorEmbalagemBase, embalagensFechadas, conteudoAberto, estoqueTotalBase, resumoEstoqueInsumo, custoPorBase, consumirInsumo };
+module.exports = { fatoresBase, paraBase, unidadesDiretas, unidadesEmbalagem, unidadeControle, unidadeBase, conteudoPorEmbalagemBase, embalagensFechadas, conteudoAberto, estoqueTotalBase, resumoEstoqueInsumo, calcularResumoCompleto, custoPorBase, calcularCustoUnitarioBase, calcularEstoqueMinimoBase, consumirInsumo, ajustarEstoque };

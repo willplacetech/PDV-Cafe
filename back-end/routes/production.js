@@ -8,7 +8,7 @@ const Production = require('../models/Production');
 const StockMovement = require('../models/StockMovement');
 const { calcularCustoReceita } = require('../utils/custo');
 const { dadosEstoqueProduto } = require('../utils/estoqueProduto');
-const { paraBase, resumoEstoqueInsumo, consumirInsumo, estoqueTotalBase, unidadeBase } = require('../utils/estoqueInsumo');
+const { paraBase, calcularResumoCompleto, consumirInsumo, estoqueTotalBase, unidadeBase } = require('../utils/estoqueInsumo');
 
 const router = express.Router();
 const locations = ['venda', 'insumos'];
@@ -125,14 +125,14 @@ router.get('/stock', async (req, res) => {
     const field = balanceField(location);
     const products = await Product.find({ tipo: location === 'insumos' ? 'insumo' : 'venda', $or: [{ [field]: { $gt: 0 } }, { [field]: 0 }] }).sort({ nome: 1 });
     res.json(products.map((product) => {
-      const resumo = location === 'insumos' ? resumoEstoqueInsumo(product) : null;
-      return { ...product.toObject(), ...dadosEstoqueProduto(product), local: location, saldo: location === 'venda' ? dadosEstoqueProduto(product).estoque : resumo.embalagensFechadas, totalDisponivel: resumo?.total || 0, totalKgDisponivel: resumo?.totalKg, unidadeDisponivel: resumo?.unidadeConteudo, conteudoAberto: resumo?.conteudoAberto || 0, minimo: Number(location === 'insumos' ? (product.estoqueMinimoEmbalagens ?? product.estoqueMinimoInsumos) : product.estoqueMinimo || 0) };
+      const resumo = location === 'insumos' ? calcularResumoCompleto(product) : null;
+      return { ...product.toObject(), ...dadosEstoqueProduto(product), local: location, saldo: location === 'venda' ? dadosEstoqueProduto(product).estoque : resumo.embalagensFechadas, totalDisponivel: resumo?.total || 0, totalKgDisponivel: resumo?.totalKg, unidadeDisponivel: resumo?.unidadeConteudo, conteudoAberto: resumo?.conteudoAberto || 0, minimo: Number(location === 'insumos' ? (resumo?.estoqueMinimo || product.estoqueMinimoEmbalagens || product.estoqueMinimoInsumos || 0) : product.estoqueMinimo || 0) };
     }));
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
 router.get('/movements', async (req, res) => {
-  try { res.json(await StockMovement.find().sort({ createdAt: -1 }).limit(100)); } catch (error) { res.status(500).json({ msg: error.message }); }
+  try { res.json(await StockMovement.find().sort({ createdAt: -1 }).limit(100).populate('createdBy', 'username').lean()); } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
 router.post('/transfer', [body('produtoId').isMongoId(), body('origem').isIn(locations), body('destino').isIn(locations), body('quantidade').isFloat({ min: 0.001 })], async (req, res) => {

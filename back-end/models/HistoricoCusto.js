@@ -6,7 +6,7 @@ const historicoCustoSchema = new mongoose.Schema({
   receitaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Recipe', default: null },
   motivo: {
     type: String,
-    enum: ['atualizacao_insumo', 'calculo_manual', 'alteracao_receita'],
+    enum: ['atualizacao_insumo', 'compra', 'calculo_manual', 'alteracao_receita'],
     required: true,
   },
   data: { type: Date, default: Date.now },
