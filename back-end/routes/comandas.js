@@ -54,7 +54,7 @@ async function recalcularPrecosComanda(comanda, session) {
 async function ajustarEstoque(itens, operacao, session) {
   const idsDosItens = itens.map((item) => item.produtoId);
   const produtosVenda = await Product.find({ _id: { $in: idsDosItens } }).session(session);
-  const idsDosIngredientes = produtosVenda.filter((produto) => produto.aFazer).flatMap((produto) => (produto.fichaTecnica || []).map((ingrediente) => ingrediente.produtoId));
+  const idsDosIngredientes = produtosVenda.filter((produto) => (produto.tipoProduto || (produto.aFazer ? 'coz' : 'revenda')) === 'coz').flatMap((produto) => (produto.fichaTecnica || []).map((ingrediente) => ingrediente.produtoId));
   const produtos = idsDosIngredientes.length
     ? await Product.find({ _id: { $in: [...idsDosItens, ...idsDosIngredientes] } }).session(session)
     : produtosVenda;
@@ -66,7 +66,7 @@ async function ajustarEstoque(itens, operacao, session) {
     const produto = porId.get(String(item.produtoId));
     if (produto) normalizarEstoqueLegado(produto);
     const ficha = item.insumosConsumidos?.length ? item.insumosConsumidos : produto?.fichaTecnica;
-    if (produto?.aFazer && ficha?.length) {
+    if (produto && (produto.tipoProduto || (produto.aFazer ? 'coz' : 'revenda')) === 'coz' && ficha?.length) {
       ficha.forEach((ingrediente) => {
         const ingredienteProduto = porId.get(String(ingrediente.produtoId));
         if (!ingredienteProduto) throw new Error(`Ingrediente não encontrado para ${produto.nome}`);

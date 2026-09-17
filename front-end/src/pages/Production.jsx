@@ -59,7 +59,7 @@ export default function Production() {
     loadInitialData();
   }, []);
 
-  const producibleProducts = products.filter((product) => product.tipo === 'venda' && (product.aFazer || product.producaoPropria));
+  const producibleProducts = products.filter((product) => product.tipo === 'venda' && (product.tipoProduto === 'producao' || (!product.tipoProduto && product.producaoPropria)));
   const fichasFiltradas = recipes.filter((recipe) => {
     const tipoOk = filtroFicha === 'todos' || (filtroFicha === 'coz' ? recipe.produtoId?.aFazer : recipe.produtoId?.producaoPropria && !recipe.produtoId?.aFazer);
     return tipoOk && String(recipe.produtoId?.nome || recipe.nome).toLowerCase().includes(buscaFicha.toLowerCase());

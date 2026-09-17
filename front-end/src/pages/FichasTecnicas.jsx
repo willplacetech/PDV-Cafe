@@ -36,11 +36,13 @@ export default function FichasTecnicas() {
 
   useEffect(() => { load(); }, []);
 
-  const recipeProducts = products.filter((product) => product.tipo === 'venda' && (product.aFazer || product.producaoPropria));
+  const recipeProducts = products.filter((product) => product.tipo === 'venda' && ['coz', 'producao'].includes(product.tipoProduto || (product.aFazer ? 'coz' : product.producaoPropria ? 'producao' : 'revenda')));
   const ingredients = products.filter((product) => product.tipo === 'insumo' || product.usavelEmReceita);
   const ingredientById = (id) => ingredients.find((product) => String(product._id) === String(id));
 
   const availability = (recipe) => {
+    const tipo = recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : 'producao');
+    if (tipo === 'producao') return { quantity: Number(recipe.produtoId?.estoque || 0), limiting: 'Estoque do produto' };
     const values = recipe.ingredientes.map((item) => {
       const product = ingredientById(item.produtoId?._id || item.produtoId);
       const stock = Number(product?.resumoInsumo?.totalBase ?? product?.estoqueInsumos ?? product?.estoque ?? 0);
@@ -58,7 +60,8 @@ export default function FichasTecnicas() {
 
   const filteredRecipes = recipes.filter((recipe) => {
     const product = recipe.produtoId || {};
-    const typeOk = filter === 'todos' || (filter === 'coz' ? product.aFazer : product.producaoPropria && !product.aFazer);
+    const tipo = product.tipoProduto || (product.aFazer ? 'coz' : product.producaoPropria ? 'producao' : 'revenda');
+    const typeOk = filter === 'todos' || (filter === 'coz' ? tipo === 'coz' : tipo === 'producao');
     return typeOk && String(product.nome || recipe.nome).toLowerCase().includes(search.toLowerCase());
   });
 
@@ -86,7 +89,9 @@ export default function FichasTecnicas() {
     event.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...recipeForm, rendimento: Number(recipeForm.rendimento), ingredientes: recipeForm.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })) };
+      const produto = recipeProducts.find((item) => String(item._id) === String(recipeForm.produtoId));
+      const tipoProduto = produto?.tipoProduto || (produto?.aFazer ? 'coz' : 'producao');
+      const payload = { ...recipeForm, rendimento: tipoProduto === 'coz' ? 1 : Number(recipeForm.rendimento), ingredientes: recipeForm.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })) };
       if (editingId) await api.put(`/production/recipes/${editingId}`, payload);
       else await api.post('/production/recipes', payload);
       showToast(editingId ? 'Ficha atualizada' : 'Ficha criada', 'success');

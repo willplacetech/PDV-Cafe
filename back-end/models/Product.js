@@ -26,6 +26,17 @@ const ProductSchema = new mongoose.Schema({
     default: 'venda',
     index: true,
   },
+  tipoProduto: {
+    type: String,
+    enum: ['revenda', 'coz', 'producao'],
+    default: 'revenda',
+    index: true,
+  },
+  rendimentoPorReceita: {
+    type: Number,
+    min: [0.001, 'Rendimento por receita deve ser maior que zero'],
+    default: 1,
+  },
   codigo: {
     type: String,
     required: [true, 'Código é obrigatório'],

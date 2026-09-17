@@ -430,8 +430,9 @@ export default function PDV() {
               }}>
                 {filtrados.map(p => {
                   const cat = corCategoria[p.categoria] || corCategoria.Outros;
-                  const semEstoque = p.estoque <= 0;
-                  const estoqueBaixo = p.estoque > 0 && p.estoque <= 5;
+                  const disponibilidade = p.aFazer ? Number(p.cozDisponibilidade?.disponivel || 0) : Number(p.estoque || 0);
+                  const semEstoque = disponibilidade <= 0;
+                  const estoqueBaixo = disponibilidade > 0 && disponibilidade <= 5;
                   return (
                     <div key={p._id} onClick={() => selecionarProduto(p)} style={{
                       background: 'var(--bg-secondary)', border: `1.5px solid ${semEstoque ? 'var(--border-light)' : cat.border}`,
@@ -453,7 +454,7 @@ export default function PDV() {
                         <div style={{
                           fontSize: 10, fontWeight: estoqueBaixo ? 700 : 500,
                           color: estoqueBaixo ? 'var(--error-bg)' : 'var(--text-secondary)'
-                        }}>Est: {p.estoque}</div>
+                        }}>{p.aFazer ? `Disponível: ${disponibilidade} porções` : `Est: ${disponibilidade}`}</div>
                         <div style={{
                           fontWeight: 700, fontSize: 16, color: semEstoque ? 'var(--text-tertiary)' : 'var(--accent-primary)',
                           fontVariantNumeric: 'tabular-nums'

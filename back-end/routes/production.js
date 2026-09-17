@@ -35,9 +35,11 @@ const sincronizarCustoReceita = async (recipeId) => {
     unidade: item.unidade,
     custoUnitarioBase: Number(item.produtoId?.custoUnitarioBase || 0),
   }));
-  const resultado = calcularCustoReceita(ingredientes, recipe.custoEmbalagem, recipe.custoIndireto, recipe.maoDeObra, Number(recipe.rendimento || 1));
+  const tipoProduto = recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : 'producao');
+  const rendimento = tipoProduto === 'coz' ? 1 : Number(recipe.rendimento || 1);
+  const resultado = calcularCustoReceita(ingredientes, recipe.custoEmbalagem, recipe.custoIndireto, recipe.maoDeObra, rendimento);
   await Recipe.findByIdAndUpdate(recipe._id, { $set: { custoInsumosTotal: resultado.custoInsumosTotal, custoTotal: resultado.custoTotal, custoUnitario: resultado.custoUnitario } });
-  await Product.findByIdAndUpdate(recipe.produtoId, { $set: { custo: resultado.custoUnitario, custoUnitario: resultado.custoUnitario, fichaTecnica: recipe.ingredientes.map((item) => ({ produtoId: item.produtoId._id || item.produtoId, quantidade: Number(item.quantidade) / Math.max(1, Number(recipe.rendimento || 1)), unidade: item.unidade })) } });
+  await Product.findByIdAndUpdate(recipe.produtoId, { $set: { custo: resultado.custoUnitario, custoUnitario: resultado.custoUnitario, fichaTecnica: recipe.ingredientes.map((item) => ({ produtoId: item.produtoId._id || item.produtoId, quantidade: tipoProduto === 'coz' ? Number(item.quantidade) : Number(item.quantidade) / Math.max(1, Number(recipe.rendimento || 1)), unidade: item.unidade })) } });
 };
 
 router.use(auth);
@@ -57,14 +59,15 @@ router.get('/recipes', async (req, res) => {
   try {
     const recipes = await Recipe.find().populate('produtoId', 'nome codigo unidadeVenda producaoPropria aFazer').populate('ingredientes.produtoId', 'nome codigo tipo usavelEmReceita precoCompra custoUnitarioBase unidadeVenda unidadeConteudo conteudoPorEmbalagem estoque estoqueInsumos estoqueEmbalagens estoqueConteudoAberto').populate('updatedBy', 'username').sort({ nome: 1 });
     res.json(recipes.map((recipe) => {
-      const limites = recipe.ingredientes.map((item) => {
+      const produtoTipo = recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : 'producao');
+      const limites = produtoTipo === 'producao' ? [Number(recipe.produtoId?.estoque || 0)] : recipe.ingredientes.map((item) => {
         const estoque = estoqueTotalBase(item.produtoId);
         const consumo = paraBase(item.quantidade, item.unidade);
         return consumo > 0 ? estoque / consumo : 0;
       });
       const producoesPossiveis = limites.length ? Math.floor(Math.min(...limites)) : 0;
       const custoPorUnidade = Number(recipe.custoUnitario || 0);
-      return { ...recipe.toObject(), tipoFicha: recipe.produtoId?.aFazer ? 'coz' : 'producao', disponibilidade: { quantidade: producoesPossiveis * Number(recipe.rendimento || 1), limitante: recipe.ingredientes[limites.findIndex((limite) => limite === Math.min(...limites))]?.produtoId?.nome || null }, custoPorUnidade };
+      return { ...recipe.toObject(), tipoFicha: produtoTipo, disponibilidade: { quantidade: produtoTipo === 'producao' ? producoesPossiveis : producoesPossiveis * Number(recipe.rendimento || 1), limitante: produtoTipo === 'producao' ? 'Estoque do produto' : recipe.ingredientes[limites.findIndex((limite) => limite === Math.min(...limites))]?.produtoId?.nome || null }, custoPorUnidade };
     }));
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
@@ -82,7 +85,9 @@ router.post('/recipes', onlyManager, [
     const produto = await Product.findById(produtoId);
     if (!produto) return res.status(404).json({ msg: 'Produto produzido não encontrado' });
     if (produto.tipo === 'insumo') return res.status(400).json({ msg: 'Insumos não podem ser produtos produzidos' });
-    if (!produto.aFazer && !produto.producaoPropria) return res.status(400).json({ msg: 'Vincule a ficha a um produto Coz ou de produção própria' });
+    const tipoProduto = produto.tipoProduto || (produto.aFazer ? 'coz' : produto.producaoPropria ? 'producao' : 'revenda');
+    if (!['coz', 'producao'].includes(tipoProduto)) return res.status(400).json({ msg: 'Vincule a ficha a um produto Coz ou de produção própria' });
+    if (tipoProduto === 'coz' && Number(rendimento) !== 1) return res.status(400).json({ msg: 'Ficha Coz deve ter rendimento igual a 1 porção' });
     const ids = ingredientes.map((item) => item.produtoId);
     const produtos = await Product.find({ _id: { $in: ids } });
     const byId = new Map(produtos.map((produtoItem) => [String(produtoItem._id), produtoItem]));
@@ -91,7 +96,7 @@ router.post('/recipes', onlyManager, [
     if (itens.some((item) => { const produtoItem = byId.get(String(item.produtoId)); return produtoItem.tipo !== 'insumo' && !produtoItem.usavelEmReceita; })) return res.status(400).json({ msg: 'A receita só pode usar insumos ou produtos híbridos' });
     if (await Recipe.exists({ produtoId, ativa: true })) return res.status(400).json({ msg: 'Este produto já possui uma ficha técnica' });
     const recipe = await Recipe.create({ nome: nome.trim(), produtoId, rendimento: Number(rendimento), unidadeRendimento, ingredientes: itens, createdBy: req.user.id, updatedBy: req.user.id });
-    await Product.findByIdAndUpdate(produtoId, { $set: { producaoPropria: !produto.aFazer } });
+    await Product.findByIdAndUpdate(produtoId, { $set: { tipoProduto, aFazer: tipoProduto === 'coz', producaoPropria: tipoProduto === 'producao', rendimentoPorReceita: tipoProduto === 'producao' ? Number(rendimento) : 1 } });
     await RecipeAudit.create({ receitaId: recipe._id, produtoId: produto._id, produtoNome: produto.nome, acao: 'criada', detalhes: 'Ficha técnica criada', usuarioId: req.user.id });
     await sincronizarCustoReceita(recipe._id);
     res.status(201).json(await recipe.populate('produtoId', 'nome codigo unidadeVenda producaoPropria'));
@@ -110,8 +115,12 @@ router.put('/recipes/:id', onlyManager, [
   try {
     const recipe = await Recipe.findById(req.params.id);
     if (!recipe) return res.status(404).json({ msg: 'Receita não encontrada' });
+    const produtoDaFicha = await Product.findById(req.body.produtoId || recipe.produtoId).select('tipoProduto aFazer producaoPropria');
+    const tipoProdutoFicha = produtoDaFicha?.tipoProduto || (produtoDaFicha?.aFazer ? 'coz' : produtoDaFicha?.producaoPropria ? 'producao' : 'revenda');
+    const rendimentoInformado = req.body.rendimento === undefined ? recipe.rendimento : Number(req.body.rendimento);
+    if (tipoProdutoFicha === 'coz' && rendimentoInformado !== 1) return res.status(400).json({ msg: 'Ficha Coz deve ter rendimento igual a 1 porção' });
     if (req.body.produtoId) {
-      const produto = await Product.findById(req.body.produtoId).select('tipo aFazer producaoPropria');
+      const produto = await Product.findById(req.body.produtoId).select('tipo tipoProduto aFazer producaoPropria');
       if (!produto || produto.tipo === 'insumo' || (!produto.aFazer && !produto.producaoPropria)) return res.status(400).json({ msg: 'Vincule a ficha a um produto Coz ou de produção própria' });
     }
     const fields = {};
@@ -200,6 +209,8 @@ router.post('/produce', onlyManager, [body('receitaId').isMongoId(), body('quant
     await session.withTransaction(async () => {
       const recipe = await Recipe.findOne({ _id: req.body.receitaId, ativa: true }).populate('produtoId').populate('ingredientes.produtoId').session(session);
       if (!recipe) throw new Error('Receita não encontrada ou inativa');
+      const tipoProduto = recipe.produtoId.tipoProduto || (recipe.produtoId.aFazer ? 'coz' : recipe.produtoId.producaoPropria ? 'producao' : 'revenda');
+      if (tipoProduto !== 'producao') throw new Error('Produtos Coz não podem ser lançados em produção');
       const batches = Number(req.body.quantidade);
       const consumption = recipe.ingredientes.map((item) => ({ product: item.produtoId, quantity: Number(item.quantidade) * batches, unit: item.unidade }));
       const snapshots = [];

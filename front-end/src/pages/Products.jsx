@@ -11,6 +11,7 @@ const vazio = {
   nome: '',
   marcaReferencia: '',
   tipo: 'venda',
+  tipoProduto: 'revenda',
   usavelEmReceita: false,
   categoria: 'Bebidas Quentes',
   preco: '',
@@ -175,6 +176,8 @@ export default function Products() {
     const payload = {
       ...form,
       tipo,
+      tipoProduto: tipo === 'venda' ? form.tipoProduto : undefined,
+      rendimentoPorReceita: tipo === 'venda' && form.tipoProduto === 'producao' ? Number(form.rendimentoPorReceita || 1) : 1,
       estoque: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : (form.aFazer ? 0 : limparCampoNumerico(form.estoque) ?? 0),
       estoqueEmbalagens: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : undefined,
       estoqueMinimoEmbalagens: tipo === 'insumo' ? limparCampoNumerico(form.estoqueMinimoEmbalagens) ?? 0 : undefined,
@@ -253,6 +256,8 @@ export default function Products() {
       unidadeVenda: produto.unidadeVenda || 'un',
       vendidoFracionado: Boolean(produto.vendidoFracionado),
       aFazer: Boolean(produto.aFazer),
+      tipoProduto: produto.tipoProduto || (produto.aFazer ? 'coz' : produto.producaoPropria ? 'producao' : 'revenda'),
+      rendimentoPorReceita: produto.rendimentoPorReceita || 1,
       fichaTecnica: produto.fichaTecnica || [],
       permitirVendaSemInsumo: Boolean(produto.permitirVendaSemInsumo),
       producaoPropria: Boolean(produto.producaoPropria),
@@ -302,12 +307,20 @@ export default function Products() {
                 <span className="product-type-label">Tipo *</span>
                 <div className="product-radio-group">
                   <label className="product-radio-option">
-                    <input className="product-radio" type="radio" name="tipoProduto" value="venda" disabled={Boolean(editing)} checked={form.tipo === 'venda'} onChange={() => setForm({ ...form, tipo: 'venda', categoria: 'Bebidas Quentes' })} />
-                    Produto à venda
+                    <input className="product-radio" type="radio" name="tipoProduto" value="revenda" disabled={Boolean(editing)} checked={form.tipo === 'venda' && form.tipoProduto === 'revenda'} onChange={() => setForm({ ...form, tipo: 'venda', tipoProduto: 'revenda', categoria: 'Bebidas Quentes' })} />
+                      Revenda
                   </label>
                   <label className="product-radio-option">
-                    <input className="product-radio" type="radio" name="tipoProduto" value="insumo" disabled={Boolean(editing)} checked={form.tipo === 'insumo'} onChange={() => setForm({ ...form, tipo: 'insumo', categoria: 'Insumos' })} />
-                    Insumo / Matéria-prima
+                    <input className="product-radio" type="radio" name="tipoProduto" value="coz" disabled={Boolean(editing)} checked={form.tipo === 'venda' && form.tipoProduto === 'coz'} onChange={() => setForm({ ...form, tipo: 'venda', tipoProduto: 'coz', categoria: 'Pratos na Hora', estoque: 0, aFazer: true, producaoPropria: false })} />
+                      Coz — na hora
+                    </label>
+                    <label className="product-radio-option">
+                      <input className="product-radio" type="radio" name="tipoProduto" value="producao" disabled={Boolean(editing)} checked={form.tipo === 'venda' && form.tipoProduto === 'producao'} onChange={() => setForm({ ...form, tipo: 'venda', tipoProduto: 'producao', categoria: 'Outros', aFazer: false, producaoPropria: true })} />
+                      Produção própria — lote
+                    </label>
+                    <label className="product-radio-option">
+                      <input className="product-radio" type="radio" name="tipoProduto" value="insumo" disabled={Boolean(editing)} checked={form.tipo === 'insumo'} onChange={() => setForm({ ...form, tipo: 'insumo', tipoProduto: 'revenda', categoria: 'Insumos' })} />
+                      Insumo / Matéria-prima
                   </label>
                 </div>
               </div>
@@ -382,7 +395,8 @@ export default function Products() {
                   </div>
                   {form.grupoDesconto?.nome && <small style={{ color: 'var(--success-bg)', fontSize: 11, marginTop: 6, display: 'block' }}>✓ Produtos com grupo "{form.grupoDesconto.nome}" vão somar para este desconto.</small>}
                 </div>
-                {!form.aFazer ? <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label> : <div className="coz-stock-notice"><strong>⚠️ Estoque deste produto é gerado pela ficha técnica</strong><span>Disponibilidade calculada automaticamente pelos insumos. Não cadastre quantidade aqui.</span></div>}
+                {form.tipoProduto === 'producao' && <label>Rendimento por receita *<input required type="number" min="0.001" step="0.001" value={form.rendimentoPorReceita || 1} onChange={(event) => setForm({ ...form, rendimentoPorReceita: event.target.value })} /><small>Quantas unidades saem de uma fornada.</small></label>}
+                {form.tipoProduto !== 'coz' ? <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label> : <div className="coz-stock-notice"><strong>⚠️ Coz não possui estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
                 <label>Unidade de venda
                   <select value={form.unidadeVenda} onChange={(event) => setForm({ ...form, unidadeVenda: event.target.value })}>
                     {['un', 'kg', 'g', 'l', 'ml'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
