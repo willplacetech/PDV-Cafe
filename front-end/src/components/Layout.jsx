@@ -10,6 +10,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showConfirm, setShowConfirm] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const sair = () => { logout(); navigate('/login'); };
 
@@ -216,7 +217,10 @@ export default function Layout() {
       {/* ==========================================
           BOTTOM NAV MOBILE — ITENS UM POR UM
           ========================================== */}
-      <nav id="bottom-nav">
+      <nav id="bottom-nav" className={mobileNavOpen ? 'mobile-nav-open' : 'mobile-nav-closed'} onClick={(event) => { if (event.target.closest('a')) setMobileNavOpen(false); }}>
+        <button type="button" className="mobile-nav-toggle" onClick={() => setMobileNavOpen((open) => !open)} aria-expanded={mobileNavOpen} aria-label={mobileNavOpen ? 'Fechar menu' : 'Abrir menu'}>
+          {mobileNavOpen ? '⌄ Fechar menu' : '☰ Menu'}
+        </button>
         <Link to="/pdv" className={ativoPDV ? 'bottom-link active' : 'bottom-link'}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>🛒</span>
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Novo Pedido</span>
@@ -358,10 +362,28 @@ export default function Layout() {
             z-index: 9999;
             padding-bottom: env(safe-area-inset-bottom);
             padding-top: 4px;
+            transform: translateY(calc(100% - 56px));
+            transition: transform .2s ease;
+          }
+          #bottom-nav.mobile-nav-open { transform: translateY(0); }
+          #bottom-nav.mobile-nav-closed .bottom-link { visibility: hidden; }
+          #bottom-nav .mobile-nav-toggle {
+            position: absolute;
+            top: -38px;
+            right: 14px;
+            min-height: 34px;
+            padding: 6px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px 10px 0 0;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
           }
           #main-content {
             margin-left: 0 !important;
-            padding: 16px 16px 140px 16px !important;
+            padding: 16px 16px 80px 16px !important;
             min-height: calc(100vh - 60px);
           }
         }
