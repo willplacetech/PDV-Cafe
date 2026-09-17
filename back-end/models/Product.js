@@ -12,6 +12,13 @@ const QuantityDiscountSchema = new mongoose.Schema({
   ativo: { type: Boolean, default: true },
 }, { _id: false });
 
+const GrupoDescontoSchema = new mongoose.Schema({
+  nome: { type: String, trim: true },
+  quantidadeMinima: { type: Number, min: 1 },
+  precoPromocional: { type: Number, min: 0 },
+  ativo: { type: Boolean, default: true },
+}, { _id: false });
+
 const ProductSchema = new mongoose.Schema({
   tipo: {
     type: String,
@@ -113,6 +120,10 @@ const ProductSchema = new mongoose.Schema({
   descontosPorQuantidade: {
     type: [QuantityDiscountSchema],
     default: [],
+  },
+  grupoDesconto: {
+    type: GrupoDescontoSchema,
+    default: undefined,
   },
   custo: {
     type: Number,

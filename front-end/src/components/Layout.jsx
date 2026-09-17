@@ -567,14 +567,17 @@ export default function Layout() {
         /* COLLAPSIBLE GROUPS */
         .nav-group-container { margin: 8px 0; }
         .nav-group-label-static {
-          display: block;
-          padding: 4px 14px 4px 28px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          width: 100%;
+          padding: 10px 14px;
           color: var(--text-secondary);
-          font-size: 10px;
+          font-size: 11px;
           font-weight: 800;
           letter-spacing: 0.08em;
           text-transform: uppercase;
-          user-select: none;
+          cursor: default;
         }
         .nav-group-header {
           width: 100%;

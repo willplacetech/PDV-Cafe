@@ -31,6 +31,31 @@ const precoComDesconto = (produto, quantidade, precoNormal = precoPorUnidade(pro
   const precoUnitario = faixaAplicada ? Number(faixaAplicada.precoUnitario) : precoNormal;
   return { precoNormal, precoUnitario, economiaTotal: Math.max(0, (precoNormal - precoUnitario) * Number(quantidade || 0)), faixaAplicada };
 };
+const precoComDescontoGrupo = (produto, quantidade, cartItens, precoBase) => {
+  const grupo = produto?.grupoDesconto;
+  if (!grupo?.nome || grupo.ativo === false) return null;
+  const totalGrupo = cartItens.reduce((total, item) => {
+    const itemGrupo = item.produto?.grupoDesconto;
+    if (itemGrupo?.nome === grupo.nome && itemGrupo?.ativo !== false) {
+      return total + Number(item.quantidade || 0);
+    }
+    return total;
+  }, 0);
+  const quantidadeMinima = Number(grupo.quantidadeMinima || 0);
+  const grupoAtivo = quantidadeMinima > 0 && totalGrupo >= quantidadeMinima;
+  const precoNormal = Number(precoBase);
+  const precoUnitario = grupoAtivo ? Number(grupo.precoPromocional) : precoNormal;
+  const qtd = Number(quantidade || 0);
+  return {
+    precoNormal,
+    precoUnitario,
+    economiaUnitario: Math.max(0, precoNormal - precoUnitario),
+    economiaTotal: Math.max(0, (precoNormal - precoUnitario) * qtd),
+    grupoAtivo,
+    totalGrupo,
+    faltamParaGrupo: Math.max(0, quantidadeMinima - totalGrupo),
+  };
+};
 
 
 export default function PDV() {
@@ -83,13 +108,33 @@ export default function PDV() {
     } catch { /* áudio pode ser bloqueado pelo navegador */ }
   };
 
-  const recalcularPrecosCarrinho = (itens) => itens.map((item) => {
-    const produto = produtos.find((registro) => registro._id === item.produtoId);
-    if (!produto) return item;
-    const quantidadeTotal = itens.filter((linha) => linha.produtoId === item.produtoId).reduce((total, linha) => total + Number(linha.quantidade || 0), 0);
-    const pricing = precoComDesconto(produto, quantidadeTotal, item.precoUnitarioOriginal || precoPorUnidade(produto));
-    return { ...item, precoUnitario: pricing.precoUnitario, precoUnitarioOriginal: pricing.precoNormal, economiaQuantidade: pricing.economiaTotal, faixaDescontoQuantidade: pricing.faixaAplicada?.quantidadeMinima };
-  });
+  const recalcularPrecosCarrinho = (itens) => {
+    const cartItens = itens.map((item) => ({
+      produto: produtos.find((registro) => registro._id === item.produtoId),
+      quantidade: item.quantidade,
+    }));
+    return itens.map((item) => {
+      const produto = produtos.find((registro) => registro._id === item.produtoId);
+      if (!produto) return item;
+      const quantidadeTotal = itens.filter((linha) => linha.produtoId === item.produtoId).reduce((total, linha) => total + Number(linha.quantidade || 0), 0);
+      const pricing = precoComDesconto(produto, quantidadeTotal, item.precoUnitarioOriginal || precoPorUnidade(produto));
+      const grupoPricing = precoComDescontoGrupo(produto, quantidadeTotal, cartItens, pricing.precoUnitario);
+      const grupoAtivo = grupoPricing && grupoPricing.grupoAtivo && grupoPricing.precoUnitario < pricing.precoUnitario;
+      const precoUnitario = grupoAtivo ? grupoPricing.precoUnitario : pricing.precoUnitario;
+      const precoUnitarioOriginal = grupoAtivo ? grupoPricing.precoNormal : pricing.precoNormal;
+      const economiaTotal = grupoAtivo ? grupoPricing.economiaTotal : pricing.economiaTotal;
+      return {
+        ...item,
+        precoUnitario,
+        precoUnitarioOriginal,
+        economiaQuantidade: economiaTotal,
+        faixaDescontoQuantidade: !grupoAtivo ? pricing.faixaAplicada?.quantidadeMinima : null,
+        grupoDescontoAtivo: !!grupoAtivo,
+        totalGrupo: grupoPricing?.totalGrupo || 0,
+        faltamParaGrupo: grupoPricing?.faltamParaGrupo || 0,
+      };
+    });
+  };
 
   const adicionarItem = (prod, opcoes = {}) => {
     if (prod.tipo !== 'venda') return showToast('Este item não pode entrar no PDV', 'warning');
@@ -105,10 +150,11 @@ export default function PDV() {
       setCarrinho(recalcularPrecosCarrinho(carrinho.map(i => i.produtoId === prod._id && (i.modificadores || []).join('|') === assinatura ? { ...i, quantidade: Number((i.quantidade + incremento).toFixed(3)) } : i)));
     } else {
       const pricing = precoComDesconto(prod, incremento);
-      setCarrinho([...carrinho, {
+      const novoItem = {
         produtoId: prod._id, codigo: prod.codigo, nome: prod.nome,
         precoUnitario: pricing.precoUnitario, precoUnitarioOriginal: pricing.precoNormal, economiaQuantidade: pricing.economiaTotal, faixaDescontoQuantidade: pricing.faixaAplicada?.quantidadeMinima, quantidade: incremento, unidadeVenda: prod.unidadeVenda || 'un', pesoPorUnidade: prod.pesoPorUnidade, unidadePeso: prod.unidadePeso, vendidoFracionado: permiteFracionar(prod), modificadores: modificadoresItem
-      }]);
+      };
+      setCarrinho(recalcularPrecosCarrinho([...carrinho, novoItem]));
     }
     setFeedbackProduto(prod._id);
     tocarFeedback();
@@ -493,6 +539,16 @@ export default function PDV() {
                           </div>
                         </div>
                         {item.faixaDescontoQuantidade && <div style={{ marginTop: 6, color: 'var(--success-bg)', fontSize: 11, fontWeight: 700 }}>🏷️ PROMOÇÃO · Economia: {formatMoney(item.economiaQuantidade)}</div>}
+                        {item.grupoDescontoAtivo && (
+                          <div style={{ marginTop: 4, color: 'var(--accent-primary)', fontSize: 10, fontWeight: 700 }}>
+                            🎯 DESCONTO POR GRUPO · {item.totalGrupo} itens · Economia: {formatMoney(item.economiaQuantidade)}
+                          </div>
+                        )}
+                        {!item.grupoDescontoAtivo && item.faltamParaGrupo > 0 && item.grupoDescontoAtivo === false && item.totalGrupo > 0 && (
+                          <div style={{ marginTop: 4, color: 'var(--warning-bg)', fontSize: 10, fontWeight: 600 }}>
+                            ⏳ Faltam {item.faltamParaGrupo} item(ns) para o desconto por grupo
+                          </div>
+                        )}
                         <div style={{ textAlign: 'right', marginTop: 8, fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>
                           Subtotal: R$ {(item.precoUnitario * item.quantidade).toFixed(2).replace('.', ',')}
                         </div>

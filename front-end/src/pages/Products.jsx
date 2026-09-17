@@ -15,6 +15,7 @@ const vazio = {
   categoria: 'Bebidas Quentes',
   preco: '',
   descontosPorQuantidade: [],
+  grupoDesconto: { nome: '', quantidadeMinima: '', precoPromocional: '', ativo: true },
   precoCompra: '',
   unidadeCompra: 'kg',
   conteudoPorEmbalagem: 1,
@@ -122,8 +123,24 @@ export default function Products() {
         }
       }
     }
+    if (tipo === 'venda') {
+      const gd = form.grupoDesconto;
+      if (gd && gd.nome && gd.ativo !== false) {
+        if (!Number.isInteger(Number(gd.quantidadeMinima)) || Number(gd.quantidadeMinima) < 1) {
+          showToast('⚠️ Quantidade mínima do grupo deve ser um inteiro positivo.', 'warning');
+          return;
+        }
+        if (Number(gd.precoPromocional) < 0) {
+          showToast('⚠️ Preço promocional do grupo não pode ser negativo.', 'warning');
+          return;
+        }
+        if (Number(gd.precoPromocional) >= Number(form.preco || 0)) {
+          showToast('⚠️ O preço promocional do grupo deve ser menor que o preço normal.', 'warning');
+          return;
+        }
+      }
+    }
     if (tipo === 'insumo' || form.usavelEmReceita) {
-      if (Number(form.precoCompra || 0) <= 0) { showToast('⚠️ Preço de compra por embalagem deve ser maior que zero.', 'warning'); return; }
       if (Number(form.conteudoPorEmbalagem || 0) <= 0) { showToast('⚠️ Conteúdo da embalagem deve ser maior que zero.', 'warning'); return; }
       if (tipo === 'insumo' && Number(form.estoqueEmbalagens || 0) < 0) { showToast('⚠️ Quantidade de embalagens não pode ser negativa.', 'warning'); return; }
     }
@@ -139,6 +156,12 @@ export default function Products() {
       preco: tipo === 'venda' ? limparCampoNumerico(form.preco) ?? 0 : 0,
       precoVenda: tipo === 'venda' ? limparCampoNumerico(form.preco) ?? 0 : 0,
       descontosPorQuantidade: tipo === 'venda' ? form.descontosPorQuantidade : [],
+      grupoDesconto: tipo === 'venda' && form.grupoDesconto?.nome ? {
+        nome: String(form.grupoDesconto.nome).trim(),
+        quantidadeMinima: Number(form.grupoDesconto.quantidadeMinima),
+        precoPromocional: Number(form.grupoDesconto.precoPromocional),
+        ativo: form.grupoDesconto.ativo !== false,
+      } : undefined,
       precoCompra: tipo === 'insumo' || form.usavelEmReceita ? limparCampoNumerico(form.precoCompra) ?? 0 : 0,
       usavelEmReceita: tipo === 'insumo' || Boolean(form.usavelEmReceita),
       unidadeVenda: form.unidadeVenda || 'un',
@@ -186,6 +209,7 @@ export default function Products() {
       categoria: produto.categoria || 'Bebidas Quentes',
       preco: produto.preco ?? '',
       descontosPorQuantidade: produto.descontosPorQuantidade || [],
+      grupoDesconto: produto.grupoDesconto || { nome: '', quantidadeMinima: '', precoPromocional: '', ativo: true },
       precoCompra: produto.precoCompra ?? '',
       unidadeCompra: unidadeCompra,
       conteudoPorEmbalagem: conteudoPorEmbalagem,
@@ -309,6 +333,24 @@ export default function Products() {
                     </div>
                   ))}
                   {!form.descontosPorQuantidade?.length && <small style={{ color: 'var(--text-secondary)' }}>Nenhuma faixa promocional cadastrada.</small>}
+                </div>
+                <div style={{ gridColumn: '1 / -1', marginTop: 4, padding: 14, border: '1px solid var(--border-light)', borderRadius: 10, background: 'var(--bg-tertiary)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <strong>🎯 Desconto por Grupo (Categoria) <small>(opcional)</small></strong>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-secondary)' }}>
+                      <input type="checkbox" checked={Boolean(form.grupoDesconto?.ativo)} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', quantidadeMinima: '', precoPromocional: '', ativo: true }), ativo: e.target.checked } })} />
+                      Ativo
+                    </label>
+                  </div>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 8px', lineHeight: 1.4 }}>
+                    Produtos com o <strong>mesmo nome de grupo</strong> e <strong>mesma categoria</strong> somam as quantidades. Quando o total atingir a quantidade mínima, todos ganham o preço promocional.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    <label>Nome do grupo <input type="text" placeholder="ex: Cookies" value={form.grupoDesconto?.nome || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { quantidadeMinima: '', precoPromocional: '', ativo: true }), nome: e.target.value } })} /></label>
+                    <label>Quantidade mínima <input type="number" min={1} step={1} value={form.grupoDesconto?.quantidadeMinima || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', precoPromocional: '', ativo: true }), quantidadeMinima: e.target.value } })} /></label>
+                    <label>Preço promocional (R$) <input type="number" min={0} step="0.01" value={form.grupoDesconto?.precoPromocional || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', quantidadeMinima: '', ativo: true }), precoPromocional: e.target.value } })} /></label>
+                  </div>
+                  {form.grupoDesconto?.nome && <small style={{ color: 'var(--success-bg)', fontSize: 11, marginTop: 6, display: 'block' }}>✓ Produtos com grupo "{form.grupoDesconto.nome}" vão somar para este desconto.</small>}
                 </div>
                 <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label>
                 <label>Unidade de venda

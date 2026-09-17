@@ -9,7 +9,7 @@ const auth = require('../middleware/auth');
 const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
 const { precoPorUnidade } = require('../utils/pesoProduto');
 const { normalizarEstoqueLegado, produtoControlaPeso, dadosMovimentoEstoque } = require('../utils/estoqueProduto');
-const { calcularPrecoComDesconto } = require('../utils/descontosQuantidade');
+const { calcularPrecoComDesconto, calcularPrecoGrupo } = require('../utils/descontosQuantidade');
 
 const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -21,15 +21,32 @@ async function recalcularPrecosComanda(comanda, session) {
   const porId = new Map(produtos.map((produto) => [String(produto._id), produto]));
   const quantidades = new Map();
   comanda.itens.forEach((item) => quantidades.set(String(item.produtoId), (quantidades.get(String(item.produtoId)) || 0) + Number(item.quantidade || 0)));
+  const cartItens = comanda.itens.map((item) => ({ produto: porId.get(String(item.produtoId)), quantidade: Number(item.quantidade || 0) }));
   comanda.itens.forEach((item) => {
     const produto = porId.get(String(item.produtoId));
     if (!produto || item.tipoVenda === 'peso') return;
-    const pricing = calcularPrecoComDesconto(produto, quantidades.get(String(item.produtoId)), precoPorUnidade(produto));
-    item.precoUnitario = pricing.precoUnitario;
-    item.precoUnitarioOriginal = pricing.precoNormal;
-    item.descontoQuantidade = pricing.economiaUnitario;
-    item.economiaQuantidade = pricing.economiaTotal;
-    item.faixaDescontoQuantidade = pricing.faixaAplicada?.quantidadeMinima;
+    const precoBase = precoPorUnidade(produto);
+    const pricing = calcularPrecoComDesconto(produto, quantidades.get(String(item.produtoId)), precoBase);
+    const grupoPricing = calcularPrecoGrupo(produto, quantidades.get(String(item.produtoId)), cartItens, pricing.precoUnitario);
+    if (grupoPricing && grupoPricing.grupoAtivo && grupoPricing.precoUnitario < pricing.precoUnitario) {
+      item.precoUnitario = grupoPricing.precoUnitario;
+      item.precoUnitarioOriginal = grupoPricing.precoNormal;
+      item.descontoQuantidade = grupoPricing.economiaUnitario;
+      item.economiaQuantidade = grupoPricing.economiaTotal;
+      item.faixaDescontoQuantidade = null;
+      item.grupoDescontoAtivo = true;
+      item.totalGrupo = grupoPricing.totalGrupo;
+      item.faltamParaGrupo = 0;
+    } else {
+      item.precoUnitario = pricing.precoUnitario;
+      item.precoUnitarioOriginal = pricing.precoNormal;
+      item.descontoQuantidade = pricing.economiaUnitario;
+      item.economiaQuantidade = pricing.economiaTotal;
+      item.faixaDescontoQuantidade = pricing.faixaAplicada?.quantidadeMinima;
+      item.grupoDescontoAtivo = false;
+      item.totalGrupo = grupoPricing?.totalGrupo || 0;
+      item.faltamParaGrupo = grupoPricing?.faltamParaGrupo || 0;
+    }
   });
 }
 
@@ -127,13 +144,18 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
-    const itens = [];
+    const requestItens = Array.isArray(req.body.itens) ? req.body.itens : [];
     const quantidadesPorProduto = new Map();
-    (Array.isArray(req.body.itens) ? req.body.itens : []).forEach((item) => {
+    requestItens.forEach((item) => {
       quantidadesPorProduto.set(String(item.produtoId), (quantidadesPorProduto.get(String(item.produtoId)) || 0) + Number(item.quantidade || 0));
     });
-    for (const item of Array.isArray(req.body.itens) ? req.body.itens : []) {
-      const product = await Product.findById(item.produtoId).session(session);
+    const productIds = [...new Set(requestItens.map((item) => item.produtoId))];
+    const produtos = await Product.find({ _id: { $in: productIds } }).session(session);
+    const porId = new Map(produtos.map((produto) => [String(produto._id), produto]));
+    const cartItens = [];
+    const itens = [];
+    for (const item of requestItens) {
+      const product = porId.get(String(item.produtoId));
       const vendaPorPeso = produtoControlaPeso(product) && item.tipoVenda === 'peso';
       const pesoVendidoKg = vendaPorPeso ? Number(item.pesoVendidoKg) : 0;
       const quantidade = vendaPorPeso ? 1 : Number(item.quantidade);
@@ -145,8 +167,29 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
         : [];
       const precoNormal = vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product);
       const pricing = vendaPorPeso ? { precoUnitario: precoNormal, precoNormal, economiaUnitario: 0, economiaTotal: 0, faixaAplicada: null } : calcularPrecoComDesconto(product, quantidadesPorProduto.get(String(product._id)), precoNormal);
+      cartItens.push({ produto: product, quantidade });
       itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: pricing.precoUnitario, precoUnitarioOriginal: pricing.precoNormal, descontoQuantidade: pricing.economiaUnitario, economiaQuantidade: pricing.economiaTotal, faixaDescontoQuantidade: pricing.faixaAplicada?.quantidadeMinima, quantidade, quantidadePecas: vendaPorPeso ? 0 : quantidade, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
     }
+    cartItens.forEach((cartItem, idx) => {
+      const product = cartItem.produto;
+      const item = itens[idx];
+      if (item.tipoVenda === 'peso' || item.tipoVenda === 'inteiro') return;
+      const grupoPricing = calcularPrecoGrupo(product, quantidadesPorProduto.get(String(product._id)), cartItens, item.precoUnitario);
+      if (grupoPricing && grupoPricing.grupoAtivo && grupoPricing.precoUnitario < item.precoUnitario) {
+        item.precoUnitario = grupoPricing.precoUnitario;
+        item.precoUnitarioOriginal = grupoPricing.precoNormal;
+        item.descontoQuantidade = grupoPricing.economiaUnitario;
+        item.economiaQuantidade = grupoPricing.economiaTotal;
+        item.faixaDescontoQuantidade = null;
+        item.grupoDescontoAtivo = true;
+        item.totalGrupo = grupoPricing.totalGrupo;
+        item.faltamParaGrupo = 0;
+      } else if (grupoPricing) {
+        item.grupoDescontoAtivo = false;
+        item.totalGrupo = grupoPricing.totalGrupo;
+        item.faltamParaGrupo = grupoPricing.faltamParaGrupo;
+      }
+    });
     await ajustarEstoque(itens, 'baixar', session);
     const [comanda] = await Comanda.create([{ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, itens, estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
     await session.commitTransaction();
