@@ -14,7 +14,17 @@ const router = express.Router();
 const locations = ['venda', 'insumos'];
 const units = ['un', 'kg', 'g', 'mg', 'l', 'ml'];
 const balanceField = (location) => location === 'insumos' ? 'estoqueInsumos' : 'estoque';
-const unidadeDoInsumo = (produto = {}) => ['un', 'kg', 'g', 'mg', 'l', 'ml'].includes(produto.unidadeCompra) ? produto.unidadeCompra : (produto.unidadeConteudo || 'g');
+const unidadeDoInsumo = (produto = {}) => produto.tipo === 'venda' && produto.usavelEmReceita ? (produto.unidadeVenda || 'un') : (['un', 'kg', 'g', 'mg', 'l', 'ml'].includes(produto.unidadeCompra) ? produto.unidadeCompra : (produto.unidadeConteudo || 'g'));
+const consumirIngrediente = (produto, quantidade, unidade) => {
+  if (!(produto.tipo === 'venda' && produto.usavelEmReceita)) return consumirInsumo(produto, quantidade, unidade);
+  const conteudoPorUnidade = paraBase(Number(produto.conteudoPorEmbalagem || 1), produto.unidadeConteudo || produto.unidadeVenda || 'un');
+  const quantidadeBase = paraBase(quantidade, unidade);
+  const unidadesConsumidas = quantidadeBase / conteudoPorUnidade;
+  if (!Number.isFinite(unidadesConsumidas) || unidadesConsumidas <= 0) throw new Error(`Quantidade inválida para o produto ${produto.nome}`);
+  if (Number(produto.estoque || 0) < unidadesConsumidas) throw new Error(`Estoque insuficiente de ${produto.nome}`);
+  produto.estoque = Number((Number(produto.estoque) - unidadesConsumidas).toFixed(6));
+  return { quantidadeConvertida: unidadesConsumidas, mensagem: `${quantidade} ${unidade} equivalem a ${Number(unidadesConsumidas.toFixed(4))} ${produto.unidadeVenda || 'un'} - desconto aplicado` };
+};
 
 const sincronizarCustoReceita = async (recipeId) => {
   const recipe = await Recipe.findById(recipeId).populate('ingredientes.produtoId');
@@ -43,7 +53,7 @@ const validate = (req, res) => {
 
 router.get('/recipes', async (req, res) => {
   try {
-    const recipes = await Recipe.find().populate('produtoId', 'nome codigo unidadeVenda producaoPropria').populate('ingredientes.produtoId', 'nome codigo unidadeVenda unidadeConteudo conteudoPorEmbalagem estoqueInsumos estoqueEmbalagens estoqueConteudoAberto').sort({ nome: 1 });
+    const recipes = await Recipe.find().populate('produtoId', 'nome codigo unidadeVenda producaoPropria').populate('ingredientes.produtoId', 'nome codigo tipo usavelEmReceita precoCompra unidadeVenda unidadeConteudo conteudoPorEmbalagem estoque estoqueInsumos estoqueEmbalagens estoqueConteudoAberto').sort({ nome: 1 });
     res.json(recipes);
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
@@ -66,7 +76,7 @@ router.post('/recipes', [
     const byId = new Map(produtos.map((produtoItem) => [String(produtoItem._id), produtoItem]));
     const itens = ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade || unidadeDoInsumo(byId.get(String(item.produtoId))) }));
     if (itens.some((item) => !byId.has(String(item.produtoId)) || !Number.isFinite(item.quantidade) || item.quantidade <= 0 || !units.includes(item.unidade))) return res.status(400).json({ msg: 'Ingrediente inválido' });
-    if (itens.some((item) => byId.get(String(item.produtoId)).tipo !== 'insumo')) return res.status(400).json({ msg: 'A receita só pode usar produtos do tipo insumo' });
+    if (itens.some((item) => { const produtoItem = byId.get(String(item.produtoId)); return produtoItem.tipo !== 'insumo' && !produtoItem.usavelEmReceita; })) return res.status(400).json({ msg: 'A receita só pode usar insumos ou produtos híbridos' });
     const recipe = await Recipe.create({ nome: nome.trim(), produtoId, rendimento: Number(rendimento), unidadeRendimento, ingredientes: itens, createdBy: req.user.id });
     await Product.findByIdAndUpdate(produtoId, { $set: { producaoPropria: true } });
     await sincronizarCustoReceita(recipe._id);
@@ -95,9 +105,10 @@ router.put('/recipes/:id', [
     ['rendimento', 'ativa'].forEach((key) => { if (req.body[key] !== undefined) fields[key] = key === 'rendimento' ? Number(req.body[key]) : Boolean(req.body[key]); });
     if (req.body.ingredientes) {
       const ingredientIds = req.body.ingredientes.map((item) => item.produtoId);
-      const ingredientProducts = await Product.find({ _id: { $in: ingredientIds } }).select('tipo unidadeConteudo unidadeVenda');
+      const ingredientProducts = await Product.find({ _id: { $in: ingredientIds } }).select('tipo usavelEmReceita unidadeConteudo unidadeVenda');
       const ingredientTypes = new Map(ingredientProducts.map((produto) => [String(produto._id), produto.tipo]));
-      if (req.body.ingredientes.some((item) => ingredientTypes.get(String(item.produtoId)) !== 'insumo')) return res.status(400).json({ msg: 'A receita só pode usar produtos do tipo insumo' });
+      const ingredientUsable = new Map(ingredientProducts.map((produto) => [String(produto._id), produto.usavelEmReceita || produto.tipo === 'insumo']));
+      if (req.body.ingredientes.some((item) => !ingredientUsable.get(String(item.produtoId)))) return res.status(400).json({ msg: 'A receita só pode usar insumos ou produtos híbridos' });
       const ingredientById = new Map(ingredientProducts.map((produto) => [String(produto._id), produto]));
       fields.ingredientes = req.body.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade || unidadeDoInsumo(ingredientById.get(String(item.produtoId))) }));
     }
@@ -170,7 +181,7 @@ router.post('/produce', [body('receitaId').isMongoId(), body('quantidade').isFlo
       for (const item of consumption) {
         const product = await Product.findById(item.product._id).session(session);
         if (!product) throw new Error(`Insumo não encontrado: ${item.product.nome}`);
-        const consumo = consumirInsumo(product, item.quantity, item.unit);
+        const consumo = consumirIngrediente(product, item.quantity, item.unit);
         conversoes.push(consumo.mensagem);
         await product.save({ session });
         snapshots.push({ produtoId: item.product._id, nome: item.product.nome, quantidade: item.quantity, unidade: item.unit });
@@ -188,10 +199,10 @@ router.post('/produce', [body('receitaId').isMongoId(), body('quantidade').isFlo
 router.get('/dashboard', async (req, res) => {
   try {
     const [products, recipes, recentProductions, lowStock] = await Promise.all([
-      Product.find({ tipo: 'insumo' }).select('nome codigo estoqueInsumos estoqueEmbalagens estoqueConteudoAberto estoqueMinimoInsumos estoqueMinimoEmbalagens unidadeCompra unidadeConteudo conteudoPorEmbalagem unidadeVenda'),
+      Product.find({ $or: [{ tipo: 'insumo' }, { tipo: 'venda', usavelEmReceita: true }] }).select('nome codigo tipo usavelEmReceita estoque estoqueInsumos estoqueEmbalagens estoqueConteudoAberto estoqueMinimoInsumos estoqueMinimoEmbalagens unidadeCompra unidadeConteudo conteudoPorEmbalagem unidadeVenda'),
       Recipe.find({ ativa: true }).populate('produtoId', 'nome estoque unidadeVenda').populate('ingredientes.produtoId', 'nome estoqueInsumos estoqueEmbalagens estoqueConteudoAberto unidadeConteudo conteudoPorEmbalagem'),
       Production.find().sort({ createdAt: -1 }).limit(10),
-      Product.find({ tipo: 'insumo', $expr: { $lte: ['$estoqueEmbalagens', { $ifNull: ['$estoqueMinimoEmbalagens', '$estoqueMinimoInsumos'] }] } }).select('nome codigo estoqueInsumos estoqueEmbalagens estoqueConteudoAberto estoqueMinimoInsumos estoqueMinimoEmbalagens unidadeCompra unidadeConteudo conteudoPorEmbalagem unidadeVenda'),
+      Product.find({ $or: [{ tipo: 'insumo', $expr: { $lte: ['$estoqueEmbalagens', { $ifNull: ['$estoqueMinimoEmbalagens', '$estoqueMinimoInsumos'] }] } }, { tipo: 'venda', usavelEmReceita: true, $expr: { $lte: ['$estoque', { $ifNull: ['$estoqueMinimo', 0] }] } }] }).select('nome codigo tipo usavelEmReceita estoque estoqueInsumos estoqueEmbalagens estoqueConteudoAberto estoqueMinimoInsumos estoqueMinimoEmbalagens unidadeCompra unidadeConteudo conteudoPorEmbalagem unidadeVenda'),
     ]);
     const formatNumber = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
     const possible = recipes.map((recipe) => {

@@ -2,6 +2,7 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
+import AreaTabs from '../components/AreaTabs.jsx';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import DateInput from '../components/DateInput.jsx';
 
@@ -132,7 +133,9 @@ export default function Financeiro() {
   );
 
   return (
-    <div className="financeiro-page">
+    <>
+      <AreaTabs area="dashboard" />
+      <div className="financeiro-page">
       <header className="page-heading financeiro-header">
         <div>
           <span className="dashboard-eyebrow">MÓDULO FINANCEIRO</span>
@@ -856,6 +859,7 @@ export default function Financeiro() {
           .dre-table { min-width: 0 !important; }
         }
       `}</style>
-    </div>
+      </div>
+    </>
   );
 }

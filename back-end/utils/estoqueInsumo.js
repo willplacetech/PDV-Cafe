@@ -5,13 +5,16 @@ const paraBase = (quantidade, unidade) => Number(quantidade || 0) * (fatoresBase
 const unidadesDiretas = ['mg', 'g', 'kg', 'ml', 'l', 'un'];
 const unidadesEmbalagem = ['lata', 'caixa', 'pacote', 'rolo'];
 
-const unidadeControle = (produto = {}) => produto.unidadeCompra || produto.unidadeControle || 'un';
+const unidadeControle = (produto = {}) => produto.tipo === 'venda' && produto.usavelEmReceita ? (produto.unidadeVenda || 'un') : (produto.unidadeCompra || produto.unidadeControle || 'un');
 
 const unidadeBase = (produto = {}) => unidadesDiretas.includes(unidadeControle(produto))
   ? unidadeControle(produto)
   : (produto.unidadeConteudo || 'g');
 
 const conteudoPorEmbalagemBase = (produto = {}) => {
+  if (produto.tipo === 'venda' && produto.usavelEmReceita) {
+    return paraBase(Number(produto.conteudoPorEmbalagem || 1), produto.unidadeConteudo || produto.unidadeVenda || 'un');
+  }
   if (unidadesDiretas.includes(unidadeControle(produto))) return fatoresBase[unidadeControle(produto)];
   const conteudo = Number(produto.conteudoPorEmbalagem || 0);
   if (conteudo > 0) return paraBase(conteudo, unidadeBase(produto));
@@ -20,7 +23,9 @@ const conteudoPorEmbalagemBase = (produto = {}) => {
   return 0;
 };
 
-const embalagensFechadas = (produto = {}) => Number(produto.estoqueEmbalagens ?? produto.estoqueInsumos ?? 0);
+const embalagensFechadas = (produto = {}) => produto.tipo === 'venda' && produto.usavelEmReceita
+  ? Number(produto.estoque || 0)
+  : Number(produto.estoqueEmbalagens ?? produto.estoqueInsumos ?? 0);
 
 const conteudoAberto = (produto = {}) => Number(produto.estoqueConteudoAberto || 0);
 

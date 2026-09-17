@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
+import AreaTabs from '../components/AreaTabs.jsx';
 
 const units = ['mg', 'g', 'kg', 'ml', 'l', 'un'];
 const newItem = () => ({ produtoId: '', valorTotal: '', qtdEmbalagens: '', conteudoPorEmbalagem: '', unidadeConteudo: 'kg' });
@@ -18,7 +19,7 @@ export default function Purchases() {
   const load = async () => {
     try {
       const [productsResponse, purchasesResponse] = await Promise.all([api.get('/products'), api.get('/compras')]);
-      setProducts((productsResponse.data || []).filter((product) => product.tipo === 'insumo'));
+      setProducts((productsResponse.data || []).filter((product) => product.tipo === 'insumo' || product.usavelEmReceita));
       setPurchases(purchasesResponse.data || []);
     } catch (error) {
       showToast(error.response?.data?.msg || 'Nao foi possivel carregar as compras', 'error');
@@ -29,7 +30,7 @@ export default function Purchases() {
     const loadInitialData = async () => {
       try {
         const [productsResponse, purchasesResponse] = await Promise.all([api.get('/products'), api.get('/compras')]);
-        setProducts((productsResponse.data || []).filter((product) => product.tipo === 'insumo'));
+        setProducts((productsResponse.data || []).filter((product) => product.tipo === 'insumo' || product.usavelEmReceita));
         setPurchases(purchasesResponse.data || []);
       } catch (error) {
         showToast(error.response?.data?.msg || 'Nao foi possivel carregar as compras', 'error');
@@ -62,6 +63,7 @@ export default function Purchases() {
   };
 
   return <div className="purchases-page">
+      <AreaTabs area="compras" />
     <header className="page-heading"><div><span className="purchases-eyebrow">PRODUCAO / COMPRAS</span><h1>Compras</h1><p>Registre entradas de insumos e atualize o custo pelo recebimento.</p></div></header>
     <form className="purchases-form" onSubmit={submit}>
       <div className="purchases-grid">
@@ -75,7 +77,7 @@ export default function Purchases() {
         const total = Number(item.qtdEmbalagens || 0) * Number(item.conteudoPorEmbalagem || 0);
         const unitCost = Number(item.valorTotal || 0) / (total || 1);
         return <div className="purchase-item" key={`purchase-item-${index}`}>
-          <label>Insumo<select required value={item.produtoId} onChange={(event) => updateItem(index, 'produtoId', event.target.value)}><option value="">Selecione</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome}</option>)}</select></label>
+          <label>Produto comprado<select required value={item.produtoId} onChange={(event) => updateItem(index, 'produtoId', event.target.value)}><option value="">Selecione</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} [{product.tipo === 'insumo' ? 'Insumo' : 'Venda + Insumo'}]</option>)}</select></label>
           <label>Valor total<input required type="number" min="0.000001" step="0.01" value={item.valorTotal} onChange={(event) => updateItem(index, 'valorTotal', event.target.value)} /></label>
           <label>Qtd. embalagens<input required type="number" min="0.000001" step="0.001" value={item.qtdEmbalagens} onChange={(event) => updateItem(index, 'qtdEmbalagens', event.target.value)} /></label>
           <label>Conteudo por embalagem<input required type="number" min="0.000001" step="0.001" value={item.conteudoPorEmbalagem} onChange={(event) => updateItem(index, 'conteudoPorEmbalagem', event.target.value)} /></label>

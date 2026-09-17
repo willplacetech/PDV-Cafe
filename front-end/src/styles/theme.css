@@ -354,3 +354,77 @@ tbody tr:hover {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
 }
+
+/* Desktop compacto: evita colisões em notebooks 1366x768 após a barra lateral. */
+@media (min-width: 769px) and (max-width: 1400px) {
+  #main-content {
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .page-heading,
+  .dashboard-heading,
+  .dashboard-section-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .page-heading > *,
+  .dashboard-heading > *,
+  .dashboard-section-heading > * {
+    min-width: 0;
+  }
+
+  .form-grid,
+  .product-form-grid,
+  .purchases-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .purchase-item {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .dashboard-periods {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .dashboard-monthly-summary,
+  .dashboard-sales-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .dashboard-comparison-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .dashboard-comparison-modes {
+    grid-column: 1 / -1;
+  }
+
+  .dashboard-report-actions,
+  .production-header-actions,
+  .financeiro-header {
+    flex-wrap: wrap;
+  }
+
+  .dashboard-report-actions > *,
+  .production-header-actions > *,
+  .financeiro-header > * {
+    max-width: 100%;
+  }
+
+  .dashboard-table-wrap,
+  .table-wrap,
+  .compare-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    max-width: 100%;
+  }
+}

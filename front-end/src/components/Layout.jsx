@@ -174,25 +174,11 @@ export default function Layout() {
             <span style={{ fontSize: 18, flexShrink: 0 }}>💰</span>
             <span>A Receber</span>
           </Link>}
-          {user?.role === 'admin' && <Link to="/produtos" className={ativoProdutos ? 'nav-link active' : 'nav-link'}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>📦</span>
-            <span style={{ whiteSpace: 'nowrap' }}>Produtos</span>
-          </Link>}
           {user?.role === 'admin' && <Link to="/producao" className={ativoProducao ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>🧪</span><span style={{ whiteSpace: 'nowrap' }}>Produção</span></Link>}
-          {user?.role === 'admin' && <Link to="/compras" className={ativoCompras ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>🧾</span><span style={{ whiteSpace: 'nowrap' }}>Compras</span></Link>}
+          {user?.role === 'admin' && <div className="nav-group"><span className="nav-group-label">🧾 Compras</span><Link to="/compras" className={ativoCompras ? 'nav-link active' : 'nav-link'}><span>Compras</span></Link><Link to="/produtos" className={ativoProdutos ? 'nav-link active' : 'nav-link'}><span>Produtos</span></Link></div>}
           {(user?.role === 'admin' || user?.role === 'operador' || user?.role === 'cozinha') && <Link to="/cozinha" className={ativoCozinha ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>🍳</span><span style={{ whiteSpace: 'nowrap' }}>Cozinha</span></Link>}
-          {user?.role === 'admin' && (
-            <Link to="/usuarios" className={ativoUsuarios ? 'nav-link active' : 'nav-link'}>
-              <span style={{ fontSize: 18, flexShrink: 0 }}>👥</span>
-              <span>Usuários</span>
-            </Link>
-          )}
-          {user?.role === 'admin' && <Link to="/clientes" className={ativoClientes ? 'nav-link active' : 'nav-link'}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>👤</span>
-            <span style={{ whiteSpace: 'nowrap' }}>Clientes</span>
-          </Link>}
-          {user?.role === 'admin' && <Link to="/financeiro" className={ativoFinanceiro ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>💵</span><span style={{ whiteSpace: 'nowrap' }}>Financeiro</span></Link>}
-          {user?.role === 'admin' && <Link to="/dashboard" className={ativoDashboard ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>📊</span><span style={{ whiteSpace: 'nowrap' }}>Dashboard</span></Link>}
+          {user?.role === 'admin' && <div className="nav-group"><span className="nav-group-label">👥 Pessoas</span><Link to="/clientes" className={ativoClientes ? 'nav-link active' : 'nav-link'}><span>Clientes</span></Link><Link to="/usuarios" className={ativoUsuarios ? 'nav-link active' : 'nav-link'}><span>Usuários</span></Link></div>}
+          {user?.role === 'admin' && <div className="nav-group"><span className="nav-group-label">📊 Dashboard</span><Link to="/dashboard" className={ativoDashboard ? 'nav-link active' : 'nav-link'}><span>Dashboard</span></Link><Link to="/financeiro" className={ativoFinanceiro ? 'nav-link active' : 'nav-link'}><span>Financeiro</span></Link></div>}
         </nav>
 
         <div style={{
@@ -363,7 +349,8 @@ export default function Layout() {
           }
           #bottom-nav {
             display: grid !important;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
+            grid-template-columns: repeat(5, minmax(84px, 1fr));
+            overflow-x: auto;
             position: fixed;
             bottom: 0; left: 0; right: 0;
             background: var(--bg-secondary);
@@ -387,6 +374,9 @@ export default function Layout() {
           border-left: 3px solid transparent;
           transition: all .2s;
         }
+        .nav-group { margin: 8px 0; }
+        .nav-group-label { display:block; padding: 4px 14px; color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+        .nav-group .nav-link { padding: 9px 14px 9px 28px; font-size: 13px; }
         .nav-link.active {
           background: var(--accent-light);
           color: var(--accent-primary); font-weight: 700;

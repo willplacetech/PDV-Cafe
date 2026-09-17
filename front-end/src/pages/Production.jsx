@@ -7,7 +7,7 @@ const emptyRecipe = { nome: '', produtoId: '', rendimento: '1', unidadeRendiment
 const emptyTransfer = { produtoId: '', origem: 'venda', destino: 'insumos', quantidade: '', observacao: '' };
 
 const number = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
-const unidadeDoInsumo = (produto = {}) => ['un', 'kg', 'g', 'mg', 'l', 'ml'].includes(produto.unidadeCompra) ? produto.unidadeCompra : (produto.unidadeConteudo || 'g');
+const unidadeDoInsumo = (produto = {}) => produto.tipo === 'venda' && produto.usavelEmReceita ? (produto.unidadeVenda || 'un') : (['un', 'kg', 'g', 'mg', 'l', 'ml'].includes(produto.unidadeCompra) ? produto.unidadeCompra : (produto.unidadeConteudo || 'g'));
 const fatoresBase = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
 
 export default function Production() {
@@ -56,7 +56,7 @@ export default function Production() {
   }, []);
 
   const producibleProducts = products.filter((product) => product.tipo === 'venda' || product.producaoPropria);
-  const stockProducts = products.filter((product) => product.tipo === 'insumo' || Number(product.estoqueInsumos) > 0);
+  const stockProducts = products.filter((product) => product.tipo === 'insumo' || product.usavelEmReceita);
   const currentRecipe = recipes.find((recipe) => recipe._id === selectedRecipe);
   const costRecipe = recipes.find((recipe) => recipe._id === costForm.receitaId);
   const produtosSemCusto = products.filter((product) => Number(product.custoUnitario || product.custo || 0) <= 0);

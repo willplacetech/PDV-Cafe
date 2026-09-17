@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
+import AreaTabs from '../components/AreaTabs.jsx';
 
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Outros'];
 const filtrosTipo = ['Todos', 'Estoque de Venda', 'Estoque de Insumos'];
@@ -10,8 +11,10 @@ const vazio = {
   nome: '',
   marcaReferencia: '',
   tipo: 'venda',
+  usavelEmReceita: false,
   categoria: 'Bebidas Quentes',
   preco: '',
+  descontosPorQuantidade: [],
   precoCompra: '',
   unidadeCompra: 'kg',
   conteudoPorEmbalagem: 1,
@@ -38,6 +41,7 @@ export default function Products() {
   const [filtroCategoria, setFiltroCategoria] = useState('Todos');
   const { showToast } = useToast();
   const editingInsumo = Boolean(editing?.tipo === 'insumo');
+  const editingCustoBloqueado = Boolean(editing?.tipo === 'insumo' || editing?.usavelEmReceita);
 
   const carregar = async () => {
     const res = await api.get('/products');
@@ -104,10 +108,24 @@ export default function Products() {
     }
 
     const tipo = form.tipo;
-    if (tipo === 'insumo') {
+    if (tipo === 'venda') {
+      const descontos = (form.descontosPorQuantidade || []).map((faixa) => ({ quantidadeMinima: Number(faixa.quantidadeMinima), precoUnitario: Number(faixa.precoUnitario), ativo: faixa.ativo !== false }));
+      for (let indice = 0; indice < descontos.length; indice += 1) {
+        const anterior = descontos[indice - 1];
+        if (!Number.isInteger(descontos[indice].quantidadeMinima) || descontos[indice].quantidadeMinima < 1 || descontos[indice].precoUnitario < 0 || (anterior && (descontos[indice].quantidadeMinima <= anterior.quantidadeMinima || descontos[indice].precoUnitario >= anterior.precoUnitario))) {
+          showToast('⚠️ As faixas devem ter quantidade crescente e preço decrescente.', 'warning');
+          return;
+        }
+        if (descontos[indice].precoUnitario >= Number(form.preco || 0)) {
+          showToast('⚠️ O preço promocional deve ser menor que o preço normal.', 'warning');
+          return;
+        }
+      }
+    }
+    if (tipo === 'insumo' || form.usavelEmReceita) {
       if (Number(form.precoCompra || 0) <= 0) { showToast('⚠️ Preço de compra por embalagem deve ser maior que zero.', 'warning'); return; }
       if (Number(form.conteudoPorEmbalagem || 0) <= 0) { showToast('⚠️ Conteúdo da embalagem deve ser maior que zero.', 'warning'); return; }
-      if (Number(form.estoqueEmbalagens || 0) < 0) { showToast('⚠️ Quantidade de embalagens não pode ser negativa.', 'warning'); return; }
+      if (tipo === 'insumo' && Number(form.estoqueEmbalagens || 0) < 0) { showToast('⚠️ Quantidade de embalagens não pode ser negativa.', 'warning'); return; }
     }
     const payload = {
       ...form,
@@ -115,12 +133,14 @@ export default function Products() {
       estoque: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : limparCampoNumerico(form.estoque) ?? 0,
       estoqueEmbalagens: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : undefined,
       estoqueMinimoEmbalagens: tipo === 'insumo' ? limparCampoNumerico(form.estoqueMinimoEmbalagens) ?? 0 : undefined,
-      conteudoPorEmbalagem: tipo === 'insumo' ? limparCampoNumerico(form.conteudoPorEmbalagem) ?? 0 : undefined,
+      conteudoPorEmbalagem: tipo === 'insumo' || form.usavelEmReceita ? limparCampoNumerico(form.conteudoPorEmbalagem) ?? 0 : undefined,
       estoqueConteudoAberto: tipo === 'insumo' ? limparCampoNumerico(form.estoqueConteudoAberto) ?? 0 : undefined,
       categoria: tipo === 'insumo' ? 'Insumos' : (form.categoria || 'Outros'),
       preco: tipo === 'venda' ? limparCampoNumerico(form.preco) ?? 0 : 0,
       precoVenda: tipo === 'venda' ? limparCampoNumerico(form.preco) ?? 0 : 0,
-      precoCompra: tipo === 'insumo' ? limparCampoNumerico(form.precoCompra) ?? 0 : 0,
+      descontosPorQuantidade: tipo === 'venda' ? form.descontosPorQuantidade : [],
+      precoCompra: tipo === 'insumo' || form.usavelEmReceita ? limparCampoNumerico(form.precoCompra) ?? 0 : 0,
+      usavelEmReceita: tipo === 'insumo' || Boolean(form.usavelEmReceita),
       unidadeVenda: form.unidadeVenda || 'un',
       unidadeCompra: form.unidadeCompra || 'kg',
       custoUnitario: limparCampoNumerico(form.custo) ?? 0,
@@ -128,7 +148,7 @@ export default function Products() {
       rendimentoPorUnidadeCompra: 0,
       ativo: true,
     };
-    if (editingInsumo) {
+    if (editingCustoBloqueado) {
       delete payload.precoCompra;
       delete payload.custoUnitario;
       delete payload.custo;
@@ -162,8 +182,10 @@ export default function Products() {
       nome: produto.nome,
       marcaReferencia: produto.marcaReferencia || '',
       tipo: produto.tipo || (produto.controladoComoInsumo ? 'insumo' : 'venda'),
+      usavelEmReceita: Boolean(produto.usavelEmReceita),
       categoria: produto.categoria || 'Bebidas Quentes',
       preco: produto.preco ?? '',
+      descontosPorQuantidade: produto.descontosPorQuantidade || [],
       precoCompra: produto.precoCompra ?? '',
       unidadeCompra: unidadeCompra,
       conteudoPorEmbalagem: conteudoPorEmbalagem,
@@ -208,6 +230,7 @@ export default function Products() {
 
   return (
     <div>
+        <AreaTabs area="compras" />
       <div className="page-heading">
         <div>
           <h1>📦 Cadastro de Produtos</h1>
@@ -262,6 +285,31 @@ export default function Products() {
               <div className="product-section-title"><span>💰</span><div><strong>VENDA</strong><small>Dados do produto pronto</small></div></div>
               <div className="product-form-grid">
                 <label>Preço de venda (R$) * <input type="number" step="0.01" min={0} value={form.preco} required onChange={(event) => setForm({ ...form, preco: event.target.value })} /></label>
+                <label className="product-checkbox-label" style={{ gridColumn: '1 / -1' }}>
+                  <input className="product-checkbox" type="checkbox" checked={Boolean(form.usavelEmReceita)} onChange={(event) => setForm({ ...form, usavelEmReceita: event.target.checked })} />
+                  Também usar como ingrediente em receitas
+                </label>
+                {form.usavelEmReceita && <>
+                  <label>Preço de compra (R$) * <input type="number" step="0.01" min={0.01} required readOnly={editingCustoBloqueado} value={form.precoCompra} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
+                  <label>Conteúdo por embalagem * <input type="number" step="0.001" min={0.001} required readOnly={editingCustoBloqueado} value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /></label>
+                  <label>Unidade do conteúdo
+                    <select value={form.unidadeConteudo} disabled={editingCustoBloqueado} onChange={(event) => setForm({ ...form, unidadeConteudo: event.target.value })}>{['un', 'g', 'kg', 'ml', 'l'].map((unidade) => <option key={unidade}>{unidade}</option>)}</select>
+                  </label>
+                </>}
+                <div style={{ gridColumn: '1 / -1', marginTop: 4, padding: 14, border: '1px solid var(--border-light)', borderRadius: 10, background: 'var(--bg-tertiary)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <strong>🏷️ Desconto por Quantidade <small>(opcional)</small></strong>
+                    <button type="button" onClick={() => setForm({ ...form, descontosPorQuantidade: [...(form.descontosPorQuantidade || []), { quantidadeMinima: '', precoUnitario: '', ativo: true }] })} style={{ border: '1px solid var(--accent-border)', borderRadius: 8, padding: '7px 10px', background: 'var(--accent-light)', color: 'var(--accent-primary)', fontWeight: 700, cursor: 'pointer' }}>+ Adicionar faixa</button>
+                  </div>
+                  {(form.descontosPorQuantidade || []).map((faixa, indice) => (
+                    <div className="quantity-discount-row" key={`desconto-${indice}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'end', marginTop: 8 }}>
+                      <label>A partir de <input type="number" min={1} step={1} value={faixa.quantidadeMinima} onChange={(event) => setForm({ ...form, descontosPorQuantidade: form.descontosPorQuantidade.map((item, itemIndex) => itemIndex === indice ? { ...item, quantidadeMinima: event.target.value } : item) })} /></label>
+                      <label>Preço unitário (R$) <input type="number" min={0} step="0.01" value={faixa.precoUnitario} onChange={(event) => setForm({ ...form, descontosPorQuantidade: form.descontosPorQuantidade.map((item, itemIndex) => itemIndex === indice ? { ...item, precoUnitario: event.target.value } : item) })} /></label>
+                      <button type="button" onClick={() => setForm({ ...form, descontosPorQuantidade: form.descontosPorQuantidade.filter((_, itemIndex) => itemIndex !== indice) })} style={{ minHeight: 38, border: '1px solid rgba(220,38,38,.2)', borderRadius: 8, background: 'rgba(220,38,38,.08)', color: 'var(--error-bg)', cursor: 'pointer' }}>Remover</button>
+                    </div>
+                  ))}
+                  {!form.descontosPorQuantidade?.length && <small style={{ color: 'var(--text-secondary)' }}>Nenhuma faixa promocional cadastrada.</small>}
+                </div>
                 <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label>
                 <label>Unidade de venda
                   <select value={form.unidadeVenda} onChange={(event) => setForm({ ...form, unidadeVenda: event.target.value })}>

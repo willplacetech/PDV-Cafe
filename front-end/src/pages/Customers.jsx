@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
-
+import AreaTabs from '../components/AreaTabs.jsx';
 
 // 🎯 Máscaras
 const aplicarMascaraTelefone = (valor) => {
@@ -29,11 +29,14 @@ export default function Customers() {
   const { showToast } = useToast();
 
 
-  useEffect(() => { carregar(); }, []);
   const carregar = async () => {
     const res = await api.get('/customers');
     setClientes(res.data);
   };
+  useEffect(() => {
+    const carregarInicial = async () => { await carregar(); };
+    carregarInicial();
+  }, []);
 
   // 🔒 Verifica duplicidade de CPF
   const cpfJaExiste = (cpf, idEdicao = null) => {
@@ -128,6 +131,7 @@ export default function Customers() {
 
   return (
     <div>
+      <AreaTabs area="pessoas" />
       <div className="page-heading">
         <div>
           <h1>👤 Cadastro de Clientes</h1>

@@ -206,6 +206,16 @@ router.get('/', async (req, res) => {
       pagamentosMes.set(pagamento.tipo, atual);
     }));
     const totalMes = vendasMes.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
+    const descontosQuantidadeMes = vendasMes.reduce((total, pedido) => total + (pedido.itens || []).reduce((subtotal, item) => subtotal + Number(item.economiaQuantidade || 0), 0), 0);
+    const rankingDescontos = new Map();
+    vendasMes.forEach((pedido) => (pedido.itens || []).forEach((item) => {
+      const economia = Number(item.economiaQuantidade || 0);
+      if (economia <= 0) return;
+      const atual = rankingDescontos.get(String(item.produtoId)) || { produtoId: item.produtoId, nome: item.nome, total: 0, unidades: 0 };
+      atual.total += economia;
+      atual.unidades += Number(item.quantidade || 0);
+      rankingDescontos.set(String(item.produtoId), atual);
+    }));
     const recebidoMes = vendasMes.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).liquido, 0), 0);
     const taxasMes = vendasMes.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).taxa, 0), 0);
     const statusMes = pedidosMes.reduce((status, pedido) => { status[pedido.status] = (status[pedido.status] || 0) + 1; return status; }, {});
@@ -241,6 +251,7 @@ router.get('/', async (req, res) => {
       produtos: [...produtosMes.values()].sort((a, b) => b.quantidade - a.quantidade).slice(0, 10),
       clientes: clientesMes.size,
       vendasPorDia: [...vendasPorDia.entries()].map(([dia, total]) => ({ dia, total })),
+      descontosQuantidade: { total: descontosQuantidadeMes, produtos: [...rankingDescontos.values()].sort((a, b) => b.total - a.total).slice(0, 10) },
     };
     const vendasPorProduto = new Map();
     const inicioEstoqueParado = new Date();

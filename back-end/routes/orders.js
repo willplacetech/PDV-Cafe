@@ -7,6 +7,7 @@ const auth = require('../middleware/auth');
 const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
 const { precoPorUnidade } = require('../utils/pesoProduto');
 const { normalizarEstoqueLegado, produtoControlaPeso, dadosMovimentoEstoque } = require('../utils/estoqueProduto');
+const { calcularPrecoComDesconto } = require('../utils/descontosQuantidade');
 
 const router = express.Router();
 const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda));
@@ -22,6 +23,7 @@ async function buildOrderItems(rawItems, session) {
   }
   const products = await Product.find({ _id: { $in: [...totals.keys()] } }).session(session);
   const byId = new Map(products.map((product) => [product.id, product]));
+  const quantidadesPorProduto = new Map(totals);
   totals.clear();
   const items = rawItems.map((item) => {
     const product = byId.get(String(item.produtoId));
@@ -35,7 +37,9 @@ async function buildOrderItems(rawItems, session) {
     const movimento = dadosMovimentoEstoque(product, { quantidade: quantity, tipoVenda: vendaPorPeso ? 'peso' : undefined, pesoVendidoKg });
     const atual = totals.get(String(item.produtoId));
     totals.set(String(item.produtoId), { pecas: (typeof atual === 'number' ? atual : atual?.pecas || 0) + movimento.pecas, pesoKg: (typeof atual === 'number' ? 0 : atual?.pesoKg || 0) + movimento.pesoKg });
-    return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product), quantidade, quantidadePecas: vendaPorPeso ? 0 : quantity, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso };
+    const precoNormal = vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product);
+    const pricing = vendaPorPeso ? { precoUnitario: precoNormal, precoNormal, economiaTotal: 0, faixaAplicada: null } : calcularPrecoComDesconto(product, quantidadesPorProduto.get(String(product._id)), precoNormal);
+    return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: pricing.precoUnitario, precoUnitarioOriginal: pricing.precoNormal, descontoQuantidade: pricing.economiaUnitario, economiaQuantidade: pricing.economiaTotal, faixaDescontoQuantidade: pricing.faixaAplicada?.quantidadeMinima, quantidade, quantidadePecas: vendaPorPeso ? 0 : quantity, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso };
   });
   for (const [productId, quantity] of totals) {
     const product = byId.get(productId);

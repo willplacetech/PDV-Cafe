@@ -6,6 +6,12 @@ const IngredientSchema = new mongoose.Schema({
   unidade: { type: String, enum: ['un', 'kg', 'g', 'l', 'ml'], required: true },
 }, { _id: false });
 
+const QuantityDiscountSchema = new mongoose.Schema({
+  quantidadeMinima: { type: Number, required: true, min: 1 },
+  precoUnitario: { type: Number, required: true, min: 0 },
+  ativo: { type: Boolean, default: true },
+}, { _id: false });
+
 const ProductSchema = new mongoose.Schema({
   tipo: {
     type: String,
@@ -103,6 +109,10 @@ const ProductSchema = new mongoose.Schema({
     type: Number,
     required: [true, 'Preço é obrigatório'],
     min: [0, 'Preço não pode ser negativo'],
+  },
+  descontosPorQuantidade: {
+    type: [QuantityDiscountSchema],
+    default: [],
   },
   custo: {
     type: Number,

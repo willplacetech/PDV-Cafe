@@ -9,10 +9,29 @@ const auth = require('../middleware/auth');
 const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
 const { precoPorUnidade } = require('../utils/pesoProduto');
 const { normalizarEstoqueLegado, produtoControlaPeso, dadosMovimentoEstoque } = require('../utils/estoqueProduto');
+const { calcularPrecoComDesconto } = require('../utils/descontosQuantidade');
 
 const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda));
+
+async function recalcularPrecosComanda(comanda, session) {
+  const ids = [...new Set(comanda.itens.map((item) => String(item.produtoId)))];
+  const produtos = await Product.find({ _id: { $in: ids } }).session(session);
+  const porId = new Map(produtos.map((produto) => [String(produto._id), produto]));
+  const quantidades = new Map();
+  comanda.itens.forEach((item) => quantidades.set(String(item.produtoId), (quantidades.get(String(item.produtoId)) || 0) + Number(item.quantidade || 0)));
+  comanda.itens.forEach((item) => {
+    const produto = porId.get(String(item.produtoId));
+    if (!produto || item.tipoVenda === 'peso') return;
+    const pricing = calcularPrecoComDesconto(produto, quantidades.get(String(item.produtoId)), precoPorUnidade(produto));
+    item.precoUnitario = pricing.precoUnitario;
+    item.precoUnitarioOriginal = pricing.precoNormal;
+    item.descontoQuantidade = pricing.economiaUnitario;
+    item.economiaQuantidade = pricing.economiaTotal;
+    item.faixaDescontoQuantidade = pricing.faixaAplicada?.quantidadeMinima;
+  });
+}
 
 async function ajustarEstoque(itens, operacao, session) {
   const produtos = await Product.find({ _id: { $in: itens.map((item) => item.produtoId) } }).session(session);
@@ -109,6 +128,10 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
   try {
     session.startTransaction();
     const itens = [];
+    const quantidadesPorProduto = new Map();
+    (Array.isArray(req.body.itens) ? req.body.itens : []).forEach((item) => {
+      quantidadesPorProduto.set(String(item.produtoId), (quantidadesPorProduto.get(String(item.produtoId)) || 0) + Number(item.quantidade || 0));
+    });
     for (const item of Array.isArray(req.body.itens) ? req.body.itens : []) {
       const product = await Product.findById(item.produtoId).session(session);
       const vendaPorPeso = produtoControlaPeso(product) && item.tipoVenda === 'peso';
@@ -120,7 +143,9 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
       const modificadores = Array.isArray(item.modificadores)
         ? item.modificadores.filter((value) => typeof value === 'string').slice(0, 10)
         : [];
-      itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product), quantidade, quantidadePecas: vendaPorPeso ? 0 : quantidade, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
+      const precoNormal = vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product);
+      const pricing = vendaPorPeso ? { precoUnitario: precoNormal, precoNormal, economiaUnitario: 0, economiaTotal: 0, faixaAplicada: null } : calcularPrecoComDesconto(product, quantidadesPorProduto.get(String(product._id)), precoNormal);
+      itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: pricing.precoUnitario, precoUnitarioOriginal: pricing.precoNormal, descontoQuantidade: pricing.economiaUnitario, economiaQuantidade: pricing.economiaTotal, faixaDescontoQuantidade: pricing.faixaAplicada?.quantidadeMinima, quantidade, quantidadePecas: vendaPorPeso ? 0 : quantidade, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
     }
     await ajustarEstoque(itens, 'baixar', session);
     const [comanda] = await Comanda.create([{ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, itens, estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
@@ -150,6 +175,7 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
       : [];
     await ajustarEstoque([{ produtoId: product.id, quantidade }], 'baixar', session);
     comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product), quantidade, quantidadePecas: vendaPorPeso ? 0 : quantidade, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
+    await recalcularPrecosComanda(comanda, session);
     comanda.estoqueBaixado = true;
     await comanda.save({ session });
     await session.commitTransaction();
@@ -176,6 +202,7 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'g
     if (diferenca > 0) await ajustarEstoque([{ produtoId: item.produtoId, quantidade: diferenca }], 'baixar', session);
     if (diferenca < 0) await ajustarEstoque([{ produtoId: item.produtoId, quantidade: Math.abs(diferenca) }], 'devolver', session);
     item.quantidade = quantidade;
+    await recalcularPrecosComanda(comanda, session);
     await comanda.save({ session });
     await session.commitTransaction();
     res.json(comanda);
@@ -195,6 +222,7 @@ router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', '
     if (!item) return res.status(404).json({ msg: 'Item não encontrado' });
     if (comanda.estoqueBaixado) await ajustarEstoque([{ produtoId: item.produtoId, quantidade: item.quantidade }], 'devolver', session);
     comanda.itens.pull(req.params.itemId);
+    await recalcularPrecosComanda(comanda, session);
     await comanda.save({ session });
     await session.commitTransaction();
     res.json(comanda);
@@ -320,6 +348,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     session.startTransaction();
     const comanda = await Comanda.findById(req.params.id).session(session);
     if (!comanda || comanda.status !== 'aberta' || !comanda.itens.length) throw new Error('Comanda sem itens ou já fechada');
+    await recalcularPrecosComanda(comanda, session);
     const utilizacaoInterna = Boolean(req.body.utilizacaoInterna);
     const metodoPagamento = req.body.metodoPagamento;
     if (!utilizacaoInterna && !['dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'credito_loja'].includes(metodoPagamento)) {

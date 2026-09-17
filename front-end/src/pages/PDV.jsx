@@ -16,11 +16,20 @@ const corCategoria = {
 
 const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Outros'];
 const normalizarTexto = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+const formatMoney = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const permiteFracionar = (produto) => !Number(produto?.pesoPorUnidade) && (Boolean(produto?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(produto?.unidadeVenda));
 const precoPorUnidade = (produto) => {
   const pesoEmKg = Number(produto?.pesoPorUnidade || 0) * (produto?.unidadePeso === 'g' ? 0.001 : 1);
   const preco = pesoEmKg > 0 ? Number(produto.preco || 0) * pesoEmKg : Number(produto.preco || 0);
   return Math.round((preco + Number.EPSILON) * 100) / 100;
+};
+const precoComDesconto = (produto, quantidade, precoNormal = precoPorUnidade(produto)) => {
+  const faixas = (produto?.descontosPorQuantidade || [])
+    .filter((faixa) => faixa.ativo !== false && Number(faixa.quantidadeMinima) <= Number(quantidade))
+    .sort((a, b) => Number(a.quantidadeMinima) - Number(b.quantidadeMinima));
+  const faixaAplicada = faixas[faixas.length - 1];
+  const precoUnitario = faixaAplicada ? Number(faixaAplicada.precoUnitario) : precoNormal;
+  return { precoNormal, precoUnitario, economiaTotal: Math.max(0, (precoNormal - precoUnitario) * Number(quantidade || 0)), faixaAplicada };
 };
 
 
@@ -41,9 +50,6 @@ export default function PDV() {
   const selectClienteRef = useRef(null);
 
 
-  useEffect(() => { carregarDados(); }, []);
-
-
   const carregarDados = async () => {
     try {
       const [resProd, resCli, resMaisVendidos] = await Promise.all([
@@ -56,6 +62,11 @@ export default function PDV() {
       showToast('Erro ao carregar dados', 'error');
     }
   };
+
+  useEffect(() => {
+    const carregarInicial = async () => { await carregarDados(); };
+    carregarInicial();
+  }, []);
 
 
   const tocarFeedback = () => {
@@ -72,6 +83,14 @@ export default function PDV() {
     } catch { /* áudio pode ser bloqueado pelo navegador */ }
   };
 
+  const recalcularPrecosCarrinho = (itens) => itens.map((item) => {
+    const produto = produtos.find((registro) => registro._id === item.produtoId);
+    if (!produto) return item;
+    const quantidadeTotal = itens.filter((linha) => linha.produtoId === item.produtoId).reduce((total, linha) => total + Number(linha.quantidade || 0), 0);
+    const pricing = precoComDesconto(produto, quantidadeTotal, item.precoUnitarioOriginal || precoPorUnidade(produto));
+    return { ...item, precoUnitario: pricing.precoUnitario, precoUnitarioOriginal: pricing.precoNormal, economiaQuantidade: pricing.economiaTotal, faixaDescontoQuantidade: pricing.faixaAplicada?.quantidadeMinima };
+  });
+
   const adicionarItem = (prod, opcoes = {}) => {
     if (prod.tipo !== 'venda') return showToast('Este item não pode entrar no PDV', 'warning');
     if (prod.estoque <= 0) return showToast('Produto sem estoque!', 'error');
@@ -83,11 +102,12 @@ export default function PDV() {
     if (quantidadeProduto + incremento > prod.estoque) return showToast('Estoque máximo atingido!', 'warning');
     if (existe) {
       if (existe.quantidade >= prod.estoque) return showToast('Estoque máximo atingido!', 'warning');
-      setCarrinho(carrinho.map(i => i.produtoId === prod._id && (i.modificadores || []).join('|') === assinatura ? { ...i, quantidade: Number((i.quantidade + incremento).toFixed(3)) } : i));
+      setCarrinho(recalcularPrecosCarrinho(carrinho.map(i => i.produtoId === prod._id && (i.modificadores || []).join('|') === assinatura ? { ...i, quantidade: Number((i.quantidade + incremento).toFixed(3)) } : i)));
     } else {
+      const pricing = precoComDesconto(prod, incremento);
       setCarrinho([...carrinho, {
         produtoId: prod._id, codigo: prod.codigo, nome: prod.nome,
-        precoUnitario: precoPorUnidade(prod), quantidade: incremento, unidadeVenda: prod.unidadeVenda || 'un', pesoPorUnidade: prod.pesoPorUnidade, unidadePeso: prod.unidadePeso, vendidoFracionado: permiteFracionar(prod), modificadores: modificadoresItem
+        precoUnitario: pricing.precoUnitario, precoUnitarioOriginal: pricing.precoNormal, economiaQuantidade: pricing.economiaTotal, faixaDescontoQuantidade: pricing.faixaAplicada?.quantidadeMinima, quantidade: incremento, unidadeVenda: prod.unidadeVenda || 'un', pesoPorUnidade: prod.pesoPorUnidade, unidadePeso: prod.unidadePeso, vendidoFracionado: permiteFracionar(prod), modificadores: modificadoresItem
       }]);
     }
     setFeedbackProduto(prod._id);
@@ -108,14 +128,7 @@ export default function PDV() {
     const quantidadeOutrasLinhas = carrinho.reduce((total, item, itemIndex) => itemIndex !== idx && item.produtoId === novos[idx].produtoId ? total + item.quantidade : total, 0);
     if (quantidadeOutrasLinhas + qtd > prod.estoque) return showToast(`Máximo: ${prod.estoque}`, 'warning');
     novos[idx].quantidade = qtd;
-    setCarrinho(novos);
-  };
-
-
-  const setPreco = (idx, valor) => {
-    const novos = [...carrinho];
-    novos[idx].precoUnitario = Math.max(0, parseFloat(valor) || 0);
-    setCarrinho(novos);
+    setCarrinho(recalcularPrecosCarrinho(novos));
   };
 
 
@@ -124,6 +137,7 @@ export default function PDV() {
 
   const subtotal = carrinho.reduce((ac, i) => ac + i.precoUnitario * i.quantidade, 0);
   const total = subtotal;
+  const descontoQuantidadeTotal = carrinho.reduce((acumulado, item) => acumulado + Number(item.economiaQuantidade || 0), 0);
   const totalItens = carrinho.reduce((ac, i) => ac + i.quantidade, 0);
   const clienteSelecionado = clientes.find(c => c._id === clienteId);
 
@@ -239,31 +253,6 @@ export default function PDV() {
   const enviarWhatsApp = (pedido) => {
     if (!pedido) return;
     return compartilharNotaWhatsApp(pedido);
-    
-    const data = new Date(pedido.createdAt).toLocaleString('pt-BR');
-    
-    const itensTexto = pedido.itens.map(item => 
-      `• ${item.nome}\n  ${item.quantidade} x R$ ${item.precoUnitario.toFixed(2).replace('.',',')} = R$ ${(item.quantidade * item.precoUnitario).toFixed(2).replace('.',',')}`
-    ).join('\n');
-    const texto = encodeURIComponent(
-`🛒 *PEDIDO* #${pedido.numero}
-📅 ${data}
-👤 Cliente: ${pedido.clienteNome}
-💼 Atendente: ${pedido.atendente}
-━━━━━━━━━━━━━━━━
-📦 *ITENS:*
-${itensTexto}
-━━━━━━━━━━━━━━━━
-💰 Subtotal: R$ ${pedido.subtotal.toFixed(2).replace('.',',')}
-${pedido.desconto > 0 ? `🎁 Desconto: -R$ ${pedido.desconto.toFixed(2).replace('.',',')}\n` : ''}💵 *TOTAL: R$ ${pedido.total.toFixed(2).replace('.',',')}*
-Obrigado pela preferência! 🙏`
-    );
-    const telefone = pedido.clienteTelefone ? pedido.clienteTelefone.replace(/\D/g, '') : '';
-    const url = telefone 
-      ? `https://wa.me/55${telefone}?text=${texto}`
-      : `https://wa.me/?text=${texto}`;
-    
-    window.open(url, '_blank');
   };
 
 
@@ -500,16 +489,10 @@ Obrigado pela preferência! 🙏`
                           </div>
                           <div style={{ flex: 1, textAlign: 'right' }}>
                             <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Unitário</div>
-                            <input type="number" step="0.01" min={0} value={item.precoUnitario.toFixed(2)}
-                              onChange={e => setPreco(i, e.target.value)}
-                              style={{
-                                width: 90, textAlign: 'right', padding: '8px 10px',
-                                border: '1px solid var(--border-color)', borderRadius: 8,
-                                fontSize: 14, fontWeight: 700, color: 'var(--accent-primary)',
-                                background: 'var(--input-bg)', minHeight: 38
-                              }} />
+                            <div style={{ fontSize: 15, fontWeight: 700, color: item.faixaDescontoQuantidade ? 'var(--success-bg)' : 'var(--accent-primary)', textAlign: 'right', padding: '8px 10px', border: '1px solid var(--border-color)', borderRadius: 8, minHeight: 38 }}>{formatMoney(item.precoUnitario)}</div>
                           </div>
                         </div>
+                        {item.faixaDescontoQuantidade && <div style={{ marginTop: 6, color: 'var(--success-bg)', fontSize: 11, fontWeight: 700 }}>🏷️ PROMOÇÃO · Economia: {formatMoney(item.economiaQuantidade)}</div>}
                         <div style={{ textAlign: 'right', marginTop: 8, fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>
                           Subtotal: R$ {(item.precoUnitario * item.quantidade).toFixed(2).replace('.', ',')}
                         </div>
@@ -522,6 +505,7 @@ Obrigado pela preferência! 🙏`
                     <span>Subtotal</span>
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
                   </div>
+                  {descontoQuantidadeTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13, color: 'var(--success-bg)', fontWeight: 700 }}><span>Desconto por quantidade</span><span>-{formatMoney(descontoQuantidadeTotal)}</span></div>}
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, fontWeight: 700, fontSize: 24, color: 'var(--accent-primary)' }}>
                     <span>Total</span>
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>R$ {total.toFixed(2).replace('.', ',')}</span>

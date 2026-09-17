@@ -2,6 +2,7 @@ import { useContext, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext.jsx';
 import { useToast } from '../components/Toast.jsx';
+import AreaTabs from '../components/AreaTabs.jsx';
 import api from '../services/api.jsx';
 
 export default function Users() {
@@ -35,6 +36,7 @@ export default function Users() {
 
   return (
     <section style={{ maxWidth: 620, margin: '0 auto' }}>
+      <AreaTabs area="pessoas" />
       <div className="page-heading">
         <div>
           <h1>Novo usuário</h1>

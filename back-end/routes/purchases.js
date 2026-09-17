@@ -65,8 +65,8 @@ router.post('/', [
 
       for (const item of req.body.itens) {
         const produto = produtosPorId.get(String(item.produtoId));
-        if (!produto) throw new Error('Insumo não encontrado');
-        if (produto.tipo !== 'insumo') throw new Error(`${produto.nome} não é um insumo`);
+        if (!produto) throw new Error('Produto não encontrado');
+        if (produto.tipo !== 'insumo' && !produto.usavelEmReceita) throw new Error(`${produto.nome} não pode ser comprado para uso em receitas`);
 
         const valorTotal = Number(item.valorTotal);
         const qtdEmbalagens = Number(item.qtdEmbalagens);
@@ -74,7 +74,9 @@ router.post('/', [
         const quantidadeTotal = qtdEmbalagens * conteudoPorEmbalagem;
         const quantidadeTotalBase = quantidadeBase(quantidadeTotal, item.unidadeConteudo);
         const custoUnitario = valorTotal / quantidadeTotalBase;
-        const estoqueAtualBase = (Number(produto.estoqueEmbalagens || produto.estoqueInsumos || 0) * quantidadeBase(produto.conteudoPorEmbalagem || 0, produto.unidadeConteudo || 'g')) + Number(produto.estoqueConteudoAberto || 0);
+        const estoqueAtualBase = produto.tipo === 'venda'
+          ? Number(produto.estoque || 0) * quantidadeBase(produto.conteudoPorEmbalagem || 1, produto.unidadeConteudo || produto.unidadeVenda || 'un')
+          : (Number(produto.estoqueEmbalagens || produto.estoqueInsumos || 0) * quantidadeBase(produto.conteudoPorEmbalagem || 0, produto.unidadeConteudo || 'g')) + Number(produto.estoqueConteudoAberto || 0);
         const custoAtual = Number(produto.custoUnitarioBase || 0);
         const custoNovo = req.body.metodoCusteio === 'ultimo_preco'
           ? custoUnitario
@@ -84,8 +86,12 @@ router.post('/', [
 
         produto.conteudoPorEmbalagem = conteudoPorEmbalagem;
         produto.unidadeConteudo = item.unidadeConteudo;
-        produto.estoqueEmbalagens = Number(produto.estoqueEmbalagens || produto.estoqueInsumos || 0) + qtdEmbalagens;
-        produto.estoqueInsumos = produto.estoqueEmbalagens;
+        if (produto.tipo === 'venda') {
+          produto.estoque = Number(produto.estoque || 0) + qtdEmbalagens;
+        } else {
+          produto.estoqueEmbalagens = Number(produto.estoqueEmbalagens || produto.estoqueInsumos || 0) + qtdEmbalagens;
+          produto.estoqueInsumos = produto.estoqueEmbalagens;
+        }
         produto.precoCompra = valorTotal / qtdEmbalagens;
         produto.custoUnitarioBase = custoNovo;
         await produto.save({ session });
@@ -111,10 +117,10 @@ router.post('/', [
           produtoNome: produto.nome,
           tipo: 'entrada',
           origem: 'externo',
-          destino: 'insumos',
+          destino: produto.tipo === 'venda' ? 'venda' : 'insumos',
           quantidade: item.qtdEmbalagens,
           quantidadePecas: item.qtdEmbalagens,
-          unidade: 'embalagem',
+          unidade: produto.unidadeVenda || 'embalagem',
           referenciaId: compra._id,
           observacao: `Compra NF ${req.body.numeroNF}`,
           createdBy: req.user.id,

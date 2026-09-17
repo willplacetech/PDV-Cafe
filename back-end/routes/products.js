@@ -11,6 +11,7 @@ const { pesoPorUnidadeEmKg } = require('../utils/pesoProduto');
 const { dadosEstoqueProduto, normalizarEstoqueLegado, produtoControlaPeso } = require('../utils/estoqueProduto');
 const { resolverTipoProduto } = require('../utils/produtoTipo');
 const { calcularResumoCompleto, calcularCustoUnitarioBase, calcularEstoqueMinimoBase } = require('../utils/estoqueInsumo');
+const { normalizarDescontos } = require('../utils/descontosQuantidade');
 
 const router = express.Router();
 const units = ['un', 'kg', 'g', 'mg', 'l', 'ml'];
@@ -18,6 +19,20 @@ const compraUnits = ['un', 'kg', 'g', 'L', 'ml', 'lata', 'rolo', 'caixa', 'pacot
 const dataLocal = () => { const agora = new Date(); return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`; };
 const antesDasOito = () => new Date().getHours() < 8;
 const limparCampoOpcional = (valor) => (valor === '' || valor === null || valor === undefined ? undefined : valor);
+const descontosDoProduto = (valor, tipo, precoNormal) => {
+  if (tipo !== 'venda') return [];
+  if (valor === undefined) return undefined;
+  if (!Array.isArray(valor)) throw new Error('Faixas de desconto inválidas');
+  const descontos = normalizarDescontos(valor);
+  if (descontos.length !== valor.length) throw new Error('Cada faixa deve ter quantidade e preço válidos');
+  for (let indice = 0; indice < descontos.length; indice += 1) {
+    const faixa = descontos[indice];
+    const anterior = descontos[indice - 1];
+    if (faixa.quantidadeMinima < 1 || (anterior && faixa.quantidadeMinima <= anterior.quantidadeMinima)) throw new Error('As quantidades mínimas devem ser crescentes');
+    if (faixa.precoUnitario > precoNormal || (anterior && faixa.precoUnitario >= anterior.precoUnitario)) throw new Error('Cada preço promocional deve ser menor que a faixa anterior');
+  }
+  return descontos;
+};
 const validations = [
   body('codigo').trim().notEmpty(),
   body('nome').trim().notEmpty(),
@@ -231,8 +246,8 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const data = req.body;
     const tipo = resolverTipoProduto(data);
     if (tipo === 'venda' && (data.precoVenda == null && data.preco == null)) return res.status(400).json({ msg: 'Preço de venda é obrigatório para produtos à venda' });
-    if (tipo === 'insumo' && (data.precoCompra === undefined || Number(data.precoCompra) < 0)) return res.status(400).json({ msg: 'Preço de compra é obrigatório para insumos' });
-    if (tipo === 'insumo' && !['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(data.unidadeCompra || '') && (!Number.isFinite(Number(data.conteudoPorEmbalagem)) || Number(data.conteudoPorEmbalagem) <= 0)) return res.status(400).json({ msg: 'Informe o conteúdo de referência da embalagem' });
+    if ((tipo === 'insumo' || data.usavelEmReceita === true) && (data.precoCompra === undefined || Number(data.precoCompra) <= 0)) return res.status(400).json({ msg: 'Preço de compra é obrigatório para produtos usados em receitas' });
+    if (data.usavelEmReceita === true && (!Number.isFinite(Number(data.conteudoPorEmbalagem)) || Number(data.conteudoPorEmbalagem) <= 0)) return res.status(400).json({ msg: 'Informe o conteúdo por embalagem do produto híbrido' });
     const exists = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') } });
     if (exists) return res.status(400).json({ msg: 'Já existe um produto com este código' });
     const estoque = Number(data.estoque) || 0;
@@ -245,6 +260,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const categoria = tipo === 'insumo' ? 'Insumos' : (data.categoria || 'Outros');
     const precoVenda = Number(data.precoVenda ?? data.preco ?? 0);
     const precoCompra = Number(data.precoCompra || 0);
+    const descontosPorQuantidade = descontosDoProduto(data.descontosPorQuantidade, tipo, precoVenda);
     const unidadeConteudo = data.unidadeConteudo || (['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(unidadeCompra) ? unidadeCompra : 'g');
     const conteudoPorEmbalagem = ['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(unidadeCompra) ? 1 : Number(data.conteudoPorEmbalagem || 0);
     const estoqueEmbalagens = tipo === 'insumo' ? Number(data.estoqueEmbalagens ?? estoque) || 0 : 0;
@@ -258,6 +274,8 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
       tipo,
       categoria,
       preco: tipo === 'venda' ? precoVenda : 0,
+      descontosPorQuantidade: descontosPorQuantidade || [],
+      usavelEmReceita: tipo === 'venda' ? Boolean(data.usavelEmReceita) : true,
       precoCompra,
       unidadeCompra,
       marcaReferencia: data.marcaReferencia || '',
@@ -270,7 +288,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
        rendimentoPorUnidadeCompra: Number(data.rendimentoPorUnidadeCompra || 0),
        custo: custoUnitario,
        custoUnitario,
-       custoUnitarioBase: tipo === 'insumo' ? calcularCustoUnitarioBase(precoCompra, conteudoPorEmbalagem, unidadeConteudo) : Number(data.custoUnitarioBase) || 0,
+      custoUnitarioBase: tipo === 'insumo' || data.usavelEmReceita ? calcularCustoUnitarioBase(precoCompra, conteudoPorEmbalagem, unidadeConteudo) : Number(data.custoUnitarioBase) || 0,
       estoque: tipo === 'venda' ? estoque : 0,
       estoquePesoKg,
       estoqueInsumos: tipo === 'insumo' ? estoqueEmbalagens : estoqueInsumos,
@@ -286,7 +304,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
       aFazer: Boolean(data.aFazer),
       fichaTecnica,
       producaoPropria: Boolean(data.producaoPropria),
-      usavelEmReceita: tipo === 'insumo',
+      usavelEmReceita: tipo === 'insumo' || Boolean(data.usavelEmReceita),
       ativo: data.ativo !== undefined ? Boolean(data.ativo) : true,
       createdBy: req.user.id,
     });
@@ -302,9 +320,9 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
     const data = req.body;
-    const produtoAtual = await Product.findById(req.params.id).select('tipo');
+    const produtoAtual = await Product.findById(req.params.id).select('tipo usavelEmReceita');
     if (!produtoAtual) return res.status(404).json({ msg: 'Produto não encontrado' });
-    if (produtoAtual.tipo === 'insumo' && ['precoCompra', 'custo', 'custoUnitario', 'conteudoPorEmbalagem', 'unidadeConteudo'].some((campo) => data[campo] !== undefined)) {
+    if ((produtoAtual.tipo === 'insumo' || produtoAtual.usavelEmReceita) && ['precoCompra', 'custo', 'custoUnitario', 'conteudoPorEmbalagem', 'unidadeConteudo'].some((campo) => data[campo] !== undefined)) {
       return res.status(403).json({ msg: 'Custo e conteúdo de insumo só podem ser alterados por uma compra' });
     }
     const tipo = resolverTipoProduto({ ...data, tipo: data.tipo ?? undefined });
@@ -315,6 +333,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     const fields = {};
     if (data.tipo !== undefined) fields.tipo = tipo;
     if (tipo === 'insumo') fields.usavelEmReceita = true;
+    if (data.usavelEmReceita !== undefined && tipo === 'venda') fields.usavelEmReceita = Boolean(data.usavelEmReceita);
     ['codigo', 'nome', 'categoria', 'unidadeVenda', 'unidadeCompra'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
     ['preco', 'precoCompra', 'estoque', 'estoqueInsumos', 'estoqueEmbalagens', 'estoqueConteudoAberto', 'estoqueMaximo', 'estoqueMinimoInsumos', 'estoqueMinimoEmbalagens', 'pesoPorUnidade', 'rendimentoPorUnidadeCompra', 'conteudoPorEmbalagem'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
     if (data.estoque !== undefined && tipo === 'insumo') {
@@ -354,6 +373,10 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
         fields.custo = custoUnitario;
       }
     }
+    const produtoAtualParaDesconto = await Product.findById(req.params.id).select('preco tipo').lean();
+    const precoNormal = Number(data.precoVenda ?? data.preco ?? produtoAtualParaDesconto?.preco ?? 0);
+    const descontosPorQuantidade = descontosDoProduto(data.descontosPorQuantidade, tipo, precoNormal);
+    if (descontosPorQuantidade !== undefined) fields.descontosPorQuantidade = descontosPorQuantidade;
     ['vendidoFracionado', 'aFazer', 'producaoPropria'].forEach((key) => { if (data[key] !== undefined) fields[key] = Boolean(data[key]); });
     if (data.fichaTecnica !== undefined) fields.fichaTecnica = data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade }));
     if (data.estoque !== undefined && antesDasOito()) {
