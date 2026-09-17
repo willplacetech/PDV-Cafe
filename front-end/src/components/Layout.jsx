@@ -3,6 +3,63 @@ import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext.jsx';
 import { ThemeContext } from '../context/ThemeContext.jsx';
 
+const gruposMenu = [
+  {
+    chave: 'atendimento',
+    label: 'Atendimento',
+    sempreVisivel: true,
+    items: [
+      { label: 'Novo Pedido', icon: '', to: '/pdv' },
+      { label: 'Comandas', icon: '', to: '/comandas' },
+    ],
+  },
+  {
+    chave: 'compras',
+    label: 'COMPRAS',
+    items: [
+      { label: 'Compras', icon: '', to: '/compras', admin: true },
+      { label: 'Produtos', icon: '', to: '/produtos', admin: true },
+    ],
+  },
+  {
+    chave: 'producao',
+    label: 'Produção',
+    items: [
+      { label: 'Produção', icon: '', to: '/producao', admin: true },
+      { label: 'Cozinha', icon: '', to: '/cozinha', roles: ['admin', 'operador', 'cozinha'] },
+    ],
+  },
+  {
+    chave: 'pessoas',
+    label: 'PESSOAS',
+    items: [
+      { label: 'Clientes', icon: '', to: '/clientes', admin: true },
+      { label: 'Usuários', icon: '', to: '/usuarios', admin: true },
+    ],
+  },
+  {
+    chave: 'dashboard',
+    label: 'DASHBOARD',
+    items: [
+      { label: 'Dashboard', icon: '', to: '/dashboard', admin: true },
+      { label: 'Financeiro', icon: '', to: '/financeiro', admin: true },
+    ],
+  },
+];
+
+const pageIcons = {
+  '/pdv': { icon: '', title: 'Atendimento' },
+  '/produtos': { icon: '', title: 'Produtos' },
+  '/clientes': { icon: '', title: 'Clientes' },
+  '/comandas': { icon: '', title: 'Comandas' },
+  '/cozinha': { icon: '', title: 'Cozinha' },
+  '/contas-receber': { icon: '', title: 'A Receber' },
+  '/usuarios': { icon: '', title: 'Usuários' },
+  '/dashboard': { icon: '', title: 'Dashboard' },
+  '/producao': { icon: '', title: 'Produção' },
+  '/compras': { icon: '', title: 'Compras' },
+  '/financeiro': { icon: '', title: 'Financeiro' },
+};
 
 export default function Layout() {
   const { user, logout } = useContext(AuthContext);
@@ -10,81 +67,122 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showConfirm, setShowConfirm] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [gruposAbertos, setGruposAbertos] = useState({});
 
   const sair = () => { logout(); navigate('/login'); };
 
-  // ✅ Verificações de rota — UMA POR UMA, sem função
-  const ativoPDV = location.pathname.startsWith('/pdv');
-  const ativoProdutos = location.pathname.startsWith('/produtos');
-  const ativoClientes = location.pathname.startsWith('/clientes');
-  const ativoComandas = location.pathname.startsWith('/comandas');
-  const ativoCozinha = location.pathname.startsWith('/cozinha');
-  const ativoContasReceber = location.pathname.startsWith('/contas-receber');
-  const ativoUsuarios = location.pathname.startsWith('/usuarios');
-  const ativoDashboard = location.pathname.startsWith('/dashboard');
-  const ativoProducao = location.pathname.startsWith('/producao');
-  const ativoCompras = location.pathname.startsWith('/compras');
-  const ativoFinanceiro = location.pathname.startsWith('/financeiro');
+  const toggleGrupo = (chave) => {
+    setGruposAbertos((prev) => {
+      const novo = {};
+      Object.keys(prev).forEach((k) => { if (k !== chave) novo[k] = false; });
+      novo[chave] = !prev[chave];
+      return novo;
+    });
+  };
 
-  // ✅ Título e ícone — UMA POR UMA, sem função
-  let iconePagina = '☕';
-  let tituloPagina = 'Atendimento';
+  const pathAtivo = location.pathname;
+  const grupoAtivo = gruposMenu.find((g) => g.items.some((item) => pathAtivo.startsWith(item.to)));
 
-  if (location.pathname.startsWith('/pdv')) {
-    iconePagina = '☕';
-    tituloPagina = 'Atendimento';
-  }
-  if (location.pathname.startsWith('/produtos')) {
-    iconePagina = '📦';
-    tituloPagina = 'Produtos';
-  }
-  if (location.pathname.startsWith('/clientes')) {
-    iconePagina = '👤';
-    tituloPagina = 'Clientes';
-  }
-  if (location.pathname.startsWith('/comandas')) {
-    iconePagina = '☕';
-    tituloPagina = 'Comandas';
-  }
-  if (location.pathname.startsWith('/cozinha')) {
-    iconePagina = '🍳';
-    tituloPagina = 'Cozinha';
-  }
-  if (location.pathname.startsWith('/contas-receber')) {
-    iconePagina = '💰';
-    tituloPagina = 'A Receber';
-  }
-  if (location.pathname.startsWith('/usuarios')) {
-    iconePagina = '👥';
-    tituloPagina = 'Usuários';
-  }
-  if (location.pathname.startsWith('/dashboard')) {
-    iconePagina = '📊';
-    tituloPagina = 'Dashboard';
-  }
-  if (location.pathname.startsWith('/producao')) {
-    iconePagina = '🧪';
-    tituloPagina = 'Produção';
-  }
-  if (location.pathname.startsWith('/compras')) {
-    iconePagina = '🧾';
-    tituloPagina = 'Compras';
-  }
-  if (location.pathname.startsWith('/financeiro')) {
-    iconePagina = '💰';
-    tituloPagina = 'Financeiro';
-  }
+  const toggleMobileMenu = (open) => {
+    setMobileMenuOpen(open);
+    if (open) {
+      const activeKey = grupoAtivo?.chave;
+      const novo = {};
+      gruposMenu.forEach((g) => {
+        if (g.sempreVisivel || g.chave === activeKey) novo[g.chave] = true;
+        else novo[g.chave] = false;
+      });
+      setGruposAbertos(novo);
+    }
+  };
 
+  const pageInfo = Object.entries(pageIcons).find(([path]) => pathAtivo.startsWith(path));
+  const iconePagina = pageInfo ? pageInfo[1].icon : '';
+  const tituloPagina = pageInfo ? pageInfo[1].title : 'Atendimento';
+
+  const visibleGroups = () => {
+    const userRole = user?.role;
+    return gruposMenu.filter((grupo) => {
+      if (grupo.chave === 'atendimento') {
+        return grupo.items.some((item) => !item.admin || userRole === 'admin');
+      }
+      if (grupo.admin) return userRole === 'admin';
+      return grupo.items.some((item) => {
+        if (item.admin) return userRole === 'admin';
+        if (item.roles) return item.roles.includes(userRole);
+        return true;
+      });
+    });
+  };
+
+  const renderGrupo = (grupo, isMobile) => {
+    const isOpen = gruposAbertos[grupo.chave] || grupo.sempreVisivel;
+    const userRole = user?.role;
+    const visibleItems = grupo.items.filter((item) => {
+      if (item.admin) return userRole === 'admin';
+      if (item.roles) return item.roles.includes(userRole);
+      return true;
+    });
+    if (visibleItems.length === 0) return null;
+
+    return (
+      <div className="nav-group-container" key={grupo.chave}>
+        {!grupo.sempreVisivel && (
+          <button
+            type="button"
+            className={'nav-group-header ' + (isOpen ? 'open' : '')}
+            onClick={() => toggleGrupo(grupo.chave)}
+            aria-expanded={isOpen}
+          >
+            <span className="nav-group-label">{grupo.label}</span>
+            <span className="nav-group-arrow">{isOpen ? '' : ''}</span>
+          </button>
+        )}
+        {grupo.sempreVisivel && (
+          <span className="nav-group-label nav-group-label-static">{grupo.label}</span>
+        )}
+        {isOpen && (
+          <div className={'nav-group-content ' + (isOpen ? 'open' : '')}>
+            {visibleItems.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={pathAtivo.startsWith(item.to) ? 'nav-link active' : 'nav-link'}
+                onClick={() => {
+                  if (isMobile) toggleMobileMenu(false);
+                  if (!grupo.sempreVisivel) toggleGrupo(grupo.chave);
+                }}
+              >
+                <span className="nav-link-icon">{item.icon}</span>
+                <span className="nav-link-text">{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const groups = visibleGroups();
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', fontFamily: 'var(--font-body)', color: 'var(--text-primary)', transition: 'background-color 0.3s ease, color 0.3s ease' }}>
-      
+
       {/* ==========================================
-          HEADER MOBILE
-          ========================================== */}
+            HEADER MOBILE
+            ========================================== */}
       <header id="header-mobile">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+          <button
+            type="button"
+            className="hamburger"
+            onClick={() => toggleMobileMenu(true)}
+            aria-label="Abrir menu"
+            aria-expanded={mobileMenuOpen}
+          >
+            &#9776;
+          </button>
           <span style={{ fontSize: 22, lineHeight: 1 }}>{iconePagina}</span>
           <h1 style={{
             fontSize: 17, fontWeight: 700, margin: 0, color: 'var(--text-primary)',
@@ -105,7 +203,7 @@ export default function Layout() {
             display: 'flex', alignItems: 'center', gap: 4,
             transition: 'all 0.2s ease'
           }} title={isDark ? 'Modo claro' : 'Modo escuro'}>
-            {isDark ? '☀️' : '🌙'}
+            {isDark ? '' : ''}
           </button>
           <div style={{
             background: 'var(--success-bg)', color: 'var(--success-text)',
@@ -136,8 +234,8 @@ export default function Layout() {
 
 
       {/* ==========================================
-          SIDEBAR DESKTOP — 260px
-          ========================================== */}
+            SIDEBAR DESKTOP - 260px
+            ========================================== */}
       <aside id="sidebar-desktop">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40 }}>
           <img src="/Abraco1.png" alt="Sabor de Abraço" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--brand-gold)' }} />
@@ -159,31 +257,15 @@ export default function Layout() {
           gap: '6px',
           transition: 'all 0.2s ease'
         }} title={isDark ? 'Modo claro' : 'Modo escuro'}>
-          {isDark ? '☀️ Modo Claro' : '🌙 Modo Escuro'}
+          {isDark ? '' : ''}
         </button>
 
-        <nav style={{ flex: 1, overflowY: 'auto' }}>
-          <Link to="/pdv" className={ativoPDV ? 'nav-link active' : 'nav-link'}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>🛒</span>
-            <span style={{ whiteSpace: 'nowrap' }}>Novo Pedido</span>
-          </Link>
-          <Link to="/comandas" className={ativoComandas ? 'nav-link active' : 'nav-link'}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>📋</span>
-            <span style={{ whiteSpace: 'nowrap' }}>Comandas</span>
-          </Link>
-          {user?.role === 'admin' && <Link to="/contas-receber" className={ativoContasReceber ? 'nav-link active' : 'nav-link'}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>💰</span>
-            <span>A Receber</span>
-          </Link>}
-          {user?.role === 'admin' && <Link to="/producao" className={ativoProducao ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>🧪</span><span style={{ whiteSpace: 'nowrap' }}>Produção</span></Link>}
-          {user?.role === 'admin' && <div className="nav-group"><span className="nav-group-label">🧾 Compras</span><Link to="/compras" className={ativoCompras ? 'nav-link active' : 'nav-link'}><span>Compras</span></Link><Link to="/produtos" className={ativoProdutos ? 'nav-link active' : 'nav-link'}><span>Produtos</span></Link></div>}
-          {(user?.role === 'admin' || user?.role === 'operador' || user?.role === 'cozinha') && <Link to="/cozinha" className={ativoCozinha ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>🍳</span><span style={{ whiteSpace: 'nowrap' }}>Cozinha</span></Link>}
-          {user?.role === 'admin' && <div className="nav-group"><span className="nav-group-label">👥 Pessoas</span><Link to="/clientes" className={ativoClientes ? 'nav-link active' : 'nav-link'}><span>Clientes</span></Link><Link to="/usuarios" className={ativoUsuarios ? 'nav-link active' : 'nav-link'}><span>Usuários</span></Link></div>}
-          {user?.role === 'admin' && <div className="nav-group"><span className="nav-group-label">📊 Dashboard</span><Link to="/dashboard" className={ativoDashboard ? 'nav-link active' : 'nav-link'}><span>Dashboard</span></Link><Link to="/financeiro" className={ativoFinanceiro ? 'nav-link active' : 'nav-link'}><span>Financeiro</span></Link></div>}
+        <nav className="sidebar-nav">
+          {groups.map((grupo) => renderGrupo(grupo, false))}
         </nav>
 
         <div style={{
-          borderTop: '1px solid var(--border-color)', paddingTop: 16, marginTop: 16
+          borderTop: '1px solid var(--border-color)', paddingTop: 16, marginTop: 'auto'
         }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
@@ -207,57 +289,68 @@ export default function Layout() {
 
 
       {/* ==========================================
-          CONTEÚDO PRINCIPAL
-          ========================================== */}
+            OVERLAY MOBILE - MENU HAMBURGUER
+            ========================================== */}
+      {mobileMenuOpen && (
+        <div className="mobile-menu-backdrop" onClick={() => toggleMobileMenu(false)}>
+          <div className="mobile-menu-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="mobile-menu-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <img src="/Abraco1.png" alt="Sabor de Abraço" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--brand-gold)' }} />
+                <div>
+                  <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, color: 'var(--brand-brown)' }}>Sabor de Abraço</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Cafeteria e confeitaria</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="mobile-menu-close"
+                onClick={() => toggleMobileMenu(false)}
+                aria-label="Fechar menu"
+              >
+                x
+              </button>
+            </div>
+
+            <nav className="mobile-menu-nav">
+              {groups.map((grupo) => renderGrupo(grupo, true))}
+            </nav>
+
+            <div className="mobile-menu-footer">
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '10px 12px', borderRadius: 10,
+                background: 'var(--accent-light)', marginBottom: 10
+              }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%',
+                  background: 'var(--success-bg)', color: 'var(--success-text)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 700, fontSize: 14, flexShrink: 0
+                }}>{user?.username?.[0]?.toUpperCase()}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.username}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{user?.role}</div>
+                </div>
+              </div>
+              <button onClick={() => { setShowConfirm(true); toggleMobileMenu(false); }} className="btn-logout">Sair</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* ==========================================
+            CONTEUDO PRINCIPAL
+            ========================================== */}
       <main id="main-content">
         <Outlet />
       </main>
 
 
       {/* ==========================================
-          BOTTOM NAV MOBILE — ITENS UM POR UM
-          ========================================== */}
-      <button type="button" className={`mobile-nav-toggle ${mobileNavOpen ? 'mobile-nav-toggle-open' : ''}`} onClick={() => setMobileNavOpen((open) => !open)} aria-expanded={mobileNavOpen} aria-label={mobileNavOpen ? 'Fechar menu' : 'Abrir menu'}>
-        {mobileNavOpen ? '⌄ Fechar menu' : '☰ Menu'}
-      </button>
-      <nav id="bottom-nav" className={mobileNavOpen ? 'mobile-nav-open' : 'mobile-nav-closed'} onClick={(event) => { if (event.target.closest('a')) setMobileNavOpen(false); }}>
-        <Link to="/pdv" className={ativoPDV ? 'bottom-link active' : 'bottom-link'}>
-          <span style={{ fontSize: 20, lineHeight: 1 }}>🛒</span>
-          <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Novo Pedido</span>
-        </Link>
-        <Link to="/comandas" className={ativoComandas ? 'bottom-link active' : 'bottom-link'}>
-          <span style={{ fontSize: 20, lineHeight: 1 }}>📋</span>
-          <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Comandas</span>
-        </Link>
-        {user?.role === 'admin' && <Link to="/contas-receber" className={ativoContasReceber ? 'bottom-link active' : 'bottom-link'}>
-          <span style={{ fontSize: 20, lineHeight: 1 }}>💰</span>
-          <span style={{ fontSize: '10px' }}>A Receber</span>
-        </Link>}
-        {user?.role === 'admin' && <Link to="/produtos" className={ativoProdutos ? 'bottom-link active' : 'bottom-link'}>
-          <span style={{ fontSize: 20, lineHeight: 1 }}>📦</span>
-          <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Produtos</span>
-        </Link>}
-        {user?.role === 'admin' && <Link to="/producao" className={ativoProducao ? 'bottom-link active' : 'bottom-link'}><span style={{ fontSize: 20, lineHeight: 1 }}>🧪</span><span style={{ fontSize: '10px' }}>Produção</span></Link>}
-        {user?.role === 'admin' && <Link to="/compras" className={ativoCompras ? 'bottom-link active' : 'bottom-link'}><span style={{ fontSize: 20, lineHeight: 1 }}>🧾</span><span style={{ fontSize: '10px' }}>Compras</span></Link>}
-        {(user?.role === 'admin' || user?.role === 'operador' || user?.role === 'cozinha') && <Link to="/cozinha" className={ativoCozinha ? 'bottom-link active' : 'bottom-link'}><span style={{ fontSize: 20, lineHeight: 1 }}>🍳</span><span style={{ fontSize: '10px' }}>Cozinha</span></Link>}
-        {user?.role === 'admin' && (
-          <Link to="/usuarios" className={ativoUsuarios ? 'bottom-link active' : 'bottom-link'}>
-            <span style={{ fontSize: 20, lineHeight: 1 }}>👥</span>
-            <span style={{ fontSize: '10px' }}>Usuários</span>
-          </Link>
-        )}
-        {user?.role === 'admin' && <Link to="/clientes" className={ativoClientes ? 'bottom-link active' : 'bottom-link'}>
-          <span style={{ fontSize: 20, lineHeight: 1 }}>👤</span>
-          <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Clientes</span>
-        </Link>}
-        {user?.role === 'admin' && <Link to="/financeiro" className={ativoFinanceiro ? 'bottom-link active' : 'bottom-link'}><span style={{ fontSize: 20, lineHeight: 1 }}>💵</span><span style={{ fontSize: '10px' }}>Financeiro</span></Link>}
-        {user?.role === 'admin' && <Link to="/dashboard" className={ativoDashboard ? 'bottom-link active' : 'bottom-link'}><span style={{ fontSize: 20, lineHeight: 1 }}>📊</span><span style={{ fontSize: '10px' }}>Dashboard</span></Link>}
-      </nav>
-
-
-      {/* ==========================================
-          MODAL DE SAÍDA
-          ========================================== */}
+            MODAL DE SAIDA
+            ========================================== */}
       {showConfirm && (
         <div onClick={() => setShowConfirm(false)} style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
@@ -275,10 +368,10 @@ export default function Layout() {
               background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 28, margin: '0 auto 16px'
-            }}>⚠️</div>
+            }}></div>
             <h3 style={{ margin: '0 0 8px', fontSize: 18, color: 'var(--text-primary)' }}>Deseja realmente sair?</h3>
             <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-secondary)' }}>
-              Você precisará fazer login novamente para acessar o sistema.
+              Voce precisara fazer login novamente para acessar o sistema.
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setShowConfirm(false)} style={{
@@ -300,15 +393,15 @@ export default function Layout() {
 
 
       {/* ==========================================
-          CSS GLOBAL
-          ========================================== */}
+            CSS GLOBAL
+            ========================================== */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
-        
+
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; }
 
-        /* DESKTOP — BARRA LATERAL 260px */
+        /* DESKTOP - BARRA LATERAL 260px */
         @media (min-width: 769px) {
           #header-mobile { display: none !important; }
           #sidebar-desktop {
@@ -322,7 +415,6 @@ export default function Layout() {
             flex-direction: column;
             z-index: 50;
           }
-          #bottom-nav { display: none !important; }
           #main-content {
             margin-left: 260px !important;
             padding: 28px !important;
@@ -351,38 +443,6 @@ export default function Layout() {
             height: 0 !important;
             overflow: hidden !important;
           }
-          #bottom-nav {
-            display: grid !important;
-            grid-template-columns: repeat(5, minmax(84px, 1fr));
-            overflow-x: auto;
-            position: fixed;
-            bottom: 0; left: 0; right: 0;
-            background: var(--bg-secondary);
-            border-top: 1px solid var(--border-color);
-            z-index: 9999;
-            padding-bottom: env(safe-area-inset-bottom);
-            padding-top: 4px;
-            transform: translateY(calc(100% - 56px));
-            transition: transform .2s ease;
-          }
-          #bottom-nav.mobile-nav-open { transform: translateY(0); }
-          #bottom-nav.mobile-nav-closed .bottom-link { visibility: hidden; }
-          .mobile-nav-toggle {
-            position: fixed;
-            bottom: 12px;
-            right: 14px;
-            z-index: 10001;
-            min-height: 34px;
-            padding: 6px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 10px 10px 0 0;
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            font-size: 12px;
-            font-weight: 800;
-            cursor: pointer;
-          }
-          .mobile-nav-toggle-open { bottom: 76px; }
           #main-content {
             margin-left: 0 !important;
             padding: 16px 16px 80px 16px !important;
@@ -390,47 +450,194 @@ export default function Layout() {
           }
         }
 
-        .nav-link {
-          display: flex; align-items: center; gap: 12px;
-          padding: 12px 14px; border-radius: 10px; margin-bottom: 4px;
-          text-decoration: none; color: var(--text-secondary);
-          font-weight: 500; font-size: 14px;
-          border-left: 3px solid transparent;
-          transition: all .2s;
+        /* HAMBURGER BUTTON (mobile) */
+        .hamburger {
+          display: none;
+          background: transparent;
+          color: var(--text-primary);
+          border: 1px solid var(--border-color);
+          border-radius: 10px;
+          width: 44px;
+          height: 44px;
+          font-size: 22px;
+          cursor: pointer;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
+          flexShrink: 0;
         }
-        .nav-group { margin: 8px 0; }
-        .nav-group-label { display:block; padding: 4px 14px; color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-        .nav-group .nav-link { padding: 9px 14px 9px 28px; font-size: 13px; }
+        @media (max-width: 768px) {
+          .hamburger { display: flex !important; }
+        }
+
+        /* MOBILE MENU OVERLAY */
+        .mobile-menu-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.5);
+          z-index: 500;
+          display: flex;
+          padding-left: 0;
+        }
+        .mobile-menu-panel {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 280px;
+          max-width: 85vw;
+          height: 100vh;
+          background: var(--bg-secondary);
+          border-right: 1px solid var(--border-color);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          z-index: 550;
+        }
+        .mobile-menu-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 16px;
+          border-bottom: 1px solid var(--border-color);
+        }
+        .mobile-menu-close {
+          width: 36px;
+          height: 36px;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          background: transparent;
+          color: var(--text-primary);
+          font-size: 18px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .mobile-menu-nav {
+          flex: 1;
+          overflow-y: auto;
+          padding: 12px 0;
+        }
+        .mobile-menu-footer {
+          border-top: 1px solid var(--border-color);
+          padding: 16px;
+        }
+
+        /* SIDEBAR NAV LIST */
+        .sidebar-nav, .mobile-menu-nav {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        /* NAV LINKS - touch friendly */
+        .nav-link {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 14px;
+          border-radius: 10px;
+          margin-bottom: 2px;
+          text-decoration: none;
+          color: var(--text-secondary);
+          font-weight: 500;
+          font-size: 14px;
+          border-left: 3px solid transparent;
+          min-height: 48px;
+          transition: all 0.2s;
+        }
+        .nav-link-icon {
+          font-size: 20px;
+          flexShrink: 0;
+          lineHeight: 1;
+        }
+        .nav-link-text {
+          whiteSpace: nowrap;
+          overflow: hidden;
+          textOverflow: ellipsis;
+        }
         .nav-link.active {
           background: var(--accent-light);
-          color: var(--accent-primary); font-weight: 700;
+          color: var(--accent-primary);
+          font-weight: 700;
           border-left-color: var(--accent-primary);
         }
 
-        .btn-logout {
-          width: 100%; padding: 10px;
-          background: transparent; color: var(--error-bg);
-          border: 1px solid rgba(239, 68, 68, 0.2);
-          border-radius: 10px; cursor: 'pointer';
-          font-weight: 600; font-size: 13px;
-          min-height: 40px; font-family: inherit;
-          transition: all 0.2s ease;
+        /* COLLAPSIBLE GROUPS */
+        .nav-group-container { margin: 8px 0; }
+        .nav-group-label-static {
+          display: block;
+          padding: 4px 14px 4px 28px;
+          color: var(--text-secondary);
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          user-select: none;
+        }
+        .nav-group-header {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 14px;
+          background: transparent;
+          border: none;
+          color: var(--text-secondary);
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          cursor: pointer;
+          min-height: 40px;
+          transition: all 0.2s;
+        }
+        .nav-group-header:hover {
+          background: var(--accent-light);
+          color: var(--accent-primary);
+        }
+        .nav-group-header.open {
+          color: var(--accent-primary);
+        }
+        .nav-group-arrow {
+          font-size: 13px;
+          transition: transform 0.2s;
+        }
+        .nav-group-header.open .nav-group-arrow {
+          transform: none;
+        }
+        .nav-group-content {
+          overflow: hidden;
+          max-height: 0;
+          transition: max-height 0.3s ease;
+        }
+        .nav-group-content.open {
+          max-height: 500px;
+        }
+        .nav-group-content .nav-link {
+          padding: 10px 14px 10px 28px;
+          font-size: 13px;
+          min-height: 44px;
         }
 
-        .bottom-link {
-          display: flex; min-width: 0; width: 100%; flex-direction: column;
-          align-items: center; justify-content: center;
-          padding: 6px 2px; text-decoration: none;
-          color: var(--text-secondary);
-          font-weight: 500;
-          gap: 2px; min-height: 65px;
+        /* LOGOUT BUTTON */
+        .btn-logout {
+          width: 100%;
+          padding: 12px;
+          background: transparent;
+          color: var(--error-bg);
+          border: 1px solid rgba(239, 68, 68, 0.2);
+          border-radius: 10px;
+          cursor: pointer;
+          font-weight: 600;
+          font-size: 13px;
+          min-height: 48px;
+          font-family: inherit;
           transition: all 0.2s ease;
         }
-        .bottom-link.active { 
-          color: var(--accent-primary); 
-          font-weight: 700; 
+        .btn-logout:hover {
+          background: rgba(239, 68, 68, 0.05);
         }
-        .bottom-link span:first-child { font-size: 20px; }
 
         input, select, textarea { font-size: 16px !important; }
       `}</style>
