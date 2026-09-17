@@ -212,13 +212,24 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
       }
     });
     await ajustarEstoque(itens, 'baixar', session);
-    const [comanda] = await Comanda.create([{ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, itens, estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
+    const tipoAtendimento = req.body.tipoAtendimento === 'balcao' ? 'balcao' : 'mesa';
+    const [comanda] = await Comanda.create([{ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, mesa: req.body.mesa, tipoAtendimento, statusBalcao: tipoAtendimento === 'balcao' ? 'aguardando' : undefined, itens, estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
     await session.commitTransaction();
     res.status(201).json(comanda);
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
     res.status(400).json({ msg: err.message });
   } finally { await session.endSession(); }
+});
+
+router.patch('/:id/balcao/status', auth, auth.allowRoles('admin', 'operador', 'cozinha'), async (req, res) => {
+  try {
+    const statuses = ['aguardando', 'preparando', 'pronto', 'pago', 'entregue'];
+    if (!statuses.includes(req.body.status)) return res.status(400).json({ msg: 'Status de balcão inválido' });
+    const comanda = await Comanda.findOneAndUpdate({ _id: req.params.id, tipoAtendimento: 'balcao', status: 'aberta' }, { $set: { statusBalcao: req.body.status } }, { new: true });
+    if (!comanda) return res.status(404).json({ msg: 'Pedido de balcão não encontrado ou já fechado' });
+    res.json(comanda);
+  } catch (error) { res.status(400).json({ msg: error.message }); }
 });
 
 router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
@@ -443,6 +454,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     const taxasCartao = await obterTaxasCartao();
     const order = new Order({
       itens: comanda.itens,
+      tipoAtendimento: comanda.tipoAtendimento || 'mesa',
       subtotal,
       desconto: discount,
       utilizacaoInterna,

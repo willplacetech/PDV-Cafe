@@ -71,6 +71,7 @@ const orderSchema = new mongoose.Schema({
   atendente: { type: String, required: true },
   observacao: String,
   comandaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Comanda' },
+  tipoAtendimento: { type: String, enum: ['mesa', 'balcao'], default: 'mesa', index: true },
 }, { timestamps: true });
 
 // Gerar número do pedido automaticamente

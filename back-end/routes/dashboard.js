@@ -175,7 +175,7 @@ router.get('/', async (req, res) => {
       })),
       Comanda.countDocuments({ status: 'aberta' }),
       Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).select('numero total status clienteNome createdAt itens pagamentos'),
-      Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status clienteId clienteNome clienteTelefone createdAt itens pagamentos'),
+      Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status clienteId clienteNome clienteTelefone createdAt itens pagamentos tipoAtendimento'),
       Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('dia') } }).select('pagamentos'),
       Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('pagamentos'),
       Customer.countDocuments(),
@@ -193,6 +193,11 @@ router.get('/', async (req, res) => {
       return total + Math.max(0, Number(pedido.total || 0) - recebidoBruto);
     }, 0);
     const vendasMes = pedidosMes.filter((pedido) => pedido.status !== 'cancelado');
+    const vendasPorTipo = vendasMes.reduce((tipos, pedido) => {
+      const tipo = pedido.tipoAtendimento === 'balcao' ? 'balcao' : 'mesa';
+      tipos[tipo] = (tipos[tipo] || 0) + Number(pedido.total || 0);
+      return tipos;
+    }, { mesa: 0, balcao: 0 });
     const pagamentosMes = new Map();
     const produtosMes = new Map();
     const clientesMes = new Set();
@@ -262,6 +267,7 @@ router.get('/', async (req, res) => {
       produtos: [...produtosMes.values()].sort((a, b) => b.quantidade - a.quantidade).slice(0, 10),
       clientes: clientesMes.size,
       vendasPorDia: [...vendasPorDia.entries()].map(([dia, total]) => ({ dia, total })),
+      vendasPorTipo,
       descontosQuantidade: { total: descontosQuantidadeMes, produtos: [...rankingDescontos.values()].sort((a, b) => b.total - a.total).slice(0, 10) },
     };
     const vendasPorProduto = new Map();

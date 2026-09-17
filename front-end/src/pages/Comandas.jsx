@@ -158,9 +158,35 @@ export default function Comandas() {
   const create = async (event) => {
     event.preventDefault();
     try {
-      const { data } = await api.post('/comandas', newCommand);
+      const { data } = await api.post('/comandas', { ...newCommand, tipoAtendimento: 'mesa' });
       setNewCommand({ clienteNome: '', observacao: '' }); setSelected(data); setMobileView('detail'); showToast('Comanda aberta', 'success'); load();
     } catch (error) { showToast(error.response?.data?.msg || 'Erro ao abrir comanda', 'error'); }
+  };
+
+  const createBalcao = async () => {
+    try {
+      const { data } = await api.post('/comandas', { tipoAtendimento: 'balcao', clienteNome: newCommand.clienteNome || undefined, observacao: newCommand.observacao || undefined });
+      setNewCommand({ clienteNome: '', observacao: '' });
+      setSelected(data);
+      setMobileView('detail');
+      showToast(`Pedido de balcão #${data.numero} criado`, 'success');
+      load();
+    } catch (error) { showToast(error.response?.data?.msg || 'Erro ao abrir pedido de balcão', 'error'); }
+  };
+
+  const createMesa = async (mesa) => {
+    const existente = comandas.find((comanda) => comanda.tipoAtendimento !== 'balcao' && String(comanda.mesa || '') === String(mesa));
+    if (existente) { setSelected(existente); setMobileView('detail'); return; }
+    try {
+      const { data } = await api.post('/comandas', { tipoAtendimento: 'mesa', mesa, clienteNome: 'Mesa ' + mesa });
+      setSelected(data); setMobileView('detail'); showToast(`Mesa ${mesa} aberta`, 'success'); load();
+    } catch (error) { showToast(error.response?.data?.msg || 'Erro ao abrir mesa', 'error'); }
+  };
+
+  const updateBalcaoStatus = async (status) => {
+    if (!selected || selected.tipoAtendimento !== 'balcao') return;
+    try { await api.patch(`/comandas/${selected._id}/balcao/status`, { status }); await load(); showToast(`Balcão: ${status}`, 'success'); }
+    catch (error) { showToast(error.response?.data?.msg || 'Não foi possível atualizar o balcão', 'error'); }
   };
 
   const produtoSelecionado = products.find((product) => product._id === productId);
@@ -267,10 +293,12 @@ export default function Comandas() {
   return (
     <div className="comandas-page">
       <div className="page-heading"><div><h1>☕ Comandas</h1><p>Abra comandas, lance consumos e feche no caixa.</p></div></div>
+      <section className="service-mode-panel"><div className="service-mode-heading"><h2>🪑 Mesas (4)</h2><span>Escolha a mesa ou o atendimento de balcão</span></div><div className="table-shortcuts">{[1, 2, 3, 4].map((mesa) => { const aberta = comandas.find((comanda) => comanda.tipoAtendimento !== 'balcao' && String(comanda.mesa || '') === String(mesa)); return <button type="button" key={mesa} className={aberta ? 'table-shortcut occupied' : 'table-shortcut'} onClick={() => createMesa(mesa)}><strong>{mesa}</strong><span>{aberta ? '🟡 Ocupada' : '🟢 Livre'}</span></button>; })}</div><div className="counter-service"><div><strong>📦 Pague e leve — Balcão</strong><span>{comandas.filter((comanda) => comanda.tipoAtendimento === 'balcao').length} pedidos em andamento</span></div><button type="button" className="comandas-primary-button" onClick={createBalcao}>➕ Novo pedido de balcão</button></div></section>
       <form onSubmit={create} className="comandas-open-form">
         <input className="comandas-field" placeholder="Nome do cliente" value={newCommand.clienteNome} onChange={(e) => setNewCommand({ ...newCommand, clienteNome: e.target.value })} />
         <input className="comandas-field" placeholder="Observação" value={newCommand.observacao} onChange={(e) => setNewCommand({ ...newCommand, observacao: e.target.value })} />
-        <button type="submit">Abrir comanda</button>
+        <button type="submit">Abrir mesa</button>
+        <button type="button" className="comandas-secondary-button" onClick={createBalcao}>📦 Novo pedido de balcão</button>
       </form>
 
       <div className="comandas-columns">
@@ -278,14 +306,15 @@ export default function Comandas() {
           <div className="comandas-card-heading"><div><h2>Em aberto</h2><p>Selecione uma comanda para editar.</p></div><span className="comandas-count">{comandas.length}</span></div>
           <div className="comandas-quick-products"><strong>Lançamento rápido</strong><div>{products.filter((product) => product.categoria !== 'Insumos').slice(0, 8).map((product) => <button key={product._id} type="button" onClick={() => { setProductId(product._id); setQuantity('1'); }} className={productId === product._id ? 'selected' : ''}>{product.nome}</button>)}</div></div>
           {comandas.map((command) => <button className="comanda-select-button" key={command._id} onClick={() => { setSelected(command); setMobileView('detail'); }} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
-            <b>#{command.numero}</b><br /><small>{command.clienteNome} · {command.itens.length} itens</small>
+            <b>{command.tipoAtendimento === 'balcao' ? '📦' : '🪑'} #{command.numero}</b><br /><small>{command.tipoAtendimento === 'balcao' ? `Balcão · ${command.statusBalcao || 'aguardando'}` : 'Mesa'} · {command.clienteNome} · {command.itens.length} itens</small>
           </button>)}
         </section>
 
         <section className={`comandas-card comandas-detail-card ${mobileView === 'list' ? 'mobile-hidden' : ''}`}>
           {!selected ? <p>Selecione ou abra uma comanda.</p> : <>
             <button type="button" className="comandas-mobile-back" onClick={() => setMobileView('list')}>← Voltar para comandas</button>
-            <h2 style={{ marginTop: 0 }}>Comanda #{selected.numero} <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}>— {selected.clienteNome}</small></h2>
+            <h2 style={{ marginTop: 0 }}>{selected.tipoAtendimento === 'balcao' ? '📦 Balcão' : '🪑 Mesa'} #{selected.numero} <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}>— {selected.clienteNome}</small></h2>
+            {selected.tipoAtendimento === 'balcao' && <div className="balcao-status-bar"><span>Status: <strong>{selected.statusBalcao || 'aguardando'}</strong></span><div>{['aguardando', 'preparando', 'pronto', 'pago', 'entregue'].map((status) => <button type="button" key={status} className={selected.statusBalcao === status ? 'active' : ''} onClick={() => updateBalcaoStatus(status)}>{status}</button>)}</div></div>}
             <form onSubmit={addItem} className="comandas-add-form">
               <select className="comandas-field" required value={productId} onChange={(e) => { setProductId(e.target.value); setTipoVenda('inteiro'); setPesoVendidoKg(''); }}><option value="">Adicionar produto…</option>{products.filter((product) => product.categoria !== 'Insumos').map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}{produtoPorPeso(product) ? '/kg' : ''}</option>)}</select>
               {produtoPorPeso(produtoSelecionado) && <select className="comandas-field" value={tipoVenda} onChange={(e) => setTipoVenda(e.target.value)}><option value="inteiro">Bolo inteiro</option><option value="peso">Fatia pesada</option></select>}
@@ -542,6 +571,7 @@ export default function Comandas() {
 
       <style>{`
         .comandas-page { width: 100%; max-width: 1180px; margin: 0 auto; }
+        .service-mode-panel { display:grid; gap:12px; margin-bottom:16px; padding:18px; border:1px solid var(--border-color); border-radius:16px; background:var(--bg-secondary); box-shadow:var(--shadow-sm); }.service-mode-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.service-mode-heading h2{margin:0;font-size:17px}.service-mode-heading span{color:var(--text-secondary);font-size:12px}.table-shortcuts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.table-shortcut{display:grid;gap:6px;min-height:76px;padding:12px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-tertiary);color:var(--text-primary);cursor:pointer;text-align:left}.table-shortcut strong{font-size:20px}.table-shortcut span{color:var(--success-bg);font-size:11px;font-weight:700}.table-shortcut.occupied{border-color:var(--warning-bg)}.table-shortcut.occupied span{color:var(--warning-bg)}.counter-service{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;border-top:1px solid var(--border-light)}.counter-service>div{display:grid;gap:3px}.counter-service span{color:var(--text-secondary);font-size:12px}.counter-service strong{color:var(--accent-primary);font-size:13px}
         .page-heading { margin-bottom: 20px; }
         .page-heading p, .comandas-card-heading p { margin: 0; color: var(--text-secondary); font-size: 13px; }
         .comandas-open-form, .comandas-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 16px; box-shadow: var(--shadow-sm); }
@@ -559,11 +589,11 @@ export default function Comandas() {
         .comandas-add-form { display: grid; grid-template-columns: minmax(0, 1fr) 90px auto; gap: 8px; margin-bottom: 16px; }
         .comandas-checkout { border-top: 2px solid var(--accent-primary); padding-top: 14px; margin-top: 8px; display: flex; align-items: flex-end; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
         .comandas-cancel-button { min-height: 48px; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-tertiary); color: var(--error-bg); font-weight: 800; cursor: pointer; }
-        .comandas-quick-products { padding: 12px; margin-bottom: 12px; border-radius: 10px; background: var(--accent-light); color: var(--text-secondary); font-size: 11px; }
+        .balcao-status-bar { display:grid; gap:8px; margin:0 0 14px; padding:10px 12px; border:1px solid var(--accent-border); border-radius:10px; background:var(--accent-light); color:var(--text-secondary); font-size:12px; }.balcao-status-bar>div{display:flex;gap:6px;overflow-x:auto}.balcao-status-bar button{flex-shrink:0;padding:7px 9px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-secondary);font-size:11px;font-weight:700;cursor:pointer}.balcao-status-bar button.active{border-color:var(--accent-primary);background:var(--accent-primary);color:#fff}.comandas-quick-products { padding: 12px; margin-bottom: 12px; border-radius: 10px; background: var(--accent-light); color: var(--text-secondary); font-size: 11px; }
         .comandas-quick-products > div { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
         .comandas-quick-products button { min-height: 42px; padding: 6px 8px; border: 1px solid var(--accent-border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); text-align: left; font-size: 11px; cursor: pointer; }
         .comandas-quick-products button.selected { border: 2px solid var(--accent-primary); color: var(--accent-primary); }
-        @media (max-width: 760px) { .comandas-columns { grid-template-columns: 1fr; } .comandas-detail-card { min-width: 0; } .comandas-add-form { grid-template-columns: minmax(0, 1fr) 82px; } .comandas-add-form button { grid-column: 1 / -1; } }
+        @media (max-width: 760px) { .comandas-columns { grid-template-columns: 1fr; } .comandas-detail-card { min-width: 0; } .comandas-add-form { grid-template-columns: minmax(0, 1fr) 82px; } .comandas-add-form button { grid-column: 1 / -1; } .table-shortcuts{grid-template-columns:repeat(2,1fr)}.counter-service{align-items:stretch;flex-direction:column}.counter-service button{width:100%}.service-mode-heading{align-items:flex-start;flex-direction:column} }
         .comandas-mobile-back { display: none; }
         @media (max-width: 520px) { .comandas-open-form, .comandas-card { padding: 14px; } .comandas-checkout { align-items: stretch; flex-direction: column; position: sticky; bottom: 0; padding: 14px 0 max(14px, env(safe-area-inset-bottom)); background: var(--bg-secondary); } .comandas-checkout .comandas-field, .comandas-checkout button { width: 100%; } .comandas-mobile-back { display: inline-flex; min-height: 38px; align-items: center; margin-bottom: 12px; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 9px; background: var(--bg-tertiary); color: var(--text-secondary); font: inherit; font-size: 12px; font-weight: 700; } .comandas-list-card.mobile-hidden, .comandas-detail-card.mobile-hidden { display: none; } }
       `}</style>
