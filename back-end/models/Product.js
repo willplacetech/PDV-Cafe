@@ -42,7 +42,7 @@ const ProductSchema = new mongoose.Schema({
   categoria: {
     type: String,
     required: true,
-    enum: ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Insumos', 'Outros'],
+    enum: ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Insumos', 'Outros'],
     default: 'Outros',
   },
   unidadeVenda: {
@@ -105,6 +105,10 @@ const ProductSchema = new mongoose.Schema({
     default: false,
   },
   aFazer: {
+    type: Boolean,
+    default: false,
+  },
+  permitirVendaSemInsumo: {
     type: Boolean,
     default: false,
   },

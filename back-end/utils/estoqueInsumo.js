@@ -152,8 +152,26 @@ const consumirInsumo = (produto, quantidade, unidade) => {
     produto.estoqueInsumos = estoqueAtual;
     return { embalagensConsumidas: 0, conteudoConsumido: quantidadeBase, quantidadeConvertida: consumidoNaUnidade, unidadeControle: controle, conteudoRestante: 0, mensagem: `${quantidade} ${unidade} equivalem a ${consumidoNaUnidade} ${controle} - desconto aplicado` };
   }
+
+  const reporInsumo = (produto, quantidade, unidade) => {
+    const quantidadeBase = paraBase(quantidade, unidade);
+    const conteudoEmbalagem = conteudoPorEmbalagemBase(produto);
+    const controle = unidadeControle(produto);
+    if (quantidadeBase <= 0) throw new Error(`Quantidade inválida para o insumo ${produto.nome}`);
+    if (unidadesDiretas.includes(controle)) {
+      const acrescimo = quantidadeBase / (fatoresBase[controle] || 1);
+      produto.estoqueEmbalagens = embalagensFechadas(produto) + acrescimo;
+      produto.estoqueInsumos = produto.estoqueEmbalagens;
+      return;
+    }
+    const totalDepois = estoqueTotalBase(produto) + quantidadeBase;
+    const fechadas = conteudoEmbalagem > 0 ? Math.floor(totalDepois / conteudoEmbalagem) : totalDepois;
+    produto.estoqueEmbalagens = fechadas;
+    produto.estoqueInsumos = fechadas;
+    produto.estoqueConteudoAberto = conteudoEmbalagem > 0 ? totalDepois - (fechadas * conteudoEmbalagem) : 0;
+  };
   if (conteudoEmbalagem <= 0) {
-    const disponivel = embalagensFechadas(produto);
+  module.exports = { fatoresBase, paraBase, unidadesDiretas, unidadesEmbalagem, unidadeControle, unidadeBase, conteudoPorEmbalagemBase, embalagensFechadas, conteudoAberto, estoqueTotalBase, resumoEstoqueInsumo, calcularCustoUnitarioBase, calcularEstoqueMinimoBase, consumirInsumo, reporInsumo, ajustarEstoque };
     if (disponivel < quantidadeBase) throw new Error(`Estoque de insumos insuficiente para ${produto.nome}`);
     produto.estoqueEmbalagens = disponivel - quantidadeBase;
     produto.estoqueInsumos = produto.estoqueEmbalagens;

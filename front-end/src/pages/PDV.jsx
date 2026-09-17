@@ -138,15 +138,20 @@ export default function PDV() {
 
   const adicionarItem = (prod, opcoes = {}) => {
     if (prod.tipo !== 'venda') return showToast('Este item não pode entrar no PDV', 'warning');
-    if (prod.estoque <= 0) return showToast('Produto sem estoque!', 'error');
+    const estoqueDisponivel = prod.aFazer ? Number(prod.cozDisponibilidade?.disponivel || 0) : Number(prod.estoque || 0);
+    if (prod.aFazer && estoqueDisponivel <= 0 && !prod.permitirVendaSemInsumo) {
+      const faltantes = prod.cozDisponibilidade?.faltantes?.join(', ') || 'ingrediente da ficha técnica';
+      return showToast(`${prod.nome} indisponível. Faltam: ${faltantes}`, 'error');
+    }
+    if (!prod.aFazer && estoqueDisponivel <= 0) return showToast('Produto sem estoque!', 'error');
     const modificadoresItem = opcoes.modificadores || [];
     const assinatura = modificadoresItem.join('|');
     const existe = carrinho.find(i => i.produtoId === prod._id && (i.modificadores || []).join('|') === assinatura);
     const incremento = 1;
     const quantidadeProduto = carrinho.filter(i => i.produtoId === prod._id).reduce((total, item) => total + item.quantidade, 0);
-    if (quantidadeProduto + incremento > prod.estoque) return showToast('Estoque máximo atingido!', 'warning');
+    if (!prod.permitirVendaSemInsumo && quantidadeProduto + incremento > estoqueDisponivel) return showToast('Estoque máximo atingido!', 'warning');
     if (existe) {
-      if (existe.quantidade >= prod.estoque) return showToast('Estoque máximo atingido!', 'warning');
+      if (!prod.permitirVendaSemInsumo && existe.quantidade >= estoqueDisponivel) return showToast('Estoque máximo atingido!', 'warning');
       setCarrinho(recalcularPrecosCarrinho(carrinho.map(i => i.produtoId === prod._id && (i.modificadores || []).join('|') === assinatura ? { ...i, quantidade: Number((i.quantidade + incremento).toFixed(3)) } : i)));
     } else {
       const pricing = precoComDesconto(prod, incremento);
@@ -172,7 +177,8 @@ export default function PDV() {
     if (qtd < 0.001) return removerItem(idx);
     if (!permiteFracionar(prod) && !Number.isInteger(qtd)) return showToast('Este produto é vendido por unidade', 'warning');
     const quantidadeOutrasLinhas = carrinho.reduce((total, item, itemIndex) => itemIndex !== idx && item.produtoId === novos[idx].produtoId ? total + item.quantidade : total, 0);
-    if (quantidadeOutrasLinhas + qtd > prod.estoque) return showToast(`Máximo: ${prod.estoque}`, 'warning');
+    const estoqueDisponivel = prod.aFazer ? Number(prod.cozDisponibilidade?.disponivel || 0) : Number(prod.estoque || 0);
+    if (!prod.permitirVendaSemInsumo && quantidadeOutrasLinhas + qtd > estoqueDisponivel) return showToast(`Máximo: ${estoqueDisponivel}`, 'warning');
     novos[idx].quantidade = qtd;
     setCarrinho(recalcularPrecosCarrinho(novos));
   };

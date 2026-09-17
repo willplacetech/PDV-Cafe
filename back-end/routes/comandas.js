@@ -10,6 +10,7 @@ const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
 const { precoPorUnidade } = require('../utils/pesoProduto');
 const { normalizarEstoqueLegado, produtoControlaPeso, dadosMovimentoEstoque } = require('../utils/estoqueProduto');
 const { calcularPrecoComDesconto, calcularPrecoGrupo } = require('../utils/descontosQuantidade');
+const { consumirInsumo, reporInsumo } = require('../utils/estoqueInsumo');
 
 const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -51,10 +52,15 @@ async function recalcularPrecosComanda(comanda, session) {
 }
 
 async function ajustarEstoque(itens, operacao, session) {
-  const produtos = await Product.find({ _id: { $in: itens.map((item) => item.produtoId) } }).session(session);
+  const idsDosItens = itens.map((item) => item.produtoId);
+  const produtosVenda = await Product.find({ _id: { $in: idsDosItens } }).session(session);
+  const idsDosIngredientes = produtosVenda.filter((produto) => produto.aFazer).flatMap((produto) => (produto.fichaTecnica || []).map((ingrediente) => ingrediente.produtoId));
+  const produtos = idsDosIngredientes.length
+    ? await Product.find({ _id: { $in: [...idsDosItens, ...idsDosIngredientes] } }).session(session)
+    : produtosVenda;
   const porId = new Map(produtos.map((produto) => [String(produto._id), produto]));
   const totais = new Map();
-  const insumos = new Map();
+  const insumos = [];
   itens.forEach((item) => {
     const quantidade = Number(item.quantidade || 0);
     const produto = porId.get(String(item.produtoId));
@@ -62,8 +68,9 @@ async function ajustarEstoque(itens, operacao, session) {
     const ficha = item.insumosConsumidos?.length ? item.insumosConsumidos : produto?.fichaTecnica;
     if (produto?.aFazer && ficha?.length) {
       ficha.forEach((ingrediente) => {
-        const key = String(ingrediente.produtoId);
-        insumos.set(key, (insumos.get(key) || 0) + Number(ingrediente.quantidade) * quantidade);
+        const ingredienteProduto = porId.get(String(ingrediente.produtoId));
+        if (!ingredienteProduto) throw new Error(`Ingrediente não encontrado para ${produto.nome}`);
+        insumos.push({ produto: ingredienteProduto, quantidade: Number(ingrediente.quantidade) * quantidade, unidade: ingrediente.unidade, produtoVenda: produto });
       });
     } else {
       const key = String(item.produtoId);
@@ -105,12 +112,26 @@ async function ajustarEstoque(itens, operacao, session) {
       createdBy: null,
     }], { session });
   }
-  for (const [produtoId, quantidade] of insumos) {
+  for (const consumo of insumos) {
+    const { produto, quantidade, unidade, produtoVenda } = consumo;
     if (operacao === 'baixar') {
-      const product = await Product.findOneAndUpdate({ _id: produtoId, estoqueInsumos: { $gte: quantidade } }, { $inc: { estoqueInsumos: -quantidade } }, { new: true, session });
-      if (!product) throw new Error(`Estoque de insumos insuficiente para o ingrediente ${produtoId}`);
+      if (!produtoVenda.permitirVendaSemInsumo) consumirInsumo(produto, quantidade, unidade);
     } else {
-      await Product.findByIdAndUpdate(produtoId, { $inc: { estoqueInsumos: quantidade } }, { session });
+      reporInsumo(produto, quantidade, unidade);
+    }
+    await produto.save({ session });
+    if (operacao === 'baixar' && !produtoVenda.permitirVendaSemInsumo) {
+      await StockMovement.create([{
+        produtoId: produto._id,
+        produtoNome: produto.nome,
+        tipo: 'saida',
+        origem: 'venda',
+        destino: null,
+        quantidade,
+        unidade,
+        observacao: `Consumo do produto Coz ${produtoVenda.nome}`,
+        createdBy: null,
+      }], { session });
     }
   }
 }

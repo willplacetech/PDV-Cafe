@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
-const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Outros'];
+const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Outros'];
 const filtrosTipo = ['Todos', 'Estoque de Venda', 'Estoque de Insumos'];
 
 const vazio = {
@@ -30,6 +30,7 @@ const vazio = {
   vendidoFracionado: false,
   aFazer: false,
   fichaTecnica: [],
+  permitirVendaSemInsumo: false,
   producaoPropria: false,
 };
 
@@ -78,6 +79,23 @@ export default function Products() {
     return Number(valor);
   };
 
+  const produtosIngredientes = produtos.filter((produto) => produto.tipo === 'insumo' || produto.usavelEmReceita);
+  const fatoresBase = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
+  const produtoIngrediente = (id) => produtosIngredientes.find((produto) => String(produto._id) === String(id));
+  const resumoFichaCoz = form.fichaTecnica.reduce((resumo, item) => {
+    const ingrediente = produtoIngrediente(item.produtoId?._id || item.produtoId);
+    const quantidadeBase = Number(item.quantidade || 0) * (fatoresBase[item.unidade] || 1);
+    const estoqueBase = Number(ingrediente?.resumoInsumo?.totalBase ?? ingrediente?.estoqueInsumos ?? ingrediente?.estoque ?? 0);
+    const porcoes = quantidadeBase > 0 ? Math.floor(estoqueBase / quantidadeBase) : 0;
+    resumo.disponivel = Math.min(resumo.disponivel, porcoes);
+    resumo.custo += quantidadeBase * Number(ingrediente?.resumoInsumo?.custoUnitarioBase || ingrediente?.custoUnitarioBase || ingrediente?.custoUnitario || 0);
+    if (porcoes <= 0 && ingrediente) resumo.faltantes.push(ingrediente.nome);
+    return resumo;
+  }, { disponivel: form.fichaTecnica.length ? Infinity : 0, custo: 0, faltantes: [] });
+  const atualizarIngrediente = (indice, campo, valor) => setForm((atual) => ({ ...atual, fichaTecnica: atual.fichaTecnica.map((item, itemIndice) => itemIndice === indice ? { ...item, [campo]: valor } : item) }));
+  const adicionarIngrediente = () => setForm((atual) => ({ ...atual, fichaTecnica: [...atual.fichaTecnica, { produtoId: '', quantidade: '', unidade: 'un' }] }));
+  const removerIngrediente = (indice) => setForm((atual) => ({ ...atual, fichaTecnica: atual.fichaTecnica.filter((_, itemIndice) => itemIndice !== indice) }));
+
   const resumoInsumo = form.tipo === 'insumo' ? (() => {
     const unidadesDiretas = ['kg', 'g', 'mg', 'l', 'ml', 'un'];
     const unidade = unidadesDiretas.includes(form.unidadeCompra) ? form.unidadeCompra : form.unidadeConteudo;
@@ -116,6 +134,10 @@ export default function Products() {
     }
 
     const tipo = form.tipo;
+    if (tipo === 'venda' && form.aFazer && form.fichaTecnica.length === 0) {
+      showToast('⚠️ Produtos Coz precisam de pelo menos um ingrediente na ficha técnica.', 'warning');
+      return;
+    }
     if (tipo === 'venda') {
       const descontos = (form.descontosPorQuantidade || []).map((faixa) => ({ quantidadeMinima: Number(faixa.quantidadeMinima), precoUnitario: Number(faixa.precoUnitario), ativo: faixa.ativo !== false }));
       for (let indice = 0; indice < descontos.length; indice += 1) {
@@ -154,7 +176,7 @@ export default function Products() {
     const payload = {
       ...form,
       tipo,
-      estoque: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : limparCampoNumerico(form.estoque) ?? 0,
+      estoque: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : (form.aFazer ? 0 : limparCampoNumerico(form.estoque) ?? 0),
       estoqueEmbalagens: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : undefined,
       estoqueMinimoEmbalagens: tipo === 'insumo' ? limparCampoNumerico(form.estoqueMinimoEmbalagens) ?? 0 : undefined,
       conteudoPorEmbalagem: tipo === 'insumo' || form.usavelEmReceita ? limparCampoNumerico(form.conteudoPorEmbalagem) ?? 0 : undefined,
@@ -177,6 +199,8 @@ export default function Products() {
       custo: limparCampoNumerico(form.custo) ?? 0,
       rendimentoPorUnidadeCompra: 0,
       ativo: true,
+      permitirVendaSemInsumo: Boolean(form.permitirVendaSemInsumo),
+      fichaTecnica: tipo === 'venda' && form.aFazer ? form.fichaTecnica.map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })) : [],
     };
     if (editingCustoBloqueado) {
       delete payload.precoCompra;
@@ -231,6 +255,7 @@ export default function Products() {
       vendidoFracionado: Boolean(produto.vendidoFracionado),
       aFazer: Boolean(produto.aFazer),
       fichaTecnica: produto.fichaTecnica || [],
+      permitirVendaSemInsumo: Boolean(produto.permitirVendaSemInsumo),
       producaoPropria: Boolean(produto.producaoPropria),
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -358,7 +383,7 @@ export default function Products() {
                   </div>
                   {form.grupoDesconto?.nome && <small style={{ color: 'var(--success-bg)', fontSize: 11, marginTop: 6, display: 'block' }}>✓ Produtos com grupo "{form.grupoDesconto.nome}" vão somar para este desconto.</small>}
                 </div>
-                <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label>
+                {!form.aFazer ? <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label> : <div className="coz-stock-notice"><strong>⚠️ Estoque deste produto é gerado pela ficha técnica</strong><span>Disponibilidade calculada automaticamente pelos insumos. Não cadastre quantidade aqui.</span></div>}
                 <label>Unidade de venda
                   <select value={form.unidadeVenda} onChange={(event) => setForm({ ...form, unidadeVenda: event.target.value })}>
                     {['un', 'kg', 'g', 'l', 'ml'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
@@ -372,6 +397,18 @@ export default function Products() {
                   <input className="product-checkbox" type="checkbox" checked={Boolean(form.aFazer)} onChange={(event) => setForm({ ...form, aFazer: event.target.checked })} />
                   Coz — preparado na cozinha (precisa de ficha técnica)
                 </label>
+                {form.aFazer && <div className="coz-recipe-panel">
+                  <div className="coz-recipe-heading"><div><strong>📋 FICHA TÉCNICA — {form.nome || 'Novo produto'}</strong><small>Quantidade de cada ingrediente por porção</small></div><button type="button" className="secondary" onClick={adicionarIngrediente}>+ Ingrediente</button></div>
+                  <div className="coz-recipe-fields">{form.fichaTecnica.map((item, indice) => <div className="coz-ingredient-row" key={`coz-ingredient-${indice}`}>
+                    <label>Ingrediente<select required value={item.produtoId?._id || item.produtoId || ''} onChange={(event) => atualizarIngrediente(indice, 'produtoId', event.target.value)}><option value="">Selecione um insumo</option>{produtosIngredientes.map((produto) => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select></label>
+                    <label>Qtd. por porção<input required type="number" min="0.001" step="0.001" value={item.quantidade} onChange={(event) => atualizarIngrediente(indice, 'quantidade', event.target.value)} /></label>
+                    <label>Unidade<select required value={item.unidade || 'un'} onChange={(event) => atualizarIngrediente(indice, 'unidade', event.target.value)}>{['un', 'g', 'kg', 'ml', 'l'].map((unidade) => <option key={unidade}>{unidade}</option>)}</select></label>
+                    <button type="button" className="danger" onClick={() => removerIngrediente(indice)} disabled={form.fichaTecnica.length === 1}>Remover</button>
+                  </div>)}</div>
+                  {!form.fichaTecnica.length && <p className="coz-empty-recipe">Adicione pelo menos um ingrediente para liberar o cadastro.</p>}
+                  <div className="coz-recipe-summary"><span><strong>Disponível para vender:</strong> {Number.isFinite(resumoFichaCoz.disponivel) ? resumoFichaCoz.disponivel : 0} porções</span><span><strong>Custo por porção:</strong> R$ {resumoFichaCoz.custo.toFixed(2).replace('.', ',')}</span>{resumoFichaCoz.faltantes.length > 0 && <span className="coz-warning">⚠️ Sem estoque: {resumoFichaCoz.faltantes.join(', ')}</span>}</div>
+                  <label className="product-checkbox-label"><input className="product-checkbox" type="checkbox" checked={Boolean(form.permitirVendaSemInsumo)} onChange={(event) => setForm({ ...form, permitirVendaSemInsumo: event.target.checked })} /> Permitir venda com aviso quando faltar insumo</label>
+                </div>}
                 <label className="product-checkbox-label">
                   <input className="product-checkbox" type="checkbox" checked={Boolean(form.producaoPropria)} onChange={(event) => setForm({ ...form, producaoPropria: event.target.checked })} />
                   PP — produção própria (precisa de receita)
@@ -510,7 +547,19 @@ export default function Products() {
         .product-admin-footer strong { display: block; color: var(--accent-primary); font-size: 17px; }
         .product-admin-footer small { display: block; color: var(--text-secondary); font-size: 11px; margin-top: 3px; }
         .low-stock { color: var(--error-bg) !important; font-weight: 700; }
-        @media (max-width: 640px) { .product-form-grid, .product-summary-grid { grid-template-columns: 1fr; } }
+        .coz-stock-notice { display: grid; gap: 5px; grid-column: 1 / -1; padding: 12px; border: 1px solid var(--accent-border); border-radius: 10px; background: var(--accent-light); color: var(--accent-primary); font-size: 12px; }
+        .coz-stock-notice span { color: var(--text-secondary); }
+        .coz-recipe-panel { display: grid; gap: 12px; grid-column: 1 / -1; padding: 14px; border: 1px solid var(--accent-border); border-radius: 12px; background: var(--bg-secondary); }
+        .coz-recipe-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .coz-recipe-heading div { display: grid; gap: 4px; }
+        .coz-recipe-heading strong { color: var(--accent-primary); font-size: 12px; }
+        .coz-recipe-heading small, .coz-empty-recipe { color: var(--text-secondary); font-size: 11px; }
+        .coz-recipe-fields { display: grid; gap: 8px; }
+        .coz-ingredient-row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(100px, .8fr) 90px auto; gap: 8px; align-items: end; padding: 10px; border: 1px solid var(--border-light); border-radius: 9px; background: var(--bg-tertiary); }
+        .coz-recipe-summary { display: flex; flex-wrap: wrap; gap: 12px; padding-top: 10px; border-top: 1px solid var(--border-light); color: var(--text-secondary); font-size: 12px; }
+        .coz-recipe-summary strong { color: var(--text-primary); }
+        .coz-warning { color: var(--error-bg); font-weight: 700; }
+        @media (max-width: 640px) { .product-form-grid, .product-summary-grid { grid-template-columns: 1fr; } .coz-recipe-heading { align-items: flex-start; flex-direction: column; } .coz-ingredient-row { grid-template-columns: 1fr; } .coz-ingredient-row .danger { width: 100%; } }
       `}</style>
     </div>
   );
