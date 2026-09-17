@@ -217,10 +217,10 @@ export default function Layout() {
       {/* ==========================================
           BOTTOM NAV MOBILE — ITENS UM POR UM
           ========================================== */}
+      <button type="button" className={`mobile-nav-toggle ${mobileNavOpen ? 'mobile-nav-toggle-open' : ''}`} onClick={() => setMobileNavOpen((open) => !open)} aria-expanded={mobileNavOpen} aria-label={mobileNavOpen ? 'Fechar menu' : 'Abrir menu'}>
+        {mobileNavOpen ? '⌄ Fechar menu' : '☰ Menu'}
+      </button>
       <nav id="bottom-nav" className={mobileNavOpen ? 'mobile-nav-open' : 'mobile-nav-closed'} onClick={(event) => { if (event.target.closest('a')) setMobileNavOpen(false); }}>
-        <button type="button" className="mobile-nav-toggle" onClick={() => setMobileNavOpen((open) => !open)} aria-expanded={mobileNavOpen} aria-label={mobileNavOpen ? 'Fechar menu' : 'Abrir menu'}>
-          {mobileNavOpen ? '⌄ Fechar menu' : '☰ Menu'}
-        </button>
         <Link to="/pdv" className={ativoPDV ? 'bottom-link active' : 'bottom-link'}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>🛒</span>
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Novo Pedido</span>
@@ -367,10 +367,11 @@ export default function Layout() {
           }
           #bottom-nav.mobile-nav-open { transform: translateY(0); }
           #bottom-nav.mobile-nav-closed .bottom-link { visibility: hidden; }
-          #bottom-nav .mobile-nav-toggle {
-            position: absolute;
-            top: -38px;
+          .mobile-nav-toggle {
+            position: fixed;
+            bottom: 12px;
             right: 14px;
+            z-index: 10001;
             min-height: 34px;
             padding: 6px 12px;
             border: 1px solid var(--border-color);
@@ -381,6 +382,7 @@ export default function Layout() {
             font-weight: 800;
             cursor: pointer;
           }
+          .mobile-nav-toggle-open { bottom: 76px; }
           #main-content {
             margin-left: 0 !important;
             padding: 16px 16px 80px 16px !important;
