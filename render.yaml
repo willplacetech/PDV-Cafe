@@ -2,7 +2,7 @@ services:
   - type: web
     runtime: node
     name: pdv-cafe-api-willplacetech
-    branch: backup-main-com-insights-20260912
+    branch: Compras
     region: oregon
     plan: free
     rootDir: back-end
@@ -18,7 +18,7 @@ services:
   - type: web
     runtime: static
     name: sabordabraco
-    branch: backup-main-com-insights-20260912
+    branch: Compras
     rootDir: front-end
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
