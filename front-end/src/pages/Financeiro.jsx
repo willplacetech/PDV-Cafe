@@ -104,9 +104,9 @@ export default function Financeiro() {
       ['Fórmula do CMV', dre.cmvFormula],
       ['Lucro Bruto', dre.lucroBruto],
       ['Despesas Operacionais', dre.despesasOperacionais],
-      ['EBITDA', dre.ebitda],
-      ['Depreciação/Amortização', dre.depreciacaoAmortizacao],
       ['EBIT', dre.ebit],
+      ['Depreciação/Amortização', dre.depreciacaoAmortizacao],
+      ['EBITDA', dre.ebitda],
       ['Financeiro', dre.despesasFinanceiras],
       ['Lucro Líquido', dre.lucroLiquido],
     ];
@@ -390,9 +390,9 @@ export default function Financeiro() {
                   {Object.entries(dre.despesasPorCategoria || {}).map(([categoria, valor]) => (
                     <tr key={categoria}><th>↳ {categoria}</th><td>{money(valor)}</td><td>{dre.receitaLiquida ? `${((valor / dre.receitaLiquida) * 100).toFixed(1)}%` : '0%'}</td></tr>
                   ))}
-                  <tr><th>= EBITDA</th><td>{money(dre.ebitda)}</td><td>{dre.receitaBruta ? `${((dre.ebitda / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
-                  <tr><th>− Depreciação/Amortização</th><td>{money(dre.depreciacaoAmortizacao)}</td><td>—</td></tr>
                   <tr><th>= EBIT</th><td>{money(dre.ebit)}</td><td>{dre.receitaBruta ? `${((dre.ebit / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
+                  <tr><th>+ Depreciação/Amortização</th><td>{money(dre.depreciacaoAmortizacao)}</td><td>—</td></tr>
+                  <tr><th>= EBITDA</th><td>{money(dre.ebitda)}</td><td>{dre.receitaBruta ? `${((dre.ebitda / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
                   <tr><th>− Financeiro</th><td>{money(dre.despesasFinanceiras)}</td><td>—</td></tr>
                   <tr><th>= Lucro Líquido</th><td>{money(dre.lucroLiquido)}</td><td>{dre.receitaBruta ? `${((dre.lucroLiquido / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
                 </tbody>

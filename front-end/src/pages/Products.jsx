@@ -15,7 +15,7 @@ const vazio = {
   categoria: 'Bebidas Quentes',
   preco: '',
   descontosPorQuantidade: [],
-  grupoDesconto: { nome: '', quantidadeMinima: '', precoPromocional: '', ativo: true },
+  grupoDesconto: { nome: '', quantidadeMinima: '', precoPromocional: '', ativo: false },
   precoCompra: '',
   unidadeCompra: 'kg',
   conteudoPorEmbalagem: 1,
@@ -188,7 +188,7 @@ export default function Products() {
         nome: String(form.grupoDesconto.nome).trim(),
         quantidadeMinima: Number(form.grupoDesconto.quantidadeMinima),
         precoPromocional: Number(form.grupoDesconto.precoPromocional),
-        ativo: form.grupoDesconto.ativo !== false,
+        ativo: Boolean(form.grupoDesconto.ativo),
       } : undefined,
       precoCompra: tipo === 'insumo' || form.usavelEmReceita ? limparCampoNumerico(form.precoCompra) ?? 0 : 0,
       usavelEmReceita: tipo === 'insumo' || Boolean(form.usavelEmReceita),
@@ -239,7 +239,7 @@ export default function Products() {
       categoria: produto.categoria || 'Bebidas Quentes',
       preco: produto.preco ?? '',
       descontosPorQuantidade: produto.descontosPorQuantidade || [],
-      grupoDesconto: produto.grupoDesconto || { nome: '', quantidadeMinima: '', precoPromocional: '', ativo: true },
+      grupoDesconto: produto.grupoDesconto || { nome: '', quantidadeMinima: '', precoPromocional: '', ativo: false },
       precoCompra: produto.precoCompra ?? '',
       unidadeCompra: unidadeCompra,
       conteudoPorEmbalagem: conteudoPorEmbalagem,
@@ -368,7 +368,7 @@ export default function Products() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                     <strong>🎯 Desconto por Grupo (Categoria) <small>(opcional)</small></strong>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-secondary)' }}>
-                      <input type="checkbox" checked={Boolean(form.grupoDesconto?.ativo)} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', quantidadeMinima: '', precoPromocional: '', ativo: true }), ativo: e.target.checked } })} />
+                      <input type="checkbox" checked={Boolean(form.grupoDesconto?.ativo)} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', quantidadeMinima: '', precoPromocional: '', ativo: false }), ativo: e.target.checked } })} />
                       Ativo
                     </label>
                   </div>
@@ -376,9 +376,9 @@ export default function Products() {
                     Produtos com o <strong>mesmo nome de grupo</strong> e <strong>mesma categoria</strong> somam as quantidades. Quando o total atingir a quantidade mínima, todos ganham o preço promocional.
                   </p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                    <label>Nome do grupo <input type="text" placeholder="ex: Cookies" value={form.grupoDesconto?.nome || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { quantidadeMinima: '', precoPromocional: '', ativo: true }), nome: e.target.value } })} /></label>
-                    <label>Quantidade mínima <input type="number" min={1} step={1} value={form.grupoDesconto?.quantidadeMinima || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', precoPromocional: '', ativo: true }), quantidadeMinima: e.target.value } })} /></label>
-                    <label>Preço promocional (R$) <input type="number" min={0} step="0.01" value={form.grupoDesconto?.precoPromocional || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', quantidadeMinima: '', ativo: true }), precoPromocional: e.target.value } })} /></label>
+                    <label>Nome do grupo <input type="text" placeholder="ex: Cookies" value={form.grupoDesconto?.nome || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { quantidadeMinima: '', precoPromocional: '', ativo: false }), nome: e.target.value } })} /></label>
+                    <label>Quantidade mínima <input type="number" min={1} step={1} value={form.grupoDesconto?.quantidadeMinima || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', precoPromocional: '', ativo: false }), quantidadeMinima: e.target.value } })} /></label>
+                    <label>Preço promocional (R$) <input type="number" min={0} step="0.01" value={form.grupoDesconto?.precoPromocional || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', quantidadeMinima: '', ativo: false }), precoPromocional: e.target.value } })} /></label>
                   </div>
                   {form.grupoDesconto?.nome && <small style={{ color: 'var(--success-bg)', fontSize: 11, marginTop: 6, display: 'block' }}>✓ Produtos com grupo "{form.grupoDesconto.nome}" vão somar para este desconto.</small>}
                 </div>

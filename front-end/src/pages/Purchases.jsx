@@ -4,7 +4,10 @@ import { useToast } from '../components/Toast.jsx';
 
 const units = ['mg', 'g', 'kg', 'ml', 'l', 'un'];
 const newItem = () => ({ produtoId: '', valorTotal: '', qtdEmbalagens: '', conteudoPorEmbalagem: '', unidadeConteudo: 'kg' });
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
 const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const number = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 6 });
 const newSupply = () => ({ nome: '', marcaReferencia: '', precoCompra: '', conteudoPorEmbalagem: '', unidadeConteudo: 'kg', estoqueEmbalagens: '', estoqueConteudoAberto: 0 });
