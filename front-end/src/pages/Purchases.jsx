@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
-import AreaTabs from '../components/AreaTabs.jsx';
 
 const units = ['mg', 'g', 'kg', 'ml', 'l', 'un'];
 const newItem = () => ({ produtoId: '', valorTotal: '', qtdEmbalagens: '', conteudoPorEmbalagem: '', unidadeConteudo: 'kg' });
@@ -63,8 +63,8 @@ export default function Purchases() {
   };
 
   return <div className="purchases-page">
-      <AreaTabs area="compras" />
     <header className="page-heading"><div><span className="purchases-eyebrow">PRODUCAO / COMPRAS</span><h1>Compras</h1><p>Registre entradas de insumos e atualize o custo pelo recebimento.</p></div></header>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', border: '1px solid var(--accent-border)', borderRadius: 10, background: 'var(--accent-light)', color: 'var(--text-secondary)', fontSize: 13 }}><span>O produto ainda não está cadastrado?</span><Link to="/produtos?tipo=insumo" style={{ color: 'var(--accent-primary)', fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}>➕ Cadastrar novo insumo</Link></div>
     <form className="purchases-form" onSubmit={submit}>
       <div className="purchases-grid">
         <label>Fornecedor<input required value={form.fornecedor} onChange={(event) => setForm({ ...form, fornecedor: event.target.value })} /></label>

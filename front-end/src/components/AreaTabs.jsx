@@ -1,7 +1,6 @@
 import { NavLink } from 'react-router-dom';
 
 const areas = {
-  compras: [['/compras', 'Compras'], ['/produtos', 'Produtos']],
   dashboard: [['/dashboard', 'Dashboard'], ['/financeiro', 'Financeiro']],
   pessoas: [['/clientes', 'Clientes'], ['/usuarios', 'Usuários']],
 };

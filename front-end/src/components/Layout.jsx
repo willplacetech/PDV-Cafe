@@ -15,11 +15,17 @@ const gruposMenu = [
     ],
   },
   {
+    chave: 'produtos',
+    label: '🏪 PRODUTOS',
+    items: [
+      { label: 'Cadastro e Estoques', icon: '📦', to: '/produtos', admin: true },
+    ],
+  },
+  {
     chave: 'compras',
     label: '📦 COMPRAS',
     items: [
-      { label: 'Compras', icon: '🧾', to: '/compras', admin: true },
-      { label: 'Produtos', icon: '📦', to: '/produtos', admin: true },
+      { label: 'Lançar Compra', icon: '🧾', to: '/compras', admin: true },
     ],
   },
   {
@@ -547,15 +553,21 @@ export default function Layout() {
           min-height: 48px;
           transition: all 0.2s;
         }
+        .nav-link:hover,
+        .nav-link:focus-visible {
+          background: var(--accent-light);
+          color: var(--accent-primary);
+          outline: none;
+        }
         .nav-link-icon {
           font-size: 20px;
-          flexShrink: 0;
-          lineHeight: 1;
+          flex-shrink: 0;
+          line-height: 1;
         }
         .nav-link-text {
-          whiteSpace: nowrap;
+          white-space: nowrap;
           overflow: hidden;
-          textOverflow: ellipsis;
+          text-overflow: ellipsis;
         }
         .nav-link.active {
           background: var(--accent-light);
@@ -599,6 +611,10 @@ export default function Layout() {
         .nav-group-header:hover {
           background: var(--accent-light);
           color: var(--accent-primary);
+        }
+        .nav-group-header:focus-visible {
+          outline: 2px solid var(--accent-primary);
+          outline-offset: -2px;
         }
         .nav-group-header.open {
           color: var(--accent-primary);

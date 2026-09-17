@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
-import AreaTabs from '../components/AreaTabs.jsx';
 
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Outros'];
 const filtrosTipo = ['Todos', 'Estoque de Venda', 'Estoque de Insumos'];
@@ -34,6 +34,7 @@ const vazio = {
 };
 
 export default function Products() {
+  const [searchParams] = useSearchParams();
   const [produtos, setProdutos] = useState([]);
   const [form, setForm] = useState(vazio);
   const [editing, setEditing] = useState(null);
@@ -53,6 +54,12 @@ export default function Products() {
     const carregarInicial = async () => { await carregar(); };
     carregarInicial();
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get('tipo') === 'insumo' && !editing) {
+      setForm((prev) => ({ ...prev, tipo: 'insumo', categoria: 'Insumos' }));
+    }
+  }, [editing, searchParams]);
 
   useEffect(() => {
     if (!editing && produtos.length > 0) {
@@ -254,7 +261,6 @@ export default function Products() {
 
   return (
     <div>
-        <AreaTabs area="compras" />
       <div className="page-heading">
         <div>
           <h1>📦 Cadastro de Produtos</h1>
