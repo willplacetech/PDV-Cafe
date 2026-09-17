@@ -13,7 +13,7 @@ services:
       - key: MONGO_URI
         sync: false
       - key: FRONTEND_URL
-        value: https://sabordabraco.onrender.com,https://pdv-cafe-web-willplacetech.onrender.com,https://pdv-mern-1.onrender.com
+        value: https://sabordabraco-95pc.onrender.com,https://sabordabraco.onrender.com,https://pdv-cafe-web-willplacetech.onrender.com,https://pdv-mern-1.onrender.com
 
   - type: web
     runtime: static

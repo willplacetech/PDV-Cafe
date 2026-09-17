@@ -16,6 +16,7 @@ const allowedOrigins = [
   'https://saborabraco.onrender.com',
   'https://pdv-cafe-web-willplacetech.onrender.com',
   'https://pdv-mern-1.onrender.com',
+  'https://sabordabraco-95pc.onrender.com',
 ]
   .map((origin) => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
@@ -39,7 +40,7 @@ const corsOptions = {
 app.disable('x-powered-by');
 app.use(helmet());
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+app.options('/api/*', cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 
 app.use((req, res, next) => {
