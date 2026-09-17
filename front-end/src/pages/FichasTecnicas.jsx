@@ -9,6 +9,7 @@ const factors = { g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
 const emptyRecipe = { nome: '', produtoId: '', rendimento: '1', unidadeRendimento: 'un', ingredientes: [{ produtoId: '', quantidade: '', unidade: 'un' }] };
 const number = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
+const tipoDoProduto = (product = {}) => product.aFazer ? 'coz' : product.producaoPropria ? 'producao' : product.tipoProduto || 'revenda';
 
 export default function FichasTecnicas() {
   const [searchParams] = useSearchParams();
@@ -36,12 +37,12 @@ export default function FichasTecnicas() {
 
   useEffect(() => { load(); }, []);
 
-  const recipeProducts = products.filter((product) => product.tipo === 'venda' && ['coz', 'producao'].includes(product.tipoProduto || (product.aFazer ? 'coz' : product.producaoPropria ? 'producao' : 'revenda')));
+  const recipeProducts = products.filter((product) => product.tipo === 'venda' && ['coz', 'producao'].includes(tipoDoProduto(product)));
   const ingredients = products.filter((product) => product.tipo === 'insumo' || product.usavelEmReceita);
   const ingredientById = (id) => ingredients.find((product) => String(product._id) === String(id));
 
   const availability = (recipe) => {
-    const tipo = recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : 'producao');
+    const tipo = tipoDoProduto(recipe.produtoId);
     if (tipo === 'producao') return { quantity: Number(recipe.produtoId?.estoque || 0), limiting: 'Estoque do produto' };
     const values = recipe.ingredientes.map((item) => {
       const product = ingredientById(item.produtoId?._id || item.produtoId);
@@ -60,7 +61,7 @@ export default function FichasTecnicas() {
 
   const filteredRecipes = recipes.filter((recipe) => {
     const product = recipe.produtoId || {};
-    const tipo = product.tipoProduto || (product.aFazer ? 'coz' : product.producaoPropria ? 'producao' : 'revenda');
+    const tipo = tipoDoProduto(product);
     const typeOk = filter === 'todos' || (filter === 'coz' ? tipo === 'coz' : tipo === 'producao');
     return typeOk && String(product.nome || recipe.nome).toLowerCase().includes(search.toLowerCase());
   });
@@ -90,7 +91,7 @@ export default function FichasTecnicas() {
     setSaving(true);
     try {
       const produto = recipeProducts.find((item) => String(item._id) === String(recipeForm.produtoId));
-      const tipoProduto = produto?.tipoProduto || (produto?.aFazer ? 'coz' : 'producao');
+      const tipoProduto = tipoDoProduto(produto);
       const payload = { ...recipeForm, rendimento: tipoProduto === 'coz' ? 1 : Number(recipeForm.rendimento), ingredientes: recipeForm.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })) };
       if (editingId) await api.put(`/production/recipes/${editingId}`, payload);
       else await api.post('/production/recipes', payload);
