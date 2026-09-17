@@ -85,11 +85,22 @@ const resumoVendasPeriodo = async (inicio, fim) => {
 
 router.get('/comparar-vendas', async (req, res) => {
   try {
-    const tipo = req.query.tipo === 'mes' ? 'mes' : 'semana';
+    const tipo = ['dia', 'semana', 'mes'].includes(req.query.tipo) ? req.query.tipo : 'semana';
     let periodoA;
     let periodoB;
 
-    if (tipo === 'mes') {
+    if (tipo === 'dia') {
+      const criarDia = (data) => {
+        const inicio = new Date(`${data}T00:00:00-03:00`);
+        const fim = new Date(inicio);
+        fim.setUTCDate(fim.getUTCDate() + 1);
+        return { inicio, fim, rotulo: dataSaoPaulo(inicio) };
+      };
+      const dataA = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.periodoA || '')) ? req.query.periodoA : dataSaoPaulo();
+      const dataB = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.periodoB || '')) ? req.query.periodoB : dataA;
+      periodoA = criarDia(dataA);
+      periodoB = criarDia(dataB);
+    } else if (tipo === 'mes') {
       const mesA = /^\d{4}-\d{2}$/.test(String(req.query.periodoA || '')) ? req.query.periodoA : dataSaoPaulo().slice(0, 7);
       const mesB = /^\d{4}-\d{2}$/.test(String(req.query.periodoB || '')) ? req.query.periodoB : mesA;
       const criarMes = (mes) => {

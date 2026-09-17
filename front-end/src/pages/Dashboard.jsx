@@ -34,6 +34,8 @@ export default function Dashboard() {
   const [comparacaoMesB, setComparacaoMesB] = useState(() => { const data = new Date(); data.setMonth(data.getMonth() - 1); return data.toISOString().slice(0, 7); });
   const [comparacaoSemanaA, setComparacaoSemanaA] = useState(() => { const data = new Date(); data.setDate(data.getDate() - data.getDay() + 1); return data.toISOString().slice(0, 10); });
   const [comparacaoSemanaB, setComparacaoSemanaB] = useState(() => { const data = new Date(); data.setDate(data.getDate() - data.getDay() - 6); return data.toISOString().slice(0, 10); });
+  const [comparacaoDiaA, setComparacaoDiaA] = useState(() => new Date().toISOString().slice(0, 10));
+  const [comparacaoDiaB, setComparacaoDiaB] = useState(() => { const data = new Date(); data.setDate(data.getDate() - 1); return data.toISOString().slice(0, 10); });
   const [comparacaoVendas, setComparacaoVendas] = useState(null);
   const [alertasCusto, setAlertasCusto] = useState({ semCusto: [], reajuste: [] });
   const [productionData, setProductionData] = useState(null);
@@ -65,11 +67,13 @@ export default function Dashboard() {
     if (user?.role !== 'admin') return;
     const params = comparacaoTipo === 'mes'
       ? { tipo: 'mes', periodoA: comparacaoMesA, periodoB: comparacaoMesB }
-      : { tipo: 'semana', periodoA: comparacaoSemanaA, periodoB: comparacaoSemanaB };
+      : comparacaoTipo === 'dia'
+        ? { tipo: 'dia', periodoA: comparacaoDiaA, periodoB: comparacaoDiaB }
+        : { tipo: 'semana', periodoA: comparacaoSemanaA, periodoB: comparacaoSemanaB };
     api.get('/dashboard/comparar-vendas', { params })
       .then((response) => setComparacaoVendas(response.data))
       .catch((error) => showToast(error.response?.data?.msg || 'Não foi possível comparar as vendas', 'error'));
-  }, [comparacaoMesA, comparacaoMesB, comparacaoSemanaA, comparacaoSemanaB, comparacaoTipo, showToast, user?.role]);
+  }, [comparacaoMesA, comparacaoMesB, comparacaoSemanaA, comparacaoSemanaB, comparacaoDiaA, comparacaoDiaB, comparacaoTipo, showToast, user?.role]);
 
   useEffect(() => {
     const selecionarComanda = (event) => {
@@ -245,8 +249,8 @@ export default function Dashboard() {
     <section className="dashboard-comparison">
       <div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">ANÁLISE DE VENDAS</span><h2>Comparar períodos</h2><p>Escolha semanas ou meses para analisar a evolução das vendas.</p></div></div>
       <div className="dashboard-comparison-controls">
-        <div className="dashboard-comparison-modes"><button type="button" className={comparacaoTipo === 'semana' ? 'active' : ''} onClick={() => setComparacaoTipo('semana')}>Semana a semana</button><button type="button" className={comparacaoTipo === 'mes' ? 'active' : ''} onClick={() => setComparacaoTipo('mes')}>Mês a mês</button></div>
-        {comparacaoTipo === 'mes' ? <><label>Período principal<input type="month" value={comparacaoMesA} onChange={(event) => setComparacaoMesA(event.target.value)} /></label><label>Comparar com<input type="month" value={comparacaoMesB} onChange={(event) => setComparacaoMesB(event.target.value)} /></label></> : <><label>Semana principal<DateInput value={comparacaoSemanaA} onChange={setComparacaoSemanaA} /></label><label>Comparar com<DateInput value={comparacaoSemanaB} onChange={setComparacaoSemanaB} /></label></>}
+        <div className="dashboard-comparison-modes"><button type="button" className={comparacaoTipo === 'dia' ? 'active' : ''} onClick={() => setComparacaoTipo('dia')}>Dia a dia</button><button type="button" className={comparacaoTipo === 'semana' ? 'active' : ''} onClick={() => setComparacaoTipo('semana')}>Semana a semana</button><button type="button" className={comparacaoTipo === 'mes' ? 'active' : ''} onClick={() => setComparacaoTipo('mes')}>Mês a mês</button></div>
+        {comparacaoTipo === 'mes' ? <><label>Período principal<input type="month" value={comparacaoMesA} onChange={(event) => setComparacaoMesA(event.target.value)} /></label><label>Comparar com<input type="month" value={comparacaoMesB} onChange={(event) => setComparacaoMesB(event.target.value)} /></label></> : comparacaoTipo === 'dia' ? <><label>Dia principal<input type="date" value={comparacaoDiaA} onChange={(event) => setComparacaoDiaA(event.target.value)} /></label><label>Comparar com<input type="date" value={comparacaoDiaB} onChange={(event) => setComparacaoDiaB(event.target.value)} /></label></> : <><label>Semana principal<DateInput value={comparacaoSemanaA} onChange={setComparacaoSemanaA} /></label><label>Comparar com<DateInput value={comparacaoSemanaB} onChange={setComparacaoSemanaB} /></label></>}
       </div>
       {comparacaoVendas && <div className="dashboard-comparison-table-wrap"><table className="dashboard-comparison-table"><thead><tr><th>Indicador</th><th>{comparacaoVendas.periodoA.rotulo}</th><th>{comparacaoVendas.periodoB.rotulo}</th><th>Variação</th></tr></thead><tbody>{[['Receita', comparacaoVendas.periodoA.total, comparacaoVendas.periodoB.total, true], ['Pedidos', comparacaoVendas.periodoA.pedidos, comparacaoVendas.periodoB.pedidos, false], ['Itens vendidos', comparacaoVendas.periodoA.itens, comparacaoVendas.periodoB.itens, false], ['Ticket médio', comparacaoVendas.periodoA.ticketMedio, comparacaoVendas.periodoB.ticketMedio, true]].map(([nome, atual, anterior, monetario]) => <tr key={nome}><th>{nome}</th><td>{monetario ? money(atual) : atual}</td><td>{monetario ? money(anterior) : anterior}</td><td className={variacao(atual, anterior) >= 0 ? 'comparison-up' : 'comparison-down'}>{variacao(atual, anterior) >= 0 ? '+' : ''}{variacao(atual, anterior).toFixed(1)}%</td></tr>)}</tbody></table></div>}
     </section>

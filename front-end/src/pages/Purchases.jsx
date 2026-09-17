@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
@@ -8,11 +7,15 @@ const newItem = () => ({ produtoId: '', valorTotal: '', qtdEmbalagens: '', conte
 const today = () => new Date().toISOString().slice(0, 10);
 const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const number = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 6 });
+const newSupply = () => ({ nome: '', marcaReferencia: '', precoCompra: '', conteudoPorEmbalagem: '', unidadeConteudo: 'kg', estoqueEmbalagens: '', estoqueConteudoAberto: 0 });
 
 export default function Purchases() {
   const [products, setProducts] = useState([]);
   const [purchases, setPurchases] = useState([]);
   const [form, setForm] = useState({ fornecedor: '', numeroNF: '', data: today(), metodoCusteio: 'media_ponderada', itens: [newItem()] });
+  const [supplyForm, setSupplyForm] = useState(newSupply());
+  const [supplyModalOpen, setSupplyModalOpen] = useState(false);
+  const [savingSupply, setSavingSupply] = useState(false);
   const [saving, setSaving] = useState(false);
   const { showToast } = useToast();
 
@@ -46,6 +49,47 @@ export default function Purchases() {
   const addItem = () => setForm((current) => ({ ...current, itens: [...current.itens, newItem()] }));
   const removeItem = (index) => setForm((current) => ({ ...current, itens: current.itens.length === 1 ? current.itens : current.itens.filter((_, itemIndex) => itemIndex !== index) }));
 
+  const openSupplyModal = () => {
+    setSupplyForm(newSupply());
+    setSupplyModalOpen(true);
+  };
+
+  const saveSupply = async (event) => {
+    event.preventDefault();
+    setSavingSupply(true);
+    try {
+      const codigo = String(Math.max(0, ...products.map((product) => Number(product.codigo) || 0)) + 1);
+      const response = await api.post('/products', {
+        codigo,
+        nome: supplyForm.nome.trim(),
+        marcaReferencia: supplyForm.marcaReferencia.trim(),
+        tipo: 'insumo',
+        categoria: 'Insumos',
+        preco: 0,
+        precoCompra: Number(supplyForm.precoCompra),
+        conteudoPorEmbalagem: Number(supplyForm.conteudoPorEmbalagem),
+        unidadeConteudo: supplyForm.unidadeConteudo,
+        unidadeCompra: supplyForm.unidadeConteudo,
+        estoque: Number(supplyForm.estoqueEmbalagens || 0),
+        estoqueEmbalagens: Number(supplyForm.estoqueEmbalagens || 0),
+        estoqueConteudoAberto: Number(supplyForm.estoqueConteudoAberto || 0),
+        usavelEmReceita: true,
+        ativo: true,
+      });
+      const newProduct = response.data;
+      setProducts((current) => [...current, newProduct].sort((a, b) => a.nome.localeCompare(b.nome)));
+      const itemIndex = form.itens.findIndex((item) => !item.produtoId);
+      updateItem(itemIndex >= 0 ? itemIndex : 0, 'produtoId', newProduct._id);
+      setSupplyModalOpen(false);
+      showToast('Insumo cadastrado e selecionado na compra', 'success');
+    } catch (error) {
+      const validationMessage = error.response?.data?.errors?.map((item) => item.msg).join('; ');
+      showToast(error.response?.data?.msg || validationMessage || 'Nao foi possivel cadastrar o insumo', 'error');
+    } finally {
+      setSavingSupply(false);
+    }
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     setSaving(true);
@@ -64,7 +108,7 @@ export default function Purchases() {
 
   return <div className="purchases-page">
     <header className="page-heading"><div><span className="purchases-eyebrow">PRODUCAO / COMPRAS</span><h1>Compras</h1><p>Registre entradas de insumos e atualize o custo pelo recebimento.</p></div></header>
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', border: '1px solid var(--accent-border)', borderRadius: 10, background: 'var(--accent-light)', color: 'var(--text-secondary)', fontSize: 13 }}><span>O produto ainda não está cadastrado?</span><Link to="/produtos?tipo=insumo" style={{ color: 'var(--accent-primary)', fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}>➕ Cadastrar novo insumo</Link></div>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', border: '1px solid var(--accent-border)', borderRadius: 10, background: 'var(--accent-light)', color: 'var(--text-secondary)', fontSize: 13 }}><span>O produto ainda não está cadastrado?</span><button type="button" className="secondary" onClick={openSupplyModal}>➕ Cadastrar novo insumo</button></div>
     <form className="purchases-form" onSubmit={submit}>
       <div className="purchases-grid">
         <label>Fornecedor<input required value={form.fornecedor} onChange={(event) => setForm({ ...form, fornecedor: event.target.value })} /></label>
@@ -89,6 +133,21 @@ export default function Purchases() {
       <button className="primary" disabled={saving}>{saving ? 'Registrando...' : 'Registrar compra'}</button>
     </form>
     <section className="purchases-history"><div className="purchases-section-heading"><h2>Historico de compras</h2><span>{purchases.length} registro(s)</span></div>{purchases.length ? purchases.map((purchase) => <article key={purchase._id}><div><strong>{purchase.fornecedor}</strong><span>NF {purchase.numeroNF} · {new Date(purchase.data).toLocaleDateString('pt-BR')}</span></div><b>{money(purchase.valorTotal)}</b></article>) : <p>Nenhuma compra registrada.</p>}</section>
+    {supplyModalOpen && <div role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSupplyModalOpen(false); }} style={{ position: 'fixed', inset: 0, zIndex: 20, display: 'grid', placeItems: 'center', padding: 16, background: 'rgba(0, 0, 0, .48)' }}>
+      <form onSubmit={saveSupply} role="dialog" aria-modal="true" aria-labelledby="new-supply-title" style={{ width: 'min(560px, 100%)', maxHeight: '90vh', overflowY: 'auto', padding: 20, border: '1px solid var(--border-color)', borderRadius: 16, background: 'var(--bg-secondary)', color: 'var(--text-primary)', boxShadow: 'var(--shadow-lg)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}><div><h2 id="new-supply-title" style={{ margin: 0, fontSize: 20 }}>Cadastrar novo insumo</h2><p style={{ margin: '6px 0 0', color: 'var(--text-secondary)', fontSize: 13 }}>O insumo será criado no cadastro de Produtos e ficará disponível nesta compra.</p></div><button type="button" className="danger" onClick={() => setSupplyModalOpen(false)} aria-label="Fechar modal">Fechar</button></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+          <label style={{ display: 'grid', gap: 5, gridColumn: '1 / -1' }}>Nome *<input required value={supplyForm.nome} onChange={(event) => setSupplyForm({ ...supplyForm, nome: event.target.value })} /></label>
+          <label style={{ display: 'grid', gap: 5 }}>Marca/referência<input value={supplyForm.marcaReferencia} onChange={(event) => setSupplyForm({ ...supplyForm, marcaReferencia: event.target.value })} /></label>
+          <label style={{ display: 'grid', gap: 5 }}>Preço de compra *<input required type="number" min="0.01" step="0.01" value={supplyForm.precoCompra} onChange={(event) => setSupplyForm({ ...supplyForm, precoCompra: event.target.value })} /></label>
+          <label style={{ display: 'grid', gap: 5 }}>Conteúdo por embalagem *<input required type="number" min="0.001" step="0.001" value={supplyForm.conteudoPorEmbalagem} onChange={(event) => setSupplyForm({ ...supplyForm, conteudoPorEmbalagem: event.target.value })} /></label>
+          <label style={{ display: 'grid', gap: 5 }}>Unidade<select value={supplyForm.unidadeConteudo} onChange={(event) => setSupplyForm({ ...supplyForm, unidadeConteudo: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></label>
+          <label style={{ display: 'grid', gap: 5 }}>Estoque inicial (embalagens)<input type="number" min="0" step="0.001" value={supplyForm.estoqueEmbalagens} onChange={(event) => setSupplyForm({ ...supplyForm, estoqueEmbalagens: event.target.value })} /></label>
+          <label style={{ display: 'grid', gap: 5 }}>Conteúdo aberto inicial<input type="number" min="0" step="0.001" value={supplyForm.estoqueConteudoAberto} onChange={(event) => setSupplyForm({ ...supplyForm, estoqueConteudoAberto: event.target.value })} /></label>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}><button type="button" className="secondary" onClick={() => setSupplyModalOpen(false)}>Cancelar</button><button type="submit" className="primary" disabled={savingSupply}>{savingSupply ? 'Cadastrando...' : 'Cadastrar e selecionar'}</button></div>
+      </form>
+    </div>}
     <style>{styles}</style>
   </div>;
 }

@@ -6,8 +6,7 @@ import { ThemeContext } from '../context/ThemeContext.jsx';
 const gruposMenu = [
   {
     chave: 'atendimento',
-    label: '🏪 Atendimento',
-    sempreVisivel: true,
+    label: '🏪 ATENDIMENTO',
     items: [
       { label: 'Novo Pedido', icon: '🛒', to: '/pdv' },
       { label: 'Comandas', icon: '📋', to: '/comandas' },
@@ -75,7 +74,7 @@ export default function Layout() {
   const location = useLocation();
   const [showConfirm, setShowConfirm] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [gruposAbertos, setGruposAbertos] = useState({});
+  const [gruposAbertos, setGruposAbertos] = useState({ atendimento: true });
 
   const sair = () => { logout(); navigate('/login'); };
 
@@ -97,7 +96,7 @@ export default function Layout() {
       const activeKey = grupoAtivo?.chave;
       const novo = {};
       gruposMenu.forEach((g) => {
-        if (g.sempreVisivel || g.chave === activeKey) novo[g.chave] = true;
+        if (g.chave === activeKey) novo[g.chave] = true;
         else novo[g.chave] = false;
       });
       setGruposAbertos(novo);
@@ -135,20 +134,15 @@ export default function Layout() {
 
     return (
       <div className="nav-group-container" key={grupo.chave}>
-        {!grupo.sempreVisivel && (
-          <button
-            type="button"
-            className={'nav-group-header ' + (isOpen ? 'open' : '')}
-            onClick={() => toggleGrupo(grupo.chave)}
-            aria-expanded={isOpen}
-          >
-            <span className="nav-group-label">{grupo.label}</span>
-            <span className="nav-group-arrow">{isOpen ? '▼' : '▶'}</span>
-          </button>
-        )}
-        {grupo.sempreVisivel && (
-          <span className="nav-group-label nav-group-label-static">{grupo.label}</span>
-        )}
+        <button
+          type="button"
+          className={'nav-group-header ' + (isOpen ? 'open' : '')}
+          onClick={() => toggleGrupo(grupo.chave)}
+          aria-expanded={isOpen}
+        >
+          <span className="nav-group-label">{grupo.label}</span>
+          <span className="nav-group-arrow">{isOpen ? '▼' : '▶'}</span>
+        </button>
         {isOpen && (
           <div className={'nav-group-content ' + (isOpen ? 'open' : '')}>
             {visibleItems.map((item) => (
@@ -158,7 +152,7 @@ export default function Layout() {
                 className={pathAtivo.startsWith(item.to) ? 'nav-link active' : 'nav-link'}
                 onClick={() => {
                   if (isMobile) toggleMobileMenu(false);
-                  if (!grupo.sempreVisivel) toggleGrupo(grupo.chave);
+                  toggleGrupo(grupo.chave);
                 }}
               >
                 <span className="nav-link-icon">{item.icon}</span>
