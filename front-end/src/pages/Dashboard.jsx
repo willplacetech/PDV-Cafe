@@ -243,6 +243,7 @@ export default function Dashboard() {
   const pagamentosComTaxaAtual = relatorioMes.pagamentos.map(pagamentoComTaxaAtual);
   const taxasCartaoAtual = pagamentosComTaxaAtual.reduce((total, pagamento) => total + pagamento.taxa, 0);
   const recebidoLiquidoAtual = Math.max(0, Number(relatorioMes.recebido || 0) - Number(relatorioMes.taxasCartao || 0) + taxasCartaoAtual);
+  const aReceberMensal = Number(relatorioMes.pendente || 0);
 
   const imprimirRelatorioClientes = () => {
     const clientes = relatorioClientes.clientes.map((cliente) => `<div class="cliente"><span>${cliente.nome}</span><span>${cliente.telefone || 'Nao informado'}</span></div>`).join('');
