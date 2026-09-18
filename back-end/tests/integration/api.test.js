@@ -101,7 +101,7 @@ describe('API Endpoints', () => {
     expect(res.body.nome).toBe('João Silva');
   });
 
-  test('POST /api/customers → 409 CPF duplicado', async () => {
+  test('POST /api/customers → 409 telefone duplicado', async () => {
     await request(app)
       .post('/api/customers')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -109,7 +109,7 @@ describe('API Endpoints', () => {
     const res = await request(app)
       .post('/api/customers')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ nome: 'Maria Dup', telefone: '11777777777', cpf: '98765432100', aniversario: '' });
+      .send({ nome: 'Maria Dup', telefone: '11888888888', cpf: '98765432100', aniversario: '' });
     expect(res.statusCode).toBe(409);
   });
 

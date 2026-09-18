@@ -188,8 +188,8 @@ export default function Login() {
           )}
           {!showInstallButton && (
             <div style={{ marginTop: 14, textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>
-              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: 0.8 }}>
-                📱 Toque em <strong>Compartilhar</strong> → <strong>Adicionar à Tela Inicial</strong> no seu navegador
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: 0.8, lineHeight: 1.4 }}>
+                📲 Para instalar, use o menu do navegador e escolha <strong>Instalar aplicativo</strong>.
               </span>
             </div>
           )}

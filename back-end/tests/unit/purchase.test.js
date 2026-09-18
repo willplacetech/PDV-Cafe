@@ -37,7 +37,7 @@ describe('Compra (Purchase)', () => {
 
   test('calcularCustoReceita deve calcular custo insumos, total e unitário', () => {
     const ingredientes = [
-      { quantidade: 0.5, unidade: 'kg', custoUnitarioBase: 5 },
+      { quantidade: 500, unidade: 'g', custoUnitarioBase: 0.005 },
     ];
     const custo = calcularCustoReceita(ingredientes, 0, 0, 0, 18);
     expect(custo.custoInsumosTotal).toBeCloseTo(2.5, 5);

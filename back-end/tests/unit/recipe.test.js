@@ -7,7 +7,7 @@ describe('Recipe (Ficha Técnica)', () => {
   let produtoCoz;
   let insumoOvo;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     produtoCoz = await Product.create({
       codigo: '1001',
       nome: 'Omelete',
@@ -64,11 +64,11 @@ describe('Recipe (Ficha Técnica)', () => {
   test('Recipe deve calcular custo com múltiplos ingredientes', () => {
     const ingredientes = [
       { quantidade: 2, unidade: 'un', custoUnitarioBase: 0.5 },
-      { quantidade: 0.03, unidade: 'kg', custoUnitarioBase: 30 },
+      { quantidade: 30, unidade: 'g', custoUnitarioBase: 0.03 },
     ];
     const custo = calcularCustoReceita(ingredientes, 0, 0, 0, 1);
-    expect(custo.custoInsumosTotal).toBeCloseTo(0.5 + 0.9, 5);
-    expect(custo.custoUnitario).toBeCloseTo(1.4, 5);
+    expect(custo.custoInsumosTotal).toBeCloseTo(1.9, 5);
+    expect(custo.custoUnitario).toBeCloseTo(1.9, 5);
   });
 
   test('Recipe deve calcular disponibilidade baseada no estoque de insumos', async () => {
