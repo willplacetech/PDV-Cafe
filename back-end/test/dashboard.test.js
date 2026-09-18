@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { normalizarStatusFiltro } = require('../routes/orders');
+const { calcularStatusPagamentoComanda } = require('../routes/comandas');
 
 const pagamentoRecebido = (pagamento) => {
   if (!pagamento || pagamento.tipo === 'credito_loja') return 0;
@@ -60,4 +61,16 @@ test('filtro de contas a receber usa apenas pedidos abertos', () => {
   assert.deepEqual(normalizarStatusFiltro('pendente,parcial'), { $in: ['pendente', 'parcial'] });
   assert.deepEqual(normalizarStatusFiltro('todos'), { $in: ['pendente', 'parcial'] });
   assert.equal(normalizarStatusFiltro('pendente'), 'pendente');
+});
+
+test('pagamento parcial da comanda calcula saldo e status corretamente', () => {
+  const atualizada = calcularStatusPagamentoComanda({
+    status: 'aberta',
+    valorTotal: 100,
+    historicoPagamentos: [{ valor: 40 }],
+  });
+
+  assert.equal(atualizada.valorPago, 40);
+  assert.equal(atualizada.saldoDevedor, 60);
+  assert.equal(atualizada.statusPagamento, 'parcial');
 });

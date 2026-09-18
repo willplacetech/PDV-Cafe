@@ -134,6 +134,8 @@ export default function Comandas() {
   const [modalFechamento, setModalFechamento] = useState(false);
   const [discount, setDiscount] = useState('0');
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [paymentPartial, setPaymentPartial] = useState(false);
+  const [partialAmount, setPartialAmount] = useState('');
   const [utilizacaoInterna, setUtilizacaoInterna] = useState(false);
   const [paymentError, setPaymentError] = useState(false);
   const [telefoneModal, setTelefoneModal] = useState('');
@@ -258,6 +260,8 @@ export default function Comandas() {
     if (!selected.itens.length) { showToast('A comanda não tem itens', 'warning'); return; }
     setDiscount('0');
     setPaymentMethod('');
+    setPaymentPartial(false);
+    setPartialAmount('');
     setUtilizacaoInterna(false);
     setPaymentError(false);
     setTelefoneModal('');
@@ -269,6 +273,23 @@ export default function Comandas() {
     if (!utilizacaoInterna && !paymentMethod) { setPaymentError(true); showToast('Escolha a forma de pagamento', 'warning'); return; }
     const comandaFechada = selected;
     try {
+      if (paymentPartial && Number(partialAmount || 0) > 0) {
+        const valorRecebido = Number(partialAmount);
+        const pagamentoMinimo = Math.min(Number(total || 0), valorRecebido);
+        if (pagamentoMinimo <= 0) {
+          throw new Error('Informe um valor parcial válido');
+        }
+        await api.patch(`/comandas/${selected._id}/receber-parcial`, {
+          valorRecebido: pagamentoMinimo,
+          formaPagamento: utilizacaoInterna ? 'credito_loja' : paymentMethod,
+        });
+        setModalFechamento(false);
+        setDiscount('0'); setPaymentMethod(''); setPaymentPartial(false); setPartialAmount(''); setUtilizacaoInterna(false); setPaymentError(false);
+        showToast(`Recebimento parcial registrado em #${comandaFechada.numero}`, 'success');
+        await load();
+        return;
+      }
+
       const { data } = await api.post(`/comandas/${selected._id}/fechar`, {
         desconto: Number(discount),
         metodoPagamento: utilizacaoInterna ? 'credito_loja' : paymentMethod,
@@ -277,11 +298,11 @@ export default function Comandas() {
         nome: nomeModal,
       });
       setModalFechamento(false);
-      setDiscount('0'); setPaymentMethod(''); setUtilizacaoInterna(false); setPaymentError(false);
+      setDiscount('0'); setPaymentMethod(''); setPaymentPartial(false); setPartialAmount(''); setUtilizacaoInterna(false); setPaymentError(false);
       setModalSucesso({ pedido: data.pedido, comanda: comandaFechada, telefone: telefoneModal, nome: nomeModal });
       showToast(`Comanda #${comandaFechada.numero} fechada → Pedido #${data.pedido.numero}`, 'success');
       load();
-    } catch (error) { showToast(error.response?.data?.msg || 'Erro ao fechar comanda', 'error'); }
+    } catch (error) { showToast(error.response?.data?.msg || error.message || 'Erro ao registrar pagamento', 'error'); }
   };
 
   const enviarComprovante = async () => {
@@ -422,6 +443,33 @@ export default function Comandas() {
                 UTILIZAÇÃO INTERNA
               </label>
             </div>
+
+            <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 12px' }}>
+              <input
+                type="checkbox"
+                checked={paymentPartial}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setPaymentPartial(checked);
+                  if (checked) {
+                    setPartialAmount(String(Math.min(Number(total) || 0, Number(selected?.valorTotal || total || 0))));
+                  } else {
+                    setPartialAmount('');
+                  }
+                }}
+                style={{ width: 18, height: 18, accentColor: 'var(--accent-primary)' }}
+              />
+              <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                PAGAMENTO PARCIAL
+              </label>
+            </div>
+
+            {paymentPartial && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Valor recebido agora (R$)</label>
+                <input type="number" min="0.01" step="0.01" value={partialAmount} onChange={e => setPartialAmount(e.target.value)} className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
+              </div>
+            )}
 
             {/* forma de pagamento */}
             <div style={{ marginBottom: 14 }}>
