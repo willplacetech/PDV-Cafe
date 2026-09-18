@@ -12,6 +12,7 @@ import Customers from './pages/Customers.jsx';
 import ContasReceber from './pages/ContasReceber';
 import Users from './pages/Users';
 import Comandas from './pages/Comandas.jsx';
+import MesasCadastro from './pages/MesasCadastro.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Production from './pages/Production.jsx';
 import FichasTecnicas from './pages/FichasTecnicas.jsx';
@@ -31,7 +32,9 @@ export default function App() {
               <Route element={<PrivateRoute />}>
                 <Route element={<Layout />}>
                   <Route path="/pdv" element={<PDV />} />
-                  <Route path="/comandas" element={<Comandas />} />
+                  <Route path="/atendimento/mesas" element={<Comandas />} />
+                  <Route path="/comandas" element={<Navigate to="/atendimento/mesas" replace />} />
+                  <Route path="/cadastro/mesas" element={<MesasCadastro />} />
                   <Route element={<RoleRoute roles={['admin', 'operador', 'cozinha']} />}>
                     <Route path="/cozinha" element={<Kitchen />} />
                   </Route>

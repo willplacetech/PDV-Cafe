@@ -9,7 +9,7 @@ const gruposMenu = [
     label: '🏪 ATENDIMENTO',
     items: [
       { label: 'Novo Pedido', icon: '🛒', to: '/pdv' },
-      { label: 'Mesas / Comandas', icon: '🪑', to: '/comandas' },
+      { label: 'Mesas / Comandas', icon: '🪑', to: '/atendimento/mesas' },
       { label: 'A Receber', icon: '💰', to: '/contas-receber', admin: true },
     ],
   },
@@ -18,7 +18,7 @@ const gruposMenu = [
     label: '📦 CADASTRO',
     items: [
       { label: 'Produtos de Venda', icon: '📦', to: '/produtos', admin: true },
-      { label: 'Mesas', icon: '🪑', to: '/comandas', admin: true },
+      { label: 'Mesas', icon: '🪑', to: '/cadastro/mesas', admin: true },
     ],
   },
   {
