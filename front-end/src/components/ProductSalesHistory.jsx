@@ -41,7 +41,7 @@ export default function ProductSalesHistory({ products, topProducts = [] }) {
   }, [open, weekStart, productId]);
 
   const salesRank = new Map(topProducts.map((product, index) => [product.nome, index]));
-  const sortedProducts = [...products].sort((first, second) => {
+  const sortedProducts = [...products].filter((product) => !product.tipo || product.tipo !== 'insumo').sort((first, second) => {
     const firstRank = salesRank.has(first.nome) ? salesRank.get(first.nome) : Number.MAX_SAFE_INTEGER;
     const secondRank = salesRank.has(second.nome) ? salesRank.get(second.nome) : Number.MAX_SAFE_INTEGER;
     return firstRank - secondRank || first.nome.localeCompare(second.nome, 'pt-BR');

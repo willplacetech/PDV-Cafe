@@ -180,7 +180,7 @@ router.get('/', async (req, res) => {
       Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('pagamentos'),
       Customer.countDocuments(),
       Customer.find().sort({ createdAt: -1 }).limit(8).select('nome telefone createdAt cafesFidelidade'),
-      Product.find().select('nome codigo preco custo estoque categoria'),
+      Product.find({ tipo: 'venda' }).select('nome codigo preco custo estoque categoria'),
       Order.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status total itens clienteId clienteNome'),
       Comanda.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status'),
     ]);
