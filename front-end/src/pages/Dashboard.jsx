@@ -10,7 +10,7 @@ import ProductSalesHistory from '../components/ProductSalesHistory.jsx';
 import DateInput from '../components/DateInput.jsx';
 import AreaTabs from '../components/AreaTabs.jsx';
 
-const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
+const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const labels = { dia: 'Hoje', semana: 'Esta semana', mes: 'Este mês' };
 const paymentLabels = { dinheiro: 'Dinheiro', pix: 'Pix', credito_loja: 'Credito na loja', cartao_credito: 'Cartao de credito', cartao_debito: 'Cartao de debito' };
 const statusLabels = { aberta: 'Aberta', fechada: 'Fechada', cancelada: 'Cancelada' };

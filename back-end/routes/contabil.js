@@ -151,9 +151,9 @@ router.get('/dre', async (req, res) => {
     const impostos = Number(req.query.impostos || 0);
     const deducoes = dinheiro(taxasCartao + impostos);
     const receitaLiquida = dinheiro(receitaBruta - deducoes);
-    const lucroBruto = receitaLiquida - cmv;
-    const ebitda = dinheiro(lucroBruto - despesasOperacionais);
-    const ebit = dinheiro(ebitda - depreciacao);
+    const lucroBruto = dinheiro(receitaLiquida - cmv);
+    const ebit = dinheiro(lucroBruto - despesasOperacionais);
+    const ebitda = dinheiro(ebit + depreciacao);
     const despesasFinanceiras = 0;
     const lucroLiquido = dinheiro(ebit - despesasFinanceiras);
     const compras = dinheiro(comprasPeriodo.reduce((total, compra) => total + Number(compra.valorTotal || 0), 0));

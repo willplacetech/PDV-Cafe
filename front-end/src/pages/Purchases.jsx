@@ -8,8 +8,8 @@ const today = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
-const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
-const number = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 6 });
+const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const number = (value) => Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
 const newSupply = () => ({ nome: '', precoCompra: '', conteudoPorEmbalagem: '1', unidadeConteudo: 'kg' });
 const getNextProductCode = (productList) => {
   const maxNumber = productList.reduce((higher, product) => {
