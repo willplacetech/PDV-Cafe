@@ -21,10 +21,19 @@ const aplicarMascaraCPF = (valor) => {
   return apenasNumeros.replace(/^(\d{3})(\d{3})(\d{3})(\d{0,2})/, '$1.$2.$3-$4');
 };
 
+const aplicarMascaraData = (valor) => {
+  if (!valor) return '';
+  const apenasNumeros = valor.replace(/\D/g, '').slice(0, 8);
+  if (apenasNumeros.length <= 2) return apenasNumeros;
+  if (apenasNumeros.length <= 4) return apenasNumeros.replace(/^(\d{2})(\d{0,2})/, '$1/$2');
+  return apenasNumeros.replace(/^(\d{2})(\d{2})(\d{0,4})/, '$1/$2/$3');
+};
+
+
 
 export default function Customers() {
   const [clientes, setClientes] = useState([]);
-  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', cpf: '' });
+  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', cpf: '', aniversario: '' });
   const [editing, setEditing] = useState(null);
   const { showToast } = useToast();
 
@@ -76,7 +85,7 @@ export default function Customers() {
       nome: form.nome.trim(),
       telefone: telefoneLimpo,
       cpf: cpfLimpo,
-      endereco: form.endereco?.trim() || ''
+      aniversario: form.aniversario.replace(/\D/g, '').length === 8 ? form.aniversario : '',
     };
 
     try {
@@ -85,7 +94,7 @@ export default function Customers() {
         : await api.post('/customers', dadosParaEnviar);
       
       showToast(editing ? '✅ Cliente atualizado!' : '✅ Cliente cadastrado!', 'success');
-      setForm({ nome: '', telefone: '', endereco: '', cpf: '' });
+               setForm({ nome: '', telefone: '', endereco: '', cpf: '', aniversario: '' }); 
       setEditing(null);
       carregar();
     } catch {
@@ -99,7 +108,8 @@ export default function Customers() {
     setForm({ 
       nome: c.nome, 
       telefone: aplicarMascaraTelefone(c.telefone || ''), 
-      endereco: c.endereco || '', 
+      endereco: c.endereco || '',
+      aniversario: aplicarMascaraData(c.aniversario || ''),
       cpf: aplicarMascaraCPF(c.cpf || '') 
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -186,12 +196,12 @@ export default function Customers() {
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>
-                Endereço
+                Aniversário <span style={{ color: 'var(--text-secondary)', fontSize: 10 }}>(opcional)</span>
               </label>
               <input 
-                placeholder="Rua, número, bairro (opcional)" 
-                value={form.endereco}
-                onChange={e => setForm({ ...form, endereco: e.target.value })}
+                placeholder="DD/MM/AAAA" 
+                value={form.aniversario}
+                onChange={e => setForm({ ...form, aniversario: aplicarMascaraData(e.target.value) })}
                 style={inputStyle} 
               />
             </div>
@@ -204,7 +214,7 @@ export default function Customers() {
             }}>{editing ? 'Atualizar' : 'Cadastrar'}</button>
             {editing && <button type="button" onClick={() => { 
               setEditing(null); 
-              setForm({ nome: '', telefone: '', endereco: '', cpf: '' }); 
+      setForm({ nome: '', telefone: '', endereco: '', cpf: '', aniversario: '' });
             }} style={{
               padding: '12px 20px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)',
               border: '1.5px solid var(--border-color)', borderRadius: 10,
@@ -229,7 +239,7 @@ export default function Customers() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                {['Nome', 'Telefone', 'CPF', 'Endereço', 'Ações'].map(h => (
+                {['Nome', 'Telefone', 'CPF', 'Aniv.', 'Ações'].map(h => (
                   <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{h}</th>
                 ))}
               </tr>
@@ -246,9 +256,9 @@ export default function Customers() {
                   <td style={{ padding: '10px 8px', fontSize: 13, fontFamily: 'monospace' }}>
                     {aplicarMascaraCPF(c.cpf) || '-'}
                   </td>
-                  <td style={{ padding: '10px 8px', fontSize: 13, color: 'var(--text-secondary)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {c.endereco || '-'}
-                  </td>
+                   <td style={{ padding: '10px 8px', fontSize: 13, fontFamily: 'monospace', color: 'var(--accent-primary)' }}>
+                     {c.aniversario || '-'}
+                   </td>
                   <td style={{ padding: '10px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button onClick={() => alterar(c)} style={btnTable}>Editar</button>
                     <button onClick={() => remover(c._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>Excluir</button>

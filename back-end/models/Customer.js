@@ -14,6 +14,10 @@ const CustomerSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  aniversario: {
+    type: String,
+    trim: true,
+  },
   cpf: {
     type: String,
     trim: true,

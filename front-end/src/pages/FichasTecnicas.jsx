@@ -9,7 +9,10 @@ const factors = { g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
 const emptyRecipe = { nome: '', produtoId: '', rendimento: '1', unidadeRendimento: 'un', ingredientes: [{ produtoId: '', quantidade: '', unidade: 'un' }] };
 const number = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
-const tipoDoProduto = (product = {}) => product.aFazer ? 'coz' : product.producaoPropria ? 'producao' : product.tipoProduto || 'revenda';
+const tipoDoProduto = (product) => {
+  const safeProduct = product || {};
+  return safeProduct.tipoProduto || (safeProduct.aFazer ? 'coz' : safeProduct.producaoPropria ? 'producao' : 'revenda');
+};
 
 export default function FichasTecnicas() {
   const [searchParams] = useSearchParams();
@@ -37,7 +40,7 @@ export default function FichasTecnicas() {
 
   useEffect(() => { load(); }, []);
 
-  const recipeProducts = products.filter((product) => product && product.tipo === 'venda' && ['coz', 'producao'].includes(typeof tipoDoProduto === 'function' ? tipoDoProduto(product) : (product.tipoProduto || (product.aFazer ? 'coz' : product.producaoPropria ? 'producao' : 'revenda'))));
+  const recipeProducts = products.filter((product) => product && product.tipo === 'venda' && ['coz', 'producao'].includes(tipoDoProduto(product)));
   const ingredients = products.filter((product) => product && (product.tipo === 'insumo' || product.usavelEmReceita));
   const ingredientById = (id) => ingredients.find((product) => String(product._id) === String(id));
 
