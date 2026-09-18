@@ -9,31 +9,44 @@ const gruposMenu = [
     label: '🏪 ATENDIMENTO',
     items: [
       { label: 'Novo Pedido', icon: '🛒', to: '/pdv' },
-      { label: 'Comandas', icon: '📋', to: '/comandas' },
+      { label: 'Mesas / Comandas', icon: '🪑', to: '/comandas' },
       { label: 'A Receber', icon: '💰', to: '/contas-receber', admin: true },
     ],
   },
   {
-    chave: 'produtos',
-    label: '🏪 PRODUTOS',
+    chave: 'cadastro',
+    label: '📦 CADASTRO',
     items: [
-      { label: 'Cadastro e Estoques', icon: '📦', to: '/produtos', admin: true },
+      { label: 'Produtos de Venda', icon: '📦', to: '/produtos', admin: true },
+      { label: 'Mesas', icon: '🪑', to: '/comandas', admin: true },
     ],
   },
   {
     chave: 'compras',
-    label: '📦 COMPRAS',
+    label: '🧾 COMPRAS',
     items: [
-      { label: 'Lançar Compra', icon: '🧾', to: '/compras', admin: true },
+      { label: 'Lançar Entrada', icon: '🧾', to: '/compras', admin: true },
+      { label: 'Histórico de Compras', icon: '📚', to: '/compras', admin: true },
     ],
   },
   {
     chave: 'producao',
-    label: '🧪 Produção',
+    label: '🧪 PRODUÇÃO',
     items: [
       { label: 'Fichas Técnicas', icon: '📋', to: '/producao/fichas', roles: ['admin', 'cozinha'] },
-      { label: 'Produção', icon: '🧪', to: '/producao', admin: true },
+      { label: 'Estoque de Insumos', icon: '📦', to: '/producao', admin: true },
+      { label: 'Lançar Produção', icon: '🔄', to: '/producao', admin: true },
+      { label: 'Histórico de Movimentação', icon: '📜', to: '/producao', admin: true },
       { label: 'Cozinha', icon: '🍳', to: '/cozinha', roles: ['admin', 'operador', 'cozinha'] },
+    ],
+  },
+  {
+    chave: 'financeiro',
+    label: '💰 FINANCEIRO',
+    items: [
+      { label: 'Fechamento de Caixa', icon: '💵', to: '/financeiro', admin: true },
+      { label: 'DRE / Demonstrativo', icon: '📊', to: '/financeiro', admin: true },
+      { label: 'Relatórios', icon: '📈', to: '/financeiro', admin: true },
     ],
   },
   {
@@ -42,14 +55,6 @@ const gruposMenu = [
     items: [
       { label: 'Clientes', icon: '👤', to: '/clientes', admin: true },
       { label: 'Usuários', icon: '👥', to: '/usuarios', admin: true },
-    ],
-  },
-  {
-    chave: 'dashboard',
-    label: '📊 DASHBOARD',
-    items: [
-      { label: 'Dashboard', icon: '📊', to: '/dashboard', admin: true },
-      { label: 'Financeiro', icon: '💵', to: '/financeiro', admin: true },
     ],
   },
 ];

@@ -354,7 +354,7 @@ export default function Products() {
                 <label>Preço de venda (R$) * <input type="number" step="0.01" min={0} value={form.preco} required onChange={(event) => setForm({ ...form, preco: event.target.value })} /></label>
                 <label className="product-checkbox-label" style={{ gridColumn: '1 / -1' }}>
                   <input className="product-checkbox" type="checkbox" checked={Boolean(form.usavelEmReceita)} onChange={(event) => setForm({ ...form, usavelEmReceita: event.target.checked })} />
-                  Também usar como ingrediente em receitas
+                  Também usar como ingrediente em fichas técnicas
                 </label>
                 {form.usavelEmReceita && <>
                   <label>Preço de compra (R$) * <input type="number" step="0.01" min={0.01} required readOnly={editingCustoBloqueado} value={form.precoCompra} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
@@ -395,7 +395,7 @@ export default function Products() {
                   </div>
                   {form.grupoDesconto?.nome && <small style={{ color: 'var(--success-bg)', fontSize: 11, marginTop: 6, display: 'block' }}>✓ Produtos com grupo "{form.grupoDesconto.nome}" vão somar para este desconto.</small>}
                 </div>
-                {form.tipoProduto === 'producao' && <label>Rendimento por receita *<input required type="number" min="0.001" step="0.001" value={form.rendimentoPorReceita || 1} onChange={(event) => setForm({ ...form, rendimentoPorReceita: event.target.value })} /><small>Quantas unidades saem de uma fornada.</small></label>}
+                {form.tipoProduto === 'producao' && <label>Rendimento por ficha técnica *<input required type="number" min="0.001" step="0.001" value={form.rendimentoPorReceita || 1} onChange={(event) => setForm({ ...form, rendimentoPorReceita: event.target.value })} /><small>Quantas unidades saem de uma fornada.</small></label>}
                 {form.tipoProduto !== 'coz' ? <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label> : <div className="coz-stock-notice"><strong>⚠️ Coz não possui estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
                 <label>Unidade de venda
                   <select value={form.unidadeVenda} onChange={(event) => setForm({ ...form, unidadeVenda: event.target.value })}>
@@ -406,15 +406,8 @@ export default function Products() {
                   <input className="product-checkbox" type="checkbox" checked={form.vendidoFracionado} onChange={(event) => setForm({ ...form, vendidoFracionado: event.target.checked })} />
                   Permitir venda fracionada
                 </label>
-                <label className="product-checkbox-label">
-                  <input className="product-checkbox" type="checkbox" checked={Boolean(form.aFazer)} onChange={(event) => setForm({ ...form, aFazer: event.target.checked })} />
-                  Coz — preparado na cozinha (precisa de ficha técnica)
-                </label>
-                {form.aFazer && <div className="coz-recipe-panel"><strong>📋 Ficha Técnica Vinculada</strong>{fichaProduto ? <><span>Custo/unidade: <b>{`R$ ${Number(fichaProduto.custoPorUnidade || 0).toFixed(2).replace('.', ',')}`}</b></span><span>Disponível: <b>{Number(fichaProduto.disponibilidade?.quantidade || 0)} {fichaProduto.unidadeRendimento}</b></span><small>Ingrediente limitante: {fichaProduto.disponibilidade?.limitante || 'nenhum'}</small></> : <span>Este produto ainda não tem ficha. Crie-a em Produção para liberar a disponibilidade.</span>}<Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>{fichaProduto ? 'Editar ficha na Produção →' : 'Criar ficha na Produção →'}</Link></div>}
-                <label className="product-checkbox-label">
-                  <input className="product-checkbox" type="checkbox" checked={Boolean(form.producaoPropria)} onChange={(event) => setForm({ ...form, producaoPropria: event.target.checked })} />
-                  PP — produção própria (precisa de receita)
-                </label>
+                {form.tipoProduto === 'coz' && <div className="coz-recipe-panel"><strong>📋 Ficha técnica vinculada</strong>{fichaProduto ? <><span>Custo/unidade: <b>{`R$ ${Number(fichaProduto.custoPorUnidade || 0).toFixed(2).replace('.', ',')}`}</b></span><span>Disponível: <b>{Number(fichaProduto.disponibilidade?.quantidade || 0)} {fichaProduto.unidadeRendimento}</b></span><small>Ingrediente limitante: {fichaProduto.disponibilidade?.limitante || 'nenhum'}</small></> : <span>Este produto ainda não tem ficha técnica. Crie-a em Produção para liberar a disponibilidade.</span>}<Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>{fichaProduto ? 'Editar ficha técnica →' : 'Criar ficha técnica →'}</Link></div>}
+                {form.tipoProduto === 'producao' && <div className="coz-recipe-panel"><strong>📋 Ficha técnica vinculada</strong><span>Este produto é produzido internamente e usa uma ficha técnica para controlar o custo e o rendimento.</span><Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>Gerenciar ficha técnica →</Link></div>}
               </div>
             </section>
           ) : (
