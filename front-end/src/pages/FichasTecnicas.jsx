@@ -11,7 +11,7 @@ const number = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFr
 const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const tipoDoProduto = (product) => {
   const safeProduct = product || {};
-  return safeProduct.tipoProduto || (safeProduct.aFazer ? 'coz' : safeProduct.producaoPropria ? 'producao' : 'revenda');
+  return safeProduct.aFazer ? 'coz' : safeProduct.producaoPropria ? 'producao' : safeProduct.tipoProduto || 'revenda';
 };
 
 export default function FichasTecnicas() {
@@ -40,7 +40,7 @@ export default function FichasTecnicas() {
 
   useEffect(() => { load(); }, []);
 
-  const recipeProducts = products.filter((product) => product && product.tipo === 'venda' && ['coz', 'producao'].includes(tipoDoProduto(product)));
+  const recipeProducts = products.filter((product) => product && ['coz', 'producao'].includes(tipoDoProduto(product)));
   const ingredients = products.filter((product) => product && (product.tipo === 'insumo' || product.usavelEmReceita));
   const ingredientById = (id) => ingredients.find((product) => String(product._id) === String(id));
 
