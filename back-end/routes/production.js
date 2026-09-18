@@ -57,7 +57,7 @@ const validate = (req, res) => {
 
 router.get('/recipes', async (req, res) => {
   try {
-    const recipes = await Recipe.find().populate('produtoId', 'nome codigo unidadeVenda producaoPropria aFazer').populate('ingredientes.produtoId', 'nome codigo tipo usavelEmReceita precoCompra custoUnitarioBase unidadeVenda unidadeConteudo conteudoPorEmbalagem estoque estoqueInsumos estoqueEmbalagens estoqueConteudoAberto').populate('updatedBy', 'username').sort({ nome: 1 });
+    const recipes = await Recipe.find().populate('produtoId', 'nome codigo tipoProduto unidadeVenda producaoPropria aFazer estoque').populate('ingredientes.produtoId', 'nome codigo tipo usavelEmReceita precoCompra custoUnitarioBase unidadeVenda unidadeConteudo conteudoPorEmbalagem estoque estoqueInsumos estoqueEmbalagens estoqueConteudoAberto').populate('updatedBy', 'username').sort({ nome: 1 });
     res.json(recipes.map((recipe) => {
       const produtoTipo = recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : 'producao');
       const limites = produtoTipo === 'producao' ? [Number(recipe.produtoId?.estoque || 0)] : recipe.ingredientes.map((item) => {

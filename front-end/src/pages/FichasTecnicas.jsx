@@ -27,8 +27,8 @@ export default function FichasTecnicas() {
   const load = async () => {
     try {
       const [productsResponse, recipesResponse] = await Promise.all([api.get('/products'), api.get('/production/recipes')]);
-      setProducts(productsResponse.data || []);
-      setRecipes(recipesResponse.data || []);
+      setProducts(Array.isArray(productsResponse.data) ? productsResponse.data.filter(Boolean) : []);
+      setRecipes(Array.isArray(recipesResponse.data) ? recipesResponse.data.filter(Boolean) : []);
     } catch (error) {
       showToast(error.response?.data?.msg || 'Não foi possível carregar as fichas técnicas', 'error');
     } finally { setLoading(false); }
@@ -36,14 +36,14 @@ export default function FichasTecnicas() {
 
   useEffect(() => { load(); }, []);
 
-  const recipeProducts = products.filter((product) => product.tipo === 'venda' && ['coz', 'producao'].includes(product.tipoProduto || (product.aFazer ? 'coz' : product.producaoPropria ? 'producao' : 'revenda')));
-  const ingredients = products.filter((product) => product.tipo === 'insumo' || product.usavelEmReceita);
+  const recipeProducts = products.filter((product) => product && product.tipo === 'venda' && ['coz', 'producao'].includes(product.tipoProduto || (product.aFazer ? 'coz' : product.producaoPropria ? 'producao' : 'revenda')));
+  const ingredients = products.filter((product) => product && (product.tipo === 'insumo' || product.usavelEmReceita));
   const ingredientById = (id) => ingredients.find((product) => String(product._id) === String(id));
 
   const availability = (recipe) => {
     const tipo = recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : 'producao');
     if (tipo === 'producao') return { quantity: Number(recipe.produtoId?.estoque || 0), limiting: 'Estoque do produto' };
-    const values = recipe.ingredientes.map((item) => {
+    const values = (recipe.ingredientes || []).filter(Boolean).map((item) => {
       const product = ingredientById(item.produtoId?._id || item.produtoId);
       const stock = Number(product?.resumoInsumo?.totalBase ?? product?.estoqueInsumos ?? product?.estoque ?? 0);
       const consumption = Number(item.quantidade || 0) * (factors[item.unidade] || 1);
@@ -53,16 +53,17 @@ export default function FichasTecnicas() {
     return { quantity: limit * Number(recipe.rendimento || 1), limiting: values.find((item) => item.value === limit)?.product?.nome || 'Nenhum ingrediente' };
   };
 
-  const cost = (recipe) => recipe.ingredientes.reduce((total, item) => {
+  const cost = (recipe) => (recipe.ingredientes || []).filter(Boolean).reduce((total, item) => {
     const product = ingredientById(item.produtoId?._id || item.produtoId);
     return total + Number(item.quantidade || 0) * (factors[item.unidade] || 1) * Number(product?.resumoInsumo?.custoUnitarioBase || product?.custoUnitarioBase || product?.custoUnitario || 0);
   }, 0);
 
   const filteredRecipes = recipes.filter((recipe) => {
+    if (!recipe || !Array.isArray(recipe.ingredientes)) return false;
     const product = recipe.produtoId || {};
     const tipo = product.tipoProduto || (product.aFazer ? 'coz' : product.producaoPropria ? 'producao' : 'revenda');
     const typeOk = filter === 'todos' || (filter === 'coz' ? tipo === 'coz' : tipo === 'producao');
-    return typeOk && String(product.nome || recipe.nome).toLowerCase().includes(search.toLowerCase());
+    return typeOk && String(product.nome || recipe.nome).toLowerCase().includes(search.toLowerCase()) && recipe.ingredientes.every(Boolean);
   });
 
   useEffect(() => {
@@ -75,13 +76,13 @@ export default function FichasTecnicas() {
 
   const startEdit = (recipe) => {
     setEditingId(recipe._id);
-    setRecipeForm({ nome: recipe.nome, produtoId: recipe.produtoId?._id || recipe.produtoId, rendimento: String(recipe.rendimento), unidadeRendimento: recipe.unidadeRendimento, ingredientes: recipe.ingredientes.map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: String(item.quantidade), unidade: item.unidade })) });
+    setRecipeForm({ nome: recipe.nome, produtoId: recipe.produtoId?._id || recipe.produtoId, rendimento: String(recipe.rendimento), unidadeRendimento: recipe.unidadeRendimento, ingredientes: (recipe.ingredientes || []).filter(Boolean).map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: String(item.quantidade), unidade: item.unidade })) });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const duplicate = (recipe) => {
     setEditingId(null);
-    setRecipeForm({ nome: `${recipe.nome} (cópia)`, produtoId: '', rendimento: String(recipe.rendimento), unidadeRendimento: recipe.unidadeRendimento, ingredientes: recipe.ingredientes.map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: String(item.quantidade), unidade: item.unidade })) });
+    setRecipeForm({ nome: `${recipe.nome} (cópia)`, produtoId: '', rendimento: String(recipe.rendimento), unidadeRendimento: recipe.unidadeRendimento, ingredientes: (recipe.ingredientes || []).filter(Boolean).map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: String(item.quantidade), unidade: item.unidade })) });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
