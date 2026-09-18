@@ -7,7 +7,7 @@ const pagamentoLabels = {
 };
 
 const dinheiro = (value) => Number(value || 0).toFixed(2).replace('.', ',');
-const textoSeguro = (value) => String(value ?? '').replace(/[<&>\"']/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '\"': '&quot;', "'": '&#39;' }[char]));
+const textoSeguro = (value) => String(value ?? '').replace(/[<&>"']/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[char]));
 const logoUrl = () => typeof window !== 'undefined' ? `${window.location.origin}/Abraco1.png` : '/Abraco1.png';
 
 export const totalPago = (pedido) => (Array.isArray(pedido?.pagamentos)
@@ -88,11 +88,45 @@ export function compartilharNotaWhatsApp(pedido, opcoes = {}, telefone = '') {
   const texto = buildNotaVendaTexto(pedido, opcoes);
   const fone = telefone ? telefone.replace(/\D/g, '') : (pedido.clienteTelefone || '').replace(/\D/g, '');
   const encodedText = encodeURIComponent(texto);
-  const appUrl = fone ? `whatsapp://send?phone=55${fone}&text=${encodedText}` : `whatsapp://send?text=${encodedText}`;
-  const link = document.createElement('a');
-  link.href = appUrl;
-  link.rel = 'noreferrer';
-  link.click();
+  const appUrl = fone
+    ? `whatsapp://send?phone=55${fone}&text=${encodedText}`
+    : `whatsapp://send?text=${encodedText}`;
+  const webUrl = fone
+    ? `https://wa.me/55${fone}?text=${encodedText}`
+    : `https://wa.me/?text=${encodedText}`;
+
+  const openApp = () => {
+    const link = document.createElement('a');
+    link.href = appUrl;
+    link.rel = 'noreferrer';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const openWeb = () => {
+    window.open(webUrl, '_blank');
+  };
+
+  let fallbackFired = false;
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      clearTimeout(fallbackTimer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
+  };
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+
+  const fallbackTimer = setTimeout(() => {
+    if (!fallbackFired) {
+      fallbackFired = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      openWeb();
+    }
+  }, 1500);
+
+  openApp();
 }
 
 function buildNotaVendaTextoBase(pedido, { comandaNumero, titulo = 'NOTA DE VENDA' } = {}) {

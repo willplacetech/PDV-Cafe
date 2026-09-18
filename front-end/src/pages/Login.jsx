@@ -174,6 +174,25 @@ export default function Login() {
               {loading ? 'Entrando...' : 'Entrar no Sistema'}
             </button>
           </form>
+
+          {showInstallButton && (
+            <button type="button" onClick={handleInstallClick} style={{
+              width: '100%', marginTop: 14, padding: '14px',
+              background: 'var(--success-bg)', color: '#fff',
+              border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700,
+              cursor: 'pointer', transition: 'all .15s', minHeight: 52,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+            }} title="Instalar Sabor de Abraço no seu dispositivo">
+              ⬇️ Instalar App
+            </button>
+          )}
+          {!showInstallButton && (
+            <div style={{ marginTop: 14, textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: 0.8 }}>
+                📱 Toque em <strong>Compartilhar</strong> → <strong>Adicionar à Tela Inicial</strong> no seu navegador
+              </span>
+            </div>
+          )}
         </div>
       </div>
       <style>{`@media (max-width: 760px) { .login-shell { align-items: flex-start !important; padding: 18px !important; } .login-layout { display: block !important; max-width: 420px !important; } .login-brand-panel { min-height: 220px !important; margin-bottom: 14px; } .login-brand-panel h2 { font-size: 24px !important; } .login-layout > div:last-child { max-width: none !important; padding: 28px 22px !important; } }`}</style>
