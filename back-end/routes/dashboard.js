@@ -37,7 +37,24 @@ const pagamentoTaxa = (pagamento) => {
   const taxa = Number(pagamento.taxaValor || (valor * Number(pagamento.taxaPercentual || 0) / 100));
   return { bruto: valor, taxa, liquido: valor - taxa };
 };
-const valorLiquidoPedido = (pedido) => Math.round((Math.max(0, Number(pedido.total || 0) - (pedido.pagamentos || []).reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0)) + Number.EPSILON) * 100) / 100;
+const pagamentoRecebido = (pagamento) => {
+  if (!pagamento || pagamento.tipo === 'credito_loja') return 0;
+  return Number(pagamento.valorRecebido || 0);
+};
+const valorLiquidoPedido = (pedido) => Math.round((Math.max(0, Number(pedido.total || 0) - (pedido.pagamentos || []).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0)) + Number.EPSILON) * 100) / 100;
+const pedidoRecebidoTotal = (pedido) => (pedido.pagamentos || []).reduce((total, pagamento) => total + pagamentoRecebido(pagamento), 0);
+const pedidoEmAReceber = (pedido) => {
+  if (!pedido || pedido.status === 'cancelado' || pedido.status === 'pago' || pedido.utilizacaoInterna) return 0;
+
+  const pagamentos = pedido.pagamentos || [];
+  const temCreditoLoja = pagamentos.some((pagamento) => pagamento.tipo === 'credito_loja');
+  const temPagamentoValido = pagamentos.some((pagamento) => pagamento.tipo !== 'credito_loja' && Number(pagamento.valorRecebido || 0) > 0);
+
+  if (temCreditoLoja && !temPagamentoValido) return 0;
+
+  const total = Number(pedido.total || 0);
+  return Math.max(0, total - pedidoRecebidoTotal(pedido));
+};
 
 const periodoHistorico = (semanaInicio) => {
   const dataInformada = /^\d{4}-\d{2}-\d{2}$/.test(String(semanaInicio || '')) ? new Date(`${semanaInicio}T00:00:00-03:00`) : inicioHojeSaoPaulo();
@@ -197,14 +214,11 @@ router.get('/', async (req, res) => {
       Order.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status total itens clienteId clienteNome'),
       Comanda.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status'),
     ]);
-    const vendasHoje = pedidosDia.filter((pedido) => pedido.status !== 'cancelado');
+    const vendasHoje = pedidosDia.filter((pedido) => pedido.status !== 'cancelado' && pedido.status !== 'pago' && !pedido.utilizacaoInterna);
     const vendasHojeTotal = vendasHoje.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
     const vendasHojeItens = vendasHoje.reduce((total, pedido) => total + (pedido.itens || []).reduce((itens, item) => itens + quantidadeNaUnidadeBase(item), 0), 0);
-    const vendasHojeRecebido = recebimentosDia.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => new Date(pagamento.dataPagamento) >= inicioDoPeriodo('dia')).reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).liquido, 0), 0);
-    const vendasHojePendente = vendasHoje.reduce((total, pedido) => {
-      const recebidoBruto = (pedido.pagamentos || []).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0);
-      return total + Math.max(0, Number(pedido.total || 0) - recebidoBruto);
-    }, 0);
+    const vendasHojeRecebido = recebimentosDia.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => pagamento.tipo !== 'credito_loja' && new Date(pagamento.dataPagamento) >= inicioDoPeriodo('dia')).reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).liquido, 0), 0);
+    const vendasHojePendente = vendasHoje.reduce((total, pedido) => total + pedidoEmAReceber(pedido), 0);
     const vendasMes = pedidosMes.filter((pedido) => pedido.status !== 'cancelado');
     const vendasPorTipo = vendasMes.reduce((tipos, pedido) => {
       const tipo = pedido.tipoAtendimento === 'balcao' ? 'balcao' : 'mesa';
@@ -245,8 +259,8 @@ router.get('/', async (req, res) => {
       atual.unidades += Number(item.quantidade || 0);
       rankingDescontos.set(String(item.produtoId), atual);
     }));
-    const recebidoMes = vendasMes.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).liquido, 0), 0);
-    const taxasMes = vendasMes.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).taxa, 0), 0);
+    const recebidoMes = vendasMes.reduce((total, pedido) => total + pedidoRecebidoTotal(pedido), 0);
+    const taxasMes = vendasMes.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).taxa, 0), 0);
     const statusMes = pedidosMes.reduce((status, pedido) => { status[pedido.status] = (status[pedido.status] || 0) + 1; return status; }, {});
     const clientesRelatorio = new Map(clientesRecentes.map((cliente) => [String(cliente._id), {
       id: cliente._id,
@@ -269,10 +283,7 @@ router.get('/', async (req, res) => {
       itens: vendasMes.reduce((total, pedido) => total + (pedido.itens || []).reduce((soma, item) => soma + quantidadeNaUnidadeBase(item), 0), 0),
       total: totalMes,
       recebido: recebidoMes,
-      pendente: vendasMes.reduce((total, pedido) => {
-        const recebidoBruto = (pedido.pagamentos || []).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0);
-        return total + Math.max(0, Number(pedido.total || 0) - recebidoBruto);
-      }, 0),
+      pendente: vendasMes.reduce((total, pedido) => total + pedidoEmAReceber(pedido), 0),
       ticketMedio: vendasMes.length ? totalMes / vendasMes.length : 0,
       status: statusMes,
       pagamentos: [...pagamentosMes.entries()].map(([tipo, valores]) => ({ tipo, ...valores })).sort((a, b) => b.total - a.total),

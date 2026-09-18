@@ -1,15 +1,55 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+const pagamentoRecebido = (pagamento) => {
+  if (!pagamento || pagamento.tipo === 'credito_loja') return 0;
+  return Number(pagamento.valorRecebido || 0);
+};
+
+const pedidoRecebidoTotal = (pedido) => (pedido.pagamentos || []).reduce((total, pagamento) => total + pagamentoRecebido(pagamento), 0);
+
+const pedidoEmAReceber = (pedido) => {
+  if (!pedido || pedido.status === 'cancelado' || pedido.status === 'pago' || pedido.utilizacaoInterna) return 0;
+
+  const pagamentos = pedido.pagamentos || [];
+  const temCreditoLoja = pagamentos.some((pagamento) => pagamento.tipo === 'credito_loja');
+  const temPagamentoValido = pagamentos.some((pagamento) => pagamento.tipo !== 'credito_loja' && Number(pagamento.valorRecebido || 0) > 0);
+
+  if (temCreditoLoja && !temPagamentoValido) return 0;
+
+  return Math.max(0, Number(pedido.total || 0) - pedidoRecebidoTotal(pedido));
+};
+
 const pagamentoTaxa = (pagamento) => {
   const valor = Number(pagamento.valorRecebido || 0);
   const taxa = Number(pagamento.taxaValor || (valor * Number(pagamento.taxaPercentual || 0) / 100));
   return { taxa };
 };
 
-const valorLiquidoPedido = (pedido) => Math.round((Math.max(0, Number(pedido.total || 0) - (pedido.pagamentos || []).reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0)) + Number.EPSILON) * 100) / 100;
+const valorLiquidoPedido = (pedido) => Math.round((Math.max(0, Number(pedido.total || 0) - (pedido.pagamentos || []).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0)) + Number.EPSILON) * 100) / 100;
 
 test('serie historica usa valor liquido apos taxas de cartao', () => {
   assert.equal(valorLiquidoPedido({ total: 210.36, pagamentos: [{ valorRecebido: 210.36, taxaPercentual: 2 }] }), 206.15);
   assert.equal(valorLiquidoPedido({ total: 100, pagamentos: [] }), 100);
+});
+
+test('credito da loja nao entra no valor a receber', () => {
+  const pedido = {
+    status: 'pendente',
+    total: 165.7,
+    pagamentos: [{ tipo: 'credito_loja', valorRecebido: 0 }],
+  };
+
+  assert.equal(pedidoRecebidoTotal(pedido), 0);
+  assert.equal(pedidoEmAReceber(pedido), 0);
+});
+
+test('pedido pago nao entra em a receber', () => {
+  const pedido = {
+    status: 'pago',
+    total: 80,
+    pagamentos: [{ tipo: 'dinheiro', valorRecebido: 80 }],
+  };
+
+  assert.equal(pedidoEmAReceber(pedido), 0);
 });
