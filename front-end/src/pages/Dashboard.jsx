@@ -11,6 +11,7 @@ import DateInput from '../components/DateInput.jsx';
 import AreaTabs from '../components/AreaTabs.jsx';
 
 const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const quantidadeComDuasCasas = (value) => Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const labels = { dia: 'Hoje', semana: 'Esta semana', mes: 'Este mês' };
 const paymentLabels = { dinheiro: 'Dinheiro', pix: 'Pix', credito_loja: 'Credito na loja', cartao_credito: 'Cartao de credito', cartao_debito: 'Cartao de debito' };
 const statusLabels = { aberta: 'Aberta', fechada: 'Fechada', cancelada: 'Cancelada' };
@@ -112,6 +113,22 @@ export default function Dashboard() {
   };
   const classeEstoque = (percentual) => percentual > 60 ? 'stock-good' : percentual >= 25 ? 'stock-warning' : 'stock-danger';
   const alternarQuadro = (quadro) => setQuadrosAbertos((atuais) => ({ ...atuais, [quadro]: !atuais[quadro] }));
+  const inverterComparacao = () => {
+    if (comparacaoTipo === 'mes') {
+      setComparacaoMesA(comparacaoMesB);
+      setComparacaoMesB(comparacaoMesA);
+      return;
+    }
+
+    if (comparacaoTipo === 'dia') {
+      setComparacaoDiaA(comparacaoDiaB);
+      setComparacaoDiaB(comparacaoDiaA);
+      return;
+    }
+
+    setComparacaoSemanaA(comparacaoSemanaB);
+    setComparacaoSemanaB(comparacaoSemanaA);
+  };
   const consultarComandas = async (event) => {
     event.preventDefault();
     setCarregandoComandas(true);
@@ -245,12 +262,12 @@ export default function Dashboard() {
     <div className="dashboard-heading page-heading"><div><span className="dashboard-eyebrow">GESTÃO DA CASA</span><h1>Dashboard</h1><p>Acompanhe o ritmo do Sabor de Abraço.</p></div><div className="dashboard-open">{data.comandasAbertas} comandas abertas</div></div>
     <DashboardTabs value={dashboardTab} onChange={setDashboardTab} />
     <section className="dashboard-fee-settings"><div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">CONFIGURAÇÃO DE PAGAMENTOS</span><h2>Taxas de cartão</h2><p>As taxas ficam definidas até serem alteradas.</p></div></div><div className="dashboard-fee-grid">{renderTaxaCartao('cartao_credito', 'Cartão de crédito')}{renderTaxaCartao('cartao_debito', 'Cartão de débito')}</div></section>
-    <div className="dashboard-periods">{['dia', 'semana', 'mes'].map((periodo) => { const metric = data.periodos[periodo]; return <section className="dashboard-period" key={periodo}><div className="dashboard-period-title"><h2>{labels[periodo]}</h2><span>{metric.pedidos} pedidos</span></div><strong className="dashboard-total">{money(metric.total)}</strong><div className="dashboard-stats"><span><b>{metric.itens}</b> itens</span><span><b>{money(metric.ticketMedio)}</b> ticket médio</span></div><div className="dashboard-products"><h3>Mais pedidos</h3>{metric.maisVendidos.length ? metric.maisVendidos.map((product) => <div className="dashboard-product" key={product.nome}><span>{product.nome}</span><b>{product.quantidade}</b></div>) : <p>Nenhum pedido no período.</p>}</div></section>; })}</div>
+    <div className="dashboard-periods">{['dia', 'semana', 'mes'].map((periodo) => { const metric = data.periodos[periodo]; return <section className="dashboard-period" key={periodo}><div className="dashboard-period-title"><h2>{labels[periodo]}</h2><span>{metric.pedidos} pedidos</span></div><strong className="dashboard-total">{money(metric.total)}</strong><div className="dashboard-stats"><span><b>{quantidadeComDuasCasas(metric.itens)}</b> itens</span><span><b>{money(metric.ticketMedio)}</b> ticket médio</span></div><div className="dashboard-products"><h3>Mais pedidos</h3>{metric.maisVendidos.length ? metric.maisVendidos.map((product) => <div className="dashboard-product" key={product.nome}><span>{product.nome}</span><b>{product.quantidade}</b></div>) : <p>Nenhum pedido no período.</p>}</div></section>; })}</div>
     <section className="dashboard-comparison">
       <div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">ANÁLISE DE VENDAS</span><h2>Comparar períodos</h2><p>Escolha semanas ou meses para analisar a evolução das vendas.</p></div></div>
       <div className="dashboard-comparison-controls">
         <div className="dashboard-comparison-modes"><button type="button" className={comparacaoTipo === 'dia' ? 'active' : ''} onClick={() => setComparacaoTipo('dia')}>Dia a dia</button><button type="button" className={comparacaoTipo === 'semana' ? 'active' : ''} onClick={() => setComparacaoTipo('semana')}>Semana a semana</button><button type="button" className={comparacaoTipo === 'mes' ? 'active' : ''} onClick={() => setComparacaoTipo('mes')}>Mês a mês</button></div>
-        {comparacaoTipo === 'mes' ? <><label>Período principal<input type="month" value={comparacaoMesA} onChange={(event) => setComparacaoMesA(event.target.value)} /></label><label>Comparar com<input type="month" value={comparacaoMesB} onChange={(event) => setComparacaoMesB(event.target.value)} /></label></> : comparacaoTipo === 'dia' ? <><label>Dia principal<input type="date" value={comparacaoDiaA} onChange={(event) => setComparacaoDiaA(event.target.value)} /></label><label>Comparar com<input type="date" value={comparacaoDiaB} onChange={(event) => setComparacaoDiaB(event.target.value)} /></label></> : <><label>Semana principal<DateInput value={comparacaoSemanaA} onChange={setComparacaoSemanaA} /></label><label>Comparar com<DateInput value={comparacaoSemanaB} onChange={setComparacaoSemanaB} /></label></>}
+        {comparacaoTipo === 'mes' ? <div className="dashboard-comparison-fields"><label>Período principal<input type="month" value={comparacaoMesA} onChange={(event) => setComparacaoMesA(event.target.value)} /></label><button type="button" className="dashboard-comparison-swap" onClick={inverterComparacao} aria-label="Inverter períodos">⇅</button><label>Comparar com<input type="month" value={comparacaoMesB} onChange={(event) => setComparacaoMesB(event.target.value)} /></label></div> : comparacaoTipo === 'dia' ? <div className="dashboard-comparison-fields"><label>Dia principal<input type="date" value={comparacaoDiaA} onChange={(event) => setComparacaoDiaA(event.target.value)} /></label><button type="button" className="dashboard-comparison-swap" onClick={inverterComparacao} aria-label="Inverter períodos">⇅</button><label>Comparar com<input type="date" value={comparacaoDiaB} onChange={(event) => setComparacaoDiaB(event.target.value)} /></label></div> : <div className="dashboard-comparison-fields"><label>Semana principal<DateInput value={comparacaoSemanaA} onChange={setComparacaoSemanaA} /></label><button type="button" className="dashboard-comparison-swap" onClick={inverterComparacao} aria-label="Inverter períodos">⇅</button><label>Comparar com<DateInput value={comparacaoSemanaB} onChange={setComparacaoSemanaB} /></label></div>}
       </div>
       {comparacaoVendas && <div className="dashboard-comparison-table-wrap"><table className="dashboard-comparison-table"><thead><tr><th>Indicador</th><th>{comparacaoVendas.periodoA.rotulo}</th><th>{comparacaoVendas.periodoB.rotulo}</th><th>Variação</th></tr></thead><tbody>{[['Receita', comparacaoVendas.periodoA.total, comparacaoVendas.periodoB.total, true], ['Pedidos', comparacaoVendas.periodoA.pedidos, comparacaoVendas.periodoB.pedidos, false], ['Itens vendidos', comparacaoVendas.periodoA.itens, comparacaoVendas.periodoB.itens, false], ['Ticket médio', comparacaoVendas.periodoA.ticketMedio, comparacaoVendas.periodoB.ticketMedio, true]].map(([nome, atual, anterior, monetario]) => <tr key={nome}><th>{nome}</th><td>{monetario ? money(atual) : atual}</td><td>{monetario ? money(anterior) : anterior}</td><td className={variacao(atual, anterior) >= 0 ? 'comparison-up' : 'comparison-down'}>{variacao(atual, anterior) >= 0 ? '+' : ''}{variacao(atual, anterior).toFixed(1)}%</td></tr>)}</tbody></table></div>}
     </section>
@@ -280,12 +297,14 @@ export default function Dashboard() {
       .dashboard-channel-summary>b { align-content:center; color:var(--text-primary); }
       .dashboard-period { background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:16px; padding:18px; box-shadow:var(--shadow-sm); }
       .dashboard-comparison { margin-top:16px; padding:18px; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:16px; box-shadow:var(--shadow-sm); }
-      .dashboard-comparison-controls { display:grid; grid-template-columns:auto repeat(2, minmax(0, 1fr)); align-items:end; gap:12px; margin-bottom:16px; }
+      .dashboard-comparison-controls { display:grid; grid-template-columns:auto minmax(0, 1fr); align-items:end; gap:12px; margin-bottom:16px; }
+      .dashboard-comparison-fields { display:grid; grid-template-columns:minmax(0, 1fr) auto minmax(0, 1fr); align-items:end; gap:10px; }
       .dashboard-comparison-controls label { display:grid; gap:5px; color:var(--text-secondary); font-size:11px; font-weight:700; }
       .dashboard-comparison-controls input { min-height:38px; padding:8px 10px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-tertiary); color:var(--text-primary); }
       .dashboard-comparison-modes { display:flex; gap:6px; }
       .dashboard-comparison-modes button { min-height:38px; padding:8px 11px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-tertiary); color:var(--text-secondary); font-weight:700; cursor:pointer; white-space:nowrap; }
       .dashboard-comparison-modes button.active { border-color:var(--accent-primary); background:var(--accent-primary); color:#fff; }
+      .dashboard-comparison-swap { width:40px; height:38px; border:1px solid var(--border-color); border-radius:9px; background:var(--bg-tertiary); color:var(--accent-primary); font-size:18px; font-weight:700; cursor:pointer; }
       .dashboard-comparison-table-wrap { overflow-x:auto; }
       .dashboard-comparison-table { width:100%; min-width:620px; border-collapse:collapse; }
       .dashboard-comparison-table th, .dashboard-comparison-table td { padding:11px 10px; border-bottom:1px solid var(--border-light); text-align:right; font-size:12px; }

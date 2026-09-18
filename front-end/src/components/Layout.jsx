@@ -33,7 +33,7 @@ const gruposMenu = [
     chave: 'producao',
     label: '🧪 PRODUÇÃO',
     items: [
-      { label: 'Fichas Técnicas', icon: '📋', to: '/producao/fichas', roles: ['admin', 'cozinha'] },
+      { label: 'Ficha técnica', icon: '📋', to: '/producao/fichas', roles: ['admin', 'cozinha'] },
       { label: 'Estoque de Insumos', icon: '📦', to: '/producao', admin: true },
       { label: 'Lançar Produção', icon: '🔄', to: '/producao', admin: true },
       { label: 'Histórico de Movimentação', icon: '📜', to: '/producao', admin: true },
@@ -68,7 +68,7 @@ const pageIcons = {
   '/contas-receber': { icon: '💰', title: 'A Receber' },
   '/usuarios': { icon: '👥', title: 'Usuários' },
   '/dashboard': { icon: '📊', title: 'Dashboard' },
-  '/producao/fichas': { icon: '📋', title: 'Fichas Técnicas' },
+  '/producao/fichas': { icon: '📋', title: 'Ficha técnica' },
   '/producao': { icon: '🧪', title: 'Produção' },
   '/compras': { icon: '🧾', title: 'Compras' },
   '/financeiro': { icon: '💵', title: 'Financeiro' },

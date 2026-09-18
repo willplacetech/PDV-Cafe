@@ -175,6 +175,62 @@ router.post('/migracoes/separar-tipos', auth, auth.allowRoles('admin'), async (r
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
+router.post('/migracoes/normalizar-registros-legados', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const produtos = await Product.find({
+      $or: [
+        { tipo: { $in: [null, ''] } },
+        { tipoProduto: { $in: [null, ''] } },
+        { aFazer: { $exists: false } },
+        { producaoPropria: { $exists: false } },
+        { estoqueMinimo: { $lt: 0 } },
+        { estoqueMinimo: null },
+      ],
+    });
+
+    let corrigidos = 0;
+
+    for (const produto of produtos) {
+      const tipoPadrao = produto.controladoComoInsumo || produto.usavelEmReceita || produto.tipo === 'insumo' ? 'insumo' : 'venda';
+      produto.tipo = produto.tipo || tipoPadrao;
+
+      if (produto.tipo === 'insumo') {
+        produto.usavelEmReceita = true;
+        produto.aFazer = false;
+        produto.producaoPropria = false;
+        produto.tipoProduto = 'revenda';
+        produto.estoqueMinimo = Number(produto.estoqueMinimo || 0);
+        produto.estoqueMinimoInsumos = Number(produto.estoqueMinimoInsumos || produto.estoqueMinimoEmbalagens || 0);
+        produto.estoqueMinimoEmbalagens = Number(produto.estoqueMinimoEmbalagens || produto.estoqueMinimoInsumos || 0);
+        if (!produto.estoqueEmbalagens && Number(produto.estoqueInsumos || 0) > 0) {
+          produto.estoqueEmbalagens = Number(produto.estoqueInsumos || 0);
+        }
+      } else {
+        const tipoProdutoAtual = produto.tipoProduto || (produto.aFazer ? 'coz' : produto.producaoPropria ? 'producao' : 'revenda');
+        produto.tipoProduto = tipoProdutoAtual;
+        produto.aFazer = tipoProdutoAtual === 'coz';
+        produto.producaoPropria = tipoProdutoAtual === 'producao';
+        produto.estoqueMinimo = Number(produto.estoqueMinimo || 0);
+      }
+
+      produto.estoqueMinimo = Number.isFinite(produto.estoqueMinimo) ? Math.max(0, produto.estoqueMinimo) : 0;
+      produto.estoqueMinimoInsumos = Number.isFinite(produto.estoqueMinimoInsumos) ? Math.max(0, Number(produto.estoqueMinimoInsumos)) : 0;
+      produto.estoqueMinimoEmbalagens = Number.isFinite(produto.estoqueMinimoEmbalagens) ? Math.max(0, Number(produto.estoqueMinimoEmbalagens)) : 0;
+
+      if (produto.controladoComoInsumo !== undefined) {
+        produto.controladoComoInsumo = undefined;
+      }
+
+      await produto.save();
+      corrigidos += 1;
+    }
+
+    res.json({ msg: 'Registros legados normalizados com sucesso.', produtosCorrigidos: corrigidos });
+  } catch (error) {
+    res.status(500).json({ msg: error.message });
+  }
+});
+
 router.get('/sem-custo', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
     const dataLimite = new Date();

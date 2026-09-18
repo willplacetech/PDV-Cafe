@@ -1,0 +1,26 @@
+const path = require('path');
+
+module.exports = {
+  testEnvironment: 'node',
+  testTimeout: 30000,
+  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
+  testMatch: ['<rootDir>/tests/**/*.test.js'],
+  collectCoverageFrom: [
+    'models/**/*.js',
+    'routes/**/*.js',
+    'utils/**/*.js',
+  ],
+  coverageDirectory: 'coverage',
+  coverageThreshold: {
+    global: {
+      statements: 70,
+      branches: 60,
+      functions: 70,
+      lines: 70,
+    },
+  },
+  moduleFileExtensions: ['js', 'json'],
+  moduleNameMapper: {
+    '^@/(.*)$': path.resolve(__dirname, '$1'),
+  },
+};
