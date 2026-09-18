@@ -240,7 +240,7 @@ router.get('/', async (req, res) => {
         produtosMes.set(item.nome, atual);
       });
     });
-    recebimentosMes.forEach((pedido) => (pedido.pagamentos || []).filter((pagamento) => new Date(pagamento.dataPagamento) >= inicioDoPeriodo('mes') && new Date(pagamento.dataPagamento) < fimDoMesAtual()).forEach((pagamento) => {
+    recebimentosMes.forEach((pedido) => (pedido.pagamentos || []).filter((pagamento) => pagamento.tipo !== 'credito_loja' && new Date(pagamento.dataPagamento) >= inicioDoPeriodo('mes') && new Date(pagamento.dataPagamento) < fimDoMesAtual()).forEach((pagamento) => {
       const atual = pagamentosMes.get(pagamento.tipo) || { bruto: 0, taxa: 0, total: 0 };
       const valores = pagamentoTaxa(pagamento);
       atual.bruto += valores.bruto;

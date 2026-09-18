@@ -7,7 +7,7 @@ export default defineConfig({
     viewportWidth: 1280,
     viewportHeight: 720,
     specPattern: 'tests/e2e/**/*.cy.js',
-    supportFile: false,
+    supportFile: 'cypress/support/e2e.js',
     defaultCommandTimeout: 10000,
     video: false,
     screenshotOnRunFailure: true,
