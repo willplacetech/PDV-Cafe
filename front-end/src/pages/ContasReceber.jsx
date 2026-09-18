@@ -30,7 +30,7 @@ export default function ContasReceber() {
   const [produtos, setProdutos] = useState([]);
   const [comandasAbertas, setComandasAbertas] = useState([]);
   const [clienteFiltro, setClienteFiltro] = useState('');
-  const [statusFiltro, setStatusFiltro] = useState('pendente');
+  const [statusFiltro, setStatusFiltro] = useState('abertas');
   const [inicio, setInicio] = useState('');
   const [fim, setFim] = useState('');
   const [pagamentoModal, setPagamentoModal] = useState(null);
@@ -615,7 +615,7 @@ Obrigado! 🙏`
           <select value={statusFiltro} onChange={e => setStatusFiltro(e.target.value)} style={{
             width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
           }}>
-            <option value="">Todos</option>
+            <option value="abertas">Todos em A Receber</option>
             <option value="pendente">Pendentes</option>
             <option value="parcial">Pagamento Parcial</option>
             <option value="pago">Quitados</option>

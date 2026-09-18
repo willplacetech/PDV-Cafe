@@ -13,6 +13,16 @@ const router = express.Router();
 const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda));
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
+const normalizarStatusFiltro = (status) => {
+  if (!status) return undefined;
+
+  if (status === 'abertas' || status === 'pendente,parcial' || status === 'todos') {
+    return { $in: ['pendente', 'parcial'] };
+  }
+
+  return status;
+};
+
 async function buildOrderItems(rawItems, session) {
   if (!Array.isArray(rawItems) || !rawItems.length) throw new Error('O pedido precisa ter pelo menos um item');
   const totals = new Map();
@@ -80,7 +90,8 @@ router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
     const { clienteId, status, inicio, fim } = req.query;
     const filter = {};
     if (clienteId) filter.clienteId = clienteId;
-    if (status) filter.status = status;
+    const statusNormalizado = normalizarStatusFiltro(status);
+    if (statusNormalizado) filter.status = statusNormalizado;
     if (inicio && fim) filter.createdAt = { $gte: new Date(inicio), $lte: new Date(new Date(fim).setHours(23, 59, 59)) };
     res.json(await Order.find(filter).sort({ createdAt: -1 }));
   } catch (err) { res.status(500).json({ msg: err.message }); }
@@ -258,3 +269,4 @@ router.patch('/:id/cancelar', auth, auth.allowRoles('admin'), async (req, res) =
 });
 
 module.exports = router;
+module.exports.normalizarStatusFiltro = normalizarStatusFiltro;

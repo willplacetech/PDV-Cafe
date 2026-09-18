@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { normalizarStatusFiltro } = require('../routes/orders');
 
 const pagamentoRecebido = (pagamento) => {
   if (!pagamento || pagamento.tipo === 'credito_loja') return 0;
@@ -52,4 +53,11 @@ test('pedido pago nao entra em a receber', () => {
   };
 
   assert.equal(pedidoEmAReceber(pedido), 0);
+});
+
+test('filtro de contas a receber usa apenas pedidos abertos', () => {
+  assert.deepEqual(normalizarStatusFiltro('abertas'), { $in: ['pendente', 'parcial'] });
+  assert.deepEqual(normalizarStatusFiltro('pendente,parcial'), { $in: ['pendente', 'parcial'] });
+  assert.deepEqual(normalizarStatusFiltro('todos'), { $in: ['pendente', 'parcial'] });
+  assert.equal(normalizarStatusFiltro('pendente'), 'pendente');
 });
