@@ -21,6 +21,15 @@ const dataSaoPaulo = (value = new Date()) => {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 };
 
+const formatarDataPtBr = (value) => {
+  const data = new Date(value);
+  return data.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+};
+
 const inicioHojeSaoPaulo = () => new Date(`${dataSaoPaulo()}T00:00:00-03:00`);
 const horaSaoPaulo = (value) => Number(new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, hour: '2-digit', hourCycle: 'h23' }).format(new Date(value)));
 const pagamentoTaxa = (pagamento) => {
@@ -100,6 +109,8 @@ router.get('/comparar-vendas', async (req, res) => {
       const dataB = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.periodoB || '')) ? req.query.periodoB : dataA;
       periodoA = criarDia(dataA);
       periodoB = criarDia(dataB);
+      periodoA.rotulo = formatarDataPtBr(periodoA.inicio);
+      periodoB.rotulo = formatarDataPtBr(periodoB.inicio);
     } else if (tipo === 'mes') {
       const mesA = /^\d{4}-\d{2}$/.test(String(req.query.periodoA || '')) ? req.query.periodoA : dataSaoPaulo().slice(0, 7);
       const mesB = /^\d{4}-\d{2}$/.test(String(req.query.periodoB || '')) ? req.query.periodoB : mesA;
@@ -109,13 +120,15 @@ router.get('/comparar-vendas', async (req, res) => {
       };
       periodoA = criarMes(mesA);
       periodoB = criarMes(mesB);
+      periodoA.rotulo = formatarDataPtBr(periodoA.inicio);
+      periodoB.rotulo = formatarDataPtBr(periodoB.inicio);
     } else {
       const inicioA = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.periodoA || '')) ? req.query.periodoA : dataSaoPaulo();
       const inicioB = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.periodoB || '')) ? req.query.periodoB : inicioA;
       periodoA = periodoHistorico(inicioA);
       periodoB = periodoHistorico(inicioB);
-      periodoA.rotulo = `${dataSaoPaulo(periodoA.inicio)} a ${dataSaoPaulo(new Date(periodoA.fim.getTime() - 1))}`;
-      periodoB.rotulo = `${dataSaoPaulo(periodoB.inicio)} a ${dataSaoPaulo(new Date(periodoB.fim.getTime() - 1))}`;
+      periodoA.rotulo = `${formatarDataPtBr(periodoA.inicio)} a ${formatarDataPtBr(new Date(periodoA.fim.getTime() - 1))}`;
+      periodoB.rotulo = `${formatarDataPtBr(periodoB.inicio)} a ${formatarDataPtBr(new Date(periodoB.fim.getTime() - 1))}`;
     }
 
     const [resumoA, resumoB] = await Promise.all([

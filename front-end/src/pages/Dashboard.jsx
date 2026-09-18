@@ -15,7 +15,25 @@ const quantidadeComDuasCasas = (value) => Number(value || 0).toLocaleString('pt-
 const labels = { dia: 'Hoje', semana: 'Esta semana', mes: 'Este mês' };
 const paymentLabels = { dinheiro: 'Dinheiro', pix: 'Pix', credito_loja: 'Credito na loja', cartao_credito: 'Cartao de credito', cartao_debito: 'Cartao de debito' };
 const statusLabels = { aberta: 'Aberta', fechada: 'Fechada', cancelada: 'Cancelada' };
-const variacao = (atual, anterior) => anterior ? ((atual - anterior) / Math.abs(anterior)) * 100 : (atual ? 100 : 0);
+const calcularVariacao = (atual, anterior) => {
+  const valorAtual = Number(atual || 0);
+  const valorAnterior = Number(anterior || 0);
+
+  if (!valorAnterior) {
+    return {
+      valor: 0,
+      positivo: true,
+      texto: '—',
+    };
+  }
+
+  const variacaoPercentual = ((valorAtual - valorAnterior) / valorAnterior) * 100;
+  return {
+    valor: variacaoPercentual,
+    positivo: variacaoPercentual >= 0,
+    texto: `${variacaoPercentual >= 0 ? '+' : ''}${variacaoPercentual.toFixed(1)}%`,
+  };
+};
 
 export default function Dashboard() {
   const { user } = useContext(AuthContext);
@@ -269,7 +287,17 @@ export default function Dashboard() {
         <div className="dashboard-comparison-modes"><button type="button" className={comparacaoTipo === 'dia' ? 'active' : ''} onClick={() => setComparacaoTipo('dia')}>Dia a dia</button><button type="button" className={comparacaoTipo === 'semana' ? 'active' : ''} onClick={() => setComparacaoTipo('semana')}>Semana a semana</button><button type="button" className={comparacaoTipo === 'mes' ? 'active' : ''} onClick={() => setComparacaoTipo('mes')}>Mês a mês</button></div>
         {comparacaoTipo === 'mes' ? <div className="dashboard-comparison-fields"><label>Período principal<input type="month" value={comparacaoMesA} onChange={(event) => setComparacaoMesA(event.target.value)} /></label><button type="button" className="dashboard-comparison-swap" onClick={inverterComparacao} aria-label="Inverter períodos">⇅</button><label>Comparar com<input type="month" value={comparacaoMesB} onChange={(event) => setComparacaoMesB(event.target.value)} /></label></div> : comparacaoTipo === 'dia' ? <div className="dashboard-comparison-fields"><label>Dia principal<input type="date" value={comparacaoDiaA} onChange={(event) => setComparacaoDiaA(event.target.value)} /></label><button type="button" className="dashboard-comparison-swap" onClick={inverterComparacao} aria-label="Inverter períodos">⇅</button><label>Comparar com<input type="date" value={comparacaoDiaB} onChange={(event) => setComparacaoDiaB(event.target.value)} /></label></div> : <div className="dashboard-comparison-fields"><label>Semana principal<DateInput value={comparacaoSemanaA} onChange={setComparacaoSemanaA} /></label><button type="button" className="dashboard-comparison-swap" onClick={inverterComparacao} aria-label="Inverter períodos">⇅</button><label>Comparar com<DateInput value={comparacaoSemanaB} onChange={setComparacaoSemanaB} /></label></div>}
       </div>
-      {comparacaoVendas && <div className="dashboard-comparison-table-wrap"><table className="dashboard-comparison-table"><thead><tr><th>Indicador</th><th>{comparacaoVendas.periodoA.rotulo}</th><th>{comparacaoVendas.periodoB.rotulo}</th><th>Variação</th></tr></thead><tbody>{[['Receita', comparacaoVendas.periodoA.total, comparacaoVendas.periodoB.total, true], ['Pedidos', comparacaoVendas.periodoA.pedidos, comparacaoVendas.periodoB.pedidos, false], ['Itens vendidos', comparacaoVendas.periodoA.itens, comparacaoVendas.periodoB.itens, false], ['Ticket médio', comparacaoVendas.periodoA.ticketMedio, comparacaoVendas.periodoB.ticketMedio, true]].map(([nome, atual, anterior, monetario]) => <tr key={nome}><th>{nome}</th><td>{monetario ? money(atual) : atual}</td><td>{monetario ? money(anterior) : anterior}</td><td className={variacao(atual, anterior) >= 0 ? 'comparison-up' : 'comparison-down'}>{variacao(atual, anterior) >= 0 ? '+' : ''}{variacao(atual, anterior).toFixed(1)}%</td></tr>)}</tbody></table></div>}
+      {comparacaoVendas && <div className="dashboard-comparison-table-wrap"><table className="dashboard-comparison-table"><thead><tr><th>Indicador</th><th>{comparacaoVendas.periodoA.rotulo}</th><th>{comparacaoVendas.periodoB.rotulo}</th><th>Variação</th></tr></thead><tbody>{[['Receita', comparacaoVendas.periodoA.total, comparacaoVendas.periodoB.total, true], ['Pedidos', comparacaoVendas.periodoA.pedidos, comparacaoVendas.periodoB.pedidos, false], ['Itens vendidos', comparacaoVendas.periodoA.itens, comparacaoVendas.periodoB.itens, false], ['Ticket médio', comparacaoVendas.periodoA.ticketMedio, comparacaoVendas.periodoB.ticketMedio, true]].map(([nome, atual, anterior, monetario]) => {
+        const variacaoAtual = calcularVariacao(atual, anterior);
+        return (
+          <tr key={nome}>
+            <th>{nome}</th>
+            <td>{monetario ? money(atual) : atual}</td>
+            <td>{monetario ? money(anterior) : anterior}</td>
+            <td className={variacaoAtual.positivo ? 'comparison-up' : 'comparison-down'}>{variacaoAtual.texto}</td>
+          </tr>
+        );
+      })}</tbody></table></div>}
     </section>
     {(alertasCusto.semCusto.length > 0 || alertasCusto.reajuste.length > 0) && <section className="dashboard-cost-alerts"><div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">ATENÇÃO OPERACIONAL</span><h2>Alertas de custos</h2></div><a href="/producao">Abrir Produção</a></div><div className="dashboard-cost-alert-grid"><a href="/producao"><strong>{alertasCusto.semCusto.length}</strong><span>produtos sem custo cadastrado</span></a><a href="/producao"><strong>{alertasCusto.reajuste.length}</strong><span>produtos com reajuste recomendado</span></a></div></section>}
     <ProductSalesHistory products={produtos} topProducts={data.periodos?.mes?.maisVendidos || []} />
