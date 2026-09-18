@@ -6,7 +6,7 @@ services:
     region: oregon
     plan: free
     rootDir: back-end
-    buildCommand: npm ci
+    buildCommand: npm ci --omit=dev
     startCommand: npm start
     healthCheckPath: /api
     envVars:
