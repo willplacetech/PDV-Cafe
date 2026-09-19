@@ -132,12 +132,26 @@ export default function Products() {
 
   const submit = async (event) => {
     event.preventDefault();
+    const tipo = form.tipo;
+    if (!form.nome || form.nome.trim() === '') {
+      showToast('⚠️ O nome do produto é obrigatório.', 'warning');
+      return;
+    }
+    if (editing) {
+      const precoEdicao = Number(form.preco);
+      if (Number.isNaN(precoEdicao) || precoEdicao < 0) {
+        showToast('⚠️ O preço do produto deve ser um número maior ou igual a zero.', 'warning');
+        return;
+      }
+    } else if (tipo === 'venda' && (!form.preco || Number(form.preco) <= 0)) {
+      showToast('⚠️ O preço de venda é obrigatório para produtos à venda.', 'warning');
+      return;
+    }
     if (codigoJaExiste(form.codigo, editing?._id)) {
       showToast('⚠️ Código já cadastrado. Escolha outro.', 'warning');
       return;
     }
 
-    const tipo = form.tipo;
     if (tipo === 'venda') {
       const descontos = (form.descontosPorQuantidade || []).map((faixa) => ({ quantidadeMinima: Number(faixa.quantidadeMinima), precoUnitario: Number(faixa.precoUnitario), ativo: faixa.ativo !== false }));
       for (let indice = 0; indice < descontos.length; indice += 1) {
@@ -172,6 +186,7 @@ export default function Products() {
     if (tipo === 'insumo' || form.usavelEmReceita) {
       if (Number(form.conteudoPorEmbalagem || 0) <= 0) { showToast('⚠️ Conteúdo da embalagem deve ser maior que zero.', 'warning'); return; }
       if (tipo === 'insumo' && Number(form.estoqueEmbalagens || 0) < 0) { showToast('⚠️ Quantidade de embalagens não pode ser negativa.', 'warning'); return; }
+      if (!editing && (tipo === 'insumo' || form.usavelEmReceita) && (!form.precoCompra || Number(form.precoCompra) <= 0)) { showToast('⚠️ Preço de compra é obrigatório para produtos usados em receitas.', 'warning'); return; }
     }
     const payload = {
       ...form,
@@ -185,8 +200,8 @@ export default function Products() {
       conteudoPorEmbalagem: tipo === 'insumo' || form.usavelEmReceita ? limparCampoNumerico(form.conteudoPorEmbalagem) ?? 0 : undefined,
       estoqueConteudoAberto: tipo === 'insumo' ? limparCampoNumerico(form.estoqueConteudoAberto) ?? 0 : undefined,
       categoria: tipo === 'insumo' ? 'Insumos' : (form.categoria || 'Outros'),
-      preco: tipo === 'venda' ? limparCampoNumerico(form.preco) ?? 0 : 0,
-      precoVenda: tipo === 'venda' ? limparCampoNumerico(form.preco) ?? 0 : 0,
+      preco: tipo === 'venda' ? limparCampoNumerico(form.preco) : undefined,
+      precoVenda: tipo === 'venda' ? limparCampoNumerico(form.preco) : undefined,
       descontosPorQuantidade: tipo === 'venda' ? form.descontosPorQuantidade : [],
       grupoDesconto: tipo === 'venda' && form.grupoDesconto?.nome ? {
         nome: String(form.grupoDesconto.nome).trim(),
