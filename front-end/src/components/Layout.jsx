@@ -440,7 +440,7 @@ export default function Layout() {
             top: 0;
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-color);
-            padding: 12px 16px;
+            padding: calc(12px + var(--safe-top)) 16px 12px 16px;
             z-index: 100;
           }
           #sidebar-desktop {
@@ -453,8 +453,17 @@ export default function Layout() {
           }
           #main-content {
             margin-left: 0 !important;
-            padding: 16px 16px 80px 16px !important;
+            padding: calc(16px + var(--safe-top)) 16px calc(80px + var(--safe-bottom)) 16px !important;
             min-height: calc(100vh - 60px);
+          }
+        }
+
+        @media (display-mode: standalone) {
+          #header-mobile {
+            padding-top: calc(18px + var(--safe-top)) !important;
+          }
+          #main-content {
+            padding-top: calc(20px + var(--safe-top)) !important;
           }
         }
 
