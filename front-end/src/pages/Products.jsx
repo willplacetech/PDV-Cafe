@@ -215,7 +215,7 @@ export default function Products() {
       unidadeCompra: form.unidadeCompra || 'kg',
       custoUnitario: limparCampoNumerico(form.custo) ?? 0,
       custo: limparCampoNumerico(form.custo) ?? 0,
-      rendimentoPorUnidadeCompra: 0,
+      rendimentoPorUnidadeCompra: Number(form.rendimentoPorUnidadeCompra || 0),
       ativo: true,
       permitirVendaSemInsumo: Boolean(form.permitirVendaSemInsumo),
       fichaTecnica: tipo === 'venda' && form.aFazer ? form.fichaTecnica.map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })) : [],
@@ -368,6 +368,12 @@ export default function Products() {
               <div className="product-section-title"><span>💰</span><div><strong>VENDA</strong><small>Dados do produto pronto</small></div></div>
               <div className="product-form-grid">
                 <label>Preço de venda (R$) * <input type="number" step="0.01" min={0} value={form.preco} required onChange={(event) => setForm({ ...form, preco: event.target.value })} /></label>
+                {form.unidadeCompra !== form.unidadeVenda && (
+                  <>
+                    <label>Preço de compra (R$) <input type="number" step="0.01" min={0} value={form.precoCompra} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
+                    <label>Rendimento por unidade de compra <input type="number" step="0.001" min={1} value={form.rendimentoPorUnidadeCompra} onChange={(event) => setForm({ ...form, rendimentoPorUnidadeCompra: event.target.value })} /><small>{Number(form.rendimentoPorUnidadeCompra || 0) > 0 ? `1 ${form.unidadeCompra} = ${Number(form.rendimentoPorUnidadeCompra).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${form.unidadeVenda}` : 'Ex.: 1 kg = 8 un'}</small></label>
+                  </>
+                )}
                 <label className="product-checkbox-label" style={{ gridColumn: '1 / -1' }}>
                   <input className="product-checkbox" type="checkbox" checked={Boolean(form.usavelEmReceita)} onChange={(event) => setForm({ ...form, usavelEmReceita: event.target.checked })} />
                   Também usar como ingrediente em fichas técnicas
@@ -413,6 +419,11 @@ export default function Products() {
                 </div>
                 {form.tipoProduto === 'producao' && <label>Rendimento por ficha técnica *<input required type="number" min="0.001" step="0.001" value={form.rendimentoPorReceita || 1} onChange={(event) => setForm({ ...form, rendimentoPorReceita: event.target.value })} /><small>Quantas unidades saem de uma fornada.</small></label>}
                 {form.tipoProduto !== 'coz' ? <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label> : <div className="coz-stock-notice"><strong>⚠️ Coz não possui estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
+                <label>Unidade de compra
+                  <select value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidadeCompra: event.target.value })}>
+                    {['kg', 'g', 'mg', 'l', 'ml', 'un'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
+                  </select>
+                </label>
                 <label>Unidade de venda
                   <select value={form.unidadeVenda} onChange={(event) => setForm({ ...form, unidadeVenda: event.target.value })}>
                     {['un', 'kg', 'g', 'l', 'ml'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}

@@ -9,6 +9,9 @@ const {
   paraBase,
   unidadeBase,
   estoqueTotalBase,
+  deveAplicarConversaoRevenda,
+  calcularCustoUnitarioVenda,
+  estoqueEmUnidadeVenda,
 } = require('../utils/estoqueInsumo');
 
 const proximo = (valor, esperado, tolerancia = 0.01) => assert.ok(Math.abs(Number(valor || 0) - esperado) < tolerancia, `Esperado ~${esperado}, recebido ${valor}`);
@@ -174,6 +177,21 @@ assert.equal(calcularEstoqueMinimoBase(0, 'kg'), 0);
 assert.equal(calcularEstoqueMinimoBase(0.5, 'kg'), 500);
 
 console.log('estoqueInsumo: calcularEstoqueMinimoBase aprovado');
+
+const produtoRevendaConvertido = {
+  tipo: 'venda',
+  unidadeCompra: 'kg',
+  unidadeVenda: 'un',
+  precoCompra: 30,
+  rendimentoPorUnidadeCompra: 8,
+  estoque: 3,
+};
+
+assert.equal(deveAplicarConversaoRevenda(produtoRevendaConvertido), true);
+proximo(calcularCustoUnitarioVenda(produtoRevendaConvertido), 3.75);
+assert.equal(estoqueEmUnidadeVenda(produtoRevendaConvertido), 24);
+
+console.log('estoqueInsumo: conversão de revenda kg -> un aprovada');
 
 const acucarConsumo = {
   nome: 'Acucar',

@@ -331,6 +331,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const categoria = tipo === 'insumo' ? 'Insumos' : (data.categoria || 'Outros');
     const precoVenda = Number(data.precoVenda ?? data.preco ?? 0);
     const precoCompra = Number(data.precoCompra || 0);
+    const descontoPorUnidadeCompra = Number(data.rendimentoPorUnidadeCompra || 0);
     const descontosPorQuantidade = descontosDoProduto(data.descontosPorQuantidade, tipo, precoVenda);
     const unidadeConteudo = data.unidadeConteudo || (['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(unidadeCompra) ? unidadeCompra : 'g');
     const conteudoPorEmbalagem = ['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(unidadeCompra) ? 1 : Number(data.conteudoPorEmbalagem || 0);
@@ -339,6 +340,8 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const estoquePesoKg = pesoPorUnidade > 0 && ['kg', 'g'].includes(unidadeVenda)
       ? estoque * (unidadeVenda === 'kg' ? pesoPorUnidade : pesoPorUnidade / 1000)
       : 0;
+    const deveAplicarConversao = tipo === 'venda' && descontoPorUnidadeCompra > 1 && unidadeCompra !== unidadeVenda;
+    const custoUnitarioBaseRevenda = deveAplicarConversao ? (precoCompra > 0 ? precoCompra / descontoPorUnidadeCompra : 0) : Number(data.custoUnitarioBase) || 0;
     const product = await Product.create({
       codigo: data.codigo.trim(),
       nome: data.nome.trim(),
@@ -354,12 +357,12 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
       unidadeConteudo,
       estoqueEmbalagens,
       estoqueConteudoAberto,
-       estoqueMinimoEmbalagens: Number(data.estoqueMinimoEmbalagens ?? data.estoqueMinimoInsumos) || 0,
-       estoqueMinimoBase: tipo === 'insumo' ? calcularEstoqueMinimoBase(Number(data.estoqueMinimoEmbalagens ?? data.estoqueMinimoInsumos) || 0, unidadeConteudo) : 0,
-       rendimentoPorUnidadeCompra: Number(data.rendimentoPorUnidadeCompra || 0),
-       custo: custoUnitario,
-       custoUnitario,
-      custoUnitarioBase: tipo === 'insumo' || data.usavelEmReceita ? calcularCustoUnitarioBase(precoCompra, conteudoPorEmbalagem, unidadeConteudo) : Number(data.custoUnitarioBase) || 0,
+      estoqueMinimoEmbalagens: Number(data.estoqueMinimoEmbalagens ?? data.estoqueMinimoInsumos) || 0,
+      estoqueMinimoBase: tipo === 'insumo' ? calcularEstoqueMinimoBase(Number(data.estoqueMinimoEmbalagens ?? data.estoqueMinimoInsumos) || 0, unidadeConteudo) : 0,
+      rendimentoPorUnidadeCompra: descontoPorUnidadeCompra,
+      custo: custoUnitario,
+      custoUnitario,
+      custoUnitarioBase: tipo === 'insumo' || data.usavelEmReceita ? calcularCustoUnitarioBase(precoCompra, conteudoPorEmbalagem, unidadeConteudo) : custoUnitarioBaseRevenda,
       estoque: tipo === 'venda' ? estoque : 0,
       estoquePesoKg,
       estoqueInsumos: tipo === 'insumo' ? estoqueEmbalagens : estoqueInsumos,
@@ -408,6 +411,10 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
       const duplicate = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') }, _id: { $ne: req.params.id } });
       if (duplicate) return res.status(400).json({ msg: 'Já existe um produto com este código' });
     }
+    const unidadeVenda = data.unidadeVenda ?? produtoAtual.unidadeVenda ?? 'un';
+    const unidadeCompra = data.unidadeCompra ?? produtoAtual.unidadeCompra ?? 'kg';
+    const rendimentoPorUnidadeCompra = Number(data.rendimentoPorUnidadeCompra ?? produtoAtual.rendimentoPorUnidadeCompra ?? 0);
+    const deveAplicarConversao = tipo === 'venda' && rendimentoPorUnidadeCompra > 1 && unidadeCompra !== unidadeVenda;
     const fields = {};
     if (data.tipo !== undefined) fields.tipo = tipo;
     if (tipo === 'insumo') fields.usavelEmReceita = true;
@@ -428,6 +435,10 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
       const unidadeConteudoAtual = data.unidadeConteudo ?? atual?.unidadeConteudo;
       const minimoAtual = fields.estoqueMinimoEmbalagens ?? atual?.estoqueMinimoEmbalagens ?? 0;
       fields.estoqueMinimoBase = calcularEstoqueMinimoBase(minimoAtual, unidadeConteudoAtual);
+    } else if (tipo === 'venda' && deveAplicarConversao && (data.precoCompra !== undefined || data.rendimentoPorUnidadeCompra !== undefined)) {
+      const precoCompraAtual = Number(data.precoCompra ?? produtoAtual.precoCompra ?? 0);
+      const rendimentoAtual = Number(data.rendimentoPorUnidadeCompra ?? produtoAtual.rendimentoPorUnidadeCompra ?? 0);
+      fields.custoUnitarioBase = rendimentoAtual > 0 ? precoCompraAtual / rendimentoAtual : 0;
     } else if (tipo === 'insumo' && data.estoqueMinimoEmbalagens !== undefined) {
       const atual = await Product.findById(req.params.id).select('estoqueMinimoEmbalagens unidadeConteudo').lean();
       fields.estoqueMinimoBase = calcularEstoqueMinimoBase(fields.estoqueMinimoEmbalagens ?? 0, atual?.unidadeConteudo);
