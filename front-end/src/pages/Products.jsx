@@ -102,7 +102,7 @@ export default function Products() {
 
   const resumoInsumo = form.tipo === 'insumo' ? (() => {
     const unidadesDiretas = ['kg', 'g', 'mg', 'l', 'ml', 'un'];
-    const unidade = unidadesDiretas.includes(form.unidadeCompra) ? form.unidadeCompra : form.unidadeConteudo;
+    const unidade = (form.unidadeConteudo && unidadesDiretas.includes(form.unidadeConteudo)) ? form.unidadeConteudo : form.unidadeCompra;
     const conteudo = Number(form.conteudoPorEmbalagem) || 0;
     const embalagens = Number(form.estoqueEmbalagens) || 0;
     const aberto = Number(form.estoqueConteudoAberto) || 0;

@@ -7,15 +7,23 @@ const unidadesEmbalagem = ['lata', 'caixa', 'pacote', 'rolo'];
 
 const unidadeControle = (produto = {}) => produto.tipo === 'venda' && produto.usavelEmReceita ? (produto.unidadeVenda || 'un') : (produto.unidadeCompra || produto.unidadeControle || 'un');
 
-const unidadeBase = (produto = {}) => unidadesDiretas.includes(unidadeControle(produto))
-  ? unidadeControle(produto)
-  : (produto.unidadeConteudo || 'g');
+const unidadeBase = (produto = {}) => {
+  if (produto.unidadeConteudo && unidadesDiretas.includes(produto.unidadeConteudo)) return produto.unidadeConteudo;
+  const controle = unidadeControle(produto);
+  return unidadesDiretas.includes(controle) ? controle : (produto.unidadeConteudo || 'g');
+};
 
 const conteudoPorEmbalagemBase = (produto = {}) => {
   if (produto.tipo === 'venda' && produto.usavelEmReceita) {
     return paraBase(Number(produto.conteudoPorEmbalagem || 1), produto.unidadeConteudo || produto.unidadeVenda || 'un');
   }
-  if (unidadesDiretas.includes(unidadeControle(produto))) return fatoresBase[unidadeControle(produto)];
+  if (unidadesDiretas.includes(unidadeControle(produto))) {
+    const conteudo = Number(produto.conteudoPorEmbalagem);
+    if (conteudo > 0 && produto.unidadeConteudo && unidadesDiretas.includes(produto.unidadeConteudo)) {
+      return paraBase(conteudo, produto.unidadeConteudo);
+    }
+    return fatoresBase[unidadeControle(produto)];
+  }
   const conteudo = Number(produto.conteudoPorEmbalagem || 0);
   if (conteudo > 0) return paraBase(conteudo, unidadeBase(produto));
   const legado = Number(produto.rendimentoPorUnidadeCompra || 0);

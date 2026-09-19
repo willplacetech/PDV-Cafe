@@ -334,7 +334,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const descontoPorUnidadeCompra = Number(data.rendimentoPorUnidadeCompra || 0);
     const descontosPorQuantidade = descontosDoProduto(data.descontosPorQuantidade, tipo, precoVenda);
     const unidadeConteudo = data.unidadeConteudo || (['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(unidadeCompra) ? unidadeCompra : 'g');
-    const conteudoPorEmbalagem = ['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(unidadeCompra) ? 1 : Number(data.conteudoPorEmbalagem || 0);
+    const conteudoPorEmbalagem = ['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(unidadeCompra) ? (Number(data.conteudoPorEmbalagem) || 1) : Number(data.conteudoPorEmbalagem || 0);
     const estoqueEmbalagens = tipo === 'insumo' ? Number(data.estoqueEmbalagens ?? estoque) || 0 : 0;
     const estoqueConteudoAberto = tipo === 'insumo' ? Number(data.estoqueConteudoAberto) || 0 : 0;
     const estoquePesoKg = pesoPorUnidade > 0 && ['kg', 'g'].includes(unidadeVenda)
