@@ -175,6 +175,7 @@ export default function Products() {
     }
     const payload = {
       ...form,
+      codigo: editing ? editing.codigo : form.codigo,
       tipo,
       tipoProduto: tipo === 'venda' ? form.tipoProduto : undefined,
       rendimentoPorReceita: tipo === 'venda' && form.tipoProduto === 'producao' ? Number(form.rendimentoPorReceita || 1) : 1,
@@ -325,7 +326,7 @@ export default function Products() {
                 </div>
               </div>
               <label>Código {editing && <small>(bloqueado)</small>}
-                <input value={form.codigo} readOnly={Boolean(editing)} onChange={(event) => setForm({ ...form, codigo: event.target.value })} style={{ background: editing ? 'var(--bg-tertiary)' : 'var(--input-bg)', cursor: editing ? 'not-allowed' : 'text' }} />
+                <input value={form.codigo} readOnly={Boolean(editing)} onChange={(event) => { if (!editing) setForm({ ...form, codigo: event.target.value }); }} style={{ background: editing ? 'var(--bg-tertiary)' : 'var(--input-bg)', cursor: editing ? 'not-allowed' : 'text' }} />
               </label>
               <label>Nome *
                 <input value={form.nome} required onChange={(event) => setForm({ ...form, nome: event.target.value })} />

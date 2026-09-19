@@ -394,13 +394,16 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
     const data = req.body;
-    const produtoAtual = await Product.findById(req.params.id).select('tipo usavelEmReceita aFazer fichaTecnica tipoProduto producaoPropria estoque');
+    const produtoAtual = await Product.findById(req.params.id).select('tipo usavelEmReceita aFazer fichaTecnica tipoProduto producaoPropria estoque codigo');
     if (!produtoAtual) return res.status(404).json({ msg: 'Produto não encontrado' });
     if ((produtoAtual.tipo === 'insumo' || produtoAtual.usavelEmReceita) && ['precoCompra', 'custo', 'custoUnitario', 'conteudoPorEmbalagem', 'unidadeConteudo'].some((campo) => data[campo] !== undefined)) {
       return res.status(403).json({ msg: 'Custo e conteúdo de insumo só podem ser alterados por uma compra' });
     }
     const tipo = resolverTipoProduto({ ...data, tipo: data.tipo ?? undefined });
     const tipoProduto = tipo === 'venda' ? resolverTipoProdutoVenda({ ...produtoAtual.toObject(), ...data }) : null;
+    if (data.codigo !== undefined && String(data.codigo).trim() !== String(produtoAtual.codigo).trim()) {
+      return res.status(403).json({ msg: 'Código do produto não pode ser alterado.' });
+    }
     if (data.codigo) {
       const duplicate = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') }, _id: { $ne: req.params.id } });
       if (duplicate) return res.status(400).json({ msg: 'Já existe um produto com este código' });
@@ -409,7 +412,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     if (data.tipo !== undefined) fields.tipo = tipo;
     if (tipo === 'insumo') fields.usavelEmReceita = true;
     if (data.usavelEmReceita !== undefined && tipo === 'venda') fields.usavelEmReceita = Boolean(data.usavelEmReceita);
-    ['codigo', 'nome', 'categoria', 'unidadeVenda', 'unidadeCompra'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
+    ['nome', 'categoria', 'unidadeVenda', 'unidadeCompra'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
     ['preco', 'precoCompra', 'estoque', 'estoqueInsumos', 'estoqueEmbalagens', 'estoqueConteudoAberto', 'estoqueMaximo', 'estoqueMinimoInsumos', 'estoqueMinimoEmbalagens', 'pesoPorUnidade', 'rendimentoPorUnidadeCompra', 'conteudoPorEmbalagem'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
     if (data.estoque !== undefined && tipo === 'insumo') {
       fields.estoqueInsumos = Number(data.estoque);
