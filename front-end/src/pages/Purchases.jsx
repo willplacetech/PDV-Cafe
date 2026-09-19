@@ -45,7 +45,7 @@ export default function Purchases() {
   const load = async () => {
     try {
       const [productsResponse, purchasesResponse] = await Promise.all([api.get('/products'), api.get('/compras')]);
-      setProducts((productsResponse.data || []).filter((product) => product.tipo === 'insumo' || product.usavelEmReceita));
+      setProducts((productsResponse.data || []).filter((product) => product.tipo === 'venda' || product.tipo === 'insumo' || product.usavelEmReceita));
       setPurchases(purchasesResponse.data || []);
     } catch (error) {
       showToast(error.response?.data?.msg || 'Nao foi possivel carregar as compras', 'error');
@@ -56,7 +56,7 @@ export default function Purchases() {
     const loadInitialData = async () => {
       try {
         const [productsResponse, purchasesResponse] = await Promise.all([api.get('/products'), api.get('/compras')]);
-        setProducts((productsResponse.data || []).filter((product) => product.tipo === 'insumo' || product.usavelEmReceita));
+        setProducts((productsResponse.data || []).filter((product) => product.tipo === 'venda' || product.tipo === 'insumo' || product.usavelEmReceita));
         setPurchases(purchasesResponse.data || []);
       } catch (error) {
         showToast(error.response?.data?.msg || 'Nao foi possivel carregar as compras', 'error');
