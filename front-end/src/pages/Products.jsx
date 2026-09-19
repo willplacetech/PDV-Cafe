@@ -494,10 +494,27 @@ export default function Products() {
                 </div>
                 <div className="product-admin-footer">
                   <div>
-                    <strong>R$ {Number(produto.preco || 0).toFixed(2).replace('.', ',')}</strong>
-                    <small>{produto.tipo === 'insumo' ? `Compra: R$ ${Number(produto.precoCompra || 0).toFixed(2).replace('.', ',')}` : `Categoria: ${produto.categoria}`}</small>
-                    <small className={produto.tipo === 'insumo' ? ((produto.resumoInsumo?.abaixoMinimo || produto.resumoInsumo?.esgotado) ? 'low-stock' : '') : (Number(produto.estoque || 0) <= 5 ? 'low-stock' : '')}>{produto.tipo === 'insumo' ? (Number(produto.resumoInsumo?.embalagensFechadas || produto.estoqueEmbalagens || produto.estoqueInsumos || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })) : (Number(produto.estoque) || 0)} {produto.tipo === 'insumo' ? (produto.unidadeCompra || 'embalagens') : 'em estoque'}</small>
-                    {produto.tipo === 'insumo' && produto.resumoInsumo && <small>{Number(produto.resumoInsumo.totalKg || produto.resumoInsumo.total || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {produto.resumoInsumo.totalKg ? 'kg disponíveis' : produto.resumoInsumo.unidadeConteudo} · R$ {(produto.resumoInsumo.custoUnitarioBase || 0).toLocaleString('pt-BR', { minimumFractionDigits: 6, maximumFractionDigits: 6 })}/{produto.resumoInsumo.unidadeConteudo}</small>}
+                    {produto.tipo === 'insumo' ? (
+                      <>
+                        <strong>R$ {Number(produto.precoCompra ?? produto.resumoInsumo?.precoPorEmbalagem ?? 0).toFixed(2).replace('.', ',')}</strong>
+                        <small>COMPRA</small>
+                        <small className={produto.resumoInsumo?.abaixoMinimo || produto.resumoInsumo?.esgotado ? 'low-stock' : ''}>
+                          {Number(produto.resumoInsumo?.totalKg ?? produto.resumoInsumo?.total ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg disponíveis
+                        </small>
+                        <small>
+                          Compra: R$ {Number(produto.precoCompra ?? produto.resumoInsumo?.precoPorEmbalagem ?? 0).toFixed(2).replace('.', ',')}/embalagem ({Number(produto.resumoInsumo?.conteudoPorEmbalagem ?? produto.conteudoPorEmbalagem ?? 1).toLocaleString('pt-BR', { maximumFractionDigits: 3 })}{produto.resumoInsumo?.unidadeConteudo || produto.unidadeConteudo || 'kg'})
+                        </small>
+                        <small>
+                          Custo: R$ {Number(produto.resumoInsumo?.custoPorKg ?? produto.custoPorKg ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/kg
+                        </small>
+                      </>
+                    ) : (
+                      <>
+                        <strong>R$ {Number(produto.preco || 0).toFixed(2).replace('.', ',')}</strong>
+                        <small>{`Categoria: ${produto.categoria}`}</small>
+                        <small className={Number(produto.estoque || 0) <= 5 ? 'low-stock' : ''}>{(Number(produto.estoque) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} em estoque</small>
+                      </>
+                    )}
                   </div>
                   <div className="product-card-actions">
                     <button type="button" onClick={() => editarProduto(produto)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}>Editar</button>
