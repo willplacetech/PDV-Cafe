@@ -324,8 +324,8 @@ export default function Products() {
                   </label>
                 </div>
               </div>
-              <label>Código {!editing && <small>(automático)</small>}
-                <input value={form.codigo} readOnly={!editing} onChange={(event) => setForm({ ...form, codigo: event.target.value })} style={{ background: !editing ? 'var(--bg-tertiary)' : 'var(--input-bg)', cursor: !editing ? 'not-allowed' : 'text' }} />
+              <label>Código {editing && <small>(bloqueado)</small>}
+                <input value={form.codigo} readOnly={Boolean(editing)} onChange={(event) => setForm({ ...form, codigo: event.target.value })} style={{ background: editing ? 'var(--bg-tertiary)' : 'var(--input-bg)', cursor: editing ? 'not-allowed' : 'text' }} />
               </label>
               <label>Nome *
                 <input value={form.nome} required onChange={(event) => setForm({ ...form, nome: event.target.value })} />
@@ -494,21 +494,27 @@ export default function Products() {
                 </div>
                 <div className="product-admin-footer">
                   <div>
-                    {produto.tipo === 'insumo' ? (
-                      <>
-                        <strong>R$ {Number(produto.precoCompra ?? produto.resumoInsumo?.precoPorEmbalagem ?? 0).toFixed(2).replace('.', ',')}</strong>
-                        <small>COMPRA</small>
-                        <small className={produto.resumoInsumo?.abaixoMinimo || produto.resumoInsumo?.esgotado ? 'low-stock' : ''}>
-                          {Number(produto.resumoInsumo?.totalKg ?? produto.resumoInsumo?.total ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg disponíveis
-                        </small>
-                        <small>
-                          Compra: R$ {Number(produto.precoCompra ?? produto.resumoInsumo?.precoPorEmbalagem ?? 0).toFixed(2).replace('.', ',')}/embalagem ({Number(produto.resumoInsumo?.conteudoPorEmbalagem ?? produto.conteudoPorEmbalagem ?? 1).toLocaleString('pt-BR', { maximumFractionDigits: 3 })}{produto.resumoInsumo?.unidadeConteudo || produto.unidadeConteudo || 'kg'})
-                        </small>
-                        <small>
-                          Custo: R$ {Number(produto.resumoInsumo?.custoPorKg ?? produto.custoPorKg ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/kg
-                        </small>
-                      </>
-                    ) : (
+                    {produto.tipo === 'insumo' ? (() => {
+                      const unidadeConteudo = produto.unidadeConteudo || 'un';
+                      const unidadeCompra = produto.unidadeCompra || 'pacote';
+                      const precoCompra = Number(produto.precoCompra ?? produto.resumoInsumo?.precoPorEmbalagem ?? 0);
+                      const conteudoPorEmbalagem = Number(produto.conteudoPorEmbalagem ?? produto.resumoInsumo?.conteudoPorEmbalagem ?? 1);
+                      const custoUnitarioBase = Number(produto.custoUnitarioBase ?? produto.resumoInsumo?.custoUnitarioBase ?? (precoCompra && conteudoPorEmbalagem ? (precoCompra / conteudoPorEmbalagem) : 0));
+                      const quantidadeDisponivel = Number(produto.estoqueInsumosTotal ?? produto.resumoInsumo?.total ?? ((Number(produto.estoqueInsumos ?? produto.estoqueEmbalagens ?? 0) * conteudoPorEmbalagem) || 0));
+
+                      return (
+                        <>
+                          <strong>R$ {precoCompra.toFixed(2).replace('.', ',')}</strong>
+                          <small>COMPRA · {unidadeCompra}</small>
+                          <small className={produto.resumoInsumo?.abaixoMinimo || produto.resumoInsumo?.esgotado ? 'low-stock' : ''}>
+                            {quantidadeDisponivel.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {unidadeConteudo} disponíveis
+                          </small>
+                          <small>Compra: R$ {precoCompra.toFixed(2).replace('.', ',')}/{unidadeCompra}</small>
+                          <small>Contém: {conteudoPorEmbalagem.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {unidadeConteudo} por {unidadeCompra}</small>
+                          <small>Custo: R$ {custoUnitarioBase.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/{unidadeConteudo}</small>
+                        </>
+                      );
+                    })() : (
                       <>
                         <strong>R$ {Number(produto.preco || 0).toFixed(2).replace('.', ',')}</strong>
                         <small>{`Categoria: ${produto.categoria}`}</small>

@@ -3,14 +3,26 @@ import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
 const units = ['mg', 'g', 'kg', 'ml', 'l', 'un'];
-const newItem = () => ({ produtoId: '', valorTotal: '', qtdEmbalagens: '', conteudoPorEmbalagem: '', unidadeConteudo: 'kg' });
+const newItem = () => ({ produtoId: '', valorTotal: '', qtdEmbalagens: '', conteudoPorEmbalagem: '', unidadeConteudo: 'un' });
 const today = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const number = (value) => Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
-const newSupply = () => ({ nome: '', precoCompra: '', conteudoPorEmbalagem: '1', unidadeConteudo: 'kg' });
+const formatQuantidade = (valor, unidade) => `${Number(valor || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${unidade}`;
+const formatCustoUnitario = (valor, unidade) => `R$ ${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/${unidade}`;
+const newSupply = () => ({ nome: '', precoCompra: '', conteudoPorEmbalagem: '1', unidadeConteudo: 'un' });
+const getInsumoMeta = (produto = {}) => {
+  const unidadeConteudo = produto.unidadeConteudo || 'un';
+  const unidadeCompra = produto.unidadeCompra || unidadeConteudo;
+  const precoCompra = Number(produto.precoCompra ?? 0);
+  const conteudoPorEmbalagem = Number(produto.conteudoPorEmbalagem ?? 1);
+  const custoUnitarioBase = Number(produto.custoUnitarioBase ?? (precoCompra && conteudoPorEmbalagem ? (precoCompra / conteudoPorEmbalagem) : 0));
+  const quantidadeDisponivel = Number(produto.estoqueInsumosTotal ?? ((Number(produto.estoqueInsumos ?? produto.estoqueEmbalagens ?? 0) * conteudoPorEmbalagem) || 0));
+
+  return { unidadeConteudo, unidadeCompra, precoCompra, conteudoPorEmbalagem, custoUnitarioBase, quantidadeDisponivel };
+};
 const getNextProductCode = (productList) => {
   const maxNumber = productList.reduce((higher, product) => {
     const codeValue = Number(String(product.codigo || '').replace(/\D/g, ''));
@@ -99,6 +111,8 @@ export default function Purchases() {
     setSavingSupply(true);
     try {
       const codigo = getNextProductCode(products);
+      const unidadeConteudo = supplyForm.unidadeConteudo || 'un';
+      const custoUnitarioBase = Number(precoCompra && conteudoPorEmbalagem ? (precoCompra / conteudoPorEmbalagem) : 0);
       const response = await api.post('/products', {
         codigo,
         nome,
@@ -107,8 +121,9 @@ export default function Purchases() {
         preco: 0,
         precoCompra,
         conteudoPorEmbalagem,
-        unidadeConteudo: supplyForm.unidadeConteudo,
-        unidadeCompra: supplyForm.unidadeConteudo,
+        unidadeConteudo,
+        unidadeCompra: unidadeConteudo,
+        custoUnitarioBase,
         usavelEmReceita: true,
         ativo: true,
       });
@@ -157,15 +172,20 @@ export default function Purchases() {
       </div>
       <div className="purchases-section-heading"><h2>Itens da compra</h2><button type="button" className="secondary" onClick={addItem}>Adicionar item</button></div>
       <div className="purchase-items">{form.itens.map((item, index) => {
+        const unidadeConteudo = item.unidadeConteudo || 'un';
         const total = Number(item.qtdEmbalagens || 0) * Number(item.conteudoPorEmbalagem || 0);
         const unitCost = Number(item.valorTotal || 0) / (total || 1);
+        const produtoSelecionado = products.find((product) => String(product._id) === String(item.produtoId));
+        const metaProduto = getInsumoMeta(produtoSelecionado || { unidadeConteudo, precoCompra: item.valorTotal, conteudoPorEmbalagem: item.conteudoPorEmbalagem || 1, custoUnitarioBase: unitCost, estoqueInsumos: item.qtdEmbalagens || 0 });
+        const unidadeExibicao = metaProduto.unidadeConteudo || unidadeConteudo;
+        const valorUnitario = Number(metaProduto.custoUnitarioBase || unitCost || 0);
         return <div className="purchase-item" key={`purchase-item-${index}`}>
           <label className="purchase-product-field">Produto comprado<div className="purchase-product-input-group"><select required value={item.produtoId} onChange={(event) => updateItem(index, 'produtoId', event.target.value)}><option value="">Selecione</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} [{product.tipo === 'insumo' ? 'Insumo' : 'Venda + Insumo'}]</option>)}</select><button type="button" className="secondary purchase-new-supply-button" onClick={() => openSupplyModal(index)}>➕ Novo Insumo</button></div></label>
           <label>Valor total<input required type="number" min="0.000001" step="0.01" value={item.valorTotal} onChange={(event) => updateItem(index, 'valorTotal', event.target.value)} /></label>
           <label>Qtd. embalagens<input required type="number" min="0.000001" step="0.001" value={item.qtdEmbalagens} onChange={(event) => updateItem(index, 'qtdEmbalagens', event.target.value)} /></label>
           <label>Conteudo por embalagem<input required type="number" min="0.000001" step="0.001" value={item.conteudoPorEmbalagem} onChange={(event) => updateItem(index, 'conteudoPorEmbalagem', event.target.value)} /></label>
           <label>Unidade<select required value={item.unidadeConteudo} onChange={(event) => updateItem(index, 'unidadeConteudo', event.target.value)}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></label>
-          <div className="purchase-calculation"><span>Total: <strong>{number(total)} {item.unidadeConteudo}</strong></span><span>Custo unitario: <strong>{money(unitCost)} / {item.unidadeConteudo}</strong></span></div>
+          <div className="purchase-calculation"><span>Total: <strong>{formatQuantidade(total, unidadeExibicao)}</strong></span><span>Custo unitario: <strong>{formatCustoUnitario(valorUnitario, unidadeExibicao)}</strong></span></div>
           <button type="button" className="danger" onClick={() => removeItem(index)} disabled={form.itens.length === 1}>Remover</button>
         </div>;
       })}</div>
