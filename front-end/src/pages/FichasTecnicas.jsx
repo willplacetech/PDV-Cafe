@@ -45,6 +45,12 @@ export default function FichasTecnicas({ embedded = false }) {
   const ingredientById = (id) => ingredients.find((product) => String(product._id) === String(id));
 
   const availability = (recipe) => {
+    if (recipe?._id && recipe.disponibilidade) {
+      return {
+        quantity: Number(recipe.disponibilidade.quantidade || 0),
+        limiting: recipe.disponibilidade.limitante || 'Nenhum ingrediente',
+      };
+    }
     const tipo = tipoDoProduto(recipe.produtoId);
     if (tipo === 'producao') return { quantity: Number(recipe.produtoId?.estoque || 0), limiting: 'Estoque do produto' };
     const values = (recipe.ingredientes || []).filter(Boolean).map((item) => {
