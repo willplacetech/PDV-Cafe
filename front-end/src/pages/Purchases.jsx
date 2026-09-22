@@ -12,6 +12,7 @@ const today = () => {
 };
 const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const number = (value) => Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Outros'];
 const formatQuantidade = (valor, unidade) => `${Number(valor || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${unidade}`;
 const formatCustoUnitario = (valor, unidade) => `R$ ${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/${unidade}`;
 const newSupply = () => ({ tipoProduto: 'insumo', nome: '', precoCompra: '', precoVenda: '', conteudoPorEmbalagem: '1', unidadeConteudo: 'un', estoqueEmbalagens: '0', rendimentoPorReceita: '1' });
@@ -218,8 +219,10 @@ export default function Purchases() {
           <label className="purchase-supply-field">Conteúdo da embalagem *<input required type="number" min="0.001" step="0.001" value={supplyForm.conteudoPorEmbalagem} onChange={(event) => setSupplyForm({ ...supplyForm, conteudoPorEmbalagem: event.target.value })} /></label>
           <label className="purchase-supply-field">Estoque inicial (embalagens)<input type="number" min="0" step="1" value={supplyForm.estoqueEmbalagens} onChange={(event) => setSupplyForm({ ...supplyForm, estoqueEmbalagens: event.target.value })} /></label>
           {supplyForm.tipoProduto === 'producao' && <label className="purchase-supply-field">Rendimento por receita<input required type="number" min="1" step="1" value={supplyForm.rendimentoPorReceita} onChange={(event) => setSupplyForm({ ...supplyForm, rendimentoPorReceita: event.target.value })} /></label>}
-          <label className="purchase-supply-field">Categoria<input value={supplyForm.tipoProduto === 'insumo' ? 'Insumos' : supplyForm.tipoProduto === 'coz' ? 'Pratos na Hora' : 'Outros'} readOnly /></label>
-          <label className="purchase-supply-field">Unidade<select value={supplyForm.unidadeConteudo} onChange={(event) => setSupplyForm({ ...supplyForm, unidadeConteudo: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></label>
+          <label className="purchase-supply-field">Categoria<select value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value })}>{categoriasVenda.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}
+                  </select></label>
+          <label className="purchase-supply-field">Unidade
+            <select value={supplyForm.unidadeConteudo} onChange={(event) => setSupplyForm({ ...supplyForm, unidadeConteudo: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></label>
         </div>
         <div className="purchase-supply-note">⚠️ Campos completos como estoque mínimo, marca e demais dados do produto podem ser editados depois em Cadastro → Insumos.</div>
         <div className="purchase-supply-actions"><button type="button" className="purchase-supply-button purchase-supply-button-secondary" onClick={() => setSupplyModalOpen(false)}>Cancelar</button><button type="submit" className="purchase-supply-button purchase-supply-button-primary" disabled={savingSupply}>{savingSupply ? 'Salvando...' : 'Salvar e continuar'}</button></div>
