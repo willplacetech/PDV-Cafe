@@ -512,11 +512,14 @@ export default function Products() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '14px 0 10px' }}>
           <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Produtos</h3>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <select value={filtroFicha} onChange={(event) => setFiltroFicha(event.target.value)} aria-label="Filtrar por ficha técnica" style={{ minHeight: 40, borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '8px 10px' }}>
-              <option>Todos</option>
-              <option>Sem ficha</option>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>
+              Selecionar ficha técnica
+              <select value={filtroFicha} onChange={(event) => setFiltroFicha(event.target.value)} aria-label="Selecionar ficha técnica" style={{ minHeight: 40, minWidth: 220, borderRadius: 10, border: '1px solid var(--accent-border)', background: 'var(--accent-light)', color: 'var(--text-primary)', padding: '8px 10px', fontWeight: 700 }}>
+              <option value="Todos">Selecione ou veja todas</option>
+              <option value="Sem ficha">Sem ficha</option>
               {fichas.map((ficha) => <option key={ficha._id} value={ficha._id}>{ficha.produtoId?.nome || ficha.nome}</option>)}
-            </select>
+              </select>
+            </label>
             <select value={filtroCategoria} onChange={(event) => setFiltroCategoria(event.target.value)} style={{ minHeight: 40, borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '8px 10px' }}>
               <option value="Todos">Todas as categorias</option>
               {categoriasVenda.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}
