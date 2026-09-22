@@ -33,7 +33,6 @@ const gruposMenu = [
     chave: 'producao',
     label: '🧪 PRODUÇÃO',
     items: [
-      { label: 'Ficha técnica', icon: '📋', to: '/producao/fichas', roles: ['admin', 'cozinha'] },
       { label: 'Estoque de Insumos', icon: '📦', to: '/producao', admin: true },
       { label: 'Lançar Produção', icon: '🔄', to: '/producao', admin: true },
       { label: 'Histórico de Movimentação', icon: '📜', to: '/producao', admin: true },

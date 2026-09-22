@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
+import FichasTecnicas from './FichasTecnicas.jsx';
 
 const units = ['kg', 'L', 'un'];
 const emptyRecipe = { nome: '', produtoId: '', rendimento: '1', unidadeRendimento: 'un', ingredientes: [{ produtoId: '', quantidade: '', unidade: 'un' }] };
@@ -13,7 +14,7 @@ const fatoresBase = { kg: 1, L: 1, un: 1 };
 
 export default function Production() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [tab, setTab] = useState(searchParams.get('tab') === 'fichas' ? 'fichas' : 'estoque');
+  const [tab, setTab] = useState(searchParams.get('tab') === 'fichas' ? 'fichas-atual' : 'estoque');
   const [products, setProducts] = useState([]);
   const [stock, setStock] = useState([]);
   const [recipes, setRecipes] = useState([]);
@@ -65,10 +66,20 @@ export default function Production() {
     return tipoOk && String(recipe.produtoId?.nome || recipe.nome).toLowerCase().includes(buscaFicha.toLowerCase());
   });
   const alterarTab = (novaTab) => {
-    setTab(novaTab);
+    setTab(novaTab === 'fichas' ? 'fichas-atual' : novaTab);
     setSearchParams(novaTab === 'fichas' ? { tab: 'fichas' } : {});
   };
   const stockProducts = products.filter((product) => product.tipo === 'insumo' || product.usavelEmReceita);
+  const stockOrdenado = [...stock].sort((a, b) => {
+    const prioridade = (product) => {
+      const saldo = Number(product.saldo || 0);
+      const minimo = Number(product.minimo || 0);
+      if (saldo <= 0) return 0;
+      if (saldo <= minimo) return 1;
+      return 2;
+    };
+    return prioridade(a) - prioridade(b);
+  });
   const currentRecipe = recipes.find((recipe) => recipe._id === selectedRecipe);
   const costRecipe = recipes.find((recipe) => recipe._id === costForm.receitaId);
   const produtosSemCusto = products.filter((product) => Number(product.custoUnitario || product.custo || 0) <= 0);
@@ -253,12 +264,13 @@ export default function Production() {
   };
 
   return <div className="production-page">
+    {tab === 'fichas-atual' && <FichasTecnicas embedded />}
     <header className="production-heading page-heading"><div><span className="production-eyebrow">GESTÃO DE INSUMOS</span><h1>Produção</h1><p>Controle ingredientes, fichas técnicas e produtos produzidos na casa.</p></div><div className="production-header-actions"><button type="button" className="production-alert" onClick={() => setTab('custos')}><strong>{produtosSemCusto.length}</strong><span>produtos sem custo</span></button><button type="button" className="production-alert" onClick={() => setTab('custos')}><strong>{produtosReajuste.length}</strong><span>reajustes recomendados</span></button><div className="production-kpi"><strong>{productionDashboard?.receitasPossiveis?.filter((recipe) => recipe.producoesPossiveis > 0).length || 0}</strong><span>fichas possíveis</span></div></div></header>
     <nav className="production-tabs" aria-label="Seções da produção">
-      {[['estoque', '📦 Estoque de insumos'], ['fichas', '📋 Ficha técnica'], ['produzir', '🔄 Nova produção'], ['transferir', '⚖️ Ajuste de inventário'], ['historico', '📜 Histórico de movimentos'], ['custos', 'Custo da ficha técnica']].map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => alterarTab(key)}>{label}</button>)}
+      {[['estoque', '📦 Estoque de insumos'], ['fichas', '📋 Ficha técnica'], ['produzir', '🔄 Nova produção'], ['transferir', '⚖️ Ajuste de inventário'], ['historico', '📜 Histórico de movimentos'], ['custos', 'Custo da ficha técnica']].map(([key, label]) => <button key={key} className={tab === key || (key === 'fichas' && tab === 'fichas-atual') ? 'active' : ''} onClick={() => alterarTab(key)}>{label}</button>)}
     </nav>
 
-    {tab === 'estoque' && <section className="production-section"><div className="section-heading"><div><h2>Estoque de insumos</h2><p>Itens abaixo do mínimo aparecem destacados.</p></div><strong>{stock.length} itens</strong></div><div className="stock-grid">{stock.length ? stock.map((product) => <article className={product.saldo <= product.minimo ? 'stock-card low' : 'stock-card'} key={product._id}><div><span>{product.codigo}</span><h3>{product.nome}</h3></div><b>{number(product.saldo)} <small>{product.unidadeCompra || 'embalagens'}</small></b>{product.totalDisponivel > 0 && <p>📦 Total: {number(product.totalKgDisponivel || product.totalDisponivel)} {product.totalKgDisponivel ? 'kg' : product.unidadeDisponivel} disponível{product.conteudoAberto > 0 ? ` · aberto: ${number(product.conteudoAberto)} ${product.unidadeDisponivel}` : ''}</p>}<p>Mínimo: {number(product.minimo)} {product.unidadeCompra || 'embalagens'}</p></article>) : <p className="empty">Nenhum insumo em estoque. Cadastre um produto do tipo insumo.</p>}</div></section>}
+    {tab === 'estoque' && <section className="production-section"><div className="section-heading"><div><h2>Estoque de insumos</h2><p>Itens zerados ou abaixo do mínimo aparecem primeiro.</p></div><strong>{stock.length} itens</strong></div><div className="stock-grid">{stock.length ? stockOrdenado.map((product) => <article className={product.saldo <= product.minimo ? 'stock-card low' : 'stock-card'} key={product._id}><div><span>{product.codigo}</span><h3>{product.nome}</h3></div><b>{number(product.saldo)} <small>{product.unidadeCompra || 'embalagens'}</small></b>{product.totalDisponivel > 0 && <p>📦 Total: {number(product.totalKgDisponivel || product.totalDisponivel)} {product.totalKgDisponivel ? 'kg' : product.unidadeDisponivel} disponível{product.conteudoAberto > 0 ? ` · aberto: ${number(product.conteudoAberto)} ${product.unidadeDisponivel}` : ''}</p>}<p>Mínimo: {number(product.minimo)} {product.unidadeCompra || 'embalagens'}</p></article>) : <p className="empty">Nenhum insumo em estoque. Cadastre um produto do tipo insumo.</p>}</div></section>}
 
 {tab === 'fichas' && <section className="production-section"><div className="section-heading"><div><h2>Fichas técnicas</h2><p>Vincule cada ficha técnica ao produto que ela abastece.</p></div></div><form className="recipe-form" onSubmit={saveRecipe}><div className="form-grid"><label>Nome da ficha técnica<input required value={recipeForm.nome} onChange={(event) => setRecipeForm({ ...recipeForm, nome: event.target.value })} placeholder="Ex.: Bolo de cenoura" /></label><label>Produto produzido<select required value={recipeForm.produtoId} onChange={(event) => setRecipeForm({ ...recipeForm, produtoId: event.target.value })}><option value="">Selecione</option>{producibleProducts.map((product) => <option key={product._id} value={product._id}>{product.nome}</option>)}</select></label><label>Rendimento<input type="number" min="0.001" step="0.001" required value={recipeForm.rendimento} onChange={(event) => setRecipeForm({ ...recipeForm, rendimento: event.target.value })} /><span className="field-help">Quantas unidades do produto pronto esta ficha técnica produz. Ex: 1kg rende 20 palitos = digite 20.</span></label><label>Unidade<select value={recipeForm.unidadeRendimento} onChange={(event) => setRecipeForm({ ...recipeForm, unidadeRendimento: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></label></div><div className="ingredients-heading"><h3>Ingredientes</h3><button type="button" className="secondary" onClick={() => setRecipeForm({ ...recipeForm, ingredientes: [...recipeForm.ingredientes, { produtoId: '', quantidade: '', unidade: 'un' }] })}>Adicionar ingrediente</button></div>{recipeForm.ingredientes.map((ingredient, index) => <div className="ingredient-row" key={`${index}-${ingredient.produtoId}`}><select required value={ingredient.produtoId} onChange={(event) => updateIngredient(index, 'produtoId', event.target.value)}><option value="">Ingrediente</option>{stockProducts.map((product) => <option key={product._id} value={product._id}>{product.nome} · {number(product.estoqueInsumos)} {product.unidadeVenda}</option>)}</select><div className="ingredient-quantity"><input type="number" min="0.001" step="0.001" required placeholder="Quantidade" value={ingredient.quantidade} onChange={(event) => updateIngredient(index, 'quantidade', event.target.value)} /><span className="field-help">Quanto deste insumo é CONSUMIDO por receita. Ex: 1 pacote de 1kg = digite 1. NÃO digite o rendimento aqui.</span>{getIngredientWarning(ingredient) && <span className="field-warning">{getIngredientWarning(ingredient)}</span>}</div><select value={ingredient.unidade} onChange={(event) => updateIngredient(index, 'unidade', event.target.value)}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select>{recipeForm.ingredientes.length > 1 && <button type="button" className="icon-button" title="Remover ingrediente" onClick={() => setRecipeForm({ ...recipeForm, ingredientes: recipeForm.ingredientes.filter((_, itemIndex) => itemIndex !== index) })}>×</button>}</div>)}<div style={{ display: 'flex', gap: 8 }}><button className="primary" disabled={saving}>{saving ? (editingRecipeId ? 'Atualizando...' : 'Salvando...') : (editingRecipeId ? 'Atualizar receita' : 'Cadastrar receita')}</button>{editingRecipeId && <button type="button" className="secondary" onClick={cancelEditRecipe}>Cancelar</button>}</div></form><div className="recipe-list">{recipes.map((recipe) => <article className="recipe-card" key={recipe._id}><div><span>Rendimento: {number(recipe.rendimento)} {recipe.unidadeRendimento}</span><h3>{recipe.nome}</h3><p>Abastece: {recipe.produtoId?.nome || 'Produto removido'}</p><small>{recipe.ingredientes?.length || 0} ingrediente(s)</small></div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button className="secondary" onClick={() => startEditRecipe(recipe)}>Alterar</button><button className="danger" onClick={() => deleteRecipe(recipe._id)}>Excluir</button></div></article>)}</div></section>}
 
