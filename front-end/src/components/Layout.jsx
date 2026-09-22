@@ -17,7 +17,7 @@ const gruposMenu = [
     chave: 'cadastro',
     label: '📦 CADASTRO',
     items: [
-      { label: 'Produtos de Venda', icon: '📦', to: '/produtos', admin: true },
+      { label: 'Produtos', icon: '📦', to: '/produtos', admin: true },
       { label: 'Mesas', icon: '🪑', to: '/cadastro/mesas', admin: true },
     ],
   },
