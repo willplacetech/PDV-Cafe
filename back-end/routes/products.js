@@ -321,8 +321,8 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const tipo = resolverTipoProduto(data);
     const tipoProduto = tipo === 'venda' ? resolverTipoProdutoVenda(data) : null;
     if (tipo === 'venda' && (data.precoVenda == null && data.preco == null)) return res.status(400).json({ msg: 'Preço de venda é obrigatório para produtos à venda' });
-    if ((tipo === 'insumo' || data.usavelEmReceita === true) && (data.precoCompra === undefined || Number(data.precoCompra) <= 0)) return res.status(400).json({ msg: 'Preço de compra é obrigatório para produtos usados em receitas' });
-    if (data.usavelEmReceita === true && (!Number.isFinite(Number(data.conteudoPorEmbalagem)) || Number(data.conteudoPorEmbalagem) <= 0)) return res.status(400).json({ msg: 'Informe o conteúdo por embalagem do produto híbrido' });
+    if ((tipo === 'insumo' || data.usavelEmReceita === true) && (data.precoCompra === undefined || Number(data.precoCompra) < 0)) return res.status(400).json({ msg: 'Preço de compra inválido' });
+    if (data.usavelEmReceita === true && (!Number.isFinite(Number(data.conteudoPorEmbalagem)) || Number(data.conteudoPorEmbalagem) < 0)) return res.status(400).json({ msg: 'Conteúdo por embalagem inválido' });
     const exists = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') } });
     if (exists) return res.status(400).json({ msg: 'Já existe um produto com este código' });
     const estoque = tipoProduto === 'coz' ? 0 : Number(data.estoque) || 0;

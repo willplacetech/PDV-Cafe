@@ -98,9 +98,9 @@ export default function Purchases() {
     const conteudoPorEmbalagem = Number(supplyForm.conteudoPorEmbalagem);
 
     if (!nome) return showToast('Informe o nome do insumo', 'warning');
-    if (tipoProduto === 'insumo' && (!Number.isFinite(precoCompra) || precoCompra <= 0)) return showToast('Informe um preço de compra maior que zero', 'warning');
+    if (!Number.isFinite(precoCompra) || precoCompra < 0) return showToast('Informe um preço de compra válido', 'warning');
     if (tipoProduto !== 'insumo' && (!Number.isFinite(precoVenda) || precoVenda < 0)) return showToast('Informe um preço de venda válido', 'warning');
-    if (!Number.isFinite(conteudoPorEmbalagem) || conteudoPorEmbalagem <= 0) return showToast('Informe o conteúdo por embalagem', 'warning');
+    if (!Number.isFinite(conteudoPorEmbalagem) || conteudoPorEmbalagem < 0) return showToast('Informe um conteúdo de embalagem válido', 'warning');
 
     const produtoExistente = products.find((product) => String(product.nome || '').trim().toLowerCase() === nome.toLowerCase());
     if (produtoExistente) {
@@ -136,7 +136,7 @@ export default function Purchases() {
         estoque: tipoProduto === 'coz' ? 0 : Number(supplyForm.estoqueEmbalagens || 0),
         estoqueEmbalagens: tipoProduto === 'insumo' ? Number(supplyForm.estoqueEmbalagens || 0) : undefined,
         rendimentoPorReceita: tipoProduto === 'producao' ? Number(supplyForm.rendimentoPorReceita || 1) : 1,
-        usavelEmReceita: true,
+        usavelEmReceita: false,
         ativo: true,
       });
       const newProduct = response.data;
