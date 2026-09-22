@@ -5,7 +5,7 @@ import { useToast } from '../components/Toast.jsx';
 import { AuthContext } from '../context/AuthContext.jsx';
 
 const units = ['kg', 'L', 'un'];
-const factors = { g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
+const factors = { g: 0.001, kg: 1, ml: 0.001, l: 1, L: 1, un: 1 };
 const emptyRecipe = { nome: '', produtoId: '', rendimento: '1', unidadeRendimento: 'un', ingredientes: [{ produtoId: '', quantidade: '', unidade: 'un' }] };
 const number = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;

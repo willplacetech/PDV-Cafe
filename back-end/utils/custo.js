@@ -1,6 +1,6 @@
 const converterCustoBase = (precoCompra, unidadeCompra, unidadeReferencia = 'g') => {
   if (!Number.isFinite(Number(precoCompra)) || Number(precoCompra) <= 0) return 0;
-  const ratios = { kg: 1000, g: 1, l: 1000, ml: 1, un: 1, dz: 12 };
+  const ratios = { kg: 1000, g: 1, L: 1000, l: 1000, ml: 1, un: 1, dz: 12 };
   const base = ratios[unidadeCompra] || 1;
   const target = unidadeReferencia === 'g' || unidadeReferencia === 'ml' ? 1 : unidadeReferencia === 'un' ? 1 : 1;
   const preco = Number(precoCompra) / base;
@@ -8,7 +8,7 @@ const converterCustoBase = (precoCompra, unidadeCompra, unidadeReferencia = 'g')
 };
 
 const quantidadeNaBase = (quantidade, unidade) => {
-  const fatores = { kg: 1000, g: 1, mg: 0.001, l: 1000, ml: 1, un: 1, dz: 12 };
+  const fatores = { kg: 1000, g: 1, mg: 0.001, L: 1000, l: 1000, ml: 1, un: 1, dz: 12 };
   return Number(quantidade || 0) * (fatores[unidade] || 1);
 };
 
@@ -16,6 +16,13 @@ const arredondar = (valor) => Number(Number(valor || 0).toFixed(6));
 
 const calcularCustoReceita = (ingredientes, custoEmbalagem = 0, custoIndireto = 0, maoDeObra = 0, rendimento = 1) => {
   const custoInsumosTotal = arredondar(ingredientes.reduce((soma, item) => soma + quantidadeNaBase(item.quantidade, item.unidade) * Number(item.custoUnitarioBase || 0), 0));
+  const custoTotal = arredondar(custoInsumosTotal + Number(custoEmbalagem || 0) + Number(custoIndireto || 0) + Number(maoDeObra || 0));
+  const custoUnitario = arredondar(Number(rendimento) > 0 ? custoTotal / Number(rendimento) : 0);
+  return { custoInsumosTotal, custoTotal, custoUnitario };
+};
+
+const calcularCustoReceitaDireta = (ingredientes, custoEmbalagem = 0, custoIndireto = 0, maoDeObra = 0, rendimento = 1) => {
+  const custoInsumosTotal = arredondar(ingredientes.reduce((soma, item) => soma + Number(item.quantidade || 0) * Number(item.custoUnitarioBase || 0), 0));
   const custoTotal = arredondar(custoInsumosTotal + Number(custoEmbalagem || 0) + Number(custoIndireto || 0) + Number(maoDeObra || 0));
   const custoUnitario = arredondar(Number(rendimento) > 0 ? custoTotal / Number(rendimento) : 0);
   return { custoInsumosTotal, custoTotal, custoUnitario };
@@ -32,4 +39,4 @@ const calcularMargem = (custo, venda) => {
   return Number(percentual.toFixed(2));
 };
 
-module.exports = { converterCustoBase, quantidadeNaBase, arredondar, calcularCustoReceita, calcularVariacaoPercentual, calcularMargem };
+module.exports = { converterCustoBase, quantidadeNaBase, arredondar, calcularCustoReceita, calcularCustoReceitaDireta, calcularVariacaoPercentual, calcularMargem };

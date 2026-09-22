@@ -4,7 +4,7 @@ const auth = require('../middleware/auth');
 const Recipe = require('../models/Recipe');
 const Product = require('../models/Product');
 const HistoricoCusto = require('../models/HistoricoCusto');
-const { calcularCustoReceita, calcularMargem } = require('../utils/custo');
+const { calcularCustoReceitaDireta, calcularMargem } = require('../utils/custo');
 
 const router = express.Router();
 
@@ -39,7 +39,7 @@ router.post('/:id/calcular-custo', [
       custoUnitarioBase: Number(item.produtoId?.custoUnitarioBase || 0),
     }));
 
-    const resultado = calcularCustoReceita(ingredientes, custoEmbalagem, custoIndireto, maoDeObra, Number(recipe.rendimento || 1));
+    const resultado = calcularCustoReceitaDireta(ingredientes, custoEmbalagem, custoIndireto, maoDeObra, Number(recipe.rendimento || 1));
     recipe.custoInsumosTotal = resultado.custoInsumosTotal;
     recipe.custoEmbalagem = custoEmbalagem;
     recipe.custoIndireto = custoIndireto;

@@ -7,7 +7,7 @@ const Recipe = require('../models/Recipe');
 const RecipeAudit = require('../models/RecipeAudit');
 const Production = require('../models/Production');
 const StockMovement = require('../models/StockMovement');
-const { calcularCustoReceita } = require('../utils/custo');
+const { calcularCustoReceitaDireta } = require('../utils/custo');
 const { dadosEstoqueProduto } = require('../utils/estoqueProduto');
 const { paraBase, calcularResumoCompleto, consumirInsumo, estoqueTotalBase, unidadeBase } = require('../utils/estoqueInsumo');
 
@@ -37,7 +37,7 @@ const sincronizarCustoReceita = async (recipeId) => {
   }));
   const tipoProduto = recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : 'producao');
   const rendimento = tipoProduto === 'coz' ? 1 : Number(recipe.rendimento || 1);
-  const resultado = calcularCustoReceita(ingredientes, recipe.custoEmbalagem, recipe.custoIndireto, recipe.maoDeObra, rendimento);
+  const resultado = calcularCustoReceitaDireta(ingredientes, recipe.custoEmbalagem, recipe.custoIndireto, recipe.maoDeObra, rendimento);
   await Recipe.findByIdAndUpdate(recipe._id, { $set: { custoInsumosTotal: resultado.custoInsumosTotal, custoTotal: resultado.custoTotal, custoUnitario: resultado.custoUnitario } });
   await Product.findByIdAndUpdate(recipe.produtoId, { $set: { custo: resultado.custoUnitario, custoUnitario: resultado.custoUnitario, fichaTecnica: recipe.ingredientes.map((item) => ({ produtoId: item.produtoId._id || item.produtoId, quantidade: tipoProduto === 'coz' ? Number(item.quantidade) : Number(item.quantidade) / Math.max(1, Number(recipe.rendimento || 1)), unidade: item.unidade })) } });
 };
