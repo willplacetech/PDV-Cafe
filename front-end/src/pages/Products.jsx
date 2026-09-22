@@ -49,6 +49,7 @@ export default function Products() {
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('Todos');
   const [filtroCategoria, setFiltroCategoria] = useState('Todos');
+  const [filtroFicha, setFiltroFicha] = useState('Todos');
   const { showToast } = useToast();
   const fichaProduto = fichas.find((ficha) => String(ficha.produtoId?._id || ficha.produtoId) === String(editing?._id));
 
@@ -304,8 +305,12 @@ export default function Products() {
   const filtrados = produtos.filter((produto) => {
     const tipoOk = filtroTipo === 'Todos' || (filtroTipo === 'Estoque de Venda' ? produto.tipo === 'venda' : produto.tipo === 'insumo');
     const categoriaOk = filtroCategoria === 'Todos' || (produto.categoria === filtroCategoria);
+    const possuiFicha = fichas.some((ficha) => String(ficha.produtoId?._id || ficha.produtoId) === String(produto._id));
+    const fichaOk = filtroFicha === 'Todos'
+      || (filtroFicha === 'Sem ficha' && !possuiFicha)
+      || fichas.some((ficha) => String(ficha._id) === filtroFicha && String(ficha.produtoId?._id || ficha.produtoId) === String(produto._id));
     const textoOk = [produto.nome, produto.codigo].join(' ').toLowerCase().includes(filtroTexto.toLowerCase());
-    return tipoOk && categoriaOk && textoOk;
+    return tipoOk && categoriaOk && fichaOk && textoOk;
   });
 
   return (
@@ -507,6 +512,11 @@ export default function Products() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '14px 0 10px' }}>
           <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Produtos</h3>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <select value={filtroFicha} onChange={(event) => setFiltroFicha(event.target.value)} aria-label="Filtrar por ficha técnica" style={{ minHeight: 40, borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '8px 10px' }}>
+              <option>Todos</option>
+              <option>Sem ficha</option>
+              {fichas.map((ficha) => <option key={ficha._id} value={ficha._id}>{ficha.produtoId?.nome || ficha.nome}</option>)}
+            </select>
             <select value={filtroCategoria} onChange={(event) => setFiltroCategoria(event.target.value)} style={{ minHeight: 40, borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '8px 10px' }}>
               <option value="Todos">Todas as categorias</option>
               {categoriasVenda.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}
