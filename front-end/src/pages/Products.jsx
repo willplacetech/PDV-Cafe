@@ -193,13 +193,15 @@ export default function Products() {
     const unidadeFormulario = form.unidade === 'l' ? 'L' : (units.includes(form.unidade) ? form.unidade : 'un');
     const unidadeCompraFormulario = form.unidadeCompra === 'l' ? 'L' : (units.includes(form.unidadeCompra) ? form.unidadeCompra : unidadeFormulario);
     const unidadeVendaFormulario = form.unidadeVenda === 'l' ? 'L' : (units.includes(form.unidadeVenda) ? form.unidadeVenda : 'un');
+    const rendimentoInformado = Number(form.rendimentoPorUnidadeCompra);
+    const rendimentoFormulario = Number.isFinite(rendimentoInformado) && rendimentoInformado > 0 ? rendimentoInformado : 1;
     const payload = {
       ...form,
       codigo: editing ? editing.codigo : form.codigo,
       tipo,
       unidade: unidadeFormulario,
       quantidade: limparCampoNumerico(form.conteudoPorEmbalagem) ?? 1,
-      rendimento: form.unidadeCompra !== form.unidadeVenda ? limparCampoNumerico(form.rendimentoPorUnidadeCompra) : undefined,
+      rendimento: rendimentoFormulario,
       tipoProduto: tipo === 'venda' ? form.tipoProduto : undefined,
       rendimentoPorReceita: tipo === 'venda' && form.tipoProduto === 'producao' ? Number(form.rendimentoPorReceita || 1) : 1,
       estoque: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : (form.aFazer ? 0 : limparCampoNumerico(form.estoque) ?? 0),
