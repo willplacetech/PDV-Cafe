@@ -123,11 +123,11 @@ export default function Products() {
       unidadeConteudo: unidade,
       totalKg: ePeso ? totalBase / 1000 : undefined,
       custoUnitarioBase: custoBase,
-      custoPorKg: ePeso ? custoBase * 1000 : undefined,
-      custoPor100g: ePeso ? custoBase * 100 : undefined,
-      custoPorGrama: ePeso ? custoBase : undefined,
-      custoPorLitro: eVolume ? custoBase * 1000 : undefined,
-      custoPor100ml: eVolume ? custoBase * 100 : undefined,
+      custoPorKg: ePeso ? custoBase : undefined,
+      custoPor100g: undefined,
+      custoPorGrama: undefined,
+      custoPorLitro: eVolume ? custoBase : undefined,
+      custoPor100ml: undefined,
       custoPorUnidade: eUnidade ? custoBase : undefined,
     };
   })() : null;
