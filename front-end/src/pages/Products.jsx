@@ -5,12 +5,16 @@ import { useToast } from '../components/Toast.jsx';
 
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Outros'];
 const filtrosTipo = ['Todos', 'Estoque de Venda', 'Estoque de Insumos'];
+const units = ['kg', 'L', 'un'];
+const decimalStep = (unidade) => unidade === 'un' ? '0.01' : '0.001';
+const decimalMinimum = (unidade) => unidade === 'un' ? 0.01 : 0.001;
 
 const vazio = {
   codigo: '',
   nome: '',
   marcaReferencia: '',
   tipo: 'venda',
+  unidade: 'kg',
   tipoProduto: 'revenda',
   usavelEmReceita: false,
   categoria: 'Bebidas Quentes',
@@ -84,7 +88,7 @@ export default function Products() {
   };
 
   const produtosIngredientes = produtos.filter((produto) => produto.tipo === 'insumo' || produto.usavelEmReceita);
-  const fatoresBase = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
+  const fatoresBase = { kg: 1, L: 1, un: 1 };
   const produtoIngrediente = (id) => produtosIngredientes.find((produto) => String(produto._id) === String(id));
   const resumoFichaCoz = form.fichaTecnica.reduce((resumo, item) => {
     const ingrediente = produtoIngrediente(item.produtoId?._id || item.produtoId);
@@ -101,19 +105,18 @@ export default function Products() {
   const removerIngrediente = (indice) => setForm((atual) => ({ ...atual, fichaTecnica: atual.fichaTecnica.filter((_, itemIndice) => itemIndice !== indice) }));
 
   const resumoInsumo = form.tipo === 'insumo' ? (() => {
-    const unidadesDiretas = ['kg', 'g', 'mg', 'l', 'ml', 'un'];
-    const unidade = (form.unidadeConteudo && unidadesDiretas.includes(form.unidadeConteudo)) ? form.unidadeConteudo : form.unidadeCompra;
+    const unidade = form.unidade || form.unidadeCompra || 'kg';
     const conteudo = Number(form.conteudoPorEmbalagem) || 0;
     const embalagens = Number(form.estoqueEmbalagens) || 0;
     const aberto = Number(form.estoqueConteudoAberto) || 0;
-    const fatores = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
+    const fatores = { kg: 1, L: 1, un: 1 };
     const fator = fatores[unidade] || 1;
     const conteudoBase = conteudo * fator;
     const totalBase = (embalagens * conteudoBase) + (aberto * fator);
     const precoCompra = Number(form.precoCompra) || 0;
     const custoBase = precoCompra > 0 && conteudoBase > 0 ? precoCompra / conteudoBase : 0;
-    const ePeso = ['g', 'kg', 'mg'].includes(unidade);
-    const eVolume = ['l', 'ml'].includes(unidade);
+    const ePeso = unidade === 'kg';
+    const eVolume = unidade === 'L';
     const eUnidade = unidade === 'un';
     return {
       total: totalBase / fator,
@@ -192,6 +195,9 @@ export default function Products() {
       ...form,
       codigo: editing ? editing.codigo : form.codigo,
       tipo,
+      unidade: form.unidade || form.unidadeCompra || 'kg',
+      quantidade: limparCampoNumerico(form.conteudoPorEmbalagem) ?? 1,
+      rendimento: form.unidadeCompra !== form.unidadeVenda ? limparCampoNumerico(form.rendimentoPorUnidadeCompra) : undefined,
       tipoProduto: tipo === 'venda' ? form.tipoProduto : undefined,
       rendimentoPorReceita: tipo === 'venda' && form.tipoProduto === 'producao' ? Number(form.rendimentoPorReceita || 1) : 1,
       estoque: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : (form.aFazer ? 0 : limparCampoNumerico(form.estoque) ?? 0),
@@ -244,11 +250,11 @@ export default function Products() {
 
   const editarProduto = (produto) => {
     setEditing(produto);
-    const unidadesDiretas = ['kg', 'g', 'mg', 'l', 'ml', 'un'];
-    const unidadeCompra = produto.unidadeCompra || 'kg';
+    const unidadesDiretas = units;
+    const unidadeCompra = produto.unidadeCompra === 'l' ? 'L' : (produto.unidade || produto.unidadeCompra || 'kg');
     const isDireta = unidadesDiretas.includes(unidadeCompra);
     const conteudoPorEmbalagem = isDireta ? (Number(produto.conteudoPorEmbalagem) || 1) : (produto.conteudoPorEmbalagem ?? '');
-    const unidadeConteudo = produto.unidadeConteudo || (isDireta ? unidadeCompra : 'g');
+    const unidadeConteudo = produto.unidade === 'l' ? 'L' : (produto.unidadeConteudo || (isDireta ? unidadeCompra : 'kg'));
     setForm({
       codigo: produto.codigo,
       nome: produto.nome,
@@ -261,6 +267,7 @@ export default function Products() {
       grupoDesconto: produto.grupoDesconto || { nome: '', quantidadeMinima: '', precoPromocional: '', ativo: false },
       precoCompra: produto.precoCompra ?? '',
       unidadeCompra: unidadeCompra,
+      unidade: produto.unidade || unidadeCompra,
       conteudoPorEmbalagem: conteudoPorEmbalagem,
       unidadeConteudo: unidadeConteudo,
       estoqueEmbalagens: produto.estoqueEmbalagens ?? produto.estoqueInsumos ?? '',
@@ -382,7 +389,7 @@ export default function Products() {
                   <label>Preço de compra (R$) * <input type="number" step="0.01" min={0.01} required readOnly={editingCustoBloqueado} value={form.precoCompra} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
                   <label>Conteúdo por embalagem * <input type="number" step="0.001" min={0.001} required readOnly={editingCustoBloqueado} value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /></label>
                   <label>Unidade do conteúdo
-                    <select value={form.unidadeConteudo} disabled={editingCustoBloqueado} onChange={(event) => setForm({ ...form, unidadeConteudo: event.target.value })}>{['un', 'g', 'kg', 'ml', 'l'].map((unidade) => <option key={unidade}>{unidade}</option>)}</select>
+                    <select value={form.unidade} disabled={editingCustoBloqueado} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</select>
                   </label>
                 </>}
                 <div style={{ gridColumn: '1 / -1', marginTop: 4, padding: 14, border: '1px solid var(--border-light)', borderRadius: 10, background: 'var(--bg-tertiary)' }}>
@@ -420,13 +427,13 @@ export default function Products() {
                 {form.tipoProduto === 'producao' && <label>Rendimento por ficha técnica *<input required type="number" min="0.001" step="0.001" value={form.rendimentoPorReceita || 1} onChange={(event) => setForm({ ...form, rendimentoPorReceita: event.target.value })} /><small>Quantas unidades saem de uma fornada.</small></label>}
                 {form.tipoProduto !== 'coz' ? <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label> : <div className="coz-stock-notice"><strong>⚠️ Coz não possui estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
                 <label>Unidade de compra
-                  <select value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidadeCompra: event.target.value })}>
-                    {['kg', 'g', 'mg', 'l', 'ml', 'un'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
+                  <select value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>
+                    {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </select>
                 </label>
                 <label>Unidade de venda
                   <select value={form.unidadeVenda} onChange={(event) => setForm({ ...form, unidadeVenda: event.target.value })}>
-                    {['un', 'kg', 'g', 'l', 'ml'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
+                    {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </select>
                 </label>
                 <label className="product-checkbox-label">
@@ -445,14 +452,13 @@ export default function Products() {
                 <label>Preço de compra POR EMBALAGEM (R$) * <input type="number" step="0.01" min={0} value={form.precoCompra} required={!editingInsumo} readOnly={editingInsumo} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
                 <label>Tipo de embalagem * <small>Unidade em que você compra</small>
                   <select value={form.unidadeCompra} disabled={editingInsumo} onChange={(event) => {
-                    const direta = ['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(event.target.value);
-                    setForm({ ...form, unidadeCompra: event.target.value, conteudoPorEmbalagem: direta ? 1 : '', unidadeConteudo: direta ? event.target.value : 'g' });
+                    setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, conteudoPorEmbalagem: 1, unidadeConteudo: event.target.value });
                   }}>
-                    {['kg', 'g', 'mg', 'l', 'ml', 'un', 'lata', 'caixa', 'pacote', 'rolo'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
+                    {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </select>
                 </label>
                 <label>Conteúdo da embalagem * <small>Quanto tem dentro de cada embalagem</small>
-                  <div className="product-input-with-unit"><input type="number" step="0.001" min={0} required={!editingInsumo} readOnly={editingInsumo} value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /><select value={form.unidadeConteudo} disabled={editingInsumo} onChange={(event) => setForm({ ...form, unidadeConteudo: event.target.value })}>{['un', 'g', 'kg', 'mg', 'ml', 'l'].map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}</select></div>
+                  <div className="product-input-with-unit"><input type="number" step={decimalStep(form.unidade)} min={decimalMinimum(form.unidade)} required={!editingInsumo} readOnly={editingInsumo} value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, quantidade: event.target.value, conteudoPorEmbalagem: event.target.value })} /><select value={form.unidade} disabled={editingInsumo} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</select></div>
                 </label>
                 <label>Quantidade de embalagens em estoque * <input type="number" step="0.001" min={0} value={form.estoqueEmbalagens} required onChange={(event) => setForm({ ...form, estoqueEmbalagens: event.target.value })} /></label>
                 <label>Estoque mínimo ({form.unidadeConteudo}) <small>Mínimo em unidade de conteúdo</small><input type="number" step="0.001" min={0} value={form.estoqueMinimoEmbalagens} onChange={(event) => setForm({ ...form, estoqueMinimoEmbalagens: event.target.value })} /></label>
@@ -523,7 +529,7 @@ export default function Products() {
                   <div>
                     {produto.tipo === 'insumo' ? (() => {
                       const unidadeConteudo = produto.unidadeConteudo || 'un';
-                      const unidadeCompra = produto.unidadeCompra || 'pacote';
+                      const unidadeCompra = produto.unidade || produto.unidadeCompra || 'un';
                       const precoCompra = Number(produto.precoCompra ?? produto.resumoInsumo?.precoPorEmbalagem ?? 0);
                       const conteudoPorEmbalagem = Number(produto.conteudoPorEmbalagem ?? produto.resumoInsumo?.conteudoPorEmbalagem ?? 1);
                       const custoUnitarioBase = Number(produto.custoUnitarioBase ?? produto.resumoInsumo?.custoUnitarioBase ?? (precoCompra && conteudoPorEmbalagem ? (precoCompra / conteudoPorEmbalagem) : 0));

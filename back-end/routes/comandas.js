@@ -14,7 +14,7 @@ const { consumirInsumo, reporInsumo } = require('../utils/estoqueInsumo');
 
 const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
-const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda));
+const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'L'].includes(product?.unidadeVenda));
 
 const calcularStatusPagamentoComanda = (comanda) => {
   const valorTotal = Number(comanda?.valorTotal || comanda?.total || 0);

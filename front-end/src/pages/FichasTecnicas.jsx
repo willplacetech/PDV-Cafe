@@ -4,7 +4,7 @@ import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { AuthContext } from '../context/AuthContext.jsx';
 
-const units = ['un', 'kg', 'g', 'ml', 'l'];
+const units = ['kg', 'L', 'un'];
 const factors = { g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
 const emptyRecipe = { nome: '', produtoId: '', rendimento: '1', unidadeRendimento: 'un', ingredientes: [{ produtoId: '', quantidade: '', unidade: 'un' }] };
 const number = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });

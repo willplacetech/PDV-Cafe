@@ -5,7 +5,7 @@ const arredondar = (valor, casas = 6) => {
   return Math.round((Number(valor || 0) + Number.EPSILON) * fator) / fator;
 };
 
-const produtoControlaPeso = (produto = {}) => Number(produto.pesoPorUnidade || 0) > 0 && ['kg', 'g'].includes(produto.unidadeVenda);
+const produtoControlaPeso = (produto = {}) => Number(produto.pesoPorUnidade || 0) > 0 && produto.unidadeVenda === 'kg';
 
 const estoquePesoAtualKg = (produto = {}) => {
   if (!produtoControlaPeso(produto)) return 0;

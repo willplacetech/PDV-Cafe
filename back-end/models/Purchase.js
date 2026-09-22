@@ -1,11 +1,16 @@
 const mongoose = require('mongoose');
+const { UNIDADES_PERMITIDAS, normalizarUnidade } = require('../utils/unidades');
 
 const PurchaseItemSchema = new mongoose.Schema({
   produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+  preco: { type: Number, min: [0.000001, 'Preço deve ser maior que zero'] },
+  quantidade: { type: Number, min: [0.001, 'Quantidade deve ser maior ou igual a 0,001'] },
+  unidade: { type: String, enum: UNIDADES_PERMITIDAS, set: normalizarUnidade },
+  rendimento: { type: Number, min: [0.01, 'Rendimento deve ser maior ou igual a 0,01'], default: null },
   valorTotal: { type: Number, required: true, min: [0.000001, 'Valor total deve ser maior que zero'] },
   qtdEmbalagens: { type: Number, required: true, min: [0.000001, 'Quantidade de embalagens deve ser maior que zero'] },
   conteudoPorEmbalagem: { type: Number, required: true, min: [0.000001, 'Conteúdo por embalagem deve ser maior que zero'] },
-  unidadeConteudo: { type: String, enum: ['mg', 'g', 'kg', 'ml', 'l', 'un'], required: true },
+  unidadeConteudo: { type: String, enum: UNIDADES_PERMITIDAS, required: true, set: normalizarUnidade },
   quantidadeTotal: { type: Number, required: true, min: [0.000001, 'Quantidade total deve ser maior que zero'] },
   custoUnitario: { type: Number, required: true, min: [0.000001, 'Custo unitário deve ser maior que zero'] },
 }, { _id: false });

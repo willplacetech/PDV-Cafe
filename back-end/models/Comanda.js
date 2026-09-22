@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { UNIDADES_PERMITIDAS, normalizarUnidade } = require('../utils/unidades');
 
 const itemSchema = new mongoose.Schema({
   produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
@@ -13,9 +14,9 @@ const itemSchema = new mongoose.Schema({
   totalGrupo: { type: Number, min: 0 },
   faltamParaGrupo: { type: Number, min: 0 },
   quantidade: { type: Number, required: true, min: 0.001 },
-  unidadeVenda: { type: String, enum: ['un', 'kg', 'g', 'l', 'ml'], default: 'un' },
+  unidadeVenda: { type: String, enum: UNIDADES_PERMITIDAS, default: 'un', set: normalizarUnidade },
   pesoPorUnidade: { type: Number, min: 0 },
-  unidadePeso: { type: String, enum: ['kg', 'g'] },
+  unidadePeso: { type: String, enum: ['kg'] },
   tipoVenda: { type: String, enum: ['inteiro', 'peso', 'unidade'], default: 'unidade' },
   pesoVendidoKg: { type: Number, min: 0 },
   quantidadePecas: { type: Number, min: 0 },
@@ -24,7 +25,7 @@ const itemSchema = new mongoose.Schema({
   insumosConsumidos: [{
     produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
     quantidade: { type: Number, min: 0.001 },
-    unidade: { type: String, enum: ['un', 'kg', 'g', 'l', 'ml'] },
+    unidade: { type: String, enum: UNIDADES_PERMITIDAS, set: normalizarUnidade },
   }],
 }, { _id: true });
 

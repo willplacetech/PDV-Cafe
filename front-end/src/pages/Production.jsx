@@ -3,13 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
-const units = ['un', 'kg', 'g', 'mg', 'l', 'ml'];
+const units = ['kg', 'L', 'un'];
 const emptyRecipe = { nome: '', produtoId: '', rendimento: '1', unidadeRendimento: 'un', ingredientes: [{ produtoId: '', quantidade: '', unidade: 'un' }] };
 const emptyTransfer = { produtoId: '', origem: 'venda', destino: 'insumos', quantidade: '', observacao: '' };
 
 const number = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
-const unidadeDoInsumo = (produto = {}) => produto.tipo === 'venda' && produto.usavelEmReceita ? (produto.unidadeVenda || 'un') : (['un', 'kg', 'g', 'mg', 'l', 'ml'].includes(produto.unidadeCompra) ? produto.unidadeCompra : (produto.unidadeConteudo || 'g'));
-const fatoresBase = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
+const unidadeDoInsumo = (produto = {}) => produto.tipo === 'venda' && produto.usavelEmReceita ? (produto.unidadeVenda || 'un') : (['un', 'kg', 'L'].includes(produto.unidadeCompra) ? produto.unidadeCompra : (produto.unidadeConteudo || 'kg'));
+const fatoresBase = { kg: 1, L: 1, un: 1 };
 
 export default function Production() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -220,7 +220,7 @@ export default function Production() {
       embalagensAntes: atual,
       embalagensDepois: novoTotal,
       delta,
-      unidadeConteudo: resumo.unidadeConteudo || produto.unidadeConteudo || 'g',
+      unidadeConteudo: resumo.unidadeConteudo || produto.unidadeConteudo || 'kg',
       totalAntes: (atual * conteudoBase) / fator,
       totalDepois: (novoTotal * conteudoBase) / fator,
     });

@@ -6,10 +6,10 @@ const Product = require('../models/Product');
 const Purchase = require('../models/Purchase');
 const StockMovement = require('../models/StockMovement');
 const HistoricoCusto = require('../models/HistoricoCusto');
-const { fatoresBase, paraBase } = require('../utils/estoqueInsumo');
+const { UNIDADES_PERMITIDAS, normalizarUnidade } = require('../utils/unidades');
 
 const router = express.Router();
-const units = Object.keys(fatoresBase);
+const units = UNIDADES_PERMITIDAS;
 const costingMethods = ['media_ponderada', 'ultimo_preco'];
 
 const validate = (req, res) => {
@@ -20,8 +20,9 @@ const validate = (req, res) => {
 };
 
 const quantidadeBase = (quantidade, unidade) => {
-  if (!units.includes(unidade)) throw new Error(`Unidade de conteúdo inválida: ${unidade}`);
-  return paraBase(quantidade, unidade);
+  const unidadeNormalizada = normalizarUnidade(unidade);
+  if (!units.includes(unidadeNormalizada)) throw new Error(`Unidade de conteúdo inválida: ${unidade}`);
+  return Number(quantidade);
 };
 
 router.use(auth);

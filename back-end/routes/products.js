@@ -12,10 +12,11 @@ const { dadosEstoqueProduto, normalizarEstoqueLegado, produtoControlaPeso } = re
 const { resolverTipoProduto } = require('../utils/produtoTipo');
 const { calcularResumoCompleto, calcularCustoUnitarioBase, calcularEstoqueMinimoBase, estoqueTotalBase, paraBase, custoPorBase } = require('../utils/estoqueInsumo');
 const { normalizarDescontos } = require('../utils/descontosQuantidade');
+const { UNIDADES_PERMITIDAS, normalizarUnidade, casasDecimaisValidas } = require('../utils/unidades');
 
 const router = express.Router();
-const units = ['un', 'kg', 'g', 'mg', 'l', 'ml'];
-const compraUnits = ['un', 'kg', 'g', 'L', 'ml', 'lata', 'rolo', 'caixa', 'pacote', 'dz'];
+const units = UNIDADES_PERMITIDAS;
+const compraUnits = UNIDADES_PERMITIDAS;
 const dataLocal = () => { const agora = new Date(); return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`; };
 const resolverTipoProdutoVenda = (data = {}) => data.tipoProduto || (data.aFazer ? 'coz' : data.producaoPropria ? 'producao' : 'revenda');
 const disponibilidadeCoz = (produto) => {
@@ -56,13 +57,16 @@ const validations = [
   body('estoqueConteudoAberto').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
   body('estoqueMinimoEmbalagens').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
   body('conteudoPorEmbalagem').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
-  body('unidadeConteudo').optional().isIn(['mg', 'g', 'kg', 'ml', 'l', 'un']),
+  body('unidade').optional().custom((value) => units.includes(normalizarUnidade(value))),
+  body('quantidade').optional().custom((value, { req }) => casasDecimaisValidas(value, req.body.unidade)),
+  body('rendimento').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0.01 }),
+  body('unidadeConteudo').optional().custom((value) => units.includes(normalizarUnidade(value))),
   body('marcaReferencia').optional().trim(),
   body('unidadeVenda').optional().isIn(units),
-  body('unidadeCompra').optional().isIn(compraUnits),
+  body('unidadeCompra').optional().custom((value) => compraUnits.includes(normalizarUnidade(value))),
   body('rendimentoPorUnidadeCompra').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
   body('pesoPorUnidade').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
-  body('unidadePeso').optional().isIn(['kg', 'g']),
+  body('unidadePeso').optional().isIn(['kg']),
   body('vendidoFracionado').optional().isBoolean(),
   body('aFazer').optional().isBoolean(),
   body('tipoProduto').optional().isIn(['revenda', 'coz', 'producao']),
@@ -326,26 +330,32 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const fichaTecnica = Array.isArray(data.fichaTecnica) ? data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })).filter((item) => item.produtoId && Number.isFinite(item.quantidade) && item.quantidade > 0 && units.includes(item.unidade)) : [];
     const custoUnitario = Number(data.custoUnitario ?? data.custo) || 0;
     const pesoPorUnidade = Number(data.pesoPorUnidade) || 0;
-    const unidadeVenda = data.unidadeVenda || 'un';
-    const unidadeCompra = data.unidadeCompra || 'kg';
+    const unidadeVenda = normalizarUnidade(data.unidadeVenda || data.unidade || 'un');
+    const unidadeCompra = normalizarUnidade(data.unidadeCompra || data.unidade || 'kg');
     const categoria = tipo === 'insumo' ? 'Insumos' : (data.categoria || 'Outros');
     const precoVenda = Number(data.precoVenda ?? data.preco ?? 0);
     const precoCompra = Number(data.precoCompra || 0);
     const descontoPorUnidadeCompra = Number(data.rendimentoPorUnidadeCompra || 0);
     const descontosPorQuantidade = descontosDoProduto(data.descontosPorQuantidade, tipo, precoVenda);
-    const unidadeConteudo = data.unidadeConteudo || (['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(unidadeCompra) ? unidadeCompra : 'g');
-    const conteudoPorEmbalagem = ['kg', 'g', 'mg', 'l', 'ml', 'un'].includes(unidadeCompra) ? (Number(data.conteudoPorEmbalagem) || 1) : Number(data.conteudoPorEmbalagem || 0);
+    const unidadeConteudo = normalizarUnidade(data.unidadeConteudo || unidadeCompra);
+    const conteudoPorEmbalagem = Number(data.conteudoPorEmbalagem || data.quantidade || 1);
     const estoqueEmbalagens = tipo === 'insumo' ? Number(data.estoqueEmbalagens ?? estoque) || 0 : 0;
     const estoqueConteudoAberto = tipo === 'insumo' ? Number(data.estoqueConteudoAberto) || 0 : 0;
-    const estoquePesoKg = pesoPorUnidade > 0 && ['kg', 'g'].includes(unidadeVenda)
-      ? estoque * (unidadeVenda === 'kg' ? pesoPorUnidade : pesoPorUnidade / 1000)
+    const estoquePesoKg = pesoPorUnidade > 0 && unidadeVenda === 'kg'
+      ? estoque * pesoPorUnidade
       : 0;
     const deveAplicarConversao = tipo === 'venda' && descontoPorUnidadeCompra > 1 && unidadeCompra !== unidadeVenda;
     const custoUnitarioBaseRevenda = deveAplicarConversao ? (precoCompra > 0 ? precoCompra / descontoPorUnidadeCompra : 0) : Number(data.custoUnitarioBase) || 0;
+    const unidade = normalizarUnidade(data.unidade || unidadeCompra);
+    const quantidade = Number(data.quantidade ?? data.conteudoPorEmbalagem ?? 1);
+    const rendimento = data.rendimento == null ? (descontoPorUnidadeCompra > 0 ? descontoPorUnidadeCompra : null) : Number(data.rendimento);
     const product = await Product.create({
       codigo: data.codigo.trim(),
       nome: data.nome.trim(),
       tipo,
+      unidade,
+      quantidade,
+      rendimento,
       categoria,
       preco: tipo === 'venda' ? precoVenda : 0,
       descontosPorQuantidade: descontosPorQuantidade || [],
@@ -392,7 +402,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
   }
 });
 
-router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoque').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueEmbalagens').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueConteudoAberto').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueMinimoEmbalagens').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('unidadeConteudo').optional().isIn(['g', 'kg', 'ml', 'l', 'un']), body('estoqueMaximo').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().isIn(units), body('pesoPorUnidade').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('unidadePeso').optional().isIn(['kg', 'g']), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('tipoProduto').optional().isIn(['revenda', 'coz', 'producao']), body('rendimentoPorReceita').optional().isFloat({ min: 0.001 }), body('permitirVendaSemInsumo').optional().isBoolean(), body('fichaTecnica').optional().isArray()], async (req, res) => {
+router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoque').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueEmbalagens').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueConteudoAberto').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueMinimoEmbalagens').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('unidade').optional().custom((value) => units.includes(normalizarUnidade(value))), body('quantidade').optional().custom((value, { req }) => casasDecimaisValidas(value, req.body.unidade)), body('rendimento').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0.01 }), body('unidadeConteudo').optional().custom((value) => units.includes(normalizarUnidade(value))), body('estoqueMaximo').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().custom((value) => units.includes(normalizarUnidade(value))), body('unidadeCompra').optional().custom((value) => units.includes(normalizarUnidade(value))), body('pesoPorUnidade').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('unidadePeso').optional().isIn(['kg', 'g']), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('tipoProduto').optional().isIn(['revenda', 'coz', 'producao']), body('rendimentoPorReceita').optional().isFloat({ min: 0.001 }), body('permitirVendaSemInsumo').optional().isBoolean(), body('fichaTecnica').optional().isArray()], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
@@ -419,8 +429,10 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     if (data.tipo !== undefined) fields.tipo = tipo;
     if (tipo === 'insumo') fields.usavelEmReceita = true;
     if (data.usavelEmReceita !== undefined && tipo === 'venda') fields.usavelEmReceita = Boolean(data.usavelEmReceita);
-    ['nome', 'categoria', 'unidadeVenda', 'unidadeCompra'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
-    ['preco', 'precoCompra', 'estoque', 'estoqueInsumos', 'estoqueEmbalagens', 'estoqueConteudoAberto', 'estoqueMaximo', 'estoqueMinimoInsumos', 'estoqueMinimoEmbalagens', 'pesoPorUnidade', 'rendimentoPorUnidadeCompra', 'conteudoPorEmbalagem'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
+    ['nome', 'categoria'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
+    ['unidade', 'unidadeVenda', 'unidadeCompra', 'unidadeConteudo'].forEach((key) => { if (data[key] !== undefined) fields[key] = normalizarUnidade(data[key]); });
+    ['preco', 'precoCompra', 'estoque', 'estoqueInsumos', 'estoqueEmbalagens', 'estoqueConteudoAberto', 'estoqueMaximo', 'estoqueMinimoInsumos', 'estoqueMinimoEmbalagens', 'pesoPorUnidade', 'rendimentoPorUnidadeCompra', 'conteudoPorEmbalagem', 'quantidade', 'rendimento'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
+    if (data.unidade !== undefined && data.quantidade !== undefined) fields.quantidade = Number(data.quantidade);
     if (data.estoque !== undefined && tipo === 'insumo') {
       fields.estoqueInsumos = Number(data.estoque);
       fields.estoqueEmbalagens = Number(data.estoque);

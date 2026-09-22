@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
-const units = ['mg', 'g', 'kg', 'ml', 'l', 'un'];
+const units = ['kg', 'L', 'un'];
+const decimalStep = (unit) => unit === 'un' ? '0.01' : '0.001';
+const decimalMinimum = (unit) => unit === 'un' ? 0.01 : 0.001;
 const newItem = () => ({ produtoId: '', valorTotal: '', qtdEmbalagens: '', conteudoPorEmbalagem: '', unidadeConteudo: 'un' });
 const today = () => {
   const date = new Date();
@@ -183,7 +185,7 @@ export default function Purchases() {
           <label className="purchase-product-field">Produto comprado<div className="purchase-product-input-group"><select required value={item.produtoId} onChange={(event) => updateItem(index, 'produtoId', event.target.value)}><option value="">Selecione</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} [{product.tipo === 'insumo' ? 'Insumo' : 'Venda + Insumo'}]</option>)}</select><button type="button" className="secondary purchase-new-supply-button" onClick={() => openSupplyModal(index)}>➕ Novo Insumo</button></div></label>
           <label>Valor total<input required type="number" min="0.000001" step="0.01" value={item.valorTotal} onChange={(event) => updateItem(index, 'valorTotal', event.target.value)} /></label>
           <label>Qtd. embalagens<input required type="number" min="0.000001" step="0.001" value={item.qtdEmbalagens} onChange={(event) => updateItem(index, 'qtdEmbalagens', event.target.value)} /></label>
-          <label>Conteudo por embalagem<input required type="number" min="0.000001" step="0.001" value={item.conteudoPorEmbalagem} onChange={(event) => updateItem(index, 'conteudoPorEmbalagem', event.target.value)} /></label>
+          <label>Quantidade<input required type="number" min={decimalMinimum(item.unidadeConteudo)} step={decimalStep(item.unidadeConteudo)} value={item.conteudoPorEmbalagem} onChange={(event) => updateItem(index, 'conteudoPorEmbalagem', event.target.value)} /></label>
           <label>Unidade<select required value={item.unidadeConteudo} onChange={(event) => updateItem(index, 'unidadeConteudo', event.target.value)}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></label>
           <div className="purchase-calculation"><span>Total: <strong>{formatQuantidade(total, unidadeExibicao)}</strong></span><span>Custo unitario: <strong>{formatCustoUnitario(valorUnitario, unidadeExibicao)}</strong></span></div>
           <button type="button" className="danger" onClick={() => removeItem(index)} disabled={form.itens.length === 1}>Remover</button>

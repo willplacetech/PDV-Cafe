@@ -1,7 +1,7 @@
 const pesoPorUnidadeEmKg = (produto = {}) => {
   const peso = Number(produto.pesoPorUnidade || 0);
   if (!Number.isFinite(peso) || peso <= 0) return 0;
-  return produto.unidadePeso === 'g' ? peso / 1000 : peso;
+  return peso;
 };
 
 const precoPorUnidade = (produto = {}) => {

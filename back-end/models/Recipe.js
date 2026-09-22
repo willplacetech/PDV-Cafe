@@ -1,16 +1,17 @@
 const mongoose = require('mongoose');
+const { UNIDADES_PERMITIDAS, normalizarUnidade } = require('../utils/unidades');
 
 const RecipeItemSchema = new mongoose.Schema({
   produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   quantidade: { type: Number, required: true, min: 0.001 },
-  unidade: { type: String, enum: ['un', 'kg', 'g', 'mg', 'l', 'ml'], required: true },
+  unidade: { type: String, enum: UNIDADES_PERMITIDAS, required: true, set: normalizarUnidade },
 }, { _id: false });
 
 const RecipeSchema = new mongoose.Schema({
   nome: { type: String, required: true, trim: true },
   produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   rendimento: { type: Number, required: true, min: 0.001 },
-  unidadeRendimento: { type: String, enum: ['un', 'kg', 'g', 'l', 'ml'], required: true },
+  unidadeRendimento: { type: String, enum: UNIDADES_PERMITIDAS, required: true, set: normalizarUnidade },
   ingredientes: { type: [RecipeItemSchema], required: true, validate: (items) => items.length > 0 },
   ativo: { type: Boolean, default: true },
   custoInsumosTotal: { type: Number, default: 0, min: 0 },

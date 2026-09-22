@@ -13,9 +13,9 @@ const { paraBase, calcularResumoCompleto, consumirInsumo, estoqueTotalBase, unid
 
 const router = express.Router();
 const locations = ['venda', 'insumos'];
-const units = ['un', 'kg', 'g', 'mg', 'l', 'ml'];
+const units = ['kg', 'L', 'un'];
 const balanceField = (location) => location === 'insumos' ? 'estoqueInsumos' : 'estoque';
-const unidadeDoInsumo = (produto = {}) => produto.tipo === 'venda' && produto.usavelEmReceita ? (produto.unidadeVenda || 'un') : (['un', 'kg', 'g', 'mg', 'l', 'ml'].includes(produto.unidadeCompra) ? produto.unidadeCompra : (produto.unidadeConteudo || 'g'));
+const unidadeDoInsumo = (produto = {}) => produto.tipo === 'venda' && produto.usavelEmReceita ? (produto.unidadeVenda || 'un') : (['un', 'kg', 'L'].includes(produto.unidadeCompra) ? produto.unidadeCompra : (produto.unidadeConteudo || 'kg'));
 const consumirIngrediente = (produto, quantidade, unidade) => {
   if (!(produto.tipo === 'venda' && produto.usavelEmReceita)) return consumirInsumo(produto, quantidade, unidade);
   const conteudoPorUnidade = paraBase(Number(produto.conteudoPorEmbalagem || 1), produto.unidadeConteudo || produto.unidadeVenda || 'un');

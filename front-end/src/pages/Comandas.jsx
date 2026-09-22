@@ -13,8 +13,8 @@ const formatQuantity = (item) => {
   }
   return `${quantidade} ${item.unidadeVenda || 'un'}`;
 };
-const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda));
-const produtoPorPeso = (product) => Number(product?.pesoPorUnidade) > 0 && ['kg', 'g'].includes(product?.unidadeVenda);
+const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'L'].includes(product?.unidadeVenda));
+const produtoPorPeso = (product) => Number(product?.pesoPorUnidade) > 0 && product?.unidadeVenda === 'kg';
 
 // ─── helpers de cupom / whatsapp ─────────────────────────────────────────────
 

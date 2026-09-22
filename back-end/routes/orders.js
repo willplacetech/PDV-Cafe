@@ -10,7 +10,7 @@ const { normalizarEstoqueLegado, produtoControlaPeso, dadosMovimentoEstoque } = 
 const { calcularPrecoComDesconto } = require('../utils/descontosQuantidade');
 
 const router = express.Router();
-const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda));
+const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'L'].includes(product?.unidadeVenda));
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
 const normalizarStatusFiltro = (status) => {

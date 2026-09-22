@@ -1,19 +1,24 @@
 const fatoresBase = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
+const unidadesPermitidas = ['kg', 'L', 'un'];
 
-const paraBase = (quantidade, unidade) => Number(quantidade || 0) * (fatoresBase[unidade] || 1);
+const paraBase = (quantidade, unidade) => unidadesPermitidas.includes(unidade)
+  ? Number(quantidade || 0)
+  : Number(quantidade || 0) * (fatoresBase[unidade] || 1);
 
 const unidadesDiretas = ['mg', 'g', 'kg', 'ml', 'l', 'un'];
 const unidadesEmbalagem = ['lata', 'caixa', 'pacote', 'rolo'];
 
-const unidadeControle = (produto = {}) => produto.tipo === 'venda' && produto.usavelEmReceita ? (produto.unidadeVenda || 'un') : (produto.unidadeCompra || produto.unidadeControle || 'un');
+const unidadeControle = (produto = {}) => produto.unidade || (produto.tipo === 'venda' && produto.usavelEmReceita ? (produto.unidadeVenda || 'un') : (produto.unidadeCompra || produto.unidadeControle || 'un'));
 
 const unidadeBase = (produto = {}) => {
+  if (unidadesPermitidas.includes(produto.unidade)) return produto.unidade;
   if (produto.unidadeConteudo && unidadesDiretas.includes(produto.unidadeConteudo)) return produto.unidadeConteudo;
   const controle = unidadeControle(produto);
   return unidadesDiretas.includes(controle) ? controle : (produto.unidadeConteudo || 'g');
 };
 
 const conteudoPorEmbalagemBase = (produto = {}) => {
+  if (produto.unidade && unidadesPermitidas.includes(produto.unidade)) return Number(produto.quantidade ?? produto.conteudoPorEmbalagem ?? 1);
   if (produto.tipo === 'venda' && produto.usavelEmReceita) {
     return paraBase(Number(produto.conteudoPorEmbalagem || 1), produto.unidadeConteudo || produto.unidadeVenda || 'un');
   }
@@ -41,6 +46,10 @@ const estoqueTotalBase = (produto = {}) => (embalagensFechadas(produto) * conteu
 
 const custoPorBase = (produto = {}) => {
   const preco = Number(produto.precoCompra || 0);
+  if (produto.unidade && unidadesPermitidas.includes(produto.unidade)) {
+    const quantidade = Number(produto.quantidade ?? produto.conteudoPorEmbalagem ?? 1);
+    return preco > 0 && quantidade > 0 ? preco / quantidade : 0;
+  }
   const conteudo = conteudoPorEmbalagemBase(produto);
   return preco > 0 && conteudo > 0 ? preco / conteudo : 0;
 };
@@ -48,31 +57,31 @@ const custoPorBase = (produto = {}) => {
 const calcularCustoUnitarioBase = (precoCompra, conteudoPorEmbalagem, unidadeConteudo) => {
   const preco = Number(precoCompra || 0);
   const conteudo = Number(conteudoPorEmbalagem || 0);
-  const unidade = (unidadesDiretas.includes(unidadeConteudo) ? unidadeConteudo : 'g') || 'g';
+  const unidade = (unidadesPermitidas.includes(unidadeConteudo) || unidadesDiretas.includes(unidadeConteudo) ? unidadeConteudo : 'g') || 'g';
   if (preco <= 0 || conteudo <= 0) return 0;
-  const base = paraBase(conteudo, unidade);
+  const base = unidadesPermitidas.includes(unidade) ? conteudo : paraBase(conteudo, unidade);
   if (base <= 0) return 0;
   return preco / base;
 };
 
 const calcularEstoqueMinimoBase = (estoqueMinimo, unidadeConteudo) => {
   const minimo = Number(estoqueMinimo || 0);
-  const unidade = (unidadesDiretas.includes(unidadeConteudo) ? unidadeConteudo : 'g') || 'g';
+  const unidade = (unidadesPermitidas.includes(unidadeConteudo) || unidadesDiretas.includes(unidadeConteudo) ? unidadeConteudo : 'g') || 'g';
   if (minimo <= 0) return 0;
-  return paraBase(minimo, unidade);
+  return unidadesPermitidas.includes(unidade) ? minimo : paraBase(minimo, unidade);
 };
 
 const deveAplicarConversaoRevenda = (produto = {}) => {
-  const rendimento = Number(produto.rendimentoPorUnidadeCompra || 0);
-  const unidadeCompra = produto.unidadeCompra || 'kg';
+  const rendimento = Number(produto.rendimento ?? produto.rendimentoPorUnidadeCompra ?? 0);
+  const unidadeCompra = produto.unidade || produto.unidadeCompra || 'kg';
   const unidadeVenda = produto.unidadeVenda || 'un';
-  return produto.tipo === 'venda' && rendimento > 1 && unidadeCompra !== unidadeVenda;
+  return rendimento > 1 && unidadeCompra !== unidadeVenda;
 };
 
 const calcularCustoUnitarioVenda = (produto = {}) => {
   if (!deveAplicarConversaoRevenda(produto)) return Number(produto.custoUnitarioBase || 0);
-  const prec = Number(produto.precoCompra || 0);
-  const rendimento = Number(produto.rendimentoPorUnidadeCompra || 0);
+  const prec = Number(produto.precoCompra ?? produto.preco ?? 0);
+  const rendimento = Number(produto.rendimento ?? produto.rendimentoPorUnidadeCompra ?? 0);
   if (prec <= 0 || rendimento <= 0) return 0;
   return prec / rendimento;
 };
@@ -80,7 +89,7 @@ const calcularCustoUnitarioVenda = (produto = {}) => {
 const estoqueEmUnidadeVenda = (produto = {}) => {
   if (!deveAplicarConversaoRevenda(produto)) return Number(produto.estoque || 0);
   const estoque = Number(produto.estoque || 0);
-  const rendimento = Number(produto.rendimentoPorUnidadeCompra || 0);
+  const rendimento = Number(produto.rendimento ?? produto.rendimentoPorUnidadeCompra ?? 0);
   return rendimento > 0 ? estoque * rendimento : estoque;
 };
 
@@ -88,7 +97,7 @@ const resumoEstoqueInsumo = (produto = {}) => {
   const totalBase = estoqueTotalBase(produto);
   const conteudoBase = conteudoPorEmbalagemBase(produto);
   const unidade = unidadeBase(produto);
-  const fator = fatoresBase[unidade] || 1;
+  const fator = unidadesPermitidas.includes(unidade) ? 1 : (fatoresBase[unidade] || 1);
   return {
     embalagensFechadas: Math.max(0, embalagensFechadas(produto)),
     conteudoAberto: conteudoAberto(produto),
@@ -96,14 +105,15 @@ const resumoEstoqueInsumo = (produto = {}) => {
     unidadeConteudo: unidade,
     totalBase,
     total: totalBase / fator,
-    totalKg: ['g', 'kg'].includes(unidade) ? totalBase / 1000 : undefined,
+    totalKg: unidade === 'kg' ? totalBase : (unidade === 'g' ? totalBase / 1000 : undefined),
     custoUnitarioBase: custoPorBase(produto),
     precoPorEmbalagem: Number(produto.precoCompra || 0),
   };
 };
 
 const conversaoUnidadeMedida = (produto = {}) => {
-  const fator = fatoresBase[unidadeBase(produto)] || 1;
+  const unidade = unidadeBase(produto);
+  const fator = unidadesPermitidas.includes(unidade) ? 1 : (fatoresBase[unidade] || 1);
   const base = Number(produto.estoqueMinimoBase || 0);
   return base > 0 ? base / fator : undefined;
 };
@@ -111,12 +121,12 @@ const conversaoUnidadeMedida = (produto = {}) => {
 const calcularResumoCompleto = (produto = {}) => {
   const resumo = resumoEstoqueInsumo(produto);
   const unidade = resumo.unidadeConteudo;
-  const fator = fatoresBase[unidade] || 1;
+  const fator = unidadesPermitidas.includes(unidade) ? 1 : (fatoresBase[unidade] || 1);
   const precoPorEmbalagem = Number(produto.precoCompra || 0);
   const conteudoBase = resumo.conteudoPorEmbalagem * fator;
   const custoBase = precoPorEmbalagem > 0 && conteudoBase > 0 ? precoPorEmbalagem / conteudoBase : 0;
-  const ePeso = ['g', 'kg', 'mg'].includes(unidade);
-  const eVolume = ['l', 'ml'].includes(unidade);
+  const ePeso = unidade === 'kg';
+  const eVolume = unidade === 'L';
   const eUnidade = unidade === 'un';
   return {
     ...resumo,
@@ -128,11 +138,11 @@ const calcularResumoCompleto = (produto = {}) => {
     totalBase: resumo.totalBase,
     totalKg: resumo.totalKg,
     custoUnitarioBase: custoBase,
-    custoPorKg: ePeso ? custoBase * 1000 : undefined,
-    custoPor100g: ePeso ? custoBase * 100 : undefined,
-    custoPorGrama: ePeso ? custoBase : undefined,
-    custoPorLitro: eVolume ? custoBase * 1000 : undefined,
-    custoPor100ml: eVolume ? custoBase * 100 : undefined,
+    custoPorKg: ePeso ? (unidadesPermitidas.includes(unidade) ? custoBase : custoBase * 1000) : undefined,
+    custoPor100g: ePeso && !unidadesPermitidas.includes(unidade) ? custoBase * 100 : undefined,
+    custoPorGrama: ePeso && !unidadesPermitidas.includes(unidade) ? custoBase : undefined,
+    custoPorLitro: eVolume ? (unidadesPermitidas.includes(unidade) ? custoBase : custoBase * 1000) : undefined,
+    custoPor100ml: eVolume && !unidadesPermitidas.includes(unidade) ? custoBase * 100 : undefined,
     custoPorGramaBase: custoBase,
     custoPorUnidade: eUnidade ? custoBase : undefined,
     estoqueMinimo: conversaoUnidadeMedida(produto),

@@ -1,9 +1,10 @@
 const mongoose = require('mongoose');
+const { UNIDADES_PERMITIDAS, normalizarUnidade, casasDecimaisValidas } = require('../utils/unidades');
 
 const IngredientSchema = new mongoose.Schema({
   produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   quantidade: { type: Number, required: true, min: 0.001 },
-  unidade: { type: String, enum: ['un', 'kg', 'g', 'l', 'ml'], required: true },
+  unidade: { type: String, enum: UNIDADES_PERMITIDAS, required: true, set: normalizarUnidade },
 }, { _id: false });
 
 const QuantityDiscountSchema = new mongoose.Schema({
@@ -56,15 +57,25 @@ const ProductSchema = new mongoose.Schema({
     enum: ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Insumos', 'Outros'],
     default: 'Outros',
   },
+  unidade: { type: String, enum: UNIDADES_PERMITIDAS, required: true, default: 'un', set: normalizarUnidade },
+  quantidade: {
+    type: Number,
+    min: [0.001, 'Quantidade deve ser maior ou igual a 0,001'],
+    validate: { validator(value) { return casasDecimaisValidas(value, this.unidade); }, message: 'Formato inválido' },
+    default: 1,
+  },
+  rendimento: { type: Number, min: [0.01, 'Rendimento deve ser maior ou igual a 0,01'], default: null },
   unidadeVenda: {
     type: String,
-    enum: ['un', 'kg', 'g', 'l', 'ml'],
+    enum: UNIDADES_PERMITIDAS,
     default: 'un',
+    set: normalizarUnidade,
   },
   unidadeCompra: {
     type: String,
-    enum: ['un', 'kg', 'g', 'l', 'L', 'ml', 'lata', 'caixa', 'pacote', 'rolo', 'dz'],
+    enum: UNIDADES_PERMITIDAS,
     default: 'un',
+    set: normalizarUnidade,
   },
   marcaReferencia: {
     type: String,
@@ -78,8 +89,9 @@ const ProductSchema = new mongoose.Schema({
   },
   unidadeConteudo: {
     type: String,
-    enum: ['g', 'kg', 'ml', 'l', 'un'],
-    default: 'g',
+    enum: UNIDADES_PERMITIDAS,
+    default: 'un',
+    set: normalizarUnidade,
   },
   estoqueEmbalagens: {
     type: Number,
@@ -108,7 +120,7 @@ const ProductSchema = new mongoose.Schema({
   },
   unidadePeso: {
     type: String,
-    enum: ['kg', 'g'],
+    enum: ['kg'],
     default: 'kg',
   },
   vendidoFracionado: {
