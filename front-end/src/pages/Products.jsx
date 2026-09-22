@@ -37,6 +37,7 @@ const vazio = {
   fichaTecnica: [],
   permitirVendaSemInsumo: false,
   producaoPropria: false,
+  ativo: true,
 };
 
 export default function Products() {
@@ -49,8 +50,6 @@ export default function Products() {
   const [filtroTipo, setFiltroTipo] = useState('Todos');
   const [filtroCategoria, setFiltroCategoria] = useState('Todos');
   const { showToast } = useToast();
-  const editingInsumo = Boolean(editing?.tipo === 'insumo');
-  const editingCustoBloqueado = Boolean(editing?.tipo === 'insumo' || editing?.usavelEmReceita);
   const fichaProduto = fichas.find((ficha) => String(ficha.produtoId?._id || ficha.produtoId) === String(editing?._id));
 
   const carregar = async () => {
@@ -222,19 +221,10 @@ export default function Products() {
       custoUnitario: limparCampoNumerico(form.custo) ?? 0,
       custo: limparCampoNumerico(form.custo) ?? 0,
       rendimentoPorUnidadeCompra: Number(form.rendimentoPorUnidadeCompra || 0),
-      ativo: true,
+      ativo: Boolean(form.ativo),
       permitirVendaSemInsumo: Boolean(form.permitirVendaSemInsumo),
       fichaTecnica: tipo === 'venda' && form.aFazer ? form.fichaTecnica.map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })) : [],
     };
-    if (editingCustoBloqueado) {
-      delete payload.precoCompra;
-      delete payload.custoUnitario;
-      delete payload.custo;
-      delete payload.conteudoPorEmbalagem;
-      delete payload.unidadeConteudo;
-      delete payload.unidadeCompra;
-    }
-
     try {
       if (editing) await api.put(`/products/${editing._id}`, payload);
       else await api.post('/products', payload);
@@ -284,6 +274,7 @@ export default function Products() {
       fichaTecnica: produto.fichaTecnica || [],
       permitirVendaSemInsumo: Boolean(produto.permitirVendaSemInsumo),
       producaoPropria: Boolean(produto.producaoPropria),
+      ativo: produto.ativo !== false,
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -330,19 +321,19 @@ export default function Products() {
                 <span className="product-type-label">Tipo *</span>
                 <div className="product-radio-group">
                   <label className="product-radio-option">
-                    <input className="product-radio" type="radio" name="tipoProduto" value="revenda" disabled={Boolean(editing)} checked={form.tipo === 'venda' && form.tipoProduto === 'revenda'} onChange={() => setForm({ ...form, tipo: 'venda', tipoProduto: 'revenda', categoria: 'Bebidas Quentes' })} />
+                    <input className="product-radio" type="radio" name="tipoProduto" value="revenda" checked={form.tipo === 'venda' && form.tipoProduto === 'revenda'} onChange={() => setForm({ ...form, tipo: 'venda', tipoProduto: 'revenda', categoria: 'Bebidas Quentes', aFazer: false, producaoPropria: false })} />
                       Revenda
                   </label>
                   <label className="product-radio-option">
-                    <input className="product-radio" type="radio" name="tipoProduto" value="coz" disabled={Boolean(editing)} checked={form.tipo === 'venda' && form.tipoProduto === 'coz'} onChange={() => setForm({ ...form, tipo: 'venda', tipoProduto: 'coz', categoria: 'Pratos na Hora', estoque: 0, aFazer: true, producaoPropria: false })} />
+                    <input className="product-radio" type="radio" name="tipoProduto" value="coz" checked={form.tipo === 'venda' && form.tipoProduto === 'coz'} onChange={() => setForm({ ...form, tipo: 'venda', tipoProduto: 'coz', categoria: 'Pratos na Hora', estoque: 0, aFazer: true, producaoPropria: false })} />
                       Coz — na hora
                     </label>
                     <label className="product-radio-option">
-                      <input className="product-radio" type="radio" name="tipoProduto" value="producao" disabled={Boolean(editing)} checked={form.tipo === 'venda' && form.tipoProduto === 'producao'} onChange={() => setForm({ ...form, tipo: 'venda', tipoProduto: 'producao', categoria: 'Outros', aFazer: false, producaoPropria: true })} />
+                      <input className="product-radio" type="radio" name="tipoProduto" value="producao" checked={form.tipo === 'venda' && form.tipoProduto === 'producao'} onChange={() => setForm({ ...form, tipo: 'venda', tipoProduto: 'producao', categoria: 'Outros', aFazer: false, producaoPropria: true })} />
                       Produção própria — lote
                     </label>
                     <label className="product-radio-option">
-                      <input className="product-radio" type="radio" name="tipoProduto" value="insumo" disabled={Boolean(editing)} checked={form.tipo === 'insumo'} onChange={() => setForm({ ...form, tipo: 'insumo', tipoProduto: 'revenda', categoria: 'Insumos' })} />
+                      <input className="product-radio" type="radio" name="tipoProduto" value="insumo" checked={form.tipo === 'insumo'} onChange={() => setForm({ ...form, tipo: 'insumo', tipoProduto: 'revenda', categoria: 'Insumos', aFazer: false, producaoPropria: false })} />
                       Insumo / Matéria-prima
                   </label>
                 </div>
@@ -364,7 +355,9 @@ export default function Products() {
                 </label>
               ) : (
                 <label>Categoria
-                  <input value="Insumos" readOnly />
+                  <select value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value })}>
+                    {['Insumos', ...categoriasVenda].map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}
+                  </select>
                 </label>
               )}
             </div>
@@ -386,10 +379,10 @@ export default function Products() {
                   Também usar como ingrediente em fichas técnicas
                 </label>
                 {form.usavelEmReceita && <>
-                  <label>Preço de compra (R$) * <input type="number" step="0.01" min={0.01} required readOnly={editingCustoBloqueado} value={form.precoCompra} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
-                  <label>Conteúdo por embalagem * <input type="number" step="0.001" min={0.001} required readOnly={editingCustoBloqueado} value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /></label>
+                  <label>Preço de compra (R$) * <input type="number" step="0.01" min={0.01} required value={form.precoCompra} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
+                  <label>Conteúdo por embalagem * <input type="number" step="0.001" min={0.001} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /></label>
                   <label>Unidade do conteúdo
-                    <select value={form.unidade} disabled={editingCustoBloqueado} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</select>
+                    <select value={form.unidade} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</select>
                   </label>
                 </>}
                 <div style={{ gridColumn: '1 / -1', marginTop: 4, padding: 14, border: '1px solid var(--border-light)', borderRadius: 10, background: 'var(--bg-tertiary)' }}>
@@ -440,6 +433,10 @@ export default function Products() {
                   <input className="product-checkbox" type="checkbox" checked={form.vendidoFracionado} onChange={(event) => setForm({ ...form, vendidoFracionado: event.target.checked })} />
                   Permitir venda fracionada
                 </label>
+                <label className="product-checkbox-label">
+                  <input className="product-checkbox" type="checkbox" checked={form.ativo} onChange={(event) => setForm({ ...form, ativo: event.target.checked })} />
+                  Produto ativo
+                </label>
                 {form.tipoProduto === 'coz' && <div className="coz-recipe-panel"><strong>📋 Ficha técnica vinculada</strong>{fichaProduto ? <><span>Custo/unidade: <b>{`R$ ${Number(fichaProduto.custoPorUnidade || 0).toFixed(2).replace('.', ',')}`}</b></span><span>Disponível: <b>{Number(fichaProduto.disponibilidade?.quantidade || 0)} {fichaProduto.unidadeRendimento}</b></span><small>Ingrediente limitante: {fichaProduto.disponibilidade?.limitante || 'nenhum'}</small></> : <span>Este produto ainda não tem ficha técnica. Crie-a em Produção para liberar a disponibilidade.</span>}<Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>{fichaProduto ? 'Editar ficha técnica →' : 'Criar ficha técnica →'}</Link></div>}
                 {form.tipoProduto === 'producao' && <div className="coz-recipe-panel"><strong>📋 Ficha técnica vinculada</strong><span>Este produto é produzido internamente e usa uma ficha técnica para controlar o custo e o rendimento.</span><Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>Gerenciar ficha técnica →</Link></div>}
               </div>
@@ -449,16 +446,16 @@ export default function Products() {
             <section className="product-form-section">
               <div className="product-section-title"><span>💰</span><div><strong>COMPRA</strong><small>Preço, conteúdo e quantidade de embalagens</small></div></div>
               <div className="product-form-grid">
-                <label>Preço de compra POR EMBALAGEM (R$) * <input type="number" step="0.01" min={0} value={form.precoCompra} required={!editingInsumo} readOnly={editingInsumo} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
+                <label>Preço de compra POR EMBALAGEM (R$) * <input type="number" step="0.01" min={0} value={form.precoCompra} required onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
                 <label>Tipo de embalagem * <small>Unidade em que você compra</small>
-                  <select value={form.unidadeCompra} disabled={editingInsumo} onChange={(event) => {
+                  <select value={form.unidadeCompra} onChange={(event) => {
                     setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, conteudoPorEmbalagem: 1, unidadeConteudo: event.target.value });
                   }}>
                     {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </select>
                 </label>
                 <label>Conteúdo da embalagem * <small>Quanto tem dentro de cada embalagem</small>
-                  <div className="product-input-with-unit"><input type="number" step={decimalStep(form.unidade)} min={decimalMinimum(form.unidade)} required={!editingInsumo} readOnly={editingInsumo} value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, quantidade: event.target.value, conteudoPorEmbalagem: event.target.value })} /><select value={form.unidade} disabled={editingInsumo} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</select></div>
+                   <div className="product-input-with-unit"><input type="number" step={decimalStep(form.unidade)} min={decimalMinimum(form.unidade)} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, quantidade: event.target.value, conteudoPorEmbalagem: event.target.value })} /><select value={form.unidade} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</select></div>
                 </label>
                 <label>Quantidade de embalagens em estoque * <input type="number" step="0.001" min={0} value={form.estoqueEmbalagens} required onChange={(event) => setForm({ ...form, estoqueEmbalagens: event.target.value })} /></label>
                 <label>Estoque mínimo ({form.unidadeConteudo}) <small>Mínimo em unidade de conteúdo</small><input type="number" step="0.001" min={0} value={form.estoqueMinimoEmbalagens} onChange={(event) => setForm({ ...form, estoqueMinimoEmbalagens: event.target.value })} /></label>

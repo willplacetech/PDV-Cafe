@@ -67,8 +67,6 @@ router.post('/', [
       for (const item of req.body.itens) {
         const produto = produtosPorId.get(String(item.produtoId));
         if (!produto) throw new Error('Produto não encontrado');
-        if (produto.tipo !== 'insumo' && !produto.usavelEmReceita) throw new Error(`${produto.nome} não pode ser comprado para uso em receitas`);
-
         const valorTotal = Number(item.valorTotal);
         const qtdEmbalagens = Number(item.qtdEmbalagens);
         const conteudoPorEmbalagem = Number(item.conteudoPorEmbalagem);

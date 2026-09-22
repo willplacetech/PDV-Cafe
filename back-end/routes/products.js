@@ -409,9 +409,6 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     const data = req.body;
     const produtoAtual = await Product.findById(req.params.id).select('tipo usavelEmReceita aFazer fichaTecnica tipoProduto producaoPropria estoque codigo');
     if (!produtoAtual) return res.status(404).json({ msg: 'Produto não encontrado' });
-    if ((produtoAtual.tipo === 'insumo' || produtoAtual.usavelEmReceita) && ['precoCompra', 'custo', 'custoUnitario', 'conteudoPorEmbalagem', 'unidadeConteudo'].some((campo) => data[campo] !== undefined)) {
-      return res.status(403).json({ msg: 'Custo e conteúdo de insumo só podem ser alterados por uma compra' });
-    }
     const tipo = resolverTipoProduto({ ...data, tipo: data.tipo ?? undefined });
     const tipoProduto = tipo === 'venda' ? resolverTipoProdutoVenda({ ...produtoAtual.toObject(), ...data }) : null;
     if (data.codigo !== undefined && String(data.codigo).trim() !== String(produtoAtual.codigo).trim()) {
