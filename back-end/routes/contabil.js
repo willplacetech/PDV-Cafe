@@ -155,7 +155,7 @@ router.get('/dre', async (req, res) => {
     const ebit = dinheiro(lucroBruto - despesasOperacionais);
     const ebitda = dinheiro(ebit + depreciacao);
     const despesasFinanceiras = 0;
-    const lucroLiquido = dinheiro(ebit - despesasFinanceiras);
+    const lucroLiquido = dinheiro(ebit - despesasFinanceiras - impostos);
     const compras = dinheiro(comprasPeriodo.reduce((total, compra) => total + Number(compra.valorTotal || 0), 0));
 
     res.json({
@@ -213,7 +213,7 @@ router.get('/fluxo-caixa', async (req, res) => {
     for (const despesa of despesas) {
       const data = new Date(despesa.dataPagamento);
       if (data < inicio || data >= fim) continue;
-      const chave = data.toISOString().slice(0, 10);
+      const chave = chaveDataSaoPaulo(data);
       saidasPorDia.set(chave, (saidasPorDia.get(chave) || 0) + Number(despesa.valor || 0));
     }
 
