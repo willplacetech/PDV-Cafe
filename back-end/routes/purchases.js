@@ -49,7 +49,7 @@ router.post('/', [
   body('itens').isArray({ min: 1 }),
   body('itens.*.produtoId').isMongoId(),
   body('itens.*.valorTotal').isFloat({ min: 0.000001 }),
-  body('itens.*.qtdEmbalagens').isFloat({ min: 0.000001 }),
+  body('itens.*.qtdEmbalagens').isInt({ min: 1 }),
   body('itens.*.conteudoPorEmbalagem').isFloat({ min: 0.000001 }),
   body('itens.*.unidadeConteudo').isIn(units),
 ], async (req, res) => {

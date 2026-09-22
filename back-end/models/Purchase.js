@@ -8,7 +8,7 @@ const PurchaseItemSchema = new mongoose.Schema({
   unidade: { type: String, enum: UNIDADES_PERMITIDAS, set: normalizarUnidade },
   rendimento: { type: Number, min: [0.01, 'Rendimento deve ser maior ou igual a 0,01'], default: null },
   valorTotal: { type: Number, required: true, min: [0.000001, 'Valor total deve ser maior que zero'] },
-  qtdEmbalagens: { type: Number, required: true, min: [0.000001, 'Quantidade de embalagens deve ser maior que zero'] },
+  qtdEmbalagens: { type: Number, required: true, min: [1, 'Quantidade de embalagens deve ser pelo menos 1'], validate: { validator: Number.isInteger, message: 'Quantidade de embalagens deve ser inteira' } },
   conteudoPorEmbalagem: { type: Number, required: true, min: [0.000001, 'Conteúdo por embalagem deve ser maior que zero'] },
   unidadeConteudo: { type: String, enum: UNIDADES_PERMITIDAS, required: true, set: normalizarUnidade },
   quantidadeTotal: { type: Number, required: true, min: [0.000001, 'Quantidade total deve ser maior que zero'] },

@@ -5,7 +5,7 @@ import { useToast } from '../components/Toast.jsx';
 const units = ['kg', 'L', 'un'];
 const decimalStep = (unit) => unit === 'un' ? '0.01' : '0.001';
 const decimalMinimum = (unit) => unit === 'un' ? 0.01 : 0.001;
-const newItem = () => ({ produtoId: '', valorTotal: '', qtdEmbalagens: '', conteudoPorEmbalagem: '', unidadeConteudo: 'un' });
+const newItem = () => ({ produtoId: '', valorTotal: '', qtdEmbalagens: '1', conteudoPorEmbalagem: '', unidadeConteudo: 'un' });
 const today = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -14,7 +14,7 @@ const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { mini
 const number = (value) => Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
 const formatQuantidade = (valor, unidade) => `${Number(valor || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${unidade}`;
 const formatCustoUnitario = (valor, unidade) => `R$ ${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/${unidade}`;
-const newSupply = () => ({ nome: '', precoCompra: '', conteudoPorEmbalagem: '1', unidadeConteudo: 'un' });
+const newSupply = () => ({ tipoProduto: 'insumo', nome: '', precoCompra: '', precoVenda: '', conteudoPorEmbalagem: '1', unidadeConteudo: 'un', estoqueEmbalagens: '0', rendimentoPorReceita: '1' });
 const getInsumoMeta = (produto = {}) => {
   const unidadeConteudo = produto.unidadeConteudo || 'un';
   const unidadeCompra = produto.unidadeCompra || unidadeConteudo;
@@ -91,11 +91,14 @@ export default function Purchases() {
   const saveSupply = async (event) => {
     event.preventDefault();
     const nome = supplyForm.nome.trim();
+    const tipoProduto = supplyForm.tipoProduto || 'insumo';
     const precoCompra = Number(supplyForm.precoCompra);
+    const precoVenda = Number(supplyForm.precoVenda);
     const conteudoPorEmbalagem = Number(supplyForm.conteudoPorEmbalagem);
 
     if (!nome) return showToast('Informe o nome do insumo', 'warning');
-    if (!Number.isFinite(precoCompra) || precoCompra <= 0) return showToast('Informe um preço de compra maior que zero', 'warning');
+    if (tipoProduto === 'insumo' && (!Number.isFinite(precoCompra) || precoCompra <= 0)) return showToast('Informe um preço de compra maior que zero', 'warning');
+    if (tipoProduto !== 'insumo' && (!Number.isFinite(precoVenda) || precoVenda < 0)) return showToast('Informe um preço de venda válido', 'warning');
     if (!Number.isFinite(conteudoPorEmbalagem) || conteudoPorEmbalagem <= 0) return showToast('Informe o conteúdo por embalagem', 'warning');
 
     const produtoExistente = products.find((product) => String(product.nome || '').trim().toLowerCase() === nome.toLowerCase());
@@ -118,19 +121,31 @@ export default function Purchases() {
       const response = await api.post('/products', {
         codigo,
         nome,
-        tipo: 'insumo',
-        categoria: 'Insumos',
-        preco: 0,
-        precoCompra,
+        tipo: tipoProduto === 'insumo' ? 'insumo' : 'venda',
+        tipoProduto: tipoProduto === 'insumo' ? undefined : tipoProduto,
+        aFazer: tipoProduto === 'coz',
+        producaoPropria: tipoProduto === 'producao',
+        categoria: tipoProduto === 'insumo' ? 'Insumos' : (tipoProduto === 'coz' ? 'Pratos na Hora' : 'Outros'),
+        preco: tipoProduto === 'insumo' ? 0 : precoVenda,
+        precoCompra: tipoProduto === 'insumo' ? precoCompra : undefined,
         conteudoPorEmbalagem,
         unidadeConteudo,
         unidadeCompra: unidadeConteudo,
         custoUnitarioBase,
+        estoque: tipoProduto === 'coz' ? 0 : Number(supplyForm.estoqueEmbalagens || 0),
+        estoqueEmbalagens: tipoProduto === 'insumo' ? Number(supplyForm.estoqueEmbalagens || 0) : undefined,
+        rendimentoPorReceita: tipoProduto === 'producao' ? Number(supplyForm.rendimentoPorReceita || 1) : 1,
         usavelEmReceita: true,
         ativo: true,
       });
       const newProduct = response.data;
       setProducts((current) => [...current, newProduct].sort((a, b) => a.nome.localeCompare(b.nome)));
+      if (tipoProduto !== 'insumo') {
+        setSupplyModalOpen(false);
+        setSupplyTargetIndex(null);
+        showToast(`${nome} cadastrado. Produtos que não são insumos não entram como item de compra.`, 'success');
+        return;
+      }
       const fallbackIndex = supplyTargetIndex ?? form.itens.findIndex((item) => !item.produtoId);
       const targetIndex = fallbackIndex >= 0 ? fallbackIndex : 0;
       updateItem(targetIndex, 'produtoId', newProduct._id);
@@ -183,7 +198,7 @@ export default function Purchases() {
         return <div className="purchase-item" key={`purchase-item-${index}`}>
           <label className="purchase-product-field">Produto comprado<div className="purchase-product-input-group"><select required value={item.produtoId} onChange={(event) => updateItem(index, 'produtoId', event.target.value)}><option value="">Selecione</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} [{product.tipo === 'insumo' ? 'Insumo' : 'Revenda'}]</option>)}</select><button type="button" className="secondary purchase-new-supply-button" onClick={() => openSupplyModal(index)}>➕ Novo Produto</button></div></label>
           <label>Valor total<input required type="number" min="0.01" step="0.01" value={item.valorTotal} onChange={(event) => updateItem(index, 'valorTotal', event.target.value)} /></label>
-          <label>Qtd. embalagens<input required type="number" min="0.000001" step="0.001" value={item.qtdEmbalagens} onChange={(event) => updateItem(index, 'qtdEmbalagens', event.target.value)} /></label>
+          <label>Qtd. embalagens<input required type="number" min="1" step="1" value={item.qtdEmbalagens} onChange={(event) => updateItem(index, 'qtdEmbalagens', event.target.value)} /></label>
           <label>Quantidade<input required type="number" min={decimalMinimum(item.unidadeConteudo)} step={decimalStep(item.unidadeConteudo)} value={item.conteudoPorEmbalagem} onChange={(event) => updateItem(index, 'conteudoPorEmbalagem', event.target.value)} /></label>
           <label>Unidade<select required value={item.unidadeConteudo} onChange={(event) => updateItem(index, 'unidadeConteudo', event.target.value)}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></label>
           <div className="purchase-calculation"><span>Total: <strong>{formatQuantidade(total, unidadeExibicao)}</strong></span><span>Custo unitario: <strong>{formatCustoUnitario(valorUnitario, unidadeExibicao)}</strong></span></div>
@@ -197,10 +212,13 @@ export default function Purchases() {
       <form onSubmit={saveSupply} className="purchase-supply-modal" role="dialog" aria-modal="true" aria-labelledby="new-supply-title">
         <div className="purchase-supply-modal-header"><div><h2 id="new-supply-title">➕ Novo Produto</h2><p>Cadastre o insumo e continue o lançamento da compra.</p></div><button type="button" className="purchase-supply-button purchase-supply-close" onClick={() => setSupplyModalOpen(false)} aria-label="Fechar modal">×</button></div>
         <div className="purchase-supply-grid">
+          <label className="purchase-supply-field full">Tipo de produto<select value={supplyForm.tipoProduto} onChange={(event) => setSupplyForm({ ...supplyForm, tipoProduto: event.target.value })}><option value="insumo">Insumo</option><option value="revenda">Revenda</option><option value="coz">Coz — preparado na hora</option><option value="producao">Produção própria — lote</option></select></label>
           <label className="purchase-supply-field full">Nome *<input required value={supplyForm.nome} onChange={(event) => setSupplyForm({ ...supplyForm, nome: event.target.value })} placeholder="Ex.: Farinha de trigo" /></label>
-          <label className="purchase-supply-field">Preço de compra (R$) *<input required type="number" min="0.01" step="0.01" value={supplyForm.precoCompra} onChange={(event) => setSupplyForm({ ...supplyForm, precoCompra: event.target.value })} /></label>
+          {supplyForm.tipoProduto === 'insumo' ? <label className="purchase-supply-field">Preço de compra (R$) *<input required type="number" min="0.01" step="0.01" value={supplyForm.precoCompra} onChange={(event) => setSupplyForm({ ...supplyForm, precoCompra: event.target.value })} /></label> : <label className="purchase-supply-field">Preço de venda (R$) *<input required type="number" min="0" step="0.01" value={supplyForm.precoVenda} onChange={(event) => setSupplyForm({ ...supplyForm, precoVenda: event.target.value })} /></label>}
           <label className="purchase-supply-field">Conteúdo da embalagem *<input required type="number" min="0.001" step="0.001" value={supplyForm.conteudoPorEmbalagem} onChange={(event) => setSupplyForm({ ...supplyForm, conteudoPorEmbalagem: event.target.value })} /></label>
-          <label className="purchase-supply-field">Categoria<input value="Insumos" readOnly /></label>
+          <label className="purchase-supply-field">Estoque inicial (embalagens)<input type="number" min="0" step="1" value={supplyForm.estoqueEmbalagens} onChange={(event) => setSupplyForm({ ...supplyForm, estoqueEmbalagens: event.target.value })} /></label>
+          {supplyForm.tipoProduto === 'producao' && <label className="purchase-supply-field">Rendimento por receita<input required type="number" min="1" step="1" value={supplyForm.rendimentoPorReceita} onChange={(event) => setSupplyForm({ ...supplyForm, rendimentoPorReceita: event.target.value })} /></label>}
+          <label className="purchase-supply-field">Categoria<input value={supplyForm.tipoProduto === 'insumo' ? 'Insumos' : supplyForm.tipoProduto === 'coz' ? 'Pratos na Hora' : 'Outros'} readOnly /></label>
           <label className="purchase-supply-field">Unidade<select value={supplyForm.unidadeConteudo} onChange={(event) => setSupplyForm({ ...supplyForm, unidadeConteudo: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></label>
         </div>
         <div className="purchase-supply-note">⚠️ Campos completos como estoque mínimo, marca e demais dados do produto podem ser editados depois em Cadastro → Insumos.</div>
