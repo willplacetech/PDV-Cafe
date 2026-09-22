@@ -237,7 +237,7 @@ export default function Products() {
       setEditing(null);
       carregar();
     } catch (error) {
-      const validationMessage = error.response?.data?.errors?.map((item) => item.msg).join('; ');
+      const validationMessage = error.response?.data?.errors?.map((item) => `${item.path || 'campo'}: ${item.msg}`).join('; ');
       showToast(error.response?.data?.error || error.response?.data?.msg || validationMessage || '❌ Não foi possível salvar o produto', 'error');
     }
   };
