@@ -236,12 +236,28 @@ router.get('/dashboard', async (req, res) => {
   try {
     const [products, recipes, recentProductions, lowStock] = await Promise.all([
       Product.find({ $or: [{ tipo: 'insumo' }, { tipo: 'venda', usavelEmReceita: true }] }).select('nome codigo tipo usavelEmReceita estoque estoqueInsumos estoqueEmbalagens estoqueConteudoAberto estoqueMinimoInsumos estoqueMinimoEmbalagens unidadeCompra unidadeConteudo conteudoPorEmbalagem unidadeVenda'),
-      Recipe.find({ ativa: true }).populate('produtoId', 'nome estoque unidadeVenda').populate('ingredientes.produtoId', 'nome estoqueInsumos estoqueEmbalagens estoqueConteudoAberto unidadeConteudo conteudoPorEmbalagem'),
+      Recipe.find({ ativa: true }).populate('produtoId', 'nome estoque unidadeVenda tipoProduto aFazer producaoPropria').populate('ingredientes.produtoId', 'nome estoqueInsumos estoqueEmbalagens estoqueConteudoAberto unidadeConteudo conteudoPorEmbalagem'),
       Production.find().sort({ createdAt: -1 }).limit(10),
       Product.find({ $or: [{ tipo: 'insumo', $expr: { $lte: ['$estoqueEmbalagens', { $ifNull: ['$estoqueMinimoEmbalagens', '$estoqueMinimoInsumos'] }] } }, { tipo: 'venda', usavelEmReceita: true, $expr: { $lte: ['$estoque', { $ifNull: ['$estoqueMinimo', 0] }] } }] }).select('nome codigo tipo usavelEmReceita estoque estoqueInsumos estoqueEmbalagens estoqueConteudoAberto estoqueMinimoInsumos estoqueMinimoEmbalagens unidadeCompra unidadeConteudo conteudoPorEmbalagem unidadeVenda'),
     ]);
     const formatNumber = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
     const possible = recipes.map((recipe) => {
+      const tipoProduto = recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : recipe.produtoId?.producaoPropria ? 'producao' : 'revenda');
+      if (tipoProduto === 'producao') {
+        const estoqueAtual = Number(recipe.produtoId?.estoque || 0);
+        return {
+          receitaId: recipe._id,
+          receitaNome: recipe.nome,
+          produtoNome: recipe.produtoId?.nome,
+          tipoProduto,
+          producoesPossiveis: estoqueAtual,
+          rendimentoPorProducao: recipe.rendimento,
+          unidade: recipe.unidadeRendimento,
+          estoqueProduto: estoqueAtual,
+          unidadesProntas: estoqueAtual,
+          calculo: `Estoque atual: ${formatNumber(estoqueAtual)} ${recipe.unidadeRendimento}. Faça nova fornada quando necessário.`,
+        };
+      }
       const ingredienteLimite = recipe.ingredientes
         .filter((item) => item.produtoId && Number(item.quantidade || 0) > 0)
         .map((item) => {
@@ -261,6 +277,7 @@ router.get('/dashboard', async (req, res) => {
         receitaId: recipe._id,
         receitaNome: recipe.nome,
         produtoNome: recipe.produtoId?.nome,
+        tipoProduto,
         producoesPossiveis,
         rendimentoPorProducao: recipe.rendimento,
         unidade: recipe.unidadeRendimento,
