@@ -306,9 +306,11 @@ export default function Products() {
     const tipoOk = filtroTipo === 'Todos' || (filtroTipo === 'Estoque de Venda' ? produto.tipo === 'venda' : produto.tipo === 'insumo');
     const categoriaOk = filtroCategoria === 'Todos' || (produto.categoria === filtroCategoria);
     const possuiFicha = fichas.some((ficha) => String(ficha.produtoId?._id || ficha.produtoId) === String(produto._id));
+    const fichaSelecionada = fichas.find((ficha) => String(ficha._id) === String(filtroFicha));
+    const ingredientesDaFicha = new Set((fichaSelecionada?.ingredientes || []).map((item) => String(item.produtoId?._id || item.produtoId)));
     const fichaOk = filtroFicha === 'Todos'
       || (filtroFicha === 'Sem ficha' && !possuiFicha)
-      || fichas.some((ficha) => String(ficha._id) === filtroFicha && String(ficha.produtoId?._id || ficha.produtoId) === String(produto._id));
+      || ingredientesDaFicha.has(String(produto._id));
     const textoOk = [produto.nome, produto.codigo].join(' ').toLowerCase().includes(filtroTexto.toLowerCase());
     return tipoOk && categoriaOk && fichaOk && textoOk;
   });
@@ -515,7 +517,7 @@ export default function Products() {
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>
               Selecionar ficha técnica
               <select value={filtroFicha} onChange={(event) => setFiltroFicha(event.target.value)} aria-label="Selecionar ficha técnica" style={{ minHeight: 40, minWidth: 220, borderRadius: 10, border: '1px solid var(--accent-border)', background: 'var(--accent-light)', color: 'var(--text-primary)', padding: '8px 10px', fontWeight: 700 }}>
-              <option value="Todos">Selecione ou veja todas</option>
+              <option value="Todos">Ficha técnica</option>
               <option value="Sem ficha">Sem ficha</option>
               {fichas.map((ficha) => <option key={ficha._id} value={ficha._id}>{ficha.produtoId?.nome || ficha.nome}</option>)}
               </select>
