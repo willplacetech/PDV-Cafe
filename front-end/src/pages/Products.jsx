@@ -516,9 +516,8 @@ export default function Products() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>
               Selecionar ficha técnica
-              <select className="product-filter-select product-filter-select-feature" value={filtroFicha} onChange={(event) => setFiltroFicha(event.target.value)} aria-label="Selecionar ficha técnica" style={{ minHeight: 40, minWidth: 220, borderRadius: 10, border: '1px solid var(--accent-border)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '8px 10px', fontWeight: 700 }}>
-              <option value="Todos">Ficha técnica</option>
-              <option value="Sem ficha">Sem ficha</option>
+              <select className="product-filter-select" value={filtroFicha} onChange={(event) => setFiltroFicha(event.target.value)} aria-label="Selecionar ficha técnica" style={{ minHeight: 40, borderRadius: 10, border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '8px 10px' }}>
+              
               {fichas.map((ficha) => <option key={ficha._id} value={ficha._id}>{ficha.produtoId?.nome || ficha.nome}</option>)}
               </select>
             </label>
