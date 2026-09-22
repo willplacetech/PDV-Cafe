@@ -424,8 +424,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     const deveAplicarConversao = tipo === 'venda' && rendimentoPorUnidadeCompra > 1 && unidadeCompra !== unidadeVenda;
     const fields = {};
     if (data.tipo !== undefined) fields.tipo = tipo;
-    if (tipo === 'insumo') fields.usavelEmReceita = true;
-    if (data.usavelEmReceita !== undefined && tipo === 'venda') fields.usavelEmReceita = Boolean(data.usavelEmReceita);
+    if (data.usavelEmReceita !== undefined) fields.usavelEmReceita = Boolean(data.usavelEmReceita);
     ['nome', 'categoria'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
     ['unidade', 'unidadeVenda', 'unidadeCompra', 'unidadeConteudo'].forEach((key) => { if (data[key] !== undefined) fields[key] = normalizarUnidade(data[key]); });
     ['preco', 'precoCompra', 'estoque', 'estoqueInsumos', 'estoqueEmbalagens', 'estoqueConteudoAberto', 'estoqueMaximo', 'estoqueMinimoInsumos', 'estoqueMinimoEmbalagens', 'pesoPorUnidade', 'rendimentoPorUnidadeCompra', 'conteudoPorEmbalagem', 'quantidade', 'rendimento'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
@@ -454,7 +453,6 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     }
     if (data.precoVenda !== undefined) fields.preco = Number(data.precoVenda);
     if (data.ativo !== undefined) fields.ativo = Boolean(data.ativo);
-    if (tipo === 'insumo' && !data.categoria) fields.categoria = 'Insumos';
     if (data.unidadePeso !== undefined) fields.unidadePeso = data.unidadePeso;
     if (data.estoque !== undefined || data.pesoPorUnidade !== undefined || data.unidadeVenda !== undefined || data.unidadePeso !== undefined) {
       const atual = await Product.findById(req.params.id).select('estoque pesoPorUnidade unidadeVenda unidadePeso').lean();
