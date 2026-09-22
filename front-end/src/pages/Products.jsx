@@ -190,11 +190,14 @@ export default function Products() {
       if (tipo === 'insumo' && Number(form.estoqueEmbalagens || 0) < 0) { showToast('⚠️ Quantidade de embalagens não pode ser negativa.', 'warning'); return; }
       if (!editing && (tipo === 'insumo' || form.usavelEmReceita) && (!form.precoCompra || Number(form.precoCompra) <= 0)) { showToast('⚠️ Preço de compra é obrigatório para produtos usados em receitas.', 'warning'); return; }
     }
+    const unidadeFormulario = form.unidade === 'l' ? 'L' : (units.includes(form.unidade) ? form.unidade : 'un');
+    const unidadeCompraFormulario = form.unidadeCompra === 'l' ? 'L' : (units.includes(form.unidadeCompra) ? form.unidadeCompra : unidadeFormulario);
+    const unidadeVendaFormulario = form.unidadeVenda === 'l' ? 'L' : (units.includes(form.unidadeVenda) ? form.unidadeVenda : 'un');
     const payload = {
       ...form,
       codigo: editing ? editing.codigo : form.codigo,
       tipo,
-      unidade: form.unidade || form.unidadeCompra || 'kg',
+      unidade: unidadeFormulario,
       quantidade: limparCampoNumerico(form.conteudoPorEmbalagem) ?? 1,
       rendimento: form.unidadeCompra !== form.unidadeVenda ? limparCampoNumerico(form.rendimentoPorUnidadeCompra) : undefined,
       tipoProduto: tipo === 'venda' ? form.tipoProduto : undefined,
@@ -216,8 +219,9 @@ export default function Products() {
       } : undefined,
       precoCompra: limparCampoNumerico(form.precoCompra) ?? 0,
       usavelEmReceita: tipo === 'insumo' || Boolean(form.usavelEmReceita),
-      unidadeVenda: form.unidadeVenda || 'un',
-      unidadeCompra: form.unidadeCompra || 'kg',
+      unidadeVenda: unidadeVendaFormulario,
+      unidadeCompra: unidadeCompraFormulario,
+      unidadeConteudo: unidadeFormulario,
       custoUnitario: limparCampoNumerico(form.custo) ?? 0,
       custo: limparCampoNumerico(form.custo) ?? 0,
       rendimentoPorUnidadeCompra: Number(form.rendimentoPorUnidadeCompra || 0),
