@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const auth = require('../middleware/auth');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
@@ -121,7 +122,7 @@ router.get('/dre', async (req, res) => {
       for (const item of pedido.itens || []) {
         const produtoId = String(item.produtoId || '');
         const quantidade = quantidadeNaUnidadeBase(item);
-        const produto = produtoId ? await Product.findById(produtoId).lean() : null;
+        const produto = mongoose.isValidObjectId(produtoId) ? await Product.findById(produtoId).lean() : null;
         const custoUnitario = Number(produto?.custoUnitario || produto?.custoUnitarioBase || 0);
         if (custoUnitario > 0) {
           cmv += quantidade * custoUnitario;

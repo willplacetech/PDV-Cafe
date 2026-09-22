@@ -35,7 +35,7 @@ export default function Financeiro() {
 
     const load = async () => {
       try {
-        const [despesasRes, resumoRes, fluxoRes, dreRes, comparacaoRes] = await Promise.all([
+        const [despesasResult, resumoResult, fluxoResult, dreResult, comparacaoResult] = await Promise.allSettled([
           api.get('/despesas'),
           api.get('/despesas/resumo', { params: { mes: mesSelecionado } }),
           api.get('/contabil/fluxo-caixa', { params: { mes: mesSelecionado } }),
@@ -43,11 +43,14 @@ export default function Financeiro() {
           api.get('/contabil/comparar-meses', { params: { mesA: mesComparacaoA, mesB: mesComparacaoB } }),
         ]);
 
-        setDespesas(despesasRes.data || []);
-        setResumo(resumoRes.data || { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
-        setFluxo(fluxoRes.data || { dados: [], totalEntradas: 0, totalSaidas: 0, saldoDoMes: 0 });
-        setDre(dreRes.data || { receitaBruta: 0, deducoes: 0, receitaLiquida: 0, taxasCartao: 0, cmv: 0, cmvFormula: '', cmvComponentes: {}, lucroBruto: 0, despesasOperacionais: 0, ebit: 0, depreciacaoAmortizacao: 0, ebitda: 0, despesasFinanceiras: 0, impostosEstimados: 0, lucroLiquido: 0, margemBruta: 0, margemLiquida: 0, despesasPorCategoria: {}, produtosSemCusto: [] });
-        setComparacao(comparacaoRes.data || { periodoA: null, periodoB: null });
+        const valueOf = (result, fallback) => result.status === 'fulfilled' ? (result.value.data || fallback) : fallback;
+        setDespesas(valueOf(despesasResult, []));
+        setResumo(valueOf(resumoResult, { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] }));
+        setFluxo(valueOf(fluxoResult, { dados: [], totalEntradas: 0, totalSaidas: 0, saldoDoMes: 0 }));
+        setDre(valueOf(dreResult, { receitaBruta: 0, deducoes: 0, receitaLiquida: 0, taxasCartao: 0, cmv: 0, cmvFormula: '', cmvComponentes: {}, lucroBruto: 0, despesasOperacionais: 0, ebit: 0, depreciacaoAmortizacao: 0, ebitda: 0, despesasFinanceiras: 0, impostosEstimados: 0, lucroLiquido: 0, margemBruta: 0, margemLiquida: 0, despesasPorCategoria: {}, produtosSemCusto: [] }));
+        setComparacao(valueOf(comparacaoResult, { periodoA: null, periodoB: null }));
+        const failed = [despesasResult, resumoResult, fluxoResult, dreResult, comparacaoResult].find((result) => result.status === 'rejected');
+        if (failed) showToast(failed.reason?.response?.data?.msg || 'Algum relatório financeiro não pôde ser carregado', 'error');
       } catch (error) {
         showToast(error.response?.data?.msg || 'Não foi possível carregar o financeiro', 'error');
       }
