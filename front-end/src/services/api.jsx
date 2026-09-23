@@ -3,6 +3,7 @@ import axios from 'axios';
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'https://pdv-cafe-api-willplacetech.onrender.com/api',
   withCredentials: true,
+  timeout: 15000,
 });
 
 api.interceptors.request.use((config) => {

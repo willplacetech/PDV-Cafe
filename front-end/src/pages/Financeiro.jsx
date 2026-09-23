@@ -169,6 +169,14 @@ export default function Financeiro() {
         </div>
       </header>
 
+      {carregando && (
+        <section className="financeiro-panel financeiro-loading" style={{ textAlign: 'center', padding: 40 }}>
+          <div style={{ display: 'inline-block', width: 32, height: 32, border: '3px solid var(--border-color)', borderTopColor: 'var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <p style={{ marginTop: 12, color: 'var(--text-secondary)' }}>Carregando dados financeiros...</p>
+        </section>
+      )}
+
       <nav className="dashboard-tabs financeiro-tabs">
         {[
           ['despesas', 'Contas a Pagar'],
