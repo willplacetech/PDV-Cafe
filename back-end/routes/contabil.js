@@ -8,6 +8,7 @@ const Recipe = require('../models/Recipe');
 const Despesa = require('../models/Despesa');
 const PaymentSettings = require('../models/PaymentSettings');
 const Purchase = require('../models/Purchase');
+const { calcularCustoUnitarioVenda } = require('../utils/estoqueInsumo');
 
 const router = express.Router();
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -108,9 +109,18 @@ router.get('/dre', async (req, res) => {
   try {
     const { inicio, fim } = getMesRange(req.query.mes || req.query.data || null);
     const [periodoVendas, comprasPeriodo] = await Promise.all([
-      Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $in: ['pago', 'parcial'] } }).lean(),
+      Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $in: ['pago', 'parcial'] } })
+        .select('total itens pagamentos')
+        .lean(),
       Purchase.find({ data: { $gte: inicio, $lt: fim } }).select('valorTotal').lean(),
     ]);
+
+    const produtoIds = [...new Set(periodoVendas.flatMap((pedido) => (pedido.itens || []).map((item) => String(item.produtoId || ''))))]
+      .filter((produtoId) => mongoose.isValidObjectId(produtoId));
+    const produtos = await Product.find({ _id: { $in: produtoIds } })
+      .select('nome tipoProduto custoUnitario custoUnitarioBase precoCompra unidade unidadeCompra unidadeVenda rendimento rendimentoPorUnidadeCompra')
+      .lean();
+    const produtoPorId = new Map(produtos.map((produto) => [String(produto._id), produto]));
 
     let receitaBruta = 0;
     let cmv = 0;
@@ -122,8 +132,10 @@ router.get('/dre', async (req, res) => {
       for (const item of pedido.itens || []) {
         const produtoId = String(item.produtoId || '');
         const quantidade = quantidadeNaUnidadeBase(item);
-        const produto = mongoose.isValidObjectId(produtoId) ? await Product.findById(produtoId).lean() : null;
-        const custoUnitario = Number(produto?.custoUnitario || produto?.custoUnitarioBase || 0);
+        const produto = produtoPorId.get(produtoId);
+        const custoUnitario = ['coz', 'producao'].includes(produto?.tipoProduto)
+          ? Number(produto?.custoUnitario || produto?.custoUnitarioBase || 0)
+          : calcularCustoUnitarioVenda(produto);
         if (custoUnitario > 0) {
           cmv += quantidade * custoUnitario;
         } else {
@@ -146,7 +158,12 @@ router.get('/dre', async (req, res) => {
       despesasPorCategoria[despesa.categoria] = dinheiro((despesasPorCategoria[despesa.categoria] || 0) + valor);
     }
 
-    const taxasCartao = periodoVendas.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((subtotal, pagamento) => subtotal + pagamentoTaxa(pagamento).taxa, 0), 0);
+    const taxasCartao = periodoVendas.reduce((total, pedido) => total + (pedido.pagamentos || [])
+      .filter((pagamento) => {
+        const data = new Date(pagamento.dataPagamento);
+        return data >= inicio && data < fim;
+      })
+      .reduce((subtotal, pagamento) => subtotal + pagamentoTaxa(pagamento).taxa, 0), 0);
 
     const depreciacao = Number(req.query.depreciacao || 0);
     const impostos = Number(req.query.impostos || 0);

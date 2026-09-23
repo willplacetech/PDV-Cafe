@@ -79,7 +79,7 @@ const deveAplicarConversaoRevenda = (produto = {}) => {
 };
 
 const calcularCustoUnitarioVenda = (produto = {}) => {
-  if (!deveAplicarConversaoRevenda(produto)) return Number(produto.custoUnitarioBase || 0);
+  if (!deveAplicarConversaoRevenda(produto)) return Number(produto.precoCompra || produto.custoUnitarioBase || 0);
   const prec = Number(produto.precoCompra ?? produto.preco ?? 0);
   const rendimento = Number(produto.rendimento ?? produto.rendimentoPorUnidadeCompra ?? 0);
   if (prec <= 0 || rendimento <= 0) return 0;

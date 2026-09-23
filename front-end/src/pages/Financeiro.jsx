@@ -35,41 +35,44 @@ export default function Financeiro() {
   useEffect(() => {
     if (!user || user.role !== 'admin') return;
 
+    let active = true;
     const load = async () => {
       setCarregando(true);
       setErroCarregamento('');
       try {
-        const [despesasResult, resumoResult, fluxoResult, dreResult, comparacaoResult] = await Promise.allSettled([
-          api.get('/despesas'),
-          api.get('/despesas/resumo', { params: { mes: mesSelecionado } }),
-          api.get('/contabil/fluxo-caixa', { params: { mes: mesSelecionado } }),
-          api.get('/contabil/dre', { params: { mes: mesSelecionado } }),
-          api.get('/contabil/comparar-meses', { params: { mesA: mesComparacaoA, mesB: mesComparacaoB } }),
-        ]);
-
-        const valueOf = (result, fallback) => result.status === 'fulfilled' ? (result.value.data || fallback) : fallback;
-        setDespesas(valueOf(despesasResult, []));
-        setResumo(valueOf(resumoResult, { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] }));
-        setFluxo(valueOf(fluxoResult, { dados: [], totalEntradas: 0, totalSaidas: 0, saldoDoMes: 0 }));
-        setDre(valueOf(dreResult, { receitaBruta: 0, deducoes: 0, receitaLiquida: 0, taxasCartao: 0, cmv: 0, cmvFormula: '', cmvComponentes: {}, lucroBruto: 0, despesasOperacionais: 0, ebit: 0, depreciacaoAmortizacao: 0, ebitda: 0, despesasFinanceiras: 0, impostosEstimados: 0, lucroLiquido: 0, margemBruta: 0, margemLiquida: 0, despesasPorCategoria: {}, produtosSemCusto: [] }));
-        setComparacao(valueOf(comparacaoResult, { periodoA: null, periodoB: null }));
-        const failed = [despesasResult, resumoResult, fluxoResult, dreResult, comparacaoResult].find((result) => result.status === 'rejected');
-        if (failed) {
-          const mensagem = failed.reason?.response?.data?.msg || 'Algum relatório financeiro não pôde ser carregado';
-          setErroCarregamento(mensagem);
-          showToast(mensagem, 'error');
+        if (tab === 'despesas') {
+          const [despesasResponse, resumoResponse] = await Promise.all([
+            api.get('/despesas'),
+            api.get('/despesas/resumo', { params: { mes: mesSelecionado } }),
+          ]);
+          if (active) {
+            setDespesas(despesasResponse.data || []);
+            setResumo(resumoResponse.data || { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
+          }
+        } else if (tab === 'fluxo') {
+          const response = await api.get('/contabil/fluxo-caixa', { params: { mes: mesSelecionado } });
+          if (active) setFluxo(response.data || { dados: [], totalEntradas: 0, totalSaidas: 0, saldoDoMes: 0 });
+        } else if (tab === 'dre') {
+          const response = await api.get('/contabil/dre', { params: { mes: mesSelecionado } });
+          if (active) setDre(response.data || { receitaBruta: 0, deducoes: 0, receitaLiquida: 0, taxasCartao: 0, cmv: 0, cmvFormula: '', cmvComponentes: {}, lucroBruto: 0, despesasOperacionais: 0, ebit: 0, depreciacaoAmortizacao: 0, ebitda: 0, despesasFinanceiras: 0, impostosEstimados: 0, lucroLiquido: 0, margemBruta: 0, margemLiquida: 0, despesasPorCategoria: {}, produtosSemCusto: [] });
+        } else {
+          const response = await api.get('/contabil/comparar-meses', { params: { mesA: mesComparacaoA, mesB: mesComparacaoB } });
+          if (active) setComparacao(response.data || { periodoA: null, periodoB: null });
         }
       } catch (error) {
         const mensagem = error.response?.data?.msg || 'Não foi possível carregar o financeiro';
-        setErroCarregamento(mensagem);
-        showToast(mensagem, 'error');
+        if (active) {
+          setErroCarregamento(mensagem);
+          showToast(mensagem, 'error');
+        }
       } finally {
-        setCarregando(false);
+        if (active) setCarregando(false);
       }
     };
 
     load();
-  }, [mesSelecionado, mesComparacaoA, mesComparacaoB, showToast, user]);
+    return () => { active = false; };
+  }, [mesSelecionado, mesComparacaoA, mesComparacaoB, showToast, tab, user]);
 
   const despesasFiltradas = useMemo(() => despesas.filter((despesa) => {
     const matchesStatus = !filtro.status || despesa.status === filtro.status;
