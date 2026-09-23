@@ -45,6 +45,11 @@ const ProductSchema = new mongoose.Schema({
     trim: true,
     index: true,
   },
+  ncm: {
+    type: String,
+    trim: true,
+    default: '',
+  },
   nome: {
     type: String,
     required: [true, 'Nome é obrigatório'],

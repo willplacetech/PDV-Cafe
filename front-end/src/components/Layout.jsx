@@ -43,7 +43,7 @@ const gruposMenu = [
     chave: 'financeiro',
     label: '💰 FINANCEIRO',
     items: [
-      { label: 'Fechamento de Caixa', icon: '💵', to: '/financeiro', admin: true },
+      { label: 'Fechamento de Caixa', icon: '💵', to: '/caixa', admin: true },
       { label: 'DRE / Demonstrativo', icon: '📊', to: '/financeiro', admin: true },
       { label: 'Relatórios', icon: '📈', to: '/financeiro', admin: true },
     ],

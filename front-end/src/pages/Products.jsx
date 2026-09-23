@@ -12,6 +12,7 @@ const decimalMinimum = (unidade) => unidade === 'un' ? 0.01 : 0.001;
 const vazio = {
   codigo: '',
   nome: '',
+  ncm: '',
   marcaReferencia: '',
   tipo: 'venda',
   unidade: 'kg',
@@ -272,6 +273,7 @@ export default function Products() {
     setForm({
       codigo: produto.codigo,
       nome: produto.nome,
+      ncm: produto.ncm || '',
       marcaReferencia: produto.marcaReferencia || '',
       tipo: produto.tipo || (produto.controladoComoInsumo ? 'insumo' : 'venda'),
       usavelEmReceita: Boolean(produto.usavelEmReceita),
@@ -377,6 +379,9 @@ export default function Products() {
               <label>Nome *
                 <input value={form.nome} required onChange={(event) => setForm({ ...form, nome: event.target.value })} />
               </label>
+              {form.tipo === 'venda' && <label>NCM <small>(opcional, padrão 21069090)</small>
+                <input inputMode="numeric" maxLength={8} value={form.ncm} onChange={(event) => setForm({ ...form, ncm: event.target.value.replace(/\D/g, '').slice(0, 8) })} />
+              </label>}
               {form.tipo === 'insumo' && <label>Marca/Referência <small>(opcional)</small>
                 <input value={form.marcaReferencia} onChange={(event) => setForm({ ...form, marcaReferencia: event.target.value })} />
               </label>}

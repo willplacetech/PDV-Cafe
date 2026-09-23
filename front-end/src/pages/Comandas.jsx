@@ -144,6 +144,7 @@ export default function Comandas() {
 
   // modal de sucesso pós-fechamento
   const [modalSucesso, setModalSucesso] = useState(null); // { pedido, comanda, telefone, nome }
+  const [nfceLoading, setNfceLoading] = useState(false);
 
   const { showToast } = useToast();
 
@@ -312,6 +313,29 @@ export default function Comandas() {
       } catch { /* mantém o envio do comprovante mesmo se o cadastro falhar */ }
     }
     await enviarWhatsApp(modalSucesso.pedido, modalSucesso.comanda, modalSucesso.telefone);
+  };
+
+  const emitirNfce = async () => {
+    if (!modalSucesso?.pedido?._id || nfceLoading) return;
+    setNfceLoading(true);
+    try {
+      const { data } = await api.post(`/fiscal/orders/${modalSucesso.pedido._id}/emitir`);
+      setModalSucesso((atual) => ({ ...atual, pedido: data.order || atual.pedido }));
+      showToast(data.avisos?.length ? `NFC-e autorizada com avisos: ${data.avisos.join('; ')}` : 'NFC-e autorizada', data.avisos?.length ? 'warning' : 'success');
+    } catch (error) {
+      const nfce = error.response?.data?.nfce;
+      if (nfce) setModalSucesso((atual) => ({ ...atual, pedido: { ...atual.pedido, nfce } }));
+      const faltantes = error.response?.data?.faltantes || [];
+      const mensagem = error.response?.data?.msg || 'Não foi possível emitir a NFC-e';
+      showToast(faltantes.length ? `${mensagem}: ${faltantes.join(', ')}` : mensagem, error.response?.status === 409 ? 'warning' : 'error');
+    } finally {
+      setNfceLoading(false);
+    }
+  };
+
+  const abrirDanfe = () => {
+    const pdf = modalSucesso?.pedido?.nfce?.danfePdf;
+    if (pdf) window.open(`data:application/pdf;base64,${pdf}`, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -568,6 +592,11 @@ export default function Comandas() {
             <p style={{ margin: '0 0 20px', fontSize: 22, fontWeight: 800, color: 'var(--accent-primary)' }}>
               {formatMoney(modalSucesso.pedido.total)}
             </p>
+            <div style={{ marginBottom: 18, padding: 12, borderRadius: 10, background: modalSucesso.pedido.nfce?.status === 'autorizada' ? 'rgba(16,185,129,.1)' : 'var(--bg-tertiary)', textAlign: 'left' }}>
+              <strong>NFC-e: {modalSucesso.pedido.nfce?.status === 'autorizada' ? 'Autorizada' : modalSucesso.pedido.nfce?.status === 'rejeitada' ? 'Rejeitada' : 'Não emitida'}</strong>
+              {modalSucesso.pedido.nfce?.mensagemSeErro && <small style={{ display: 'block', marginTop: 5, color: 'var(--text-secondary)' }}>{modalSucesso.pedido.nfce.mensagemSeErro}</small>}
+              {modalSucesso.pedido.nfce?.chaveAcesso && <small style={{ display: 'block', marginTop: 5, wordBreak: 'break-all', color: 'var(--text-secondary)' }}>Chave: {modalSucesso.pedido.nfce.chaveAcesso}</small>}
+            </div>
 
             {/* campo de telefone no modal de sucesso (se não preencheu antes) */}
             {!modalSucesso.telefone && (
@@ -602,6 +631,10 @@ export default function Comandas() {
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--border-light)', paddingTop: 18 }}>
+              <button type="button" onClick={emitirNfce} disabled={nfceLoading} style={{ width: '100%', padding: '13px', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: nfceLoading ? 'wait' : 'pointer', minHeight: 50 }}>
+                {nfceLoading ? '⏳ Emitindo NFC-e...' : modalSucesso.pedido.nfce?.status === 'autorizada' ? '✅ NFC-e autorizada' : '🧾 Emitir NFC-e'}
+              </button>
+              {modalSucesso.pedido.nfce?.danfePdf && <button type="button" onClick={abrirDanfe} style={{ width: '100%', padding: '13px', background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 50 }}>📄 Abrir DANFE PDF</button>}
               <button onClick={() => imprimirCupom(modalSucesso.pedido, modalSucesso.comanda)}
                 style={{ width: '100%', padding: '13px', background: 'var(--brand-brown, #7c4b1e)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
                 🖨️ Imprimir Cupom

@@ -18,6 +18,7 @@ import Production from './pages/Production.jsx';
 import Purchases from './pages/Purchases.jsx';
 import Kitchen from './pages/Kitchen.jsx';
 import Financeiro from './pages/Financeiro.jsx';
+import Caixa from './pages/Caixa.jsx';
 
 
 export default function App() {
@@ -47,6 +48,7 @@ export default function App() {
                     <Route path="/producao" element={<Production />} />
                     <Route path="/compras" element={<Purchases />} />
                     <Route path="/financeiro" element={<Financeiro />} />
+                    <Route path="/caixa" element={<Caixa />} />
                   </Route>
                   <Route element={<RoleRoute roles={['admin', 'cozinha']} />}>
                     <Route path="/producao/fichas" element={<Navigate to="/producao?tab=fichas" replace />} />

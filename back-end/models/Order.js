@@ -49,6 +49,18 @@ const pagamentoSchema = new mongoose.Schema({
   }
 });
 
+const nfceSchema = new mongoose.Schema({
+  status: { type: String, enum: ['nao_emitida', 'autorizada', 'rejeitada', 'cancelada'], default: 'nao_emitida' },
+  numero: String,
+  serie: String,
+  chaveAcesso: String,
+  protocolo: String,
+  xml: String,
+  danfePdf: String,
+  mensagemSeErro: String,
+  dataEmissao: Date,
+}, { _id: false });
+
 const orderSchema = new mongoose.Schema({
   numero: { type: String, unique: true },
   itens: [itemSchema],
@@ -68,6 +80,7 @@ const orderSchema = new mongoose.Schema({
   },
   
   pagamentos: [pagamentoSchema],
+  nfce: { type: nfceSchema, default: () => ({}) },
   
   atendente: { type: String, required: true },
   observacao: String,
