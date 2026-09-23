@@ -13,7 +13,14 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (res) => res,
-  (err) => Promise.reject(err)
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('pdv_token');
+      localStorage.removeItem('pdv_user');
+      if (window.location.pathname !== '/login') window.location.assign('/login');
+    }
+    return Promise.reject(err);
+  }
 );
 
 export default api;

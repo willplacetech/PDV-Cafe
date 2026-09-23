@@ -28,12 +28,16 @@ export default function Financeiro() {
   const [mesSelecionado, setMesSelecionado] = useState(new Date().toISOString().slice(0, 7));
   const [filtro, setFiltro] = useState({ status: '', categoria: '', dataInicio: '', dataFim: '' });
   const [form, setForm] = useState({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
+  const [carregando, setCarregando] = useState(true);
+  const [erroCarregamento, setErroCarregamento] = useState('');
   const { showToast } = useToast();
 
   useEffect(() => {
     if (!user || user.role !== 'admin') return;
 
     const load = async () => {
+      setCarregando(true);
+      setErroCarregamento('');
       try {
         const [despesasResult, resumoResult, fluxoResult, dreResult, comparacaoResult] = await Promise.allSettled([
           api.get('/despesas'),
@@ -50,9 +54,17 @@ export default function Financeiro() {
         setDre(valueOf(dreResult, { receitaBruta: 0, deducoes: 0, receitaLiquida: 0, taxasCartao: 0, cmv: 0, cmvFormula: '', cmvComponentes: {}, lucroBruto: 0, despesasOperacionais: 0, ebit: 0, depreciacaoAmortizacao: 0, ebitda: 0, despesasFinanceiras: 0, impostosEstimados: 0, lucroLiquido: 0, margemBruta: 0, margemLiquida: 0, despesasPorCategoria: {}, produtosSemCusto: [] }));
         setComparacao(valueOf(comparacaoResult, { periodoA: null, periodoB: null }));
         const failed = [despesasResult, resumoResult, fluxoResult, dreResult, comparacaoResult].find((result) => result.status === 'rejected');
-        if (failed) showToast(failed.reason?.response?.data?.msg || 'Algum relatório financeiro não pôde ser carregado', 'error');
+        if (failed) {
+          const mensagem = failed.reason?.response?.data?.msg || 'Algum relatório financeiro não pôde ser carregado';
+          setErroCarregamento(mensagem);
+          showToast(mensagem, 'error');
+        }
       } catch (error) {
-        showToast(error.response?.data?.msg || 'Não foi possível carregar o financeiro', 'error');
+        const mensagem = error.response?.data?.msg || 'Não foi possível carregar o financeiro';
+        setErroCarregamento(mensagem);
+        showToast(mensagem, 'error');
+      } finally {
+        setCarregando(false);
       }
     };
 
@@ -68,6 +80,8 @@ export default function Financeiro() {
   }), [despesas, filtro]);
 
   if (!user || user.role !== 'admin') return <Navigate to="/pdv" replace />;
+
+  if (carregando) return <><AreaTabs area="dashboard" /><div className="financeiro-page"><section className="financeiro-panel financeiro-state"><h2>Carregando financeiro...</h2><p>Consultando despesas, caixa e DRE.</p></section></div></>;
 
   const salvarDespesa = async (event) => {
     event.preventDefault();
@@ -139,6 +153,7 @@ export default function Financeiro() {
     <>
       <AreaTabs area="dashboard" />
       <div className="financeiro-page">
+      {erroCarregamento && <section className="financeiro-panel financeiro-error"><strong>Não foi possível carregar todos os dados.</strong><span>{erroCarregamento}</span><button type="button" onClick={() => window.location.reload()}>Tentar novamente</button></section>}
       <header className="page-heading financeiro-header">
         <div>
           <span className="dashboard-eyebrow">MÓDULO FINANCEIRO</span>
@@ -547,6 +562,34 @@ export default function Financeiro() {
           padding: 18px;
           box-shadow: var(--shadow-sm);
           margin-top: 16px;
+        }
+
+        .financeiro-state,
+        .financeiro-error {
+          display: grid;
+          gap: 8px;
+        }
+
+        .financeiro-state p,
+        .financeiro-error span {
+          color: var(--text-secondary);
+          font-size: 13px;
+        }
+
+        .financeiro-error {
+          border-color: rgba(220, 38, 38, .35);
+        }
+
+        .financeiro-error button {
+          width: fit-content;
+          min-height: 38px;
+          padding: 8px 12px;
+          border: 0;
+          border-radius: 8px;
+          background: var(--accent-primary);
+          color: #fff;
+          font-weight: 700;
+          cursor: pointer;
         }
 
         .filters-grid {
