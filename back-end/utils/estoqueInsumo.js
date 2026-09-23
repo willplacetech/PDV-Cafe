@@ -178,6 +178,93 @@ const ajustarEstoque = (produto, deltaEmbalagens) => {
   };
 };
 
+/**
+ * Calcula o custo unitário de um produto a partir da ficha técnica
+ * @param {Array} fichaTecnica - Array de ingredientes [{produtoId, quantidade, unidade}]
+ * @returns {Object} { custoTotal, detalhes: [{nome, quantidade, unidade, custoUnitarioBase, custoItem, disponivel, faltante}] }
+ */
+const calcularCustoDaFichaTecnica = async (fichaTecnica) => {
+  if (!Array.isArray(fichaTecnica) || fichaTecnica.length === 0) {
+    return { custoTotal: 0, detalhes: [], fonte: 'indisponivel', mensagem: 'Sem ficha técnica cadastrada' };
+  }
+
+  const Product = require('../models/Product');
+  const itensValidos = fichaTecnica.filter((item) => item.produtoId && Number.isFinite(Number(item.quantidade)) && Number(item.quantidade) > 0);
+  const ids = [...new Set(itensValidos.map((item) => String(item.produtoId)))];
+  const insumos = await Product.find({ _id: { $in: ids } })
+    .select('nome precoCompra custoUnitarioBase unidadeCompra unidadeConteudo conteudoPorEmbalagem tipo usavelEmReceita estoqueInsumos estoqueEmbalagens estoqueConteudoAberto')
+    .lean();
+  const insumosPorId = new Map(insumos.map((insumo) => [String(insumo._id), insumo]));
+  const detalhes = [];
+  let custoTotal = 0;
+  let todosDisponiveis = true;
+  let algumIndisponivel = itensValidos.length !== fichaTecnica.length;
+
+  for (const item of itensValidos) {
+    const insumo = insumosPorId.get(String(item.produtoId));
+    
+    if (!insumo) {
+      detalhes.push({
+        produtoId: item.produtoId,
+        nome: 'Insumo não encontrado',
+        quantidade: item.quantidade,
+        unidade: item.unidade,
+        custoUnitarioBase: null,
+        custoItem: null,
+        disponivel: false,
+        faltante: true,
+        status: 'erro',
+      });
+      todosDisponiveis = false;
+      algumIndisponivel = true;
+      continue;
+    }
+
+    // Calcular custo unitário base do insumo usando funções locais
+    const resumo = calcularResumoCompleto(insumo);
+    const custoUnitarioBase = Number(resumo.custoUnitarioBase || 0);
+    
+    // Converter quantidade para unidade base
+    const quantidadeBase = paraBase(Number(item.quantidade), item.unidade);
+    const custoItem = custoUnitarioBase > 0 ? quantidadeBase * custoUnitarioBase : null;
+    if (custoItem === null) algumIndisponivel = true;
+    else custoTotal += custoItem;
+
+    const temEstoque = (resumo.totalBase || 0) > 0;
+    if (!temEstoque) todosDisponiveis = false;
+    if (custoUnitarioBase <= 0) algumIndisponivel = true;
+
+    detalhes.push({
+      produtoId: insumo._id,
+      nome: insumo.nome,
+      quantidade: item.quantidade,
+      unidade: item.unidade,
+      quantidadeBase,
+      custoUnitarioBase,
+      custoItem,
+      disponivel: temEstoque,
+      faltante: !temEstoque,
+      status: custoUnitarioBase <= 0 ? 'sem_preco' : (temEstoque ? 'ok' : 'sem_estoque'),
+    });
+  }
+
+  let fonte = 'insumo';
+  let mensagem = '';
+  if (detalhes.length === 0) {
+    fonte = 'indisponivel';
+    mensagem = 'Sem ficha técnica ou ingredientes inválidos';
+  } else if (algumIndisponivel) {
+    fonte = 'indisponivel';
+    mensagem = 'Alguns insumos não têm preço de compra cadastrado';
+  } else if (!todosDisponiveis) {
+    mensagem = 'Atenção: algum insumo está em falta no estoque';
+  } else {
+    mensagem = 'Custo calculado com sucesso';
+  }
+
+  return { custoTotal, detalhes, fonte, mensagem };
+};
+
 const reporInsumo = (produto, quantidade, unidade) => {
   const quantidadeBase = paraBase(quantidade, unidade);
   const conteudoEmbalagem = conteudoPorEmbalagemBase(produto);
@@ -259,4 +346,5 @@ module.exports = {
   consumirInsumo,
   reporInsumo,
   ajustarEstoque,
+  calcularCustoDaFichaTecnica,
 };

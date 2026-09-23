@@ -103,8 +103,14 @@ export default function FichasTecnicas({ embedded = false }) {
       const produto = recipeProducts.find((item) => String(item._id) === String(recipeForm.produtoId));
       const tipoProduto = tipoDoProduto(produto);
       const payload = { ...recipeForm, rendimento: tipoProduto === 'coz' ? 1 : Number(recipeForm.rendimento), ingredientes: recipeForm.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })) };
-      if (editingId) await api.put(`/production/recipes/${editingId}`, payload);
-      else await api.post('/production/recipes', payload);
+      const salvar = (dados) => editingId ? api.put(`/production/recipes/${editingId}`, dados) : api.post('/production/recipes', dados);
+      try {
+        await salvar(payload);
+      } catch (error) {
+        const divergencia = error.response?.data?.divergencia;
+        if (!editingId || !error.response?.data?.requireConfirmation || !divergencia || !window.confirm(`${error.response.data.msg}\n\n${divergencia.mensagem}\n\nDeseja salvar mesmo assim?`)) throw error;
+        await salvar({ ...payload, confirmarDivergenciaCusto: true });
+      }
       showToast(editingId ? 'Ficha atualizada' : 'Ficha criada', 'success');
       setEditingId(null); setRecipeForm(emptyRecipe); await load();
     } catch (error) { showToast(error.response?.data?.msg || 'Não foi possível salvar a ficha', 'error'); }

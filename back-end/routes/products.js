@@ -10,13 +10,26 @@ const Recipe = require('../models/Recipe');
 const { pesoPorUnidadeEmKg } = require('../utils/pesoProduto');
 const { dadosEstoqueProduto, normalizarEstoqueLegado, produtoControlaPeso } = require('../utils/estoqueProduto');
 const { resolverTipoProduto } = require('../utils/produtoTipo');
-const { calcularResumoCompleto, calcularCustoUnitarioBase, calcularEstoqueMinimoBase, estoqueTotalBase, paraBase, custoPorBase } = require('../utils/estoqueInsumo');
+const { calcularResumoCompleto, calcularCustoUnitarioBase, calcularEstoqueMinimoBase, estoqueTotalBase, paraBase, custoPorBase, calcularCustoDaFichaTecnica } = require('../utils/estoqueInsumo');
 const { normalizarDescontos } = require('../utils/descontosQuantidade');
 const { UNIDADES_PERMITIDAS, normalizarUnidade, casasDecimaisValidas } = require('../utils/unidades');
+const { enfileirarRecalculoPorInsumo } = require('../utils/filaCusto');
 
 const router = express.Router();
 const units = UNIDADES_PERMITIDAS;
 const compraUnits = UNIDADES_PERMITIDAS;
+const camposCustoCalculado = (resultado, divisor = 1) => {
+  const disponivel = resultado?.fonte === 'insumo' && Number.isFinite(Number(resultado.custoTotal)) && Number(divisor) > 0;
+  const custo = disponivel ? Number(resultado.custoTotal) / Number(divisor) : 0;
+  return {
+    custoCalculado: disponivel ? custo : null,
+    custo: disponivel ? custo : 0,
+    custoUnitario: disponivel ? custo : 0,
+    dataUltimoCalculo: new Date(),
+    fonteCalculo: resultado?.fonte || 'indisponivel',
+    custoUltimoSalvo: disponivel ? custo : 0,
+  };
+};
 const dataLocal = () => { const agora = new Date(); return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`; };
 const resolverTipoProdutoVenda = (data = {}) => data.tipoProduto || (data.aFazer ? 'coz' : data.producaoPropria ? 'producao' : 'revenda');
 const disponibilidadeCoz = (produto) => {
@@ -395,6 +408,19 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
       ativo: data.ativo !== undefined ? Boolean(data.ativo) : true,
       createdBy: req.user.id,
     });
+
+    // Calcular custo a partir da ficha técnica se for produto de venda com ficha
+    if (tipo === 'venda' && fichaTecnica.length > 0) {
+      const resultadoCusto = await calcularCustoDaFichaTecnica(fichaTecnica);
+      await Product.findByIdAndUpdate(product._id, {
+        $set: camposCustoCalculado(resultadoCusto),
+      });
+      // Recarregar produto com custo atualizado
+      const updatedProduct = await Product.findById(product._id);
+      return res.status(201).json(updatedProduct);
+    }
+    if (tipo === 'insumo' && data.precoCompra !== undefined) enfileirarRecalculoPorInsumo(product._id);
+    
     res.status(201).json(product);
   } catch (err) {
     const message = err.code === 11000 ? 'Código duplicado' : err.message;
@@ -407,7 +433,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
     const data = req.body;
-    const produtoAtual = await Product.findById(req.params.id).select('tipo usavelEmReceita aFazer fichaTecnica tipoProduto producaoPropria estoque codigo');
+    const produtoAtual = await Product.findById(req.params.id).select('tipo usavelEmReceita aFazer fichaTecnica tipoProduto producaoPropria estoque codigo custoCalculado custo custoUnitario');
     if (!produtoAtual) return res.status(404).json({ msg: 'Produto não encontrado' });
     const tipo = resolverTipoProduto({ ...data, tipo: data.tipo ?? undefined });
     const tipoProduto = tipo === 'venda' ? resolverTipoProdutoVenda({ ...produtoAtual.toObject(), ...data }) : null;
@@ -482,6 +508,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     }
     if (data.rendimentoPorReceita !== undefined) fields.rendimentoPorReceita = Number(data.rendimentoPorReceita);
     if (data.fichaTecnica !== undefined) fields.fichaTecnica = data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade }));
+    const fichaTecnicaAlterada = data.fichaTecnica !== undefined;
     if (data.estoque !== undefined && antesDasOito()) {
       fields.estoqueInicialDia = Number(data.estoque);
       fields.estoqueInicialData = dataLocal();
@@ -490,8 +517,47 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
       fields.estoqueInsumosInicial = Number(data.estoqueInsumos);
       fields.estoqueInsumosInicialData = dataLocal();
     }
-    const product = await Product.findByIdAndUpdate(req.params.id, { $set: fields }, { new: true, runValidators: true });
+
+    // Calcular custo a partir da ficha técnica se alterada
+    let custoRecalculado = null;
+    let divergenciaAviso = null;
+    if (tipo === 'venda' && fichaTecnicaAlterada) {
+      const novaFicha = fields.fichaTecnica || [];
+      if (novaFicha.length > 0) {
+        const resultadoCusto = await calcularCustoDaFichaTecnica(novaFicha);
+        const custoAnterior = Number(produtoAtual.custoCalculado || produtoAtual.custo || produtoAtual.custoUnitario || 0);
+        const custoNovo = resultadoCusto.fonte === 'insumo' ? resultadoCusto.custoTotal : null;
+        
+        // Verificar divergência > 5%
+        if (custoAnterior > 0 && custoNovo > 0) {
+          const variacao = Math.abs(((custoNovo - custoAnterior) / custoAnterior) * 100);
+          if (variacao > 5 && !data.confirmarDivergenciaCusto) {
+            divergenciaAviso = {
+              custoAnterior,
+              custoNovo,
+              variacao: Number(variacao.toFixed(2)),
+              mensagem: `Custo divergiu ${variacao.toFixed(2)}% (era R$ ${custoAnterior.toFixed(2)}, será R$ ${custoNovo.toFixed(2)}). Confirme para salvar.`
+            };
+          }
+        }
+        
+        if (!divergenciaAviso) {
+          custoRecalculado = {
+            ...camposCustoCalculado(resultadoCusto),
+          };
+        }
+      }
+      if (novaFicha.length === 0) custoRecalculado = camposCustoCalculado({ fonte: 'indisponivel', custoTotal: 0 });
+    }
+
+    if (divergenciaAviso) {
+      return res.status(409).json({ msg: 'Divergência de custo detectada', divergencia: divergenciaAviso, requireConfirmation: true });
+    }
+
+    const product = await Product.findByIdAndUpdate(req.params.id, { $set: { ...fields, ...custoRecalculado } }, { new: true, runValidators: true });
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
+    if (tipo === 'insumo' && data.precoCompra !== undefined) enfileirarRecalculoPorInsumo(product._id);
+    
     res.json({ ...product.toObject(), ...dadosEstoqueProduto(product), resumoInsumo: product.tipo === 'insumo' ? calcularResumoCompleto(product) : null });
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
@@ -501,6 +567,71 @@ router.delete('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
     res.json({ msg: 'Produto removido com sucesso' });
+  } catch (err) { res.status(400).json({ msg: err.message }); }
+});
+
+// Rota para recalcular custo de todos os produtos que usam um insumo (quando preço do insumo muda)
+router.post('/recalcular-custos-insumo/:insumoId', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const insumo = await Product.findById(req.params.insumoId);
+    if (!insumo || insumo.tipo !== 'insumo') return res.status(404).json({ msg: 'Insumo não encontrado' });
+
+    // Buscar todos os produtos de venda que têm este insumo na ficha técnica
+    const produtosDependentes = await Product.find({
+      tipo: 'venda',
+      'fichaTecnica.produtoId': insumo._id,
+    });
+
+    const resultados = [];
+    for (const produto of produtosDependentes) {
+      const resultadoCusto = await calcularCustoDaFichaTecnica(produto.fichaTecnica);
+      const custoAnterior = Number(produto.custoCalculado || produto.custo || produto.custoUnitario || 0);
+      const custoNovo = resultadoCusto.custoTotal;
+      const variacao = custoAnterior > 0 ? Math.abs(((custoNovo - custoAnterior) / custoAnterior) * 100) : 0;
+
+      await Product.findByIdAndUpdate(produto._id, { $set: camposCustoCalculado(resultadoCusto) });
+
+      resultados.push({
+        produtoId: produto._id,
+        produtoNome: produto.nome,
+        custoAnterior,
+        custoNovo: resultadoCusto.fonte === 'insumo' ? resultadoCusto.custoTotal : null,
+        variacao: Number(variacao.toFixed(2)),
+        fonte: resultadoCusto.fonte,
+        mensagem: resultadoCusto.mensagem,
+      });
+    }
+
+    res.json({ msg: 'Custos recalculados', insumo: insumo.nome, produtosAtualizados: resultados.length, detalhes: resultados });
+  } catch (err) { res.status(400).json({ msg: err.message }); }
+});
+
+// Rota para recalcular custo de um produto específico
+router.post('/recalcular-custo/:produtoId', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const produto = await Product.findById(req.params.produtoId);
+    if (!produto) return res.status(404).json({ msg: 'Produto não encontrado' });
+    if (produto.tipo !== 'venda' || !produto.fichaTecnica?.length) {
+      return res.status(400).json({ msg: 'Produto não possui ficha técnica para calcular custo' });
+    }
+
+    const resultadoCusto = await calcularCustoDaFichaTecnica(produto.fichaTecnica);
+    const custoAnterior = Number(produto.custoCalculado || produto.custo || produto.custoUnitario || 0);
+    const custoNovo = resultadoCusto.custoTotal;
+
+    await Product.findByIdAndUpdate(produto._id, { $set: camposCustoCalculado(resultadoCusto) });
+
+    res.json({
+      msg: 'Custo recalculado',
+      produtoId: produto._id,
+      produtoNome: produto.nome,
+      custoAnterior,
+      custoNovo: resultadoCusto.fonte === 'insumo' ? resultadoCusto.custoTotal : null,
+      variacao: custoAnterior > 0 ? Number((Math.abs(((custoNovo - custoAnterior) / custoAnterior) * 100)).toFixed(2)) : 0,
+      fonte: resultadoCusto.fonte,
+      mensagem: resultadoCusto.mensagem,
+      detalhes: resultadoCusto.detalhes,
+    });
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 

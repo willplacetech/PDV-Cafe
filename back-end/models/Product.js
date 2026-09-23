@@ -177,6 +177,25 @@ const ProductSchema = new mongoose.Schema({
     default: 0,
     min: [0, 'Custo unitário base não pode ser negativo'],
   },
+  custoCalculado: {
+    type: Number,
+    default: null,
+    min: [0, 'Custo calculado não pode ser negativo'],
+  },
+  dataUltimoCalculo: {
+    type: Date,
+    default: null,
+  },
+  fonteCalculo: {
+    type: String,
+    enum: ['insumo', 'manual', 'indisponivel'],
+    default: 'indisponivel',
+  },
+  custoUltimoSalvo: {
+    type: Number,
+    default: 0,
+    min: [0, 'Custo último salvo não pode ser negativo'],
+  },
   reajusteRecomendado: {
     type: Boolean,
     default: false,

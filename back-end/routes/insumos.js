@@ -5,8 +5,9 @@ const Product = require('../models/Product');
 const Recipe = require('../models/Recipe');
 const HistoricoCusto = require('../models/HistoricoCusto');
 const StockMovement = require('../models/StockMovement');
-const { converterCustoBase, quantidadeNaBase, calcularVariacaoPercentual } = require('../utils/custo');
-const { calcularResumoCompleto, ajustarEstoque, calcularCustoUnitarioBase } = require('../utils/estoqueInsumo');
+const { converterCustoBase, calcularVariacaoPercentual } = require('../utils/custo');
+const { calcularResumoCompleto, ajustarEstoque, calcularCustoUnitarioBase, calcularCustoDaFichaTecnica } = require('../utils/estoqueInsumo');
+const { enfileirarRecalculoPorInsumo } = require('../utils/filaCusto');
 
 const router = express.Router();
 
@@ -18,18 +19,15 @@ const recalcularReceitasAfetadas = async (produtoId) => {
 
   for (const recipe of recipes) {
     const custoAntigo = Number(recipe.custoUnitario || 0);
-    const ingredientes = recipe.ingredientes.map((item) => ({
-      quantidade: Number(item.quantidade || 0),
-      unidade: item.unidade,
-      custoUnitarioBase: Number(item.produtoId?.custoUnitarioBase || 0),
-    }));
-
-    const custoInsumosTotal = ingredientes.reduce((soma, item) => soma + quantidadeNaBase(item.quantidade, item.unidade) * item.custoUnitarioBase, 0);
-    const custoTotal = custoInsumosTotal + Number(recipe.custoEmbalagem || 0) + Number(recipe.custoIndireto || 0) + Number(recipe.maoDeObra || 0);
-    const custoUnitario = recipe.rendimento > 0 ? custoTotal / Number(recipe.rendimento) : 0;
+    const resultado = await calcularCustoDaFichaTecnica(recipe.ingredientes);
+    const tipoProduto = recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : 'producao');
+    const rendimento = tipoProduto === 'coz' ? 1 : Number(recipe.rendimento || 1);
+    const disponivel = resultado.fonte === 'insumo';
+    const custoInsumosTotal = disponivel ? Number(resultado.custoTotal) : 0;
+    const custoUnitario = disponivel ? custoInsumosTotal / rendimento : 0;
 
     recipe.custoInsumosTotal = custoInsumosTotal;
-    recipe.custoTotal = custoTotal;
+    recipe.custoTotal = custoInsumosTotal;
     recipe.custoUnitario = custoUnitario;
     recipe.updatedAt = new Date();
     await recipe.save();
@@ -38,6 +36,10 @@ const recalcularReceitasAfetadas = async (produtoId) => {
     if (produto) {
       produto.custo = custoUnitario;
       produto.custoUnitario = custoUnitario;
+      produto.custoCalculado = disponivel ? custoUnitario : null;
+      produto.dataUltimoCalculo = new Date();
+      produto.fonteCalculo = resultado.fonte;
+      produto.custoUltimoSalvo = disponivel ? custoUnitario : 0;
       produto.reajusteRecomendado = false;
       await produto.save();
 
@@ -81,18 +83,8 @@ router.put('/:id/preco-compra', [body('precoCompra').isFloat({ min: 0 }), body('
     produto.unidadeCompra = unidadeCompra;
     produto.custoUnitarioBase = custoUnitarioBase;
     await produto.save();
-
-    const afetados = await recalcularReceitasAfetadas(produto._id);
-    const comReajuste = afetados.filter((item) => Math.abs(Number(item.variacaoPercentual || 0)) > 5);
-    for (const item of comReajuste) {
-      const p = await Product.findById(item.produtoId);
-      if (p) {
-        p.reajusteRecomendado = true;
-        await p.save();
-      }
-    }
-
-    res.json({ produto, afetados, reajusteRecomendado: comReajuste.length > 0 });
+    enfileirarRecalculoPorInsumo(produto._id);
+    res.status(202).json({ produto, recalculoEnfileirado: true });
   } catch (error) {
     res.status(400).json({ msg: error.message });
   }

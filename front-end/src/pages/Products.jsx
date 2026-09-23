@@ -30,6 +30,9 @@ const vazio = {
   estoqueMinimoEmbalagens: '',
   rendimentoPorUnidadeCompra: '',
   custo: '',
+  custoCalculado: null,
+  dataUltimoCalculo: null,
+  fonteCalculo: 'indisponivel',
   estoque: '',
   unidadeVenda: 'un',
   vendidoFracionado: false,
@@ -52,6 +55,16 @@ export default function Products() {
   const [filtroFicha, setFiltroFicha] = useState('Todos');
   const { showToast } = useToast();
   const fichaProduto = fichas.find((ficha) => String(ficha.produtoId?._id || ficha.produtoId) === String(editing?._id));
+  const custoDisponivel = form.fonteCalculo === 'insumo' && Number.isFinite(Number(form.custoCalculado));
+  const precoVendaDisponivel = form.tipo === 'venda' && Number(form.preco) > 0;
+  const lucroDisponivel = custoDisponivel && precoVendaDisponivel;
+  const lucro = lucroDisponivel ? Number(form.preco) - Number(form.custoCalculado) : null;
+  const margem = lucroDisponivel && Number(form.preco) > 0 ? (lucro / Number(form.preco)) * 100 : null;
+  const dinheiro = (valor) => Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const dataCusto = form.dataUltimoCalculo ? new Date(form.dataUltimoCalculo) : null;
+  const custoAtualizadoEm = dataCusto && !Number.isNaN(dataCusto.getTime())
+    ? dataCusto.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+    : null;
 
   const carregar = async () => {
     const [productsResponse, recipesResponse] = await Promise.all([api.get('/products'), api.get('/production/recipes')]);
@@ -225,16 +238,20 @@ export default function Products() {
       unidadeVenda: unidadeVendaFormulario,
       unidadeCompra: unidadeCompraFormulario,
       unidadeConteudo: unidadeFormulario,
-      custoUnitario: limparCampoNumerico(form.custo) ?? 0,
-      custo: limparCampoNumerico(form.custo) ?? 0,
       rendimentoPorUnidadeCompra: Number(form.rendimentoPorUnidadeCompra || 0),
       ativo: Boolean(form.ativo),
       permitirVendaSemInsumo: Boolean(form.permitirVendaSemInsumo),
       fichaTecnica: tipo === 'venda' && form.aFazer ? form.fichaTecnica.map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })) : [],
     };
     try {
-      if (editing) await api.put(`/products/${editing._id}`, payload);
-      else await api.post('/products', payload);
+      const salvar = (dados) => editing ? api.put(`/products/${editing._id}`, dados) : api.post('/products', dados);
+      try {
+        await salvar(payload);
+      } catch (error) {
+        const divergencia = error.response?.data?.divergencia;
+        if (!editing || !error.response?.data?.requireConfirmation || !divergencia || !window.confirm(`${error.response.data.msg}\n\n${divergencia.mensagem}\n\nDeseja salvar mesmo assim?`)) throw error;
+        await salvar({ ...payload, confirmarDivergenciaCusto: true });
+      }
       showToast(editing ? '✅ Produto atualizado!' : '✅ Produto cadastrado!', 'success');
       setForm(vazio);
       setEditing(null);
@@ -272,6 +289,9 @@ export default function Products() {
       estoqueMinimoEmbalagens: produto.estoqueMinimoEmbalagens ?? produto.estoqueMinimoInsumos ?? '',
       rendimentoPorUnidadeCompra: produto.rendimentoPorUnidadeCompra ?? '',
       custo: produto.custoUnitario ?? produto.custo ?? '',
+      custoCalculado: produto.custoCalculado ?? null,
+      dataUltimoCalculo: produto.dataUltimoCalculo || null,
+      fonteCalculo: produto.fonteCalculo || 'indisponivel',
       estoque: produto.tipo === 'insumo' ? (produto.estoqueInsumos ?? '') : (produto.estoque ?? ''),
       unidadeVenda: produto.unidadeVenda || 'un',
       vendidoFracionado: Boolean(produto.vendidoFracionado),
@@ -381,6 +401,28 @@ export default function Products() {
               <div className="product-section-title"><span>💰</span><div><strong>VENDA</strong><small>Dados do produto pronto</small></div></div>
               <div className="product-form-grid">
                 <label>Preço de venda (R$) * <input type="number" step="0.01" min={0} value={form.preco} required onChange={(event) => setForm({ ...form, preco: event.target.value })} /></label>
+                <div className="product-cost-summary" style={{ gridColumn: '1 / -1', border: '1px solid var(--border-light)', borderRadius: 10, padding: 14, background: 'var(--bg-secondary)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+                    <div><small>Custo</small><strong style={{ display: 'block', color: custoDisponivel ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{custoDisponivel ? dinheiro(form.custoCalculado) : 'Indisponível'}</strong></div>
+                    <div><small>Preço Venda</small><strong style={{ display: 'block' }}>{precoVendaDisponivel ? dinheiro(form.preco) : 'Indisponível'}</strong></div>
+                    <div><small>Lucro R$</small><strong style={{ display: 'block', color: lucroDisponivel && lucro < 0 ? 'var(--error-bg)' : 'var(--text-primary)' }}>{lucroDisponivel ? dinheiro(lucro) : 'Indisponível'}</strong></div>
+                    <div><small>Lucro %</small><strong style={{ display: 'block', color: lucroDisponivel && lucro < 0 ? 'var(--error-bg)' : 'var(--text-primary)' }}>{lucroDisponivel ? `${margem.toFixed(1)}%` : 'Indisponível'}</strong></div>
+                  </div>
+                  {!custoDisponivel && <small style={{ display: 'block', marginTop: 10, color: 'var(--text-secondary)' }}>Sem ficha técnica ou insumo sem preço.</small>}
+                  {custoAtualizadoEm && <small style={{ display: 'block', marginTop: 6, color: 'var(--text-secondary)' }}>Custo atualizado em {custoAtualizadoEm}</small>}
+                  {lucroDisponivel && lucro < 0 && <strong style={{ display: 'block', marginTop: 8, color: 'var(--error-bg)' }}>⚠️ Lucro negativo! Revisar preço ou custo.</strong>}
+                </div>
+                {fichaProduto?.ingredientes?.length > 0 && (
+                  <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border-light)', paddingTop: 10 }}>
+                    <strong>Ficha técnica e custos</strong>
+                    {fichaProduto.ingredientes.map((item, indice) => (
+                      <div key={`${item.produtoId?._id || item.produtoId}-${indice}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 7, color: item.custoDisponivel ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                        <span>{item.custoDisponivel ? '✅' : '⚠️'} {item.produtoId?.nome || 'Insumo'} {item.quantidade} {item.unidade}</span>
+                        <strong>{item.custoDisponivel ? dinheiro(item.custoItem) : 'Indisponível'}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {form.unidadeCompra !== form.unidadeVenda && (
                   <>
                     <label>Preço de compra (R$) <input type="number" step="0.01" min={0} value={form.precoCompra} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
@@ -563,13 +605,21 @@ export default function Products() {
                           <small>Custo: R$ {custoUnitarioBase.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/{unidadeConteudo}</small>
                         </>
                       );
-                    })() : (
-                      <>
-                        <strong>R$ {Number(produto.preco || 0).toFixed(2).replace('.', ',')}</strong>
-                        <small>{`Categoria: ${produto.categoria}`}</small>
-                        <small className={Number(produto.estoque || 0) <= 5 ? 'low-stock' : ''}>{(Number(produto.estoque) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} em estoque</small>
-                      </>
-                    )}
+                    })() : (() => {
+                      const custoDisponivel = produto.fonteCalculo === 'insumo' && Number.isFinite(Number(produto.custoCalculado));
+                      const preco = Number(produto.preco || 0);
+                      const custo = custoDisponivel ? Number(produto.custoCalculado) : null;
+                      const lucroProduto = custoDisponivel && preco > 0 ? preco - custo : null;
+                      return (
+                        <>
+                          <strong>R$ {preco.toFixed(2).replace('.', ',')}</strong>
+                          <small>{`Categoria: ${produto.categoria}`}</small>
+                          <small className={Number(produto.estoque || 0) <= 5 ? 'low-stock' : ''}>{(Number(produto.estoque) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} em estoque</small>
+                          <small style={{ color: custoDisponivel ? 'var(--text-primary)' : 'var(--text-secondary)' }}>Custo: {custoDisponivel ? dinheiro(custo) : 'Indisponível'}</small>
+                          <small style={{ color: lucroProduto !== null && lucroProduto < 0 ? 'var(--error-bg)' : 'var(--text-secondary)' }}>Lucro: {lucroProduto !== null ? `${dinheiro(lucroProduto)} (${((lucroProduto / preco) * 100).toFixed(1)}%)` : 'Indisponível'}</small>
+                        </>
+                      );
+                    })()}
                   </div>
                   <div className="product-card-actions">
                     <button type="button" onClick={() => editarProduto(produto)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}>Editar</button>

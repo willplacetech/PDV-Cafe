@@ -7,9 +7,8 @@ const Recipe = require('../models/Recipe');
 const RecipeAudit = require('../models/RecipeAudit');
 const Production = require('../models/Production');
 const StockMovement = require('../models/StockMovement');
-const { calcularCustoReceitaDireta } = require('../utils/custo');
 const { dadosEstoqueProduto } = require('../utils/estoqueProduto');
-const { paraBase, calcularResumoCompleto, consumirInsumo, estoqueTotalBase, unidadeBase } = require('../utils/estoqueInsumo');
+const { paraBase, calcularResumoCompleto, consumirInsumo, estoqueTotalBase, unidadeBase, calcularCustoDaFichaTecnica } = require('../utils/estoqueInsumo');
 
 const router = express.Router();
 const locations = ['venda', 'insumos'];
@@ -30,16 +29,22 @@ const consumirIngrediente = (produto, quantidade, unidade) => {
 const sincronizarCustoReceita = async (recipeId) => {
   const recipe = await Recipe.findById(recipeId).populate('ingredientes.produtoId');
   if (!recipe) return;
-  const ingredientes = recipe.ingredientes.map((item) => ({
-    quantidade: Number(item.quantidade || 0),
-    unidade: item.unidade,
-    custoUnitarioBase: Number(item.produtoId?.custoUnitarioBase || 0),
-  }));
   const tipoProduto = recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : 'producao');
   const rendimento = tipoProduto === 'coz' ? 1 : Number(recipe.rendimento || 1);
-  const resultado = calcularCustoReceitaDireta(ingredientes, recipe.custoEmbalagem, recipe.custoIndireto, recipe.maoDeObra, rendimento);
-  await Recipe.findByIdAndUpdate(recipe._id, { $set: { custoInsumosTotal: resultado.custoInsumosTotal, custoTotal: resultado.custoTotal, custoUnitario: resultado.custoUnitario } });
-  await Product.findByIdAndUpdate(recipe.produtoId, { $set: { custo: resultado.custoUnitario, custoUnitario: resultado.custoUnitario, fichaTecnica: recipe.ingredientes.map((item) => ({ produtoId: item.produtoId._id || item.produtoId, quantidade: tipoProduto === 'coz' ? Number(item.quantidade) : Number(item.quantidade) / Math.max(1, Number(recipe.rendimento || 1)), unidade: item.unidade })) } });
+  const resultado = await calcularCustoDaFichaTecnica(recipe.ingredientes);
+  const disponivel = resultado.fonte === 'insumo';
+  const custoTotal = disponivel ? Number(resultado.custoTotal) : 0;
+  const custoUnitario = disponivel ? custoTotal / rendimento : 0;
+  await Recipe.findByIdAndUpdate(recipe._id, { $set: { custoInsumosTotal: custoTotal, custoTotal, custoUnitario } });
+  await Product.findByIdAndUpdate(recipe.produtoId, { $set: {
+    custoCalculado: disponivel ? custoUnitario : null,
+    custo: custoUnitario,
+    custoUnitario,
+    dataUltimoCalculo: new Date(),
+    fonteCalculo: resultado.fonte,
+    custoUltimoSalvo: disponivel ? custoUnitario : 0,
+    fichaTecnica: recipe.ingredientes.map((item) => ({ produtoId: item.produtoId._id || item.produtoId, quantidade: tipoProduto === 'coz' ? Number(item.quantidade) : Number(item.quantidade) / Math.max(1, Number(recipe.rendimento || 1)), unidade: item.unidade })),
+  } });
 };
 
 router.use(auth);
@@ -60,6 +65,17 @@ router.get('/recipes', async (req, res) => {
     const recipes = await Recipe.find().populate('produtoId', 'nome codigo tipoProduto unidadeVenda producaoPropria aFazer estoque').populate('ingredientes.produtoId', 'nome codigo tipo usavelEmReceita precoCompra custoUnitarioBase unidadeVenda unidadeConteudo conteudoPorEmbalagem estoque estoqueInsumos estoqueEmbalagens estoqueConteudoAberto').populate('updatedBy', 'username').sort({ nome: 1 });
     res.json(recipes.map((recipe) => {
       const produtoTipo = recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : 'producao');
+      const ingredientes = recipe.ingredientes.map((item) => {
+        const resumo = item.produtoId ? calcularResumoCompleto(item.produtoId) : null;
+        const custoUnitarioBase = Number(resumo?.custoUnitarioBase || 0);
+        const quantidadeBase = paraBase(item.quantidade, item.unidade);
+        return {
+          ...item.toObject(),
+          custoUnitarioBase: custoUnitarioBase > 0 ? custoUnitarioBase : null,
+          custoItem: custoUnitarioBase > 0 ? quantidadeBase * custoUnitarioBase : null,
+          custoDisponivel: custoUnitarioBase > 0,
+        };
+      });
       const limites = produtoTipo === 'producao' ? [Number(recipe.produtoId?.estoque || 0)] : recipe.ingredientes.map((item) => {
         const estoque = estoqueTotalBase(item.produtoId);
         const consumo = paraBase(item.quantidade, item.unidade);
@@ -67,7 +83,7 @@ router.get('/recipes', async (req, res) => {
       });
       const producoesPossiveis = limites.length ? Math.floor(Math.min(...limites)) : 0;
       const custoPorUnidade = Number(recipe.custoUnitario || 0);
-      return { ...recipe.toObject(), tipoFicha: produtoTipo, disponibilidade: { quantidade: produtoTipo === 'producao' ? producoesPossiveis : producoesPossiveis * Number(recipe.rendimento || 1), limitante: produtoTipo === 'producao' ? 'Estoque do produto' : recipe.ingredientes[limites.findIndex((limite) => limite === Math.min(...limites))]?.produtoId?.nome || null }, custoPorUnidade };
+      return { ...recipe.toObject(), ingredientes, tipoFicha: produtoTipo, disponibilidade: { quantidade: produtoTipo === 'producao' ? producoesPossiveis : producoesPossiveis * Number(recipe.rendimento || 1), limitante: produtoTipo === 'producao' ? 'Estoque do produto' : recipe.ingredientes[limites.findIndex((limite) => limite === Math.min(...limites))]?.produtoId?.nome || null }, custoPorUnidade };
     }));
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
@@ -115,7 +131,7 @@ router.put('/recipes/:id', onlyManager, [
   try {
     const recipe = await Recipe.findById(req.params.id);
     if (!recipe) return res.status(404).json({ msg: 'Receita não encontrada' });
-    const produtoDaFicha = await Product.findById(req.body.produtoId || recipe.produtoId).select('tipoProduto aFazer producaoPropria');
+    const produtoDaFicha = await Product.findById(req.body.produtoId || recipe.produtoId).select('tipoProduto aFazer producaoPropria custoCalculado custo custoUnitario');
     const tipoProdutoFicha = produtoDaFicha?.tipoProduto || (produtoDaFicha?.aFazer ? 'coz' : produtoDaFicha?.producaoPropria ? 'producao' : 'revenda');
     const rendimentoInformado = req.body.rendimento === undefined ? recipe.rendimento : Number(req.body.rendimento);
     if (tipoProdutoFicha === 'coz' && rendimentoInformado !== 1) return res.status(400).json({ msg: 'Ficha Coz deve ter rendimento igual a 1 porção' });
@@ -134,6 +150,18 @@ router.put('/recipes/:id', onlyManager, [
       if (req.body.ingredientes.some((item) => !ingredientUsable.get(String(item.produtoId)))) return res.status(400).json({ msg: 'A receita só pode usar insumos ou produtos híbridos' });
       const ingredientById = new Map(ingredientProducts.map((produto) => [String(produto._id), produto]));
       fields.ingredientes = req.body.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade || unidadeDoInsumo(ingredientById.get(String(item.produtoId))) }));
+    }
+    if (fields.ingredientes && !req.body.confirmarDivergenciaCusto) {
+      const resultadoCusto = await calcularCustoDaFichaTecnica(fields.ingredientes);
+      const divisor = tipoProdutoFicha === 'coz' ? 1 : Number(rendimentoInformado || 1);
+      const custoNovo = resultadoCusto.fonte === 'insumo' ? Number(resultadoCusto.custoTotal) / divisor : null;
+      const custoAnterior = Number(produtoDaFicha.custoCalculado || produtoDaFicha.custo || produtoDaFicha.custoUnitario || 0);
+      if (custoAnterior > 0 && custoNovo !== null) {
+        const variacao = Math.abs(((custoNovo - custoAnterior) / custoAnterior) * 100);
+        if (variacao > 5) {
+          return res.status(409).json({ msg: 'Divergência de custo detectada', requireConfirmation: true, divergencia: { custoAnterior, custoNovo, variacao: Number(variacao.toFixed(2)), mensagem: `Custo divergiu ${variacao.toFixed(2)}% (era R$ ${custoAnterior.toFixed(2)}, será R$ ${custoNovo.toFixed(2)}). Confirme para salvar.` } });
+        }
+      }
     }
     fields.updatedBy = req.user.id;
     fields.updatedAt = new Date();
