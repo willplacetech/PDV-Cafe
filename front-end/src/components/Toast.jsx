@@ -1,14 +1,14 @@
-import React, { createContext, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
 const ToastContext = createContext();
 
 export const ToastProvider = ({ children }) => {
   const [toast, setToast] = useState({ open: false, msg: '', type: 'info' });
 
-  const showToast = (msg, type = 'info') => {
+  const showToast = useCallback((msg, type = 'info') => {
     setToast({ open: true, msg, type });
-    setTimeout(() => setToast({ ...toast, open: false }), 3500);
-  };
+    setTimeout(() => setToast((currentToast) => ({ ...currentToast, open: false })), 3500);
+  }, []);
 
   const getBackgroundColor = () => {
     switch(toast.type) {
@@ -32,8 +32,10 @@ export const ToastProvider = ({ children }) => {
     transition: 'all 0.3s ease'
   };
 
+  const contextValue = useMemo(() => ({ showToast }), [showToast]);
+
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
       {toast.open && <div style={styles}>{toast.msg}</div>}
     </ToastContext.Provider>
