@@ -56,10 +56,16 @@ export default function Products() {
   const [filtroFicha, setFiltroFicha] = useState('Todos');
   const { showToast } = useToast();
   const fichaProduto = fichas.find((ficha) => String(ficha.produtoId?._id || ficha.produtoId) === String(editing?._id));
-  const custoDisponivel = form.fonteCalculo === 'insumo' && Number.isFinite(Number(form.custoCalculado));
+  const calculoDireto = form.tipo === 'insumo' || (form.tipo === 'venda' && form.tipoProduto === 'revenda');
+  const precoCompraAtual = Number(form.precoCompra);
+  const conteudoAtual = Number(form.conteudoPorEmbalagem);
+  const custoCompraAtual = calculoDireto && precoCompraAtual > 0 && conteudoAtual > 0 ? precoCompraAtual / conteudoAtual : null;
+  const custoPersistido = form.fonteCalculo === 'insumo' && Number.isFinite(Number(form.custoCalculado)) ? Number(form.custoCalculado) : null;
+  const custoExibido = calculoDireto ? custoCompraAtual : custoPersistido;
+  const custoDisponivel = custoExibido !== null;
   const precoVendaDisponivel = form.tipo === 'venda' && Number(form.preco) > 0;
   const lucroDisponivel = custoDisponivel && precoVendaDisponivel;
-  const lucro = lucroDisponivel ? Number(form.preco) - Number(form.custoCalculado) : null;
+  const lucro = lucroDisponivel ? Number(form.preco) - Number(custoExibido) : null;
   const margem = lucroDisponivel && Number(form.preco) > 0 ? (lucro / Number(form.preco)) * 100 : null;
   const dinheiro = (valor) => Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const dataCusto = form.dataUltimoCalculo ? new Date(form.dataUltimoCalculo) : null;
@@ -235,6 +241,7 @@ export default function Products() {
         ativo: Boolean(form.grupoDesconto.ativo),
       } : undefined,
       precoCompra: limparCampoNumerico(form.precoCompra) ?? 0,
+      custoUnitarioBase: calculoDireto && custoCompraAtual !== null ? custoCompraAtual : undefined,
       usavelEmReceita: tipo === 'insumo' || Boolean(form.usavelEmReceita),
       unidadeVenda: unidadeVendaFormulario,
       unidadeCompra: unidadeCompraFormulario,
@@ -408,12 +415,12 @@ export default function Products() {
                 <label>Preço de venda (R$) * <input type="number" step="0.01" min={0} value={form.preco} required onChange={(event) => setForm({ ...form, preco: event.target.value })} /></label>
                 <div className="product-cost-summary" style={{ gridColumn: '1 / -1', border: '1px solid var(--border-light)', borderRadius: 10, padding: 14, background: 'var(--bg-secondary)' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
-                    <div><small>Custo</small><strong style={{ display: 'block', color: custoDisponivel ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{custoDisponivel ? dinheiro(form.custoCalculado) : 'Indisponível'}</strong></div>
+                    <div><small>Custo Unitário Base</small><strong style={{ display: 'block', color: custoDisponivel ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{custoDisponivel ? dinheiro(custoExibido) : 'Indisponível'}</strong></div>
                     <div><small>Preço Venda</small><strong style={{ display: 'block' }}>{precoVendaDisponivel ? dinheiro(form.preco) : 'Indisponível'}</strong></div>
                     <div><small>Lucro R$</small><strong style={{ display: 'block', color: lucroDisponivel && lucro < 0 ? 'var(--error-bg)' : 'var(--text-primary)' }}>{lucroDisponivel ? dinheiro(lucro) : 'Indisponível'}</strong></div>
                     <div><small>Lucro %</small><strong style={{ display: 'block', color: lucroDisponivel && lucro < 0 ? 'var(--error-bg)' : 'var(--text-primary)' }}>{lucroDisponivel ? `${margem.toFixed(1)}%` : 'Indisponível'}</strong></div>
                   </div>
-                  {!custoDisponivel && <small style={{ display: 'block', marginTop: 10, color: 'var(--text-secondary)' }}>Sem ficha técnica ou insumo sem preço.</small>}
+                  {!custoDisponivel && <small style={{ display: 'block', marginTop: 10, color: 'var(--text-secondary)' }}>{calculoDireto && conteudoAtual <= 0 ? 'Quantidade por embalagem deve ser maior que zero.' : calculoDireto ? 'Sem preço de compra.' : 'Sem ficha técnica ou custo calculado.'}</small>}
                   {custoAtualizadoEm && <small style={{ display: 'block', marginTop: 6, color: 'var(--text-secondary)' }}>Custo atualizado em {custoAtualizadoEm}</small>}
                   {lucroDisponivel && lucro < 0 && <strong style={{ display: 'block', marginTop: 8, color: 'var(--error-bg)' }}>⚠️ Lucro negativo! Revisar preço ou custo.</strong>}
                 </div>
@@ -428,10 +435,10 @@ export default function Products() {
                     ))}
                   </div>
                 )}
-                {form.unidadeCompra !== form.unidadeVenda && (
+                {form.tipoProduto === 'revenda' && (
                   <>
                     <label>Preço de compra (R$) <input type="number" step="0.01" min={0} value={form.precoCompra} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
-                    <label>Rendimento por unidade de compra <input type="number" step="0.001" min={1} value={form.rendimentoPorUnidadeCompra} onChange={(event) => setForm({ ...form, rendimentoPorUnidadeCompra: event.target.value })} /><small>{Number(form.rendimentoPorUnidadeCompra || 0) > 0 ? `1 ${form.unidadeCompra} = ${Number(form.rendimentoPorUnidadeCompra).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${form.unidadeVenda}` : 'Ex.: 1 kg = 8 un'}</small></label>
+                    <label>Conteúdo por embalagem <input type="number" step="0.001" min={0} value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /><small>Quantidade de unidades/conteúdo comprada na embalagem.</small></label>
                   </>
                 )}
                 <label className="product-checkbox-label" style={{ gridColumn: '1 / -1' }}>

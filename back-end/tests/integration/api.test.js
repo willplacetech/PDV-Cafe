@@ -85,6 +85,26 @@ describe('API Endpoints', () => {
     expect(res.body.nome).toBe('Pão de Mel');
   });
 
+  test('Produtos de revenda calculam custo por preço e conteúdo da embalagem', async () => {
+    const criado = await request(app)
+      .post('/api/products')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        codigo: '2100', nome: 'Revenda Teste', preco: 10, precoVenda: 10, precoCompra: 100,
+        conteudoPorEmbalagem: 20, unidade: 'un', unidadeCompra: 'un', unidadeVenda: 'un',
+        tipo: 'venda', tipoProduto: 'revenda', categoria: 'Outros', estoque: 20,
+      });
+    expect(criado.statusCode).toBe(201);
+    expect(criado.body.custoUnitarioBase).toBe(5);
+
+    const alterado = await request(app)
+      .put(`/api/products/${criado.body._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ tipoProduto: 'revenda', precoCompra: 100, conteudoPorEmbalagem: 10, unidade: 'un', unidadeCompra: 'un', unidadeVenda: 'un' });
+    expect(alterado.statusCode).toBe(200);
+    expect(alterado.body.custoUnitarioBase).toBe(10);
+  });
+
   test('POST /api/products → 403 para operador sem admin', async () => {
     const res = await request(app)
       .post('/api/products')
