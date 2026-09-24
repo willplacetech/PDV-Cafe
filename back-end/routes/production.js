@@ -222,7 +222,7 @@ router.post('/transfer', onlyManager, [body('produtoId').isMongoId(), body('orig
       const destinationField = balanceField(req.body.destino);
       const updated = await Product.findOneAndUpdate({ _id: product._id, [sourceField]: { $gte: quantity } }, { $inc: { [sourceField]: -quantity, [destinationField]: quantity } }, { new: true, session });
       if (!updated) throw new Error(`Estoque insuficiente de ${product.nome} no estoque de ${req.body.origem}`);
-      [movement] = await StockMovement.create([{ produtoId: product._id, produtoNome: product.nome, tipo: 'transferencia', origem: req.body.origem, destino: req.body.destino, quantidade: quantity, observacao: req.body.observacao, createdBy: req.user.id }], { session });
+      [movement] = await StockMovement.create([{ produtoId: product._id, produtoNome: product.nome, tipo: 'transferencia', origem: req.body.origem, destino: req.body.destino, quantidade: quantity, observacao: req.body.observacao, createdBy: req.user.id }], { session, ordered: true });
     });
     res.status(201).json(movement);
   } catch (error) { res.status(400).json({ msg: error.message }); } finally { await session.endSession(); }
@@ -254,9 +254,9 @@ router.post('/produce', onlyManager, [body('receitas').isArray({ min: 1 }), body
         }
         const output = recipe.rendimento * batches;
         await Product.findByIdAndUpdate(recipe.produtoId._id, { $inc: { estoque: output } }, { session });
-        const [production] = await Production.create([{ receitaId: recipe._id, receitaNome: recipe.nome, produtoId: recipe.produtoId._id, produtoNome: recipe.produtoId.nome, quantidade: batches, rendimentoTotal: output, unidadeRendimento: recipe.unidadeRendimento, insumos: snapshots, observacao: req.body.observacao, createdBy: req.user.id }], { session });
-        await StockMovement.create(snapshots.map((snapshot) => ({ produtoId: snapshot.produtoId, produtoNome: snapshot.nome, tipo: 'saida', origem: 'insumos', destino: null, quantidade: snapshot.quantidade, unidade: snapshot.unidade, referenciaId: production._id, observacao: `Consumo da receita ${recipe.nome}`, createdBy: req.user.id })), { session });
-        await StockMovement.create([{ produtoId: recipe.produtoId._id, produtoNome: recipe.produtoId.nome, tipo: 'producao', origem: null, destino: 'venda', quantidade: output, referenciaId: production._id, observacao: `Produção da receita ${recipe.nome}`, createdBy: req.user.id }], { session });
+        const [production] = await Production.create([{ receitaId: recipe._id, receitaNome: recipe.nome, produtoId: recipe.produtoId._id, produtoNome: recipe.produtoId.nome, quantidade: batches, rendimentoTotal: output, unidadeRendimento: recipe.unidadeRendimento, insumos: snapshots, observacao: req.body.observacao, createdBy: req.user.id }], { session, ordered: true });
+        await StockMovement.create(snapshots.map((snapshot) => ({ produtoId: snapshot.produtoId, produtoNome: snapshot.nome, tipo: 'saida', origem: 'insumos', destino: null, quantidade: snapshot.quantidade, unidade: snapshot.unidade, referenciaId: production._id, observacao: `Consumo da receita ${recipe.nome}`, createdBy: req.user.id })), { session, ordered: true });
+        await StockMovement.create([{ produtoId: recipe.produtoId._id, produtoNome: recipe.produtoId.nome, tipo: 'producao', origem: null, destino: 'venda', quantidade: output, referenciaId: production._id, observacao: `Produção da receita ${recipe.nome}`, createdBy: req.user.id }], { session, ordered: true });
         producoes.push(production);
       }
     });
