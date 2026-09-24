@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "setup": "integrated",
+  "languages": [
+    "JavaScript/TypeScript"
+  ],
+  "stacks": [
+    "Node.js"
+  ],
+  "markers": [
+    "package.json"
+  ],
+  "packageName": "sabor-de-abraço-pdv",
+  "suggestedRun": "npm start",
+  "suggestedTest": "npm test",
+  "createdAt": "2026-09-24T19:15:44.541Z",
+  "tool": "xgrok"
+}
