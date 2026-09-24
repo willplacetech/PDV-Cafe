@@ -1,9 +1,7 @@
 const fatoresBase = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
 const unidadesPermitidas = ['kg', 'L', 'un'];
 
-const paraBase = (quantidade, unidade) => unidadesPermitidas.includes(unidade)
-  ? Number(quantidade || 0)
-  : Number(quantidade || 0) * (fatoresBase[unidade] || 1);
+const paraBase = (quantidade, unidade) => Number(quantidade || 0) * (fatoresBase[unidade] || 1);
 
 const unidadesDiretas = ['mg', 'g', 'kg', 'ml', 'l', 'un'];
 const unidadesEmbalagem = ['lata', 'caixa', 'pacote', 'rolo'];
@@ -33,7 +31,7 @@ const conteudoPorEmbalagemBase = (produto = {}) => {
   }
   // Para produtos de venda com unidade direta (kg, L, un)
   if (produto.unidade && unidadesPermitidas.includes(produto.unidade)) {
-    return Number(produto.conteudoPorEmbalagem ?? 1);
+    return paraBase(Number(produto.conteudoPorEmbalagem ?? 1), produto.unidade);
   }
   // Fallback para unidade de controle
   if (unidadesDiretas.includes(unidadeControle(produto))) {
@@ -56,13 +54,13 @@ const embalagensFechadas = (produto = {}) => produto.tipo === 'venda' && produto
 
 const conteudoAberto = (produto = {}) => Number(produto.estoqueConteudoAberto || 0);
 
-const estoqueTotalBase = (produto = {}) => (embalagensFechadas(produto) * conteudoPorEmbalagemBase(produto)) + conteudoAberto(produto);
+const estoqueTotalBase = (produto = {}) => (embalagensFechadas(produto) * conteudoPorEmbalagemBase(produto)) + paraBase(conteudoAberto(produto), unidadeBase(produto));
 
 const custoPorBase = (produto = {}) => {
   const preco = Number(produto.precoCompra || 0);
   if (produto.unidade && unidadesPermitidas.includes(produto.unidade)) {
     const quantidade = Number(produto.quantidade ?? produto.conteudoPorEmbalagem ?? 1);
-    return preco > 0 && quantidade > 0 ? preco / quantidade : 0;
+    return preco > 0 && quantidade > 0 ? preco / paraBase(quantidade, produto.unidade) : 0;
   }
   const conteudo = conteudoPorEmbalagemBase(produto);
   return preco > 0 && conteudo > 0 ? preco / conteudo : 0;
@@ -73,7 +71,7 @@ const calcularCustoUnitarioBase = (precoCompra, conteudoPorEmbalagem, unidadeCon
   const conteudo = Number(conteudoPorEmbalagem || 0);
   const unidade = (unidadesPermitidas.includes(unidadeConteudo) || unidadesDiretas.includes(unidadeConteudo) ? unidadeConteudo : 'g') || 'g';
   if (preco <= 0 || conteudo <= 0) return 0;
-  const base = unidadesPermitidas.includes(unidade) ? conteudo : paraBase(conteudo, unidade);
+  const base = paraBase(conteudo, unidade);
   if (base <= 0) return 0;
   return preco / base;
 };
@@ -82,7 +80,7 @@ const calcularEstoqueMinimoBase = (estoqueMinimo, unidadeConteudo) => {
   const minimo = Number(estoqueMinimo || 0);
   const unidade = (unidadesPermitidas.includes(unidadeConteudo) || unidadesDiretas.includes(unidadeConteudo) ? unidadeConteudo : 'g') || 'g';
   if (minimo <= 0) return 0;
-  return unidadesPermitidas.includes(unidade) ? minimo : paraBase(minimo, unidade);
+  return paraBase(minimo, unidade);
 };
 
 const deveAplicarConversaoRevenda = (produto = {}) => {
@@ -111,7 +109,7 @@ const resumoEstoqueInsumo = (produto = {}) => {
   const totalBase = estoqueTotalBase(produto);
   const conteudoBase = conteudoPorEmbalagemBase(produto);
   const unidade = unidadeBase(produto);
-  const fator = unidadesPermitidas.includes(unidade) ? 1 : (fatoresBase[unidade] || 1);
+  const fator = fatoresBase[unidade] || 1;
   return {
     embalagensFechadas: Math.max(0, embalagensFechadas(produto)),
     conteudoAberto: conteudoAberto(produto),
@@ -119,7 +117,7 @@ const resumoEstoqueInsumo = (produto = {}) => {
     unidadeConteudo: unidade,
     totalBase,
     total: totalBase / fator,
-    totalKg: unidade === 'kg' ? totalBase : (unidade === 'g' ? totalBase / 1000 : undefined),
+    totalKg: ['kg', 'g'].includes(unidade) ? totalBase / 1000 : undefined,
     custoUnitarioBase: custoPorBase(produto),
     precoPorEmbalagem: Number(produto.precoCompra || 0),
   };
@@ -127,7 +125,7 @@ const resumoEstoqueInsumo = (produto = {}) => {
 
 const conversaoUnidadeMedida = (produto = {}) => {
   const unidade = unidadeBase(produto);
-  const fator = unidadesPermitidas.includes(unidade) ? 1 : (fatoresBase[unidade] || 1);
+  const fator = fatoresBase[unidade] || 1;
   const base = Number(produto.estoqueMinimoBase || 0);
   return base > 0 ? base / fator : undefined;
 };
@@ -135,12 +133,12 @@ const conversaoUnidadeMedida = (produto = {}) => {
 const calcularResumoCompleto = (produto = {}) => {
   const resumo = resumoEstoqueInsumo(produto);
   const unidade = resumo.unidadeConteudo;
-  const fator = unidadesPermitidas.includes(unidade) ? 1 : (fatoresBase[unidade] || 1);
+  const fator = fatoresBase[unidade] || 1;
   const precoPorEmbalagem = Number(produto.precoCompra || 0);
   const conteudoBase = resumo.conteudoPorEmbalagem * fator;
   const custoBase = precoPorEmbalagem > 0 && conteudoBase > 0 ? precoPorEmbalagem / conteudoBase : 0;
-  const ePeso = unidade === 'kg';
-  const eVolume = unidade === 'L';
+  const ePeso = ['kg', 'g'].includes(unidade);
+  const eVolume = ['L', 'l', 'ml'].includes(unidade);
   const eUnidade = unidade === 'un';
   return {
     ...resumo,
@@ -152,11 +150,11 @@ const calcularResumoCompleto = (produto = {}) => {
     totalBase: resumo.totalBase,
     totalKg: resumo.totalKg,
     custoUnitarioBase: custoBase,
-    custoPorKg: ePeso ? (unidadesPermitidas.includes(unidade) ? custoBase : custoBase * 1000) : undefined,
-    custoPor100g: ePeso && !unidadesPermitidas.includes(unidade) ? custoBase * 100 : undefined,
-    custoPorGrama: ePeso && !unidadesPermitidas.includes(unidade) ? custoBase : undefined,
-    custoPorLitro: eVolume ? (unidadesPermitidas.includes(unidade) ? custoBase : custoBase * 1000) : undefined,
-    custoPor100ml: eVolume && !unidadesPermitidas.includes(unidade) ? custoBase * 100 : undefined,
+    custoPorKg: ePeso ? custoBase * 1000 : undefined,
+    custoPor100g: ePeso ? custoBase * 100 : undefined,
+    custoPorGrama: ePeso ? custoBase : undefined,
+    custoPorLitro: eVolume ? custoBase * 1000 : undefined,
+    custoPor100ml: eVolume ? custoBase * 100 : undefined,
     custoPorGramaBase: custoBase,
     custoPorUnidade: eUnidade ? custoBase : undefined,
     estoqueMinimo: conversaoUnidadeMedida(produto),
@@ -295,7 +293,8 @@ const reporInsumo = (produto, quantidade, unidade) => {
   const fechadas = conteudoEmbalagem > 0 ? Math.floor(totalDepois / conteudoEmbalagem) : totalDepois;
   produto.estoqueEmbalagens = fechadas;
   produto.estoqueInsumos = fechadas;
-  produto.estoqueConteudoAberto = conteudoEmbalagem > 0 ? totalDepois - (fechadas * conteudoEmbalagem) : 0;
+  const abertoBase = conteudoEmbalagem > 0 ? totalDepois - (fechadas * conteudoEmbalagem) : 0;
+  produto.estoqueConteudoAberto = abertoBase / (fatoresBase[unidadeBase(produto)] || 1);
 };
 
 const consumirInsumo = (produto, quantidade, unidade) => {
@@ -313,9 +312,9 @@ const consumirInsumo = (produto, quantidade, unidade) => {
   // Recalcular embalagens fechadas e conteúdo aberto a partir do total base restante
   if (conteudoEmbalagem > 0) {
     const novasFechadas = Math.floor(novoTotalBase / conteudoEmbalagem);
-    const novoAberto = novoTotalBase - (novasFechadas * conteudoEmbalagem);
+    const novoAbertoBase = novoTotalBase - (novasFechadas * conteudoEmbalagem);
     produto.estoqueEmbalagens = novasFechadas;
-    produto.estoqueConteudoAberto = Number(novoAberto.toFixed(6));
+    produto.estoqueConteudoAberto = Number((novoAbertoBase / (fatoresBase[unidadeBase(produto)] || 1)).toFixed(6));
   } else {
     // Sem embalagem definida, estoque é direto em unidades base
     produto.estoqueEmbalagens = novoTotalBase;

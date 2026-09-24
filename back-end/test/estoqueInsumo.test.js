@@ -26,11 +26,13 @@ const acucar = {
 };
 
 consumirInsumo(acucar, 50, 'g');
-assert.equal(acucar.estoqueEmbalagens, 9.95);
+assert.equal(acucar.estoqueEmbalagens, 9);
+assert.equal(acucar.estoqueConteudoAberto, 0.95);
 assert.equal(resumoEstoqueInsumo(acucar).total, 9.95);
 
 consumirInsumo(acucar, 0.5, 'kg');
-assert.equal(acucar.estoqueEmbalagens, 9.45);
+assert.equal(acucar.estoqueEmbalagens, 9);
+assert.equal(acucar.estoqueConteudoAberto, 0.45);
 
 const produto = {
   nome: 'Leite Condensado',
@@ -46,7 +48,7 @@ const produto = {
 const primeiroConsumo = consumirInsumo(produto, 250, 'g');
 assert.equal(produto.estoqueEmbalagens, 9);
 assert.equal(produto.estoqueConteudoAberto, 145);
-assert.equal(primeiroConsumo.embalagensConsumidas, 1);
+assert.equal(primeiroConsumo.embalagensConsumidas, 250 / 395);
 assert.equal(resumoEstoqueInsumo(produto).totalBase, 3700);
 
 consumirInsumo(produto, 145, 'g');
@@ -205,7 +207,8 @@ const acucarConsumo = {
 };
 
 consumirInsumo(acucarConsumo, 50, 'g');
-assert.equal(acucarConsumo.estoqueEmbalagens, 9.95);
+assert.equal(acucarConsumo.estoqueEmbalagens, 9);
+assert.equal(acucarConsumo.estoqueConteudoAberto, 0.95);
 assert.equal(resumoEstoqueInsumo(acucarConsumo).total, 9.95);
 assert.equal(resumoEstoqueInsumo(acucarConsumo).totalKg, 9.95);
 assert.equal(calcularResumoCompleto(acucarConsumo).esgotado, false);
@@ -232,6 +235,26 @@ assert.equal(resumoLeiteConsumo.totalBase, 3700);
 assert.equal(resumoLeiteConsumo.totalKg, 3.7);
 
 console.log('estoqueInsumo: consumo de 250g leite (3,95kg -> 3,7kg) aprovado');
+
+const ovosConsumo = {
+  nome: 'Ovos',
+  tipo: 'insumo',
+  unidade: 'un',
+  unidadeCompra: 'un',
+  unidadeConteudo: 'un',
+  conteudoPorEmbalagem: 20,
+  estoqueEmbalagens: 1,
+  estoqueInsumos: 1,
+  estoqueConteudoAberto: 0,
+};
+
+consumirInsumo(ovosConsumo, 1, 'un');
+assert.equal(ovosConsumo.estoqueEmbalagens, 0);
+assert.equal(ovosConsumo.estoqueInsumos, 0);
+assert.equal(ovosConsumo.estoqueConteudoAberto, 19);
+assert.equal(calcularResumoCompleto(ovosConsumo).total, 19);
+
+console.log('estoqueInsumo: consumo de 1 ovo em embalagem com 20 aprovado');
 
 const acucarEsgotado = {
   nome: 'Acucar',

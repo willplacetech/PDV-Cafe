@@ -251,11 +251,11 @@ router.post('/produce', onlyManager, [body('receitas').isArray({ min: 1 }), body
           todasConversoes.push(resultado.mensagem);
           await product.save({ session });
           snapshots.push({ produtoId: consumo.product._id, nome: consumo.product.nome, quantidade: consumo.quantity, unidade: consumo.unit });
-          await StockMovement.create([{ produtoId: consumo.product._id, produtoNome: consumo.product.nome, tipo: 'saida', origem: 'insumos', destino: null, quantidade: consumo.quantity, observacao: `Consumo da receita ${recipe.nome}`, createdBy: req.user.id }], { session });
         }
         const output = recipe.rendimento * batches;
         await Product.findByIdAndUpdate(recipe.produtoId._id, { $inc: { estoque: output } }, { session });
         const [production] = await Production.create([{ receitaId: recipe._id, receitaNome: recipe.nome, produtoId: recipe.produtoId._id, produtoNome: recipe.produtoId.nome, quantidade: batches, rendimentoTotal: output, unidadeRendimento: recipe.unidadeRendimento, insumos: snapshots, observacao: req.body.observacao, createdBy: req.user.id }], { session });
+        await StockMovement.create(snapshots.map((snapshot) => ({ produtoId: snapshot.produtoId, produtoNome: snapshot.nome, tipo: 'saida', origem: 'insumos', destino: null, quantidade: snapshot.quantidade, unidade: snapshot.unidade, referenciaId: production._id, observacao: `Consumo da receita ${recipe.nome}`, createdBy: req.user.id })), { session });
         await StockMovement.create([{ produtoId: recipe.produtoId._id, produtoNome: recipe.produtoId.nome, tipo: 'producao', origem: null, destino: 'venda', quantidade: output, referenciaId: production._id, observacao: `Produção da receita ${recipe.nome}`, createdBy: req.user.id }], { session });
         producoes.push(production);
       }
