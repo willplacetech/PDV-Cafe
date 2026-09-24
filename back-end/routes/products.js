@@ -42,6 +42,7 @@ const disponibilidadeCoz = (produto) => {
 };
 const antesDasOito = () => new Date().getHours() < 8;
 const limparCampoOpcional = (valor) => (valor === '' || valor === null || valor === undefined ? undefined : valor);
+const toNumberOrZero = (valor) => { const n = Number(valor); return Number.isFinite(n) && n >= 0 ? n : 0; };
 const descontosDoProduto = (valor, tipo, precoNormal) => {
   if (tipo !== 'venda') return [];
   if (valor === undefined) return undefined;
@@ -339,30 +340,30 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     if (data.usavelEmReceita === true && (!Number.isFinite(Number(data.conteudoPorEmbalagem)) || Number(data.conteudoPorEmbalagem) < 0)) return res.status(400).json({ msg: 'Conteúdo por embalagem inválido' });
     const exists = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') } });
     if (exists) return res.status(400).json({ msg: 'Já existe um produto com este código' });
-    const estoque = tipoProduto === 'coz' ? 0 : Math.max(0, Number(data.estoque) || 0);
-    const estoqueInsumos = Math.max(0, Number(data.estoqueInsumos) || 0);
+    const estoque = tipoProduto === 'coz' ? 0 : toNumberOrZero(data.estoque);
+    const estoqueInsumos = toNumberOrZero(data.estoqueInsumos);
     const fichaTecnica = Array.isArray(data.fichaTecnica) ? data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })).filter((item) => item.produtoId && Number.isFinite(item.quantidade) && item.quantidade > 0 && units.includes(item.unidade)) : [];
-    const custoUnitario = Number(data.custoUnitario ?? data.custo) || 0;
-    const pesoPorUnidade = Number(data.pesoPorUnidade) || 0;
+    const custoUnitario = toNumberOrZero(data.custoUnitario ?? data.custo);
+    const pesoPorUnidade = toNumberOrZero(data.pesoPorUnidade);
     const unidadeVenda = normalizarUnidade(data.unidadeVenda || data.unidade || 'un');
     const unidadeCompra = normalizarUnidade(data.unidadeCompra || data.unidade || 'kg');
     const categoria = tipo === 'insumo' ? 'Insumos' : (data.categoria || 'Outros');
-    const precoVenda = Number(data.precoVenda ?? data.preco ?? 0);
-    const precoCompra = Number(data.precoCompra || 0);
-    const descontoPorUnidadeCompra = Number(data.rendimentoPorUnidadeCompra || 0);
+    const precoVenda = toNumberOrZero(data.precoVenda ?? data.preco);
+    const precoCompra = toNumberOrZero(data.precoCompra);
+    const descontoPorUnidadeCompra = toNumberOrZero(data.rendimentoPorUnidadeCompra);
     const descontosPorQuantidade = descontosDoProduto(data.descontosPorQuantidade, tipo, precoVenda);
     const unidadeConteudo = normalizarUnidade(data.unidadeConteudo || unidadeCompra);
-    const conteudoPorEmbalagem = Number(data.conteudoPorEmbalagem || data.quantidade || 1);
-    const estoqueEmbalagens = tipo === 'insumo' ? Math.max(0, Number(data.estoqueEmbalagens ?? estoque) || 0) : 0;
-    const estoqueConteudoAberto = tipo === 'insumo' ? Math.max(0, Number(data.estoqueConteudoAberto) || 0) : 0;
+    const conteudoPorEmbalagem = toNumberOrZero(data.conteudoPorEmbalagem || data.quantidade || 1);
+    const estoqueEmbalagens = tipo === 'insumo' ? toNumberOrZero(data.estoqueEmbalagens ?? estoque) : 0;
+    const estoqueConteudoAberto = tipo === 'insumo' ? toNumberOrZero(data.estoqueConteudoAberto) : 0;
     const estoquePesoKg = pesoPorUnidade > 0 && unidadeVenda === 'kg'
       ? estoque * pesoPorUnidade
       : 0;
     const deveAplicarConversao = tipo === 'venda' && descontoPorUnidadeCompra > 1 && unidadeCompra !== unidadeVenda;
     const custoUnitarioBaseRevenda = precoCompra > 0 && conteudoPorEmbalagem > 0 ? precoCompra / conteudoPorEmbalagem : 0;
     const unidade = normalizarUnidade(data.unidade || unidadeCompra);
-    const quantidade = Number(data.quantidade ?? data.conteudoPorEmbalagem ?? 1);
-    const rendimento = data.rendimento == null ? (descontoPorUnidadeCompra > 0 ? descontoPorUnidadeCompra : null) : Number(data.rendimento);
+    const quantidade = toNumberOrZero(data.quantidade ?? data.conteudoPorEmbalagem ?? 1);
+    const rendimento = data.rendimento == null ? (descontoPorUnidadeCompra > 0 ? descontoPorUnidadeCompra : null) : toNumberOrZero(data.rendimento);
     const product = await Product.create({
       codigo: data.codigo.trim(),
       nome: data.nome.trim(),
@@ -456,16 +457,16 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     ['nome', 'categoria'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
     if (data.ncm !== undefined) fields.ncm = String(data.ncm).replace(/\D/g, '');
     ['unidade', 'unidadeVenda', 'unidadeCompra', 'unidadeConteudo'].forEach((key) => { if (data[key] !== undefined) fields[key] = normalizarUnidade(data[key]); });
-    ['preco', 'precoCompra', 'estoque', 'estoqueInsumos', 'estoqueEmbalagens', 'estoqueConteudoAberto', 'estoqueMaximo', 'estoqueMinimoInsumos', 'estoqueMinimoEmbalagens', 'pesoPorUnidade', 'rendimentoPorUnidadeCompra', 'conteudoPorEmbalagem', 'quantidade', 'rendimento'].forEach((key) => { if (data[key] !== undefined) fields[key] = Math.max(0, Number(data[key])); });
+    ['preco', 'precoCompra', 'estoque', 'estoqueInsumos', 'estoqueEmbalagens', 'estoqueConteudoAberto', 'estoqueMaximo', 'estoqueMinimoInsumos', 'estoqueMinimoEmbalagens', 'pesoPorUnidade', 'rendimentoPorUnidadeCompra', 'conteudoPorEmbalagem', 'quantidade', 'rendimento'].forEach((key) => { if (data[key] !== undefined) fields[key] = toNumberOrZero(data[key]); });
     if (data.unidade !== undefined && data.quantidade !== undefined) fields.quantidade = Number(data.quantidade);
     if (data.estoque !== undefined && tipo === 'insumo') {
-      fields.estoqueInsumos = Math.max(0, Number(data.estoque));
-      fields.estoqueEmbalagens = Math.max(0, Number(data.estoque));
+      fields.estoqueInsumos = toNumberOrZero(data.estoque);
+      fields.estoqueEmbalagens = toNumberOrZero(data.estoque);
       delete fields.estoque;
     }
     if (data.marcaReferencia !== undefined) fields.marcaReferencia = String(data.marcaReferencia).trim();
     if (data.unidadeConteudo !== undefined) fields.unidadeConteudo = data.unidadeConteudo;
-    if (data.estoqueEmbalagens !== undefined) fields.estoqueInsumos = Math.max(0, Number(data.estoqueEmbalagens));
+    if (data.estoqueEmbalagens !== undefined) fields.estoqueInsumos = toNumberOrZero(data.estoqueEmbalagens);
     if (tipo === 'insumo' && (data.precoCompra !== undefined || data.conteudoPorEmbalagem !== undefined || data.unidadeConteudo !== undefined)) {
       const atual = await Product.findById(req.params.id).select('precoCompra conteudoPorEmbalagem unidadeConteudo estoqueMinimoEmbalagens unidadeConteudo').lean();
       fields.custoUnitarioBase = calcularCustoUnitarioBase(data.precoCompra ?? atual?.precoCompra, data.conteudoPorEmbalagem ?? atual?.conteudoPorEmbalagem, data.unidadeConteudo ?? atual?.unidadeConteudo);
@@ -473,8 +474,8 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
       const minimoAtual = fields.estoqueMinimoEmbalagens ?? atual?.estoqueMinimoEmbalagens ?? 0;
       fields.estoqueMinimoBase = calcularEstoqueMinimoBase(minimoAtual, unidadeConteudoAtual);
     } else if (tipo === 'venda' && tipoProduto === 'revenda' && (data.precoCompra !== undefined || data.conteudoPorEmbalagem !== undefined)) {
-      const precoCompraAtual = Number(data.precoCompra ?? produtoAtual.precoCompra ?? 0);
-      const conteudoAtual = Number(data.conteudoPorEmbalagem ?? produtoAtual.conteudoPorEmbalagem ?? 0);
+      const precoCompraAtual = toNumberOrZero(data.precoCompra ?? produtoAtual.precoCompra);
+      const conteudoAtual = toNumberOrZero(data.conteudoPorEmbalagem ?? produtoAtual.conteudoPorEmbalagem);
       fields.custoUnitarioBase = precoCompraAtual > 0 && conteudoAtual > 0 ? precoCompraAtual / conteudoAtual : 0;
     } else if (tipo === 'insumo' && data.estoqueMinimoEmbalagens !== undefined) {
       const atual = await Product.findById(req.params.id).select('estoqueMinimoEmbalagens unidadeConteudo').lean();
@@ -485,21 +486,21 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     if (data.unidadePeso !== undefined) fields.unidadePeso = data.unidadePeso;
     if (data.estoque !== undefined || data.pesoPorUnidade !== undefined || data.unidadeVenda !== undefined || data.unidadePeso !== undefined) {
       const atual = await Product.findById(req.params.id).select('estoque pesoPorUnidade unidadeVenda unidadePeso').lean();
-      const estoque = Number(data.estoque ?? atual?.estoque ?? 0);
-      const peso = Number(data.pesoPorUnidade ?? atual?.pesoPorUnidade ?? 0);
+      const estoque = toNumberOrZero(data.estoque ?? atual?.estoque);
+      const peso = toNumberOrZero(data.pesoPorUnidade ?? atual?.pesoPorUnidade);
       const unidade = data.unidadeVenda || atual?.unidadeVenda;
       fields.estoquePesoKg = peso > 0 && ['kg', 'g'].includes(unidade) ? estoque * (unidade === 'kg' ? peso : peso / 1000) : 0;
     }
     if (data.custoUnitario !== undefined || data.custo !== undefined) {
       const receitaVinculada = await Recipe.exists({ produtoId: req.params.id, ativa: true });
       if (!receitaVinculada) {
-        const custoUnitario = Number(data.custoUnitario ?? data.custo);
+        const custoUnitario = toNumberOrZero(data.custoUnitario ?? data.custo);
         fields.custoUnitario = custoUnitario;
         fields.custo = custoUnitario;
       }
     }
     const produtoAtualParaDesconto = await Product.findById(req.params.id).select('preco tipo').lean();
-    const precoNormal = Number(data.precoVenda ?? data.preco ?? produtoAtualParaDesconto?.preco ?? 0);
+    const precoNormal = toNumberOrZero(data.precoVenda ?? data.preco ?? produtoAtualParaDesconto?.preco);
     const descontosPorQuantidade = descontosDoProduto(data.descontosPorQuantidade, tipo, precoNormal);
     if (descontosPorQuantidade !== undefined) fields.descontosPorQuantidade = descontosPorQuantidade;
     ['vendidoFracionado', 'permitirVendaSemInsumo'].forEach((key) => { if (data[key] !== undefined) fields[key] = Boolean(data[key]); });
@@ -507,10 +508,10 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
       fields.tipoProduto = tipoProduto;
       fields.aFazer = tipoProduto === 'coz';
       fields.producaoPropria = tipoProduto === 'producao';
-      fields.estoque = tipoProduto === 'coz' ? 0 : (Number(data.estoque ?? produtoAtual.estoque) || 0);
+      fields.estoque = tipoProduto === 'coz' ? 0 : toNumberOrZero(data.estoque ?? produtoAtual.estoque);
     }
-    if (data.rendimentoPorReceita !== undefined) fields.rendimentoPorReceita = Number(data.rendimentoPorReceita);
-    if (data.fichaTecnica !== undefined) fields.fichaTecnica = data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade }));
+    if (data.rendimentoPorReceita !== undefined) fields.rendimentoPorReceita = toNumberOrZero(data.rendimentoPorReceita);
+    if (data.fichaTecnica !== undefined) fields.fichaTecnica = data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: toNumberOrZero(item.quantidade), unidade: item.unidade }));
     const fichaTecnicaAlterada = data.fichaTecnica !== undefined;
     if (data.estoque !== undefined && antesDasOito()) {
       fields.estoqueInicialDia = Number(data.estoque);
