@@ -35,6 +35,7 @@ const vazio = {
   dataUltimoCalculo: null,
   fonteCalculo: 'indisponivel',
   estoque: '',
+  estoqueInsumos: '',
   unidadeVenda: 'un',
   vendidoFracionado: false,
   aFazer: false,
@@ -104,7 +105,9 @@ export default function Products() {
 
   const limparCampoNumerico = (valor) => {
     if (valor === '' || valor === null || valor === undefined) return undefined;
-    return Number(valor);
+    const num = Number(valor);
+    if (num < 0) return undefined;
+    return num;
   };
 
   const produtosIngredientes = produtos.filter((produto) => produto.tipo === 'insumo' || produto.usavelEmReceita);
@@ -226,6 +229,7 @@ export default function Products() {
       tipoProduto: tipo === 'venda' ? form.tipoProduto : undefined,
       rendimentoPorReceita: tipo === 'venda' && form.tipoProduto === 'producao' ? Number(form.rendimentoPorReceita || 1) : 1,
       estoque: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : (form.aFazer ? 0 : limparCampoNumerico(form.estoque) ?? 0),
+      estoqueInsumos: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : (form.usavelEmReceita ? limparCampoNumerico(form.estoqueInsumos) ?? 0 : undefined),
       estoqueEmbalagens: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : undefined,
       estoqueMinimoEmbalagens: tipo === 'insumo' ? limparCampoNumerico(form.estoqueMinimoEmbalagens) ?? 0 : undefined,
       conteudoPorEmbalagem: limparCampoNumerico(form.conteudoPorEmbalagem) ?? 0,
@@ -294,6 +298,7 @@ export default function Products() {
       conteudoPorEmbalagem: conteudoPorEmbalagem,
       unidadeConteudo: unidadeConteudo,
       estoqueEmbalagens: produto.estoqueEmbalagens ?? produto.estoqueInsumos ?? '',
+      estoqueInsumos: produto.estoqueInsumos ?? '',
       estoqueConteudoAberto: produto.estoqueConteudoAberto ?? 0,
       estoqueMinimoEmbalagens: produto.estoqueMinimoEmbalagens ?? produto.estoqueMinimoInsumos ?? '',
       rendimentoPorUnidadeCompra: produto.rendimentoPorUnidadeCompra ?? '',
@@ -486,6 +491,7 @@ export default function Products() {
                 </div>
                 {form.tipoProduto === 'producao' && <label>Rendimento por ficha técnica *<input required type="number" min="0.001" step="0.001" value={form.rendimentoPorReceita || 1} onChange={(event) => setForm({ ...form, rendimentoPorReceita: event.target.value })} /><small>Quantas unidades saem de uma fornada.</small></label>}
                 {form.tipoProduto !== 'coz' ? <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label> : <div className="coz-stock-notice"><strong>⚠️ Coz não possui estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
+                {form.usavelEmReceita && <label>Estoque de insumos <small>Para uso em receitas</small><input type="number" step="0.001" min={0} value={form.estoqueInsumos} onChange={(event) => setForm({ ...form, estoqueInsumos: event.target.value })} /></label>}
                 <label>Unidade de compra
                   <select value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>
                     {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}

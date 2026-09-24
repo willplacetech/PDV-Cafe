@@ -228,35 +228,39 @@ router.post('/transfer', onlyManager, [body('produtoId').isMongoId(), body('orig
   } catch (error) { res.status(400).json({ msg: error.message }); } finally { await session.endSession(); }
 });
 
-router.post('/produce', onlyManager, [body('receitaId').isMongoId(), body('quantidade').isFloat({ min: 0.001 })], async (req, res) => {
+router.post('/produce', onlyManager, [body('receitas').isArray({ min: 1 }), body('receitas.*.receitaId').isMongoId(), body('receitas.*.quantidade').isFloat({ min: 0.001 })], async (req, res) => {
   if (!validate(req, res)) return;
   const session = await mongoose.startSession();
   try {
-    let production;
-    const conversoes = [];
+    const producoes = [];
+    const todasConversoes = [];
     await session.withTransaction(async () => {
-      const recipe = await Recipe.findOne({ _id: req.body.receitaId, ativa: true }).populate('produtoId').populate('ingredientes.produtoId').session(session);
-      if (!recipe) throw new Error('Receita não encontrada ou inativa');
-      const tipoProduto = recipe.produtoId.tipoProduto || (recipe.produtoId.aFazer ? 'coz' : recipe.produtoId.producaoPropria ? 'producao' : 'revenda');
-      if (tipoProduto !== 'producao') throw new Error('Produtos Coz não podem ser lançados em produção');
-      const batches = Number(req.body.quantidade);
-      const consumption = recipe.ingredientes.map((item) => ({ product: item.produtoId, quantity: Number(item.quantidade) * batches, unit: item.unidade }));
-      const snapshots = [];
-      for (const item of consumption) {
-        const product = await Product.findById(item.product._id).session(session);
-        if (!product) throw new Error(`Insumo não encontrado: ${item.product.nome}`);
-        const consumo = consumirIngrediente(product, item.quantity, item.unit);
-        conversoes.push(consumo.mensagem);
-        await product.save({ session });
-        snapshots.push({ produtoId: item.product._id, nome: item.product.nome, quantidade: item.quantity, unidade: item.unit });
-        await StockMovement.create([{ produtoId: item.product._id, produtoNome: item.product.nome, tipo: 'saida', origem: 'insumos', destino: null, quantidade: item.quantity, observacao: `Consumo da receita ${recipe.nome}`, createdBy: req.user.id }], { session });
+      for (const item of req.body.receitas) {
+        const { receitaId, quantidade } = item;
+        const recipe = await Recipe.findOne({ _id: receitaId, ativa: true }).populate('produtoId').populate('ingredientes.produtoId').session(session);
+        if (!recipe) throw new Error(`Receita não encontrada ou inativa: ${receitaId}`);
+        const tipoProduto = recipe.produtoId.tipoProduto || (recipe.produtoId.aFazer ? 'coz' : recipe.produtoId.producaoPropria ? 'producao' : 'revenda');
+        if (tipoProduto !== 'producao') throw new Error(`Produtos Coz não podem ser lançados em produção: ${recipe.nome}`);
+        const batches = Number(quantidade);
+        const consumption = recipe.ingredientes.map((ingrediente) => ({ product: ingrediente.produtoId, quantity: Number(ingrediente.quantidade) * batches, unit: ingrediente.unidade }));
+        const snapshots = [];
+        for (const consumo of consumption) {
+          const product = await Product.findById(consumo.product._id).session(session);
+          if (!product) throw new Error(`Insumo não encontrado: ${consumo.product.nome}`);
+          const resultado = consumirIngrediente(product, consumo.quantity, consumo.unit);
+          todasConversoes.push(resultado.mensagem);
+          await product.save({ session });
+          snapshots.push({ produtoId: consumo.product._id, nome: consumo.product.nome, quantidade: consumo.quantity, unidade: consumo.unit });
+          await StockMovement.create([{ produtoId: consumo.product._id, produtoNome: consumo.product.nome, tipo: 'saida', origem: 'insumos', destino: null, quantidade: consumo.quantity, observacao: `Consumo da receita ${recipe.nome}`, createdBy: req.user.id }], { session });
+        }
+        const output = recipe.rendimento * batches;
+        await Product.findByIdAndUpdate(recipe.produtoId._id, { $inc: { estoque: output } }, { session });
+        const [production] = await Production.create([{ receitaId: recipe._id, receitaNome: recipe.nome, produtoId: recipe.produtoId._id, produtoNome: recipe.produtoId.nome, quantidade: batches, rendimentoTotal: output, unidadeRendimento: recipe.unidadeRendimento, insumos: snapshots, observacao: req.body.observacao, createdBy: req.user.id }], { session });
+        await StockMovement.create([{ produtoId: recipe.produtoId._id, produtoNome: recipe.produtoId.nome, tipo: 'producao', origem: null, destino: 'venda', quantidade: output, referenciaId: production._id, observacao: `Produção da receita ${recipe.nome}`, createdBy: req.user.id }], { session });
+        producoes.push(production);
       }
-      const output = recipe.rendimento * batches;
-      await Product.findByIdAndUpdate(recipe.produtoId._id, { $inc: { estoque: output } }, { session });
-      [production] = await Production.create([{ receitaId: recipe._id, receitaNome: recipe.nome, produtoId: recipe.produtoId._id, produtoNome: recipe.produtoId.nome, quantidade: batches, rendimentoTotal: output, unidadeRendimento: recipe.unidadeRendimento, insumos: snapshots, observacao: req.body.observacao, createdBy: req.user.id }], { session });
-      await StockMovement.create([{ produtoId: recipe.produtoId._id, produtoNome: recipe.produtoId.nome, tipo: 'producao', origem: null, destino: 'venda', quantidade: output, referenciaId: production._id, observacao: `Produção da receita ${recipe.nome}`, createdBy: req.user.id }], { session });
     });
-    res.status(201).json({ ...production.toObject(), conversoes });
+    res.status(201).json({ producoes, conversoes: todasConversoes });
   } catch (error) { res.status(400).json({ msg: error.message }); } finally { await session.endSession(); }
 });
 
