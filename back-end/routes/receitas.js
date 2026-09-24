@@ -20,6 +20,19 @@ const precosSugeridos = (custoUnitario) => ({
 router.use(auth);
 router.use(auth.allowRoles('admin'));
 
+router.get('/:id', async (req, res) => {
+  try {
+    const recipe = await Recipe.findById(req.params.id)
+      .populate('ingredientes.produtoId', 'nome codigo unidadeConteudo conteudoPorEmbalagem custoUnitarioBase')
+      .populate('produtoId', 'nome codigo preco');
+    if (!recipe) return res.status(404).json({ msg: 'Receita não encontrada' });
+    res.json(recipe);
+  } catch (error) {
+    if (error.name === 'CastError') return res.status(400).json({ msg: 'ID inválido' });
+    res.status(500).json({ msg: error.message });
+  }
+});
+
 router.post('/:id/calcular-custo', [
   body('custoEmbalagem').optional().isFloat({ min: 0 }),
   body('custoIndireto').optional().isFloat({ min: 0 }),

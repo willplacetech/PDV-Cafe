@@ -41,6 +41,19 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.get('/:id', async (req, res) => {
+  try {
+    const compra = await Purchase.findById(req.params.id)
+      .populate('itens.produtoId', 'nome codigo unidadeConteudo conteudoPorEmbalagem')
+      .populate('createdBy', 'username');
+    if (!compra) return res.status(404).json({ msg: 'Compra não encontrada' });
+    res.json(compra);
+  } catch (error) {
+    if (error.name === 'CastError') return res.status(400).json({ msg: 'ID inválido' });
+    res.status(500).json({ msg: error.message });
+  }
+});
+
 router.post('/', [
   body('fornecedor').trim().notEmpty(),
   body('numeroNF').trim().notEmpty(),

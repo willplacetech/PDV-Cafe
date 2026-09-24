@@ -32,6 +32,20 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
   }
 });
 
+router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+  try {
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) return res.status(404).json({ msg: 'Cliente não encontrado' });
+    res.json(customer);
+  } catch (err) {
+    console.error(err.message);
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ msg: 'Cliente não encontrado' });
+    }
+    res.status(500).send('Erro no servidor');
+  }
+});
+
 // @route   POST api/customers
 // @desc    Criar cliente
 // @access  Privado

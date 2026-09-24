@@ -58,6 +58,17 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.get('/:id', async (req, res) => {
+  try {
+    const despesa = await Despesa.findById(req.params.id);
+    if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
+    res.json(despesa);
+  } catch (error) {
+    if (error.name === 'CastError') return res.status(400).json({ msg: 'ID inválido' });
+    res.status(500).json({ msg: error.message });
+  }
+});
+
 router.get('/resumo', async (req, res) => {
   try {
     const mes = req.query.mes || new Date().toISOString().slice(0, 7);
