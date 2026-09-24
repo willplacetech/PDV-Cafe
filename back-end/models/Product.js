@@ -3,7 +3,7 @@ const { UNIDADES_PERMITIDAS, normalizarUnidade, casasDecimaisValidas } = require
 
 const IngredientSchema = new mongoose.Schema({
   produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-  quantidade: { type: Number, required: true, min: 0.001 },
+  quantidade: { type: Number, required: true, min: 0.000001 },
   unidade: { type: String, enum: UNIDADES_PERMITIDAS, required: true, set: normalizarUnidade },
 }, { _id: false });
 

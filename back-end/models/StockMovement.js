@@ -6,7 +6,7 @@ const StockMovementSchema = new mongoose.Schema({
   tipo: { type: String, enum: ['entrada', 'saida', 'producao', 'transferencia', 'ajuste'], required: true },
   origem: { type: String, enum: ['venda', 'insumos', 'externo', null], default: null },
   destino: { type: String, enum: ['venda', 'insumos', 'externo', null], default: null },
-  quantidade: { type: Number, required: true, min: 0.001 },
+  quantidade: { type: Number, required: true, min: 0.000001 },
   quantidadePecas: { type: Number, min: 0 },
   pesoKg: { type: Number, min: 0 },
   tipoVenda: { type: String, enum: ['inteiro', 'peso', 'unidade'] },

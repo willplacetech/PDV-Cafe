@@ -10,7 +10,7 @@ const itemSchema = new mongoose.Schema({
   descontoQuantidade: { type: Number, min: 0, default: 0 },
   economiaQuantidade: { type: Number, min: 0, default: 0 },
   faixaDescontoQuantidade: { type: Number, min: 1 },
-  quantidade: { type: Number, required: true, min: 0.001 },
+  quantidade: { type: Number, required: true, min: 0.000001 },
   unidadeVenda: { type: String, enum: UNIDADES_PERMITIDAS, default: 'un', set: normalizarUnidade },
   pesoPorUnidade: { type: Number, min: 0 },
   unidadePeso: { type: String, enum: ['kg'] },
@@ -21,7 +21,7 @@ const itemSchema = new mongoose.Schema({
   aFazer: { type: Boolean, default: false },
   insumosConsumidos: [{
     produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
-    quantidade: { type: Number, min: 0.001 },
+    quantidade: { type: Number, min: 0.000001 },
     unidade: { type: String, enum: UNIDADES_PERMITIDAS, set: normalizarUnidade },
   }],
 });
