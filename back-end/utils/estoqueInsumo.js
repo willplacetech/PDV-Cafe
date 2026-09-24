@@ -189,8 +189,9 @@ const calcularCustoDaFichaTecnica = async (fichaTecnica) => {
   }
 
   const Product = require('../models/Product');
-  const itensValidos = fichaTecnica.filter((item) => item.produtoId && Number.isFinite(Number(item.quantidade)) && Number(item.quantidade) > 0);
-  const ids = [...new Set(itensValidos.map((item) => String(item.produtoId)))];
+  const idDoProduto = (item) => item?.produtoId?._id || item?.produtoId;
+  const itensValidos = fichaTecnica.filter((item) => idDoProduto(item) && Number.isFinite(Number(item.quantidade)) && Number(item.quantidade) > 0);
+  const ids = [...new Set(itensValidos.map((item) => String(idDoProduto(item))))];
   const insumos = await Product.find({ _id: { $in: ids } })
     .select('nome precoCompra custoUnitarioBase unidadeCompra unidadeConteudo conteudoPorEmbalagem tipo usavelEmReceita estoqueInsumos estoqueEmbalagens estoqueConteudoAberto')
     .lean();
@@ -201,7 +202,7 @@ const calcularCustoDaFichaTecnica = async (fichaTecnica) => {
   let algumIndisponivel = itensValidos.length !== fichaTecnica.length;
 
   for (const item of itensValidos) {
-    const insumo = insumosPorId.get(String(item.produtoId));
+    const insumo = insumosPorId.get(String(idDoProduto(item)));
     
     if (!insumo) {
       detalhes.push({

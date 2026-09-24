@@ -115,7 +115,7 @@ router.post('/recipes', onlyManager, [
     await Product.findByIdAndUpdate(produtoId, { $set: { tipoProduto, aFazer: tipoProduto === 'coz', producaoPropria: tipoProduto === 'producao', rendimentoPorReceita: tipoProduto === 'producao' ? Number(rendimento) : 1 } });
     await RecipeAudit.create({ receitaId: recipe._id, produtoId: produto._id, produtoNome: produto.nome, acao: 'criada', detalhes: 'Ficha técnica criada', usuarioId: req.user.id });
     await sincronizarCustoReceita(recipe._id);
-    res.status(201).json(await recipe.populate('produtoId', 'nome codigo unidadeVenda producaoPropria'));
+    res.status(201).json(await Recipe.findById(recipe._id).populate('produtoId', 'nome codigo unidadeVenda producaoPropria'));
   } catch (error) { res.status(400).json({ msg: error.message }); }
 });
 
@@ -170,7 +170,7 @@ router.put('/recipes/:id', onlyManager, [
     await Product.findByIdAndUpdate(updated.produtoId._id, { $set: { producaoPropria: !produtoAtualizado?.aFazer && updated.ativa } });
     await RecipeAudit.create({ receitaId: updated._id, produtoId: updated.produtoId._id, produtoNome: updated.produtoId.nome, acao: 'alterada', detalhes: 'Ingredientes ou dados da ficha alterados', usuarioId: req.user.id });
     if (updated.ativa) await sincronizarCustoReceita(updated._id);
-    res.json(updated);
+    res.json(await Recipe.findById(updated._id).populate('produtoId', 'nome codigo unidadeVenda producaoPropria aFazer'));
   } catch (error) { res.status(400).json({ msg: error.message }); }
 });
 

@@ -103,7 +103,7 @@ router.use((req, res, next) => {
 });
 
 const resumoVendasPeriodo = async (inicio, fim) => {
-  const pedidos = await Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $ne: 'cancelado' } }).select('total itens').lean();
+  const pedidos = await Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $ne: 'cancelado' }, utilizacaoInterna: { $ne: true } }).select('total itens').lean();
   const total = pedidos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
   const itens = pedidos.reduce((sum, pedido) => sum + (pedido.itens || []).reduce((itemSum, item) => itemSum + quantidadeNaUnidadeBase(item), 0), 0);
   return { pedidos: pedidos.length, itens, total, ticketMedio: pedidos.length ? total / pedidos.length : 0 };
@@ -195,7 +195,7 @@ router.get('/', async (req, res) => {
     inicioInsights.setDate(inicioInsights.getDate() - 90);
     const [periodMetrics, openCommands, pedidosDia, pedidosMes, recebimentosDia, recebimentosMes, clientesCadastrados, clientesRecentes, produtosCatalogo, pedidosInsights, comandasInsights] = await Promise.all([
       Promise.all(periodos.map(async (periodo) => {
-        const pedidos = await Order.find({ createdAt: { $gte: inicioDoPeriodo(periodo) }, status: { $ne: 'cancelado' } }).select('total itens createdAt');
+        const pedidos = await Order.find({ createdAt: { $gte: inicioDoPeriodo(periodo) }, status: { $ne: 'cancelado' }, utilizacaoInterna: { $ne: true } }).select('total itens createdAt utilizacaoInterna');
         const total = pedidos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
         const itens = pedidos.reduce((sum, pedido) => sum + (pedido.itens || []).reduce((itemSum, item) => itemSum + quantidadeNaUnidadeBase(item), 0), 0);
         const produtos = new Map();
@@ -204,8 +204,8 @@ router.get('/', async (req, res) => {
         return { periodo, total, pedidos: pedidos.length, itens, ticketMedio: pedidos.length ? total / pedidos.length : 0, maisVendidos };
       })),
       Comanda.countDocuments({ status: 'aberta' }),
-      Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).select('numero total status clienteNome createdAt itens pagamentos'),
-      Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status clienteId clienteNome clienteTelefone createdAt itens pagamentos tipoAtendimento'),
+      Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).select('numero total status utilizacaoInterna clienteNome createdAt itens pagamentos'),
+      Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status utilizacaoInterna clienteId clienteNome clienteTelefone createdAt itens pagamentos tipoAtendimento'),
       Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('dia') } }).select('pagamentos'),
       Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('pagamentos'),
       Customer.countDocuments(),
@@ -214,12 +214,12 @@ router.get('/', async (req, res) => {
       Order.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status total itens clienteId clienteNome'),
       Comanda.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status'),
     ]);
-    const vendasHoje = pedidosDia.filter((pedido) => pedido.status !== 'cancelado' && pedido.status !== 'pago' && !pedido.utilizacaoInterna);
+    const vendasHoje = pedidosDia.filter((pedido) => pedido.status !== 'cancelado' && !pedido.utilizacaoInterna);
     const vendasHojeTotal = vendasHoje.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
     const vendasHojeItens = vendasHoje.reduce((total, pedido) => total + (pedido.itens || []).reduce((itens, item) => itens + quantidadeNaUnidadeBase(item), 0), 0);
     const vendasHojeRecebido = recebimentosDia.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => pagamento.tipo !== 'credito_loja' && new Date(pagamento.dataPagamento) >= inicioDoPeriodo('dia')).reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).liquido, 0), 0);
     const vendasHojePendente = vendasHoje.reduce((total, pedido) => total + pedidoEmAReceber(pedido), 0);
-    const vendasMes = pedidosMes.filter((pedido) => pedido.status !== 'cancelado');
+    const vendasMes = pedidosMes.filter((pedido) => pedido.status !== 'cancelado' && !pedido.utilizacaoInterna);
     const vendasPorTipo = vendasMes.reduce((tipos, pedido) => {
       const tipo = pedido.tipoAtendimento === 'balcao' ? 'balcao' : 'mesa';
       tipos[tipo] = (tipos[tipo] || 0) + Number(pedido.total || 0);

@@ -7,6 +7,7 @@ const Product = require('../../models/Product');
 const Customer = require('../../models/Customer');
 const Order = require('../../models/Order');
 const Purchase = require('../../models/Purchase');
+const Recipe = require('../../models/Recipe');
 
 const jwtSecret = process.env.JWT_SECRET || 'desenvolvimento-altere-esta-chave';
 
@@ -135,6 +136,26 @@ describe('API Endpoints', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  test('PUT /api/production/recipes/:id → altera Cookie Redvelvet 100g', async () => {
+    const produto = await Product.create({
+      codigo: '3001', nome: 'Cookie Redvelvet 100g', preco: 12, tipo: 'venda', tipoProduto: 'producao', producaoPropria: true,
+      categoria: 'Doces', estoque: 0,
+    });
+    const receita = await Recipe.create({
+      nome: 'Cookie Redvelvet 100g', produtoId: produto._id, rendimento: 12, unidadeRendimento: 'un',
+      ingredientes: [{ produtoId: insumo._id, quantidade: 0.5, unidade: 'kg' }], createdBy: produto.createdBy,
+    });
+    const res = await request(app)
+      .put(`/api/production/recipes/${receita._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        nome: 'Cookie Redvelvet 100g', produtoId: String(produto._id), rendimento: 12, unidadeRendimento: 'un',
+        ingredientes: [{ produtoId: String(insumo._id), quantidade: 0.6, unidade: 'kg' }],
+      });
+    expect(res.statusCode).toBe(200);
+    expect(res.body.nome).toBe('Cookie Redvelvet 100g');
+  });
+
   test('GET /api/comandas → lista comandas', async () => {
     const res = await request(app)
       .get('/api/comandas')
@@ -177,6 +198,24 @@ describe('API Endpoints', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty('periodos');
     expect(res.body).toHaveProperty('insights');
+  });
+
+  test('GET /api/dashboard → Hoje e acompanhamento usam a mesma receita', async () => {
+    await Order.create({
+      itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, precoUnitario: 25, quantidade: 1 }],
+      subtotal: 25,
+      total: 25,
+      status: 'pago',
+      utilizacaoInterna: false,
+      atendente: 'admin',
+      pagamentos: [{ tipo: 'dinheiro', valorRecebido: 25, dataPagamento: new Date(), quitado: true }],
+    });
+    const res = await request(app)
+      .get('/api/dashboard')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.periodos.dia.total).toBe(25);
+    expect(res.body.vendasHoje.total).toBe(25);
   });
 
   test('GET /api/dashboard → 401 sem token', async () => {
