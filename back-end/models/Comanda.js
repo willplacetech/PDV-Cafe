@@ -13,7 +13,7 @@ const itemSchema = new mongoose.Schema({
   grupoDescontoAtivo: { type: Boolean, default: false },
   totalGrupo: { type: Number, min: 0 },
   faltamParaGrupo: { type: Number, min: 0 },
-  quantidade: { type: Number, required: true, min: 0.001 },
+  quantidade: { type: Number, required: true, min: 0.000001 },
   unidadeVenda: { type: String, enum: UNIDADES_PERMITIDAS, default: 'un', set: normalizarUnidade },
   pesoPorUnidade: { type: Number, min: 0 },
   unidadePeso: { type: String, enum: ['kg'] },
@@ -24,7 +24,7 @@ const itemSchema = new mongoose.Schema({
   aFazer: { type: Boolean, default: false },
   insumosConsumidos: [{
     produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
-    quantidade: { type: Number, min: 0.001 },
+    quantidade: { type: Number, min: 0.000001 },
     unidade: { type: String, enum: UNIDADES_PERMITIDAS, set: normalizarUnidade },
   }],
 }, { _id: true });

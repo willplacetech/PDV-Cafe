@@ -169,6 +169,19 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
+router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+  try {
+    const comanda = await Comanda.findById(req.params.id)
+      .populate('clienteId', 'nome telefone')
+      .populate('itens.produtoId', 'nome codigo');
+    if (!comanda) return res.status(404).json({ msg: 'Comanda não encontrada' });
+    res.json(comanda);
+  } catch (err) {
+    if (err.name === 'CastError') return res.status(400).json({ msg: 'ID inválido' });
+    res.status(500).json({ msg: err.message });
+  }
+});
+
 router.get('/cozinha', auth, auth.allowRoles('admin', 'operador', 'cozinha'), async (req, res) => {
   try {
     const comandas = await Comanda.find({ status: 'aberta', 'itens.aFazer': true }).sort({ createdAt: 1 });
