@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
 const Despesa = require('../models/Despesa');
@@ -14,6 +15,12 @@ const validate = (req, res) => {
     return false;
   }
   return true;
+};
+
+const idValido = (id, res) => {
+  if (mongoose.isValidObjectId(id)) return true;
+  res.status(400).json({ msg: 'ID inválido' });
+  return false;
 };
 
 const gerarParcelasRecorrentes = async (despesaBase) => {
@@ -58,17 +65,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.get('/:id', async (req, res) => {
-  try {
-    const despesa = await Despesa.findById(req.params.id);
-    if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
-    res.json(despesa);
-  } catch (error) {
-    if (error.name === 'CastError') return res.status(400).json({ msg: 'ID inválido' });
-    res.status(500).json({ msg: error.message });
-  }
-});
-
 router.get('/resumo', async (req, res) => {
   try {
     const mes = req.query.mes || new Date().toISOString().slice(0, 7);
@@ -95,6 +91,18 @@ router.get('/resumo', async (req, res) => {
       porCategoria: categoriaResumo.map((item) => ({ categoria: item._id, total: item.total })),
     });
   } catch (error) {
+    res.status(500).json({ msg: error.message });
+  }
+});
+
+router.get('/:id', async (req, res) => {
+  if (!idValido(req.params.id, res)) return;
+  try {
+    const despesa = await Despesa.findById(req.params.id);
+    if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
+    res.json(despesa);
+  } catch (error) {
+    if (error.name === 'CastError') return res.status(400).json({ msg: 'ID inválido' });
     res.status(500).json({ msg: error.message });
   }
 });
@@ -133,6 +141,7 @@ router.put('/:id', [
   body('valor').optional().isFloat({ min: 0.01 }),
 ], async (req, res) => {
   if (!validate(req, res)) return;
+  if (!idValido(req.params.id, res)) return;
   try {
     const despesa = await Despesa.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true, runValidators: true });
     if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
@@ -143,6 +152,7 @@ router.put('/:id', [
 });
 
 router.put('/:id/pagar', async (req, res) => {
+  if (!idValido(req.params.id, res)) return;
   try {
     const despesa = await Despesa.findById(req.params.id);
     if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
@@ -156,6 +166,7 @@ router.put('/:id/pagar', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
+  if (!idValido(req.params.id, res)) return;
   try {
     const despesa = await Despesa.findByIdAndDelete(req.params.id);
     if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
