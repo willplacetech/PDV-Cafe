@@ -31,6 +31,7 @@ const itemSchema = new mongoose.Schema({
 
 const comandaSchema = new mongoose.Schema({
   numero: { type: String, unique: true },
+  idTemporario: { type: String, trim: true, unique: true, sparse: true },
   clienteNome: { type: String, trim: true, default: 'Cliente nao identificado' },
   clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
   observacao: { type: String, trim: true },

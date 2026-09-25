@@ -14,11 +14,13 @@ beforeAll(async () => {
   const User = require('../models/User');
   const Customer = require('../models/Customer');
   const Order = require('../models/Order');
+  const Comanda = require('../models/Comanda');
   await Promise.all([
     Product.init(),
     User.init(),
     Customer.init(),
     Order.init(),
+    Comanda.init(),
   ]);
 });
 

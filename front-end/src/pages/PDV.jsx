@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
+import useFilaOffline from '../hooks/useFilaOffline.js';
 
 
 const corCategoria = {
@@ -71,27 +72,38 @@ export default function PDV() {
   const [modalSucesso, setModalSucesso] = useState(null);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const { showToast } = useToast();
+  const { enfileirar } = useFilaOffline();
   const navigate = useNavigate();
   const selectClienteRef = useRef(null);
 
 
-  const carregarDados = async () => {
-    try {
-      const [resProd, resCli, resMaisVendidos] = await Promise.all([
-        api.get('/products/pdv'), api.get('/customers'), api.get('/products/mais-vendidos?limite=8')
-      ]);
-      setProdutos(resProd.data);
-      setClientes(resCli.data);
-      setMaisVendidos(resMaisVendidos.data);
-    } catch {
-      showToast('Erro ao carregar dados', 'error');
+  const carregarDados = useCallback(async () => {
+    const resultados = navigator.onLine ? await Promise.allSettled([
+      api.get('/products/pdv'), api.get('/customers'), api.get('/products/mais-vendidos?limite=8')
+    ]) : [];
+    const resultadoProdutos = resultados[0];
+    if (resultadoProdutos?.status === 'fulfilled') {
+      setProdutos(resultadoProdutos.value.data);
+      try { localStorage.setItem('pdv_catalogo_offline', JSON.stringify(resultadoProdutos.value.data)); } catch { /* cache auxiliar não deve bloquear o PDV */ }
+    } else {
+      try {
+        const produtosOffline = JSON.parse(localStorage.getItem('pdv_catalogo_offline') || '[]');
+        if (Array.isArray(produtosOffline)) setProdutos(produtosOffline);
+      } catch { /* catálogo local inválido; mantém a lista vazia */ }
     }
-  };
+    if (resultados[1]?.status === 'fulfilled') setClientes(resultados[1].value.data);
+    if (resultados[2]?.status === 'fulfilled') setMaisVendidos(resultados[2].value.data);
+    let temCatalogoOffline = false;
+    try { temCatalogoOffline = JSON.parse(localStorage.getItem('pdv_catalogo_offline') || '[]').length > 0; } catch { /* ignora armazenamento local inválido */ }
+    if (resultados.every((resultado) => resultado.status === 'rejected') && !temCatalogoOffline) {
+      showToast('Sem conexão e sem catálogo salvo neste dispositivo', 'error');
+    }
+  }, [showToast]);
 
   useEffect(() => {
     const carregarInicial = async () => { await carregarDados(); };
     carregarInicial();
-  }, []);
+  }, [carregarDados]);
 
 
   const tocarFeedback = () => {
@@ -197,21 +209,52 @@ export default function PDV() {
   const finalizar = async () => {
     if (!carrinho.length) return showToast('Carrinho vazio!', 'warning');
 
+    const idTemporario = `${Date.now()}-${globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)}`;
+    const payload = {
+      idTemporario,
+      clienteId: clienteId || undefined,
+      clienteNome: clienteSelecionado?.nome || clienteNome.trim() || 'Cliente não identificado',
+      clienteTelefone: clienteSelecionado?.telefone || '',
+      itens: carrinho.map((item) => ({
+        produtoId: item.produtoId,
+        quantidade: Number(item.quantidade),
+        modificadores: item.modificadores || [],
+      })),
+    };
+
+    const limparCarrinho = () => {
+      setCarrinho([]);
+      setClienteId('');
+      setClienteNome('');
+    };
+
+    const salvarOffline = async () => {
+      const resultado = await enfileirar('/comandas', payload, idTemporario);
+      if (!resultado.ok) {
+        if (resultado.motivo === 'limite') showToast('Limite de 50 vendas pendentes atingido. Conecte à internet para sincronizar.', 'error');
+        else showToast('Conecte à internet para sincronizar. A venda não foi removida do carrinho.', 'error');
+        return false;
+      }
+      limparCarrinho();
+      showToast('✅ Sem internet — venda salva! Envia automaticamente quando voltar.', 'success');
+      return true;
+    };
+
+    if (!navigator.onLine) {
+      await salvarOffline();
+      return;
+    }
+
     try {
-      const { data: comanda } = await api.post('/comandas', {
-        clienteId: clienteId || undefined,
-        clienteNome: clienteSelecionado?.nome || clienteNome.trim() || 'Cliente não identificado',
-        clienteTelefone: clienteSelecionado?.telefone || '',
-        itens: carrinho.map((item) => ({
-          produtoId: item.produtoId,
-          quantidade: Number(item.quantidade),
-          modificadores: item.modificadores || [],
-        })),
-      });
-      setCarrinho([]); setClienteId(''); setClienteNome('');
+      const { data: comanda } = await api.post('/comandas', payload);
+      limparCarrinho();
       showToast(`Comanda #${comanda.numero} aberta`, 'success');
       navigate('/comandas');
     } catch (err) {
+      if (!err.response || err.response.status >= 500 || !navigator.onLine) {
+        await salvarOffline();
+        return;
+      }
       showToast(err.response?.data?.msg || 'Erro ao abrir comanda', 'error');
     }
   };

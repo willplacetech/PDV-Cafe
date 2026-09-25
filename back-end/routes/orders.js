@@ -68,6 +68,11 @@ async function buildOrderItems(rawItems, session) {
 }
 
 router.post('/', auth, auth.allowRoles('admin'), async (req, res) => {
+  const idTemporario = String(req.body.idTemporario || '').trim().slice(0, 100);
+  if (idTemporario) {
+    const existente = await Order.findOne({ idTemporario });
+    if (existente) return res.status(200).json(existente);
+  }
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -75,12 +80,16 @@ router.post('/', auth, auth.allowRoles('admin'), async (req, res) => {
     const subtotal = money(items.reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0));
     const discount = money(req.body.desconto || 0);
     if (discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
-    const order = new Order({ itens: items, subtotal, desconto: discount, total: money(subtotal - discount), clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', clienteTelefone: req.body.clienteTelefone || '', atendente: req.user.username, comandaId: req.body.comandaId || undefined });
+    const order = new Order({ idTemporario: idTemporario || undefined, itens: items, subtotal, desconto: discount, total: money(subtotal - discount), clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', clienteTelefone: req.body.clienteTelefone || '', atendente: req.user.username, comandaId: req.body.comandaId || undefined });
     await order.save({ session });
     await session.commitTransaction();
     res.status(201).json(order);
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
+    if (err.code === 11000 && idTemporario) {
+      const existente = await Order.findOne({ idTemporario });
+      if (existente) return res.status(200).json(existente);
+    }
     res.status(400).json({ msg: err.message });
   } finally { await session.endSession(); }
 });

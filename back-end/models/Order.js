@@ -63,6 +63,7 @@ const nfceSchema = new mongoose.Schema({
 
 const orderSchema = new mongoose.Schema({
   numero: { type: String, unique: true },
+  idTemporario: { type: String, trim: true, unique: true, sparse: true },
   itens: [itemSchema],
   subtotal: { type: Number, required: true, min: 0 },
   desconto: { type: Number, default: 0, min: 0 },

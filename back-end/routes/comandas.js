@@ -190,6 +190,11 @@ router.get('/cozinha', auth, auth.allowRoles('admin', 'operador', 'cozinha'), as
 });
 
 router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+  const idTemporario = String(req.body.idTemporario || '').trim().slice(0, 100);
+  if (idTemporario) {
+    const existente = await Comanda.findOne({ idTemporario });
+    if (existente) return res.status(200).json(existente);
+  }
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -242,11 +247,15 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
     await ajustarEstoque(itens, 'baixar', session);
     const tipoAtendimento = req.body.tipoAtendimento === 'balcao' ? 'balcao' : 'mesa';
     const valorTotal = money(itens.reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0));
-    const [comanda] = await Comanda.create([{ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, mesa: req.body.mesa, tipoAtendimento, statusBalcao: tipoAtendimento === 'balcao' ? 'aguardando' : undefined, itens, valorTotal, saldoDevedor: valorTotal, statusPagamento: 'pendente', estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
+    const [comanda] = await Comanda.create([{ idTemporario: idTemporario || undefined, clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, mesa: req.body.mesa, tipoAtendimento, statusBalcao: tipoAtendimento === 'balcao' ? 'aguardando' : undefined, itens, valorTotal, saldoDevedor: valorTotal, statusPagamento: 'pendente', estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
     await session.commitTransaction();
     res.status(201).json(comanda);
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
+    if (err.code === 11000 && idTemporario) {
+      const existente = await Comanda.findOne({ idTemporario });
+      if (existente) return res.status(200).json(existente);
+    }
     res.status(400).json({ msg: err.message });
   } finally { await session.endSession(); }
 });

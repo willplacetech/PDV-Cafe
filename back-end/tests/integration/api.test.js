@@ -6,6 +6,7 @@ const User = require('../../models/User');
 const Product = require('../../models/Product');
 const Customer = require('../../models/Customer');
 const Order = require('../../models/Order');
+const Comanda = require('../../models/Comanda');
 const Purchase = require('../../models/Purchase');
 const Recipe = require('../../models/Recipe');
 
@@ -166,6 +167,28 @@ describe('API Endpoints', () => {
     expect(res.body.itens).toHaveLength(1);
   });
 
+  test('POST /api/orders → reenvio com idTemporario não duplica venda nem baixa estoque duas vezes', async () => {
+    const payload = {
+      idTemporario: 'offline-order-1001',
+      itens: [{ produtoId: produtoVenda._id, quantidade: 1 }],
+      clienteNome: 'Venda offline',
+    };
+    const primeiraResposta = await request(app)
+      .post('/api/orders')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(payload);
+    const segundaResposta = await request(app)
+      .post('/api/orders')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(payload);
+
+    expect(primeiraResposta.statusCode).toBe(201);
+    expect(segundaResposta.statusCode).toBe(200);
+    expect(segundaResposta.body._id).toBe(primeiraResposta.body._id);
+    expect(await Order.countDocuments({ idTemporario: payload.idTemporario })).toBe(1);
+    expect((await Product.findById(produtoVenda._id)).estoque).toBe(99);
+  });
+
   test('POST /api/orders → 400 quantidade inválida', async () => {
     const res = await request(app)
       .post('/api/orders')
@@ -199,6 +222,28 @@ describe('API Endpoints', () => {
       .get('/api/comandas')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.statusCode).toBe(200);
+  });
+
+  test('POST /api/comandas → reenvio com idTemporario não duplica abertura nem baixa estoque duas vezes', async () => {
+    const payload = {
+      idTemporario: 'offline-comanda-1001',
+      clienteNome: 'Venda offline',
+      itens: [{ produtoId: produtoVenda._id, quantidade: 1 }],
+    };
+    const primeiraResposta = await request(app)
+      .post('/api/comandas')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(payload);
+    const segundaResposta = await request(app)
+      .post('/api/comandas')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(payload);
+
+    expect(primeiraResposta.statusCode).toBe(201);
+    expect(segundaResposta.statusCode).toBe(200);
+    expect(segundaResposta.body._id).toBe(primeiraResposta.body._id);
+    expect(await Comanda.countDocuments({ idTemporario: payload.idTemporario })).toBe(1);
+    expect((await Product.findById(produtoVenda._id)).estoque).toBe(99);
   });
 
   test('POST /api/compras → lança compra e atualiza estoque', async () => {

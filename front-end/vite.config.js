@@ -7,61 +7,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      manifest: false,
       includeAssets: ['Abraco1.png', 'Abraco5.png', 'Abraco10.png', 'Abraco11.png', 'apple-touch-icon.png'],
-      manifest: {
-        name: 'Sabor de Abraço',
-        short_name: 'Mercado',
-        description: 'Cafeteria e sistema de atendimento do Sabor de Abraço',
-        theme_color: '#3a2015',
-        background_color: '#f8efe7',
-        start_url: '/',
-        display: 'standalone',
-        display_override: ['standalone'],
-        orientation: 'portrait',
-        scope: '/',
-        icons: [
-          {
-            src: '/Abraco1.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any maskable'
-          },
-          {
-            src: '/Abraco1.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
-          }
-        ]
-      },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest,woff2}'],
         cleanupOutdatedCaches: true,
-        runtimeCaching: [
-          {
-            urlPattern: ({ request }) => request.destination === 'document' || request.mode === 'navigate',
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'app-shell',
-              networkTimeoutSeconds: 3,
-            },
-          },
-          {
-            urlPattern: ({ request }) => ['style', 'script', 'font', 'image', 'worker'].includes(request.destination),
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'static-assets',
-            },
-          },
-          {
-            urlPattern: ({ url }) => url.origin === self.location.origin && /\/api\//.test(url.pathname),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 5,
-            },
-          },
-        ],
       },
       // No iOS, cache pode ser limpo após ~7 dias sem uso.
     })

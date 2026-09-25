@@ -2,6 +2,7 @@ import { useContext, useState } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext.jsx';
 import { ThemeContext } from '../context/ThemeContext.jsx';
+import StatusConexao from './StatusConexao.jsx';
 
 const gruposMenu = [
   {
@@ -237,7 +238,11 @@ export default function Layout() {
             Sair
           </button>
         </div>
+        <StatusConexao compacto />
       </header>
+      <div className="connection-status-desktop">
+        <StatusConexao compacto />
+      </div>
 
 
       {/* ==========================================
@@ -251,7 +256,6 @@ export default function Layout() {
             <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Cafeteria e confeitaria</div>
           </div>
         </div>
-
         <button onClick={toggleTheme} style={{
           width: '100%', padding: '10px',
           background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
@@ -411,6 +415,14 @@ export default function Layout() {
         /* DESKTOP - BARRA LATERAL 260px */
         @media (min-width: 769px) {
           #header-mobile { display: none !important; }
+          .connection-status-desktop {
+            display: block;
+            position: fixed;
+            top: 12px;
+            right: 16px;
+            z-index: 200;
+            width: min(400px, calc(100vw - 292px));
+          }
           #sidebar-desktop {
             display: flex !important;
             position: fixed; top: 0; left: 0;
@@ -430,8 +442,10 @@ export default function Layout() {
 
         /* MOBILE */
         @media (max-width: 768px) {
+          .connection-status-desktop { display: none; }
           #header-mobile {
             display: flex !important;
+            flex-wrap: wrap;
             align-items: center;
             justify-content: space-between;
             gap: 12px;
