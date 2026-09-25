@@ -665,19 +665,42 @@ export default function Products() {
         .product-section-title div { display: grid; gap: 3px; }
         .product-section-title strong { color: var(--text-primary); font-size: 11px; letter-spacing: .06em; }
         .product-section-title small { color: var(--text-secondary); font-size: 11px; }
-        .product-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-        .product-form-section label { display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
-        .product-form-section input, .product-form-section select { width: 100%; box-sizing: border-box; min-height: 42px; padding: 9px 11px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--input-text); font: inherit; }
-        .product-input-with-unit { display: grid; grid-template-columns: minmax(0, 1fr) 76px; gap: 8px; }
+        .product-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+        .product-form-section label {
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start;
+          gap: 6px;
+          color: var(--text-secondary);
+          font-size: 12px;
+          font-weight: 700;
+          min-height: 100%;
+        }
+        .product-form-section input, .product-form-section select {
+          width: 100%;
+          box-sizing: border-box;
+          height: 42px;
+          min-height: 42px;
+          padding: 9px 11px;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          background: var(--input-bg);
+          color: var(--input-text);
+          font: inherit;
+          line-height: 1.2;
+          margin: 0;
+        }
+        .product-input-with-unit { display: grid; grid-template-columns: minmax(0, 1fr) 76px; gap: 8px; align-items: stretch; }
+        .product-input-with-unit input, .product-input-with-unit select { height: 42px; }
         .product-summary-section { background: var(--bg-secondary); }
         .product-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
         .product-summary-grid div { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--border-light); border-radius: 9px; }
         .product-summary-grid span { color: var(--text-secondary); font-size: 11px; }
         .product-summary-grid strong { color: var(--text-primary); font-size: 14px; }
-        .product-type-field { display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
+        .product-type-field { display: flex; flex-direction: column; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
         .product-type-label { display: block; }
-        .product-radio-group { display: flex; align-items: center; gap: 18px; min-height: 42px; flex-wrap: wrap; }
-        .product-form-section .product-radio-option { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; color: var(--text-primary); font-weight: 600; cursor: pointer; }
+        .product-radio-group { display: flex; align-items: center; gap: 18px; min-height: 42px; flex-wrap: wrap; padding: 2px 0; }
+        .product-form-section .product-radio-option { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; color: var(--text-primary); font-weight: 600; cursor: pointer; margin: 0; }
         .product-form-section .product-radio { width: 16px; height: 16px; min-width: 16px; min-height: 16px; margin: 0; padding: 0; accent-color: var(--accent-primary); }
         .product-form-section .product-checkbox-label { display: flex; align-items: center; gap: 10px; min-height: 42px; }
         .product-form-section .product-checkbox { width: 18px; height: 18px; min-width: 18px; min-height: 18px; margin: 0; padding: 0; accent-color: var(--accent-primary); }
