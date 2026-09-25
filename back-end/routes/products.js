@@ -60,7 +60,7 @@ const descontosDoProduto = (valor, tipo, precoNormal) => {
 const validations = [
   body('codigo').trim().notEmpty(),
   body('nome').trim().notEmpty(),
-  body('ncm').optional().isString().isLength({ min: 8, max: 8 }),
+  body('ncm').optional({ checkFalsy: true }).customSanitizer((value) => (value === null || value === undefined ? '' : String(value).replace(/\D/g, '').slice(0, 8))).custom((value) => value === '' || /^[0-9]{8}$/.test(String(value))).withMessage('NCM deve ter 8 dígitos quando informado'),
   body('preco').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
   body('precoCompra').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
   body('custo').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }),
@@ -367,7 +367,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const product = await Product.create({
       codigo: data.codigo.trim(),
       nome: data.nome.trim(),
-      ncm: String(data.ncm || '').replace(/\D/g, ''),
+      ncm: String(data.ncm ?? '').replace(/\D/g, '').slice(0, 8),
       tipo,
       unidade,
       quantidade,
@@ -455,7 +455,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     if (data.tipo !== undefined) fields.tipo = tipo;
     if (data.usavelEmReceita !== undefined) fields.usavelEmReceita = Boolean(data.usavelEmReceita);
     ['nome', 'categoria'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
-    if (data.ncm !== undefined) fields.ncm = String(data.ncm).replace(/\D/g, '');
+    if (data.ncm !== undefined) fields.ncm = String(data.ncm ?? '').replace(/\D/g, '').slice(0, 8);
     ['unidade', 'unidadeVenda', 'unidadeCompra', 'unidadeConteudo'].forEach((key) => { if (data[key] !== undefined) fields[key] = normalizarUnidade(data[key]); });
     ['preco', 'precoCompra', 'estoque', 'estoqueInsumos', 'estoqueEmbalagens', 'estoqueConteudoAberto', 'estoqueMaximo', 'estoqueMinimoInsumos', 'estoqueMinimoEmbalagens', 'pesoPorUnidade', 'rendimentoPorUnidadeCompra', 'conteudoPorEmbalagem', 'quantidade', 'rendimento'].forEach((key) => { if (data[key] !== undefined) fields[key] = toNumberOrZero(data[key]); });
     if (data.unidade !== undefined && data.quantidade !== undefined) fields.quantidade = Number(data.quantidade);

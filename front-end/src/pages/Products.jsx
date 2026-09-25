@@ -624,9 +624,15 @@ export default function Products() {
                         </>
                       );
                     })() : (() => {
-                      const custoDisponivel = produto.fonteCalculo === 'insumo' && Number.isFinite(Number(produto.custoCalculado));
                       const preco = Number(produto.preco || 0);
-                      const custo = custoDisponivel ? Number(produto.custoCalculado) : null;
+                      const custoDireto = produto.precoCompra > 0 && Number(produto.conteudoPorEmbalagem || 0) > 0
+                        ? Number(produto.precoCompra) / Number(produto.conteudoPorEmbalagem)
+                        : null;
+                      const custoCalculado = produto.fonteCalculo === 'insumo' && Number.isFinite(Number(produto.custoCalculado))
+                        ? Number(produto.custoCalculado)
+                        : null;
+                      const custo = custoCalculado ?? custoDireto;
+                      const custoDisponivel = custo !== null;
                       const lucroProduto = custoDisponivel && preco > 0 ? preco - custo : null;
                       return (
                         <>

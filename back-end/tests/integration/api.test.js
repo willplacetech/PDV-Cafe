@@ -85,6 +85,24 @@ describe('API Endpoints', () => {
     expect(res.body.nome).toBe('Pão de Mel');
   });
 
+  test('POST /api/products → aceita NCM em branco sem bloquear cadastro', async () => {
+    const res = await request(app)
+      .post('/api/products')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        codigo: '2101',
+        nome: 'Produto sem NCM',
+        ncm: '',
+        preco: 15,
+        tipo: 'venda',
+        categoria: 'Outros',
+        estoque: 10,
+        unidadeVenda: 'un',
+      });
+    expect(res.statusCode).toBe(201);
+    expect(res.body.ncm).toBe('');
+  });
+
   test('Produtos de revenda calculam custo por preço e conteúdo da embalagem', async () => {
     const criado = await request(app)
       .post('/api/products')
