@@ -102,6 +102,50 @@ export default function Financeiro() {
     setResumo(resumoResponse.data || { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
   };
 
+  const aplicarDiaNasParcelasRecorrentes = async (despesa, dia, camposAtualizacao) => {
+    const origemId = despesa.origemRecorrencia || despesa._id;
+    const parcelasAbertas = despesas.filter((parcela) => (
+      parcela.recorrente
+      && parcela.status !== 'pago'
+      && (String(parcela._id) === String(origemId) || String(parcela.origemRecorrencia) === String(origemId))
+    ));
+    const parcelas = parcelasAbertas.some((parcela) => String(parcela._id) === String(despesa._id))
+      ? parcelasAbertas
+      : [...parcelasAbertas, despesa].filter((parcela) => parcela.status !== 'pago');
+
+    if (!parcelas.length) {
+      throw new Error('Não há parcelas abertas da recorrência para atualizar');
+    }
+
+    const datasEsperadas = new Map();
+    for (const parcela of parcelas) {
+      const vencimentoAtual = new Date(parcela.dataVencimento);
+      const ano = vencimentoAtual.getUTCFullYear();
+      const mes = vencimentoAtual.getUTCMonth();
+      const ultimoDiaDoMes = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
+      const vencimento = new Date(Date.UTC(ano, mes, Math.min(dia, ultimoDiaDoMes)));
+      const dataIso = vencimento.toISOString();
+      datasEsperadas.set(String(parcela._id), dataIso);
+      await api.put(`/despesas/${parcela._id}`, {
+        ...camposAtualizacao,
+        dataVencimento: dataIso,
+      });
+    }
+
+    const { data: despesasAtuais } = await api.get('/despesas');
+    const despesasPorId = new Map(despesasAtuais.map((item) => [String(item._id), item]));
+    const naoAtualizadas = [...datasEsperadas].filter(([id, dataIso]) => (
+      !despesasPorId.has(id) || dateKey(despesasPorId.get(id).dataVencimento) !== dataIso.slice(0, 10)
+    ));
+
+    if (naoAtualizadas.length) {
+      throw new Error(`O servidor não confirmou a atualização de ${naoAtualizadas.length} parcela(s)`);
+    }
+
+    setDespesas(despesasAtuais);
+    return parcelas.length;
+  };
+
   if (!user || user.role !== 'admin') return <Navigate to="/pdv" replace />;
 
   if (carregando) return <><AreaTabs area="dashboard" /><div className="financeiro-page"><section className="financeiro-panel financeiro-state"><h2>Carregando financeiro...</h2><p>Consultando despesas, caixa e DRE.</p></section></div></>;
@@ -122,22 +166,27 @@ export default function Financeiro() {
           && alterarTodasRecorrentes
           && formatoVencimentoRecorrente === 'dia';
         if (usaDiaVencimento) {
-          payload.diaVencimento = Number(diaVencimentoRecorrente);
-        } else {
-          payload.dataVencimento = form.dataVencimento;
-        }
-        const { data: despesaAtualizada } = await api.put(`/despesas/${despesaEmEdicao._id}`, {
-          ...payload,
-          alterarTodas: despesaEmEdicao.recorrente && alterarTodasRecorrentes,
-        });
-        if (alterarTodasRecorrentes) {
-          const quantidade = Number(despesaAtualizada.parcelasAtualizadas || 0);
-          if (!quantidade) {
-            throw new Error('O servidor da API ainda não confirmou a atualização da recorrência. Publique a versão atualizada do backend no Render e tente novamente.');
-          }
+          const quantidade = await aplicarDiaNasParcelasRecorrentes(
+            despesaEmEdicao,
+            Number(diaVencimentoRecorrente),
+            payload,
+          );
           showToast(`${quantidade} parcela(s) pendente(s) ou atrasada(s) atualizada(s)`, 'success');
         } else {
-          showToast('Despesa atualizada com sucesso', 'success');
+          payload.dataVencimento = form.dataVencimento;
+          const { data: despesaAtualizada } = await api.put(`/despesas/${despesaEmEdicao._id}`, {
+            ...payload,
+            alterarTodas: despesaEmEdicao.recorrente && alterarTodasRecorrentes,
+          });
+          if (alterarTodasRecorrentes) {
+            const quantidade = Number(despesaAtualizada.parcelasAtualizadas || 0);
+            if (!quantidade) {
+              throw new Error('O servidor não confirmou a atualização de nenhuma parcela recorrente');
+            }
+            showToast(`${quantidade} parcela(s) pendente(s) ou atrasada(s) atualizada(s)`, 'success');
+          } else {
+            showToast('Despesa atualizada com sucesso', 'success');
+          }
         }
       } else {
         await api.post('/despesas', {
