@@ -200,6 +200,35 @@ describe('API Endpoints', () => {
     expect(diaInvalido.statusCode).toBe(400);
   });
 
+  test('PUT /api/despesas/:id → normaliza parcelas da recorrência que estão nos dias 20 e 21', async () => {
+    const origem = await Despesa.create({
+      descricao: 'Despesa recorrente',
+      categoria: 'Outros',
+      valor: 50,
+      dataVencimento: new Date('2026-09-20T00:00:00.000Z'),
+      recorrente: true,
+    });
+    const parcelaDia21 = await Despesa.create({
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2026-10-21T00:00:00.000Z'),
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+
+    const resposta = await request(app)
+      .put(`/api/despesas/${origem._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ diaVencimento: 20, alterarTodas: true });
+
+    expect(resposta.statusCode).toBe(200);
+    const origemAtualizada = await Despesa.findById(origem._id);
+    const parcelaAtualizada = await Despesa.findById(parcelaDia21._id);
+    expect(origemAtualizada.dataVencimento.toISOString()).toBe('2026-09-20T00:00:00.000Z');
+    expect(parcelaAtualizada.dataVencimento.toISOString()).toBe('2026-10-20T00:00:00.000Z');
+  });
+
   test('PUT e DELETE /api/despesas/:id → altera e remove somente a despesa selecionada', async () => {
     const despesa = await Despesa.create({
       descricao: 'Conta de água',

@@ -35,7 +35,7 @@ export default function Financeiro() {
   const [form, setForm] = useState({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
   const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
   const [alterarTodasRecorrentes, setAlterarTodasRecorrentes] = useState(false);
-  const [formatoVencimentoRecorrente, setFormatoVencimentoRecorrente] = useState('data');
+  const [formatoVencimentoRecorrente, setFormatoVencimentoRecorrente] = useState('dia');
   const [diaVencimentoRecorrente, setDiaVencimentoRecorrente] = useState('');
   const [salvandoDespesa, setSalvandoDespesa] = useState(false);
   const [carregando, setCarregando] = useState(true);
@@ -143,7 +143,7 @@ export default function Financeiro() {
       setForm({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
       setDespesaEmEdicao(null);
       setAlterarTodasRecorrentes(false);
-      setFormatoVencimentoRecorrente('data');
+      setFormatoVencimentoRecorrente('dia');
       setDiaVencimentoRecorrente('');
       await recarregarDespesas();
     } catch (error) {
@@ -167,7 +167,7 @@ export default function Financeiro() {
     const dataVencimento = new Date(despesa.dataVencimento);
     setDespesaEmEdicao(despesa);
     setAlterarTodasRecorrentes(false);
-    setFormatoVencimentoRecorrente('data');
+    setFormatoVencimentoRecorrente(despesa.recorrente ? 'dia' : 'data');
     setDiaVencimentoRecorrente(String(dataVencimento.getUTCDate()));
     setForm({
       descricao: despesa.descricao || '',
@@ -183,7 +183,7 @@ export default function Financeiro() {
   const cancelarEdicaoDespesa = () => {
     setDespesaEmEdicao(null);
     setAlterarTodasRecorrentes(false);
-    setFormatoVencimentoRecorrente('data');
+    setFormatoVencimentoRecorrente('dia');
     setDiaVencimentoRecorrente('');
     setForm({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
   };
@@ -433,7 +433,14 @@ export default function Financeiro() {
               {despesaEmEdicao?.recorrente ? (
                 <>
                   <label className="checkbox-row financeiro-recurring-option">
-                    <input type="checkbox" checked={alterarTodasRecorrentes} onChange={(event) => setAlterarTodasRecorrentes(event.target.checked)} />
+                    <input
+                      type="checkbox"
+                      checked={alterarTodasRecorrentes}
+                      onChange={(event) => {
+                        setAlterarTodasRecorrentes(event.target.checked);
+                        if (event.target.checked) setFormatoVencimentoRecorrente('dia');
+                      }}
+                    />
                     Aplicar alterações a todas as parcelas pendentes e atrasadas desta recorrência
                   </label>
                   {alterarTodasRecorrentes && (
