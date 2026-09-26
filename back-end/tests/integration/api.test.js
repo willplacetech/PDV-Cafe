@@ -8,6 +8,7 @@ const Customer = require('../../models/Customer');
 const Order = require('../../models/Order');
 const Purchase = require('../../models/Purchase');
 const Recipe = require('../../models/Recipe');
+const Despesa = require('../../models/Despesa');
 
 const jwtSecret = process.env.JWT_SECRET || 'desenvolvimento-altere-esta-chave';
 
@@ -101,6 +102,82 @@ describe('API Endpoints', () => {
       });
     expect(res.statusCode).toBe(201);
     expect(res.body.ncm).toBe('');
+  });
+
+  test('PUT /api/despesas/:id → atualiza parcelas abertas da recorrência mantendo o intervalo', async () => {
+    const origem = await Despesa.create({
+      descricao: 'Aluguel antigo',
+      categoria: 'Aluguel',
+      valor: 1000,
+      dataVencimento: new Date('2026-01-10T00:00:00.000Z'),
+      recorrente: true,
+    });
+    const parcela = await Despesa.create({
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2026-02-10T00:00:00.000Z'),
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+    const parcelaPaga = await Despesa.create({
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2025-12-10T00:00:00.000Z'),
+      dataPagamento: new Date('2025-12-10T00:00:00.000Z'),
+      status: 'pago',
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+
+    const resposta = await request(app)
+      .put(`/api/despesas/${origem._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        descricao: 'Aluguel atualizado',
+        valor: 1200,
+        dataVencimento: '2026-01-15',
+        alterarTodas: true,
+      });
+
+    expect(resposta.statusCode).toBe(200);
+    const origemAtualizada = await Despesa.findById(origem._id);
+    const parcelaAtualizada = await Despesa.findById(parcela._id);
+    expect(origemAtualizada.descricao).toBe('Aluguel atualizado');
+    expect(origemAtualizada.valor).toBe(1200);
+    expect(origemAtualizada.dataVencimento.toISOString()).toBe('2026-01-15T00:00:00.000Z');
+    expect(parcelaAtualizada.descricao).toBe('Aluguel atualizado');
+    expect(parcelaAtualizada.valor).toBe(1200);
+    expect(parcelaAtualizada.dataVencimento.toISOString()).toBe('2026-02-15T00:00:00.000Z');
+    const parcelaPagaPreservada = await Despesa.findById(parcelaPaga._id);
+    expect(parcelaPagaPreservada.descricao).toBe('Aluguel antigo');
+    expect(parcelaPagaPreservada.valor).toBe(1000);
+  });
+
+  test('PUT e DELETE /api/despesas/:id → altera e remove somente a despesa selecionada', async () => {
+    const despesa = await Despesa.create({
+      descricao: 'Conta de água',
+      categoria: 'Água',
+      valor: 80,
+      dataVencimento: new Date('2026-01-10T00:00:00.000Z'),
+    });
+
+    const atualizada = await request(app)
+      .put(`/api/despesas/${despesa._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ descricao: 'Conta de água revisada', valor: 95 });
+
+    expect(atualizada.statusCode).toBe(200);
+    expect(atualizada.body.descricao).toBe('Conta de água revisada');
+    expect(atualizada.body.valor).toBe(95);
+
+    const removida = await request(app)
+      .delete(`/api/despesas/${despesa._id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(removida.statusCode).toBe(200);
+    await expect(Despesa.findById(despesa._id)).resolves.toBeNull();
   });
 
   test('Produtos de revenda calculam custo por preço e conteúdo da embalagem', async () => {

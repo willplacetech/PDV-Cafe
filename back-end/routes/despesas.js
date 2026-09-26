@@ -139,12 +139,59 @@ router.put('/:id', [
   body('descricao').optional().trim().notEmpty(),
   body('categoria').optional().isIn(['Aluguel', 'Energia', 'Água', 'Internet', 'Fornecedores/Insumos', 'Salários/Pró-labore', 'Impostos', 'Marketing', 'Manutenção', 'Transporte', 'Outros']),
   body('valor').optional().isFloat({ min: 0.01 }),
+  body('dataVencimento').optional().isISO8601(),
+  body('alterarTodas').optional().isBoolean(),
 ], async (req, res) => {
   if (!validate(req, res)) return;
   if (!idValido(req.params.id, res)) return;
   try {
-    const despesa = await Despesa.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true, runValidators: true });
+    const despesa = await Despesa.findById(req.params.id);
     if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
+
+    const camposEditaveis = ['descricao', 'categoria', 'fornecedor', 'valor'];
+    const atualizacoes = {};
+    camposEditaveis.forEach((campo) => {
+      if (req.body[campo] !== undefined) {
+        atualizacoes[campo] = campo === 'valor' ? Number(req.body[campo]) : req.body[campo];
+      }
+    });
+
+    if (req.body.dataVencimento !== undefined) {
+      atualizacoes.dataVencimento = new Date(req.body.dataVencimento);
+    }
+
+    if (req.body.alterarTodas === true) {
+      if (!despesa.recorrente) {
+        return res.status(400).json({ msg: 'Esta despesa não faz parte de uma recorrência' });
+      }
+
+      const origemId = despesa.origemRecorrencia || despesa._id;
+      const despesasDaSerie = await Despesa.find({
+        $or: [
+          { _id: origemId, status: { $ne: 'pago' } },
+          { origemRecorrencia: origemId, status: { $ne: 'pago' } },
+        ],
+      });
+      const deslocamentoVencimento = atualizacoes.dataVencimento
+        ? atualizacoes.dataVencimento.getTime() - despesa.dataVencimento.getTime()
+        : 0;
+
+      await Promise.all(despesasDaSerie.map(async (parcela) => {
+        camposEditaveis.forEach((campo) => {
+          if (atualizacoes[campo] !== undefined) parcela[campo] = atualizacoes[campo];
+        });
+        if (atualizacoes.dataVencimento) {
+          parcela.dataVencimento = new Date(parcela.dataVencimento.getTime() + deslocamentoVencimento);
+        }
+        await parcela.save();
+      }));
+
+      const despesaAtualizada = await Despesa.findById(req.params.id);
+      return res.json(despesaAtualizada);
+    }
+
+    Object.assign(despesa, atualizacoes);
+    await despesa.save();
     res.json(despesa);
   } catch (error) {
     res.status(400).json({ msg: error.message });
