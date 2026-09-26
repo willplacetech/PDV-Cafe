@@ -443,6 +443,11 @@ export default function Financeiro() {
                     />
                     Aplicar alterações a todas as parcelas pendentes e atrasadas desta recorrência
                   </label>
+                  <p className="financeiro-recurring-help">
+                    {alterarTodasRecorrentes
+                      ? 'O vencimento escolhido será aplicado a cada parcela aberta. Parcelas pagas não serão alteradas.'
+                      : 'Sem marcar esta opção, salvar altera somente a parcela selecionada.'}
+                  </p>
                   {alterarTodasRecorrentes && (
                     <>
                       <label>
@@ -906,6 +911,14 @@ export default function Financeiro() {
 
         .financeiro-recurring-option {
           grid-column: 1 / -1;
+        }
+
+        .financeiro-recurring-help {
+          grid-column: 1 / -1;
+          margin: -8px 0 0;
+          color: var(--text-secondary);
+          font-size: 12px;
+          line-height: 1.45;
         }
 
         .financeiro-secondary-button {

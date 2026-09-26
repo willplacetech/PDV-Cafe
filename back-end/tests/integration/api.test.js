@@ -218,7 +218,7 @@ describe('API Endpoints', () => {
     });
 
     const resposta = await request(app)
-      .put(`/api/despesas/${origem._id}`)
+      .put(`/api/despesas/${parcelaDia21._id}`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ diaVencimento: 20, alterarTodas: true });
 

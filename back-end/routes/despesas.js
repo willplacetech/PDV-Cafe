@@ -181,6 +181,9 @@ router.put('/:id', [
           { origemRecorrencia: origemId, status: { $ne: 'pago' } },
         ],
       });
+      if (!despesasDaSerie.length) {
+        return res.status(400).json({ msg: 'Não há parcelas pendentes ou atrasadas para atualizar; despesas pagas são preservadas' });
+      }
       const deslocamentoVencimento = atualizacoes.dataVencimento
         ? atualizacoes.dataVencimento.getTime() - despesa.dataVencimento.getTime()
         : 0;
