@@ -179,6 +179,7 @@ router.put('/:id', [
         $or: [
           { _id: origemId, status: { $ne: 'pago' } },
           { origemRecorrencia: origemId, status: { $ne: 'pago' } },
+          { _id: req.params.id, status: { $ne: 'pago' } },
         ],
       });
       if (!despesasDaSerie.length) {
@@ -206,7 +207,10 @@ router.put('/:id', [
       }));
 
       const despesaAtualizada = await Despesa.findById(req.params.id);
-      return res.json(despesaAtualizada);
+      return res.json({
+        ...despesaAtualizada.toObject(),
+        parcelasAtualizadas: despesasDaSerie.length,
+      });
     }
 
     Object.assign(despesa, atualizacoes);

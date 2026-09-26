@@ -126,11 +126,19 @@ export default function Financeiro() {
         } else {
           payload.dataVencimento = form.dataVencimento;
         }
-        await api.put(`/despesas/${despesaEmEdicao._id}`, {
+        const { data: despesaAtualizada } = await api.put(`/despesas/${despesaEmEdicao._id}`, {
           ...payload,
           alterarTodas: despesaEmEdicao.recorrente && alterarTodasRecorrentes,
         });
-        showToast(alterarTodasRecorrentes ? 'Parcelas pendentes e atrasadas da recorrência atualizadas' : 'Despesa atualizada com sucesso', 'success');
+        if (alterarTodasRecorrentes) {
+          const quantidade = Number(despesaAtualizada.parcelasAtualizadas || 0);
+          if (!quantidade) {
+            throw new Error('O servidor da API ainda não confirmou a atualização da recorrência. Publique a versão atualizada do backend no Render e tente novamente.');
+          }
+          showToast(`${quantidade} parcela(s) pendente(s) ou atrasada(s) atualizada(s)`, 'success');
+        } else {
+          showToast('Despesa atualizada com sucesso', 'success');
+        }
       } else {
         await api.post('/despesas', {
           ...payload,
@@ -147,7 +155,7 @@ export default function Financeiro() {
       setDiaVencimentoRecorrente('');
       await recarregarDespesas();
     } catch (error) {
-      showToast(error.response?.data?.msg || 'Não foi possível salvar a despesa', 'error');
+      showToast(error.response?.data?.msg || error.message || 'Não foi possível salvar a despesa', 'error');
     } finally {
       setSalvandoDespesa(false);
     }
@@ -166,7 +174,7 @@ export default function Financeiro() {
   const editarDespesa = (despesa) => {
     const dataVencimento = new Date(despesa.dataVencimento);
     setDespesaEmEdicao(despesa);
-    setAlterarTodasRecorrentes(false);
+    setAlterarTodasRecorrentes(Boolean(despesa.recorrente));
     setFormatoVencimentoRecorrente(despesa.recorrente ? 'dia' : 'data');
     setDiaVencimentoRecorrente(String(dataVencimento.getUTCDate()));
     setForm({
@@ -446,7 +454,7 @@ export default function Financeiro() {
                   <p className="financeiro-recurring-help">
                     {alterarTodasRecorrentes
                       ? 'O vencimento escolhido será aplicado a cada parcela aberta. Parcelas pagas não serão alteradas.'
-                      : 'Sem marcar esta opção, salvar altera somente a parcela selecionada.'}
+                      : 'A série não será alterada. Marque esta opção para aplicar a mudança a todas as parcelas abertas.'}
                   </p>
                   {alterarTodasRecorrentes && (
                     <>

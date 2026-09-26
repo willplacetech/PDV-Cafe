@@ -142,6 +142,7 @@ describe('API Endpoints', () => {
       });
 
     expect(resposta.statusCode).toBe(200);
+    expect(resposta.body.parcelasAtualizadas).toBe(2);
     const origemAtualizada = await Despesa.findById(origem._id);
     const parcelaAtualizada = await Despesa.findById(parcela._id);
     expect(origemAtualizada.descricao).toBe('Aluguel atualizado');
@@ -186,6 +187,7 @@ describe('API Endpoints', () => {
       .send({ diaVencimento: 31, alterarTodas: true });
 
     expect(resposta.statusCode).toBe(200);
+    expect(resposta.body.parcelasAtualizadas).toBe(3);
     await expect(Despesa.findById(origem._id).then((despesa) => despesa.dataVencimento.toISOString()))
       .resolves.toBe('2027-01-31T00:00:00.000Z');
     await expect(Despesa.findById(fevereiro._id).then((despesa) => despesa.dataVencimento.toISOString()))
@@ -223,6 +225,7 @@ describe('API Endpoints', () => {
       .send({ diaVencimento: 20, alterarTodas: true });
 
     expect(resposta.statusCode).toBe(200);
+    expect(resposta.body.parcelasAtualizadas).toBe(2);
     const origemAtualizada = await Despesa.findById(origem._id);
     const parcelaAtualizada = await Despesa.findById(parcelaDia21._id);
     expect(origemAtualizada.dataVencimento.toISOString()).toBe('2026-09-20T00:00:00.000Z');
