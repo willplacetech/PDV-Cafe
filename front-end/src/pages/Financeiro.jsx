@@ -30,6 +30,8 @@ export default function Financeiro() {
   const [form, setForm] = useState({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
   const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
   const [alterarTodasRecorrentes, setAlterarTodasRecorrentes] = useState(false);
+  const [formatoVencimentoRecorrente, setFormatoVencimentoRecorrente] = useState('data');
+  const [diaVencimentoRecorrente, setDiaVencimentoRecorrente] = useState('');
   const [salvandoDespesa, setSalvandoDespesa] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [erroCarregamento, setErroCarregamento] = useState('');
@@ -107,23 +109,36 @@ export default function Financeiro() {
         categoria: form.categoria,
         fornecedor: form.fornecedor,
         valor: Number(form.valor),
-        dataVencimento: form.dataVencimento || new Date().toISOString(),
       };
 
       if (despesaEmEdicao) {
+        const usaDiaVencimento = despesaEmEdicao.recorrente
+          && alterarTodasRecorrentes
+          && formatoVencimentoRecorrente === 'dia';
+        if (usaDiaVencimento) {
+          payload.diaVencimento = Number(diaVencimentoRecorrente);
+        } else {
+          payload.dataVencimento = form.dataVencimento;
+        }
         await api.put(`/despesas/${despesaEmEdicao._id}`, {
           ...payload,
           alterarTodas: despesaEmEdicao.recorrente && alterarTodasRecorrentes,
         });
         showToast(alterarTodasRecorrentes ? 'Parcelas pendentes e atrasadas da recorrência atualizadas' : 'Despesa atualizada com sucesso', 'success');
       } else {
-        await api.post('/despesas', { ...payload, recorrente: form.recorrente });
+        await api.post('/despesas', {
+          ...payload,
+          dataVencimento: form.dataVencimento || new Date().toISOString(),
+          recorrente: form.recorrente,
+        });
         showToast('Despesa cadastrada com sucesso', 'success');
       }
 
       setForm({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
       setDespesaEmEdicao(null);
       setAlterarTodasRecorrentes(false);
+      setFormatoVencimentoRecorrente('data');
+      setDiaVencimentoRecorrente('');
       await recarregarDespesas();
     } catch (error) {
       showToast(error.response?.data?.msg || 'Não foi possível salvar a despesa', 'error');
@@ -144,9 +159,10 @@ export default function Financeiro() {
 
   const editarDespesa = (despesa) => {
     const dataVencimento = new Date(despesa.dataVencimento);
-    dataVencimento.setMinutes(dataVencimento.getMinutes() - dataVencimento.getTimezoneOffset());
     setDespesaEmEdicao(despesa);
     setAlterarTodasRecorrentes(false);
+    setFormatoVencimentoRecorrente('data');
+    setDiaVencimentoRecorrente(String(dataVencimento.getUTCDate()));
     setForm({
       descricao: despesa.descricao || '',
       categoria: despesa.categoria || 'Outros',
@@ -161,6 +177,8 @@ export default function Financeiro() {
   const cancelarEdicaoDespesa = () => {
     setDespesaEmEdicao(null);
     setAlterarTodasRecorrentes(false);
+    setFormatoVencimentoRecorrente('data');
+    setDiaVencimentoRecorrente('');
     setForm({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
   };
 
@@ -397,16 +415,47 @@ export default function Financeiro() {
                 <input type="number" step="0.01" value={form.valor} onChange={(event) => setForm({ ...form, valor: event.target.value })} required />
               </label>
 
-              <label>
-                Vencimento
-                <DateInput value={form.dataVencimento} onChange={(value) => setForm({ ...form, dataVencimento: value })} required />
-              </label>
+              {!(despesaEmEdicao?.recorrente
+                && alterarTodasRecorrentes
+                && formatoVencimentoRecorrente === 'dia') && (
+                <label>
+                  Vencimento
+                  <DateInput value={form.dataVencimento} onChange={(value) => setForm({ ...form, dataVencimento: value })} required />
+                </label>
+              )}
 
               {despesaEmEdicao?.recorrente ? (
-                <label className="checkbox-row financeiro-recurring-option">
-                  <input type="checkbox" checked={alterarTodasRecorrentes} onChange={(event) => setAlterarTodasRecorrentes(event.target.checked)} />
-                  Aplicar alterações a todas as parcelas pendentes e atrasadas desta recorrência
-                </label>
+                <>
+                  <label className="checkbox-row financeiro-recurring-option">
+                    <input type="checkbox" checked={alterarTodasRecorrentes} onChange={(event) => setAlterarTodasRecorrentes(event.target.checked)} />
+                    Aplicar alterações a todas as parcelas pendentes e atrasadas desta recorrência
+                  </label>
+                  {alterarTodasRecorrentes && (
+                    <>
+                      <label>
+                        Formato do vencimento
+                        <select value={formatoVencimentoRecorrente} onChange={(event) => setFormatoVencimentoRecorrente(event.target.value)}>
+                          <option value="data">Data completa</option>
+                          <option value="dia">Dia do mês</option>
+                        </select>
+                      </label>
+                      {formatoVencimentoRecorrente === 'dia' ? (
+                        <label>
+                          Dia do vencimento (1 a 31)
+                          <input
+                            type="number"
+                            min="1"
+                            max="31"
+                            step="1"
+                            value={diaVencimentoRecorrente}
+                            onChange={(event) => setDiaVencimentoRecorrente(event.target.value)}
+                            required
+                          />
+                        </label>
+                      ) : null}
+                    </>
+                  )}
+                </>
               ) : !despesaEmEdicao && (
                 <label className="checkbox-row">
                   <input type="checkbox" checked={form.recorrente} onChange={(event) => setForm({ ...form, recorrente: event.target.checked })} />

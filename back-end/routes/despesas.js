@@ -140,6 +140,7 @@ router.put('/:id', [
   body('categoria').optional().isIn(['Aluguel', 'Energia', 'Água', 'Internet', 'Fornecedores/Insumos', 'Salários/Pró-labore', 'Impostos', 'Marketing', 'Manutenção', 'Transporte', 'Outros']),
   body('valor').optional().isFloat({ min: 0.01 }),
   body('dataVencimento').optional().isISO8601(),
+  body('diaVencimento').optional().isInt({ min: 1, max: 31 }),
   body('alterarTodas').optional().isBoolean(),
 ], async (req, res) => {
   if (!validate(req, res)) return;
@@ -160,9 +161,17 @@ router.put('/:id', [
       atualizacoes.dataVencimento = new Date(req.body.dataVencimento);
     }
 
+    if (req.body.diaVencimento !== undefined && req.body.alterarTodas !== true) {
+      return res.status(400).json({ msg: 'O dia de vencimento só pode ser aplicado a toda a recorrência' });
+    }
+
     if (req.body.alterarTodas === true) {
       if (!despesa.recorrente) {
         return res.status(400).json({ msg: 'Esta despesa não faz parte de uma recorrência' });
+      }
+
+      if (req.body.dataVencimento !== undefined && req.body.diaVencimento !== undefined) {
+        return res.status(400).json({ msg: 'Informe a data completa ou o dia do vencimento, não ambos' });
       }
 
       const origemId = despesa.origemRecorrencia || despesa._id;
@@ -175,6 +184,7 @@ router.put('/:id', [
       const deslocamentoVencimento = atualizacoes.dataVencimento
         ? atualizacoes.dataVencimento.getTime() - despesa.dataVencimento.getTime()
         : 0;
+      const diaVencimento = req.body.diaVencimento === undefined ? null : Number(req.body.diaVencimento);
 
       await Promise.all(despesasDaSerie.map(async (parcela) => {
         camposEditaveis.forEach((campo) => {
@@ -182,6 +192,12 @@ router.put('/:id', [
         });
         if (atualizacoes.dataVencimento) {
           parcela.dataVencimento = new Date(parcela.dataVencimento.getTime() + deslocamentoVencimento);
+        }
+        if (diaVencimento !== null) {
+          const ano = parcela.dataVencimento.getUTCFullYear();
+          const mes = parcela.dataVencimento.getUTCMonth();
+          const ultimoDiaDoMes = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
+          parcela.dataVencimento.setUTCDate(Math.min(diaVencimento, ultimoDiaDoMes));
         }
         await parcela.save();
       }));

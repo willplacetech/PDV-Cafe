@@ -155,6 +155,51 @@ describe('API Endpoints', () => {
     expect(parcelaPagaPreservada.valor).toBe(1000);
   });
 
+  test('PUT /api/despesas/:id → aplica dia de vencimento e limita ao último dia do mês', async () => {
+    const origem = await Despesa.create({
+      descricao: 'Assinatura mensal',
+      categoria: 'Internet',
+      valor: 100,
+      dataVencimento: new Date('2027-01-10T00:00:00.000Z'),
+      recorrente: true,
+    });
+    const fevereiro = await Despesa.create({
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2027-02-10T00:00:00.000Z'),
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+    const marco = await Despesa.create({
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2027-03-10T00:00:00.000Z'),
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+
+    const resposta = await request(app)
+      .put(`/api/despesas/${origem._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ diaVencimento: 31, alterarTodas: true });
+
+    expect(resposta.statusCode).toBe(200);
+    await expect(Despesa.findById(origem._id).then((despesa) => despesa.dataVencimento.toISOString()))
+      .resolves.toBe('2027-01-31T00:00:00.000Z');
+    await expect(Despesa.findById(fevereiro._id).then((despesa) => despesa.dataVencimento.toISOString()))
+      .resolves.toBe('2027-02-28T00:00:00.000Z');
+    await expect(Despesa.findById(marco._id).then((despesa) => despesa.dataVencimento.toISOString()))
+      .resolves.toBe('2027-03-31T00:00:00.000Z');
+
+    const diaInvalido = await request(app)
+      .put(`/api/despesas/${origem._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ diaVencimento: 32, alterarTodas: true });
+    expect(diaInvalido.statusCode).toBe(400);
+  });
+
   test('PUT e DELETE /api/despesas/:id → altera e remove somente a despesa selecionada', async () => {
     const despesa = await Despesa.create({
       descricao: 'Conta de água',
