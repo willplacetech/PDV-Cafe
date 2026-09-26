@@ -10,6 +10,11 @@ const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { mini
 const statusColors = { pago: '#16a34a', pendente: '#d97706', atrasado: '#dc2626' };
 const categorias = ['Aluguel', 'Energia', 'Água', 'Internet', 'Fornecedores/Insumos', 'Salários/Pró-labore', 'Impostos', 'Marketing', 'Manutenção', 'Transporte', 'Outros'];
 const percentChange = (current, previous) => previous ? ((current - previous) / Math.abs(previous)) * 100 : (current ? 100 : 0);
+const dateKey = (value) => {
+  const isoDate = typeof value === 'string' ? value.slice(0, 10) : new Date(value).toISOString().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(isoDate) ? isoDate : '';
+};
+const formatDate = (value) => dateKey(value).split('-').reverse().join('/');
 
 export default function Financeiro() {
   const { user } = useContext(AuthContext);
@@ -82,8 +87,9 @@ export default function Financeiro() {
   const despesasFiltradas = useMemo(() => despesas.filter((despesa) => {
     const matchesStatus = !filtro.status || despesa.status === filtro.status;
     const matchesCategoria = !filtro.categoria || despesa.categoria === filtro.categoria;
-    const matchesInicio = !filtro.dataInicio || new Date(despesa.dataVencimento) >= new Date(`${filtro.dataInicio}T00:00:00`);
-    const matchesFim = !filtro.dataFim || new Date(despesa.dataVencimento) <= new Date(`${filtro.dataFim}T23:59:59`);
+    const vencimento = dateKey(despesa.dataVencimento);
+    const matchesInicio = !filtro.dataInicio || vencimento >= filtro.dataInicio;
+    const matchesFim = !filtro.dataFim || vencimento <= filtro.dataFim;
     return matchesStatus && matchesCategoria && matchesInicio && matchesFim;
   }), [despesas, filtro]);
 
@@ -353,7 +359,7 @@ export default function Financeiro() {
                         <td>{item.descricao}</td>
                         <td>{item.categoria}</td>
                         <td>{money(item.valor)}</td>
-                        <td>{new Date(item.dataVencimento).toLocaleDateString('pt-BR')}</td>
+                        <td>{formatDate(item.dataVencimento)}</td>
                         <td>{renderStatusBadge(item.status)}</td>
                         <td>
                           <div className="financeiro-row-actions">
