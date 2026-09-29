@@ -11,11 +11,37 @@ class NfceProviderError extends Error {
 
 const env = (name) => String(process.env[name] || '').trim();
 
+// Determina regime tributário e regras de ICMS
+const getRegimeTributario = (tipoContribuinte) => {
+  if (tipoContribuinte === 'mei') {
+    return {
+      crt: '30',
+      cstICMS: '403',
+      aliquotaICMS: 0,
+      valorICMS: 0,
+      descricaoRegime: 'MEI — Isento de ICMS'
+    };
+  }
+  // Empresa normal / Simples / Lucro
+  return {
+    crt: env('FISCAL_CRT') || '3',
+    cstICMS: env('FISCAL_CST_PADRAO') || '00',
+    aliquotaICMS: Number(env('FISCAL_ICMS_ALIQUOTA') || 18),
+    valorICMS: null, // calculado por item
+    descricaoRegime: null
+  };
+};
+
 const getFiscalConfig = () => {
+  const tipoContribuinte = env('FISCAL_TIPO_CONTRIBUINTE') || 'normal';
+  const regime = getRegimeTributario(tipoContribuinte);
+
   const company = {
     cnpj: env('NFCE_CNPJ'),
     inscricaoEstadual: env('NFCE_IE'),
     razaoSocial: env('NFCE_RAZAO_SOCIAL'),
+    tipoContribuinte,
+    crt: regime.crt,
     endereco: {
       logradouro: env('NFCE_ENDERECO_LOGRADOURO'),
       numero: env('NFCE_ENDERECO_NUMERO'),
@@ -25,10 +51,20 @@ const getFiscalConfig = () => {
       cep: env('NFCE_ENDERECO_CEP'),
     },
   };
+
   const missing = [];
   if (!company.cnpj) missing.push('CNPJ');
-  if (!company.inscricaoEstadual) missing.push('Inscrição Estadual');
   if (!company.razaoSocial) missing.push('Razão Social');
+
+  // IE é obrigatória para NFC-e em SP, mas avisa de forma diferenciada para MEI
+  if (!company.inscricaoEstadual) {
+    missing.push(
+      tipoContribuinte === 'mei'
+        ? 'Inscrição Estadual — MEI precisa se inscrever no site da SEFAZ-SP para emitir NFC-e'
+        : 'Inscrição Estadual'
+    );
+  }
+
   Object.entries({
     'logradouro do endereço': company.endereco.logradouro,
     'número do endereço': company.endereco.numero,
@@ -37,6 +73,7 @@ const getFiscalConfig = () => {
     UF: company.endereco.uf,
     CEP: company.endereco.cep,
   }).forEach(([label, value]) => { if (!value) missing.push(label); });
+
   if (!env('NFCE_CERTIFICATE_PFX_BASE64')) missing.push('certificado .pfx');
   if (!env('NFCE_CERTIFICATE_PASSWORD')) missing.push('senha do certificado');
   if (!env('NFCE_PROVIDER_URL')) missing.push('provedor fiscal');
@@ -49,6 +86,7 @@ const getFiscalConfig = () => {
 
   return {
     company,
+    regime,
     missing,
     ambiente: env('FISCAL_AMBIENTE') || 'homologacao',
     serie: env('NFCE_SERIE') || '1',
@@ -70,25 +108,48 @@ const normalizarResposta = (body = {}) => ({
 
 const emitirNfce = async ({ order, products }) => {
   const config = getFiscalConfig();
+
   if (config.missing.length) {
-    throw new NfceProviderError('Nota não emitida — complete os dados da empresa', 'CONFIG_MISSING', { missing: config.missing, certificadoVencendo: config.certificadoVencendo });
+    throw new NfceProviderError('Nota não emitida — complete os dados da empresa', 'CONFIG_MISSING', {
+      missing: config.missing,
+      certificadoVencendo: config.certificadoVencendo,
+      regime: config.regime.descricaoRegime
+    });
   }
 
   const productsById = new Map(products.map((product) => [String(product._id), product]));
   const avisos = [];
-  if (config.certificadoVencendo) avisos.push(`Certificado próximo do vencimento${config.certificadoExpiraEm ? ` (${new Date(config.certificadoExpiraEm).toLocaleDateString('pt-BR')})` : ''}`);
+
+  if (config.certificadoVencendo) {
+    avisos.push(`Certificado próximo do vencimento${config.certificadoExpiraEm ? ` (${new Date(config.certificadoExpiraEm).toLocaleDateString('pt-BR')})` : ''}`);
+  }
+  if (config.regime.descricaoRegime) {
+    avisos.push(config.regime.descricaoRegime);
+  }
+
   const itens = order.itens.map((item) => {
     const product = productsById.get(String(item.produtoId));
     const ncm = product?.ncm || DEFAULT_NCM;
     if (!product?.ncm) avisos.push(`${item.nome}: NCM padrão ${DEFAULT_NCM}`);
+
+    const valorTotal = Number(item.precoUnitario) * Number(item.quantidade);
+    const valorICMS = config.regime.aliquotaICMS > 0
+      ? Number((valorTotal * config.regime.aliquotaICMS / 100).toFixed(2))
+      : 0;
+
     return {
       codigo: item.codigo,
       descricao: item.nome,
       quantidade: Number(item.quantidade),
       unidade: item.unidadeVenda || 'UN',
       valorUnitario: Number(item.precoUnitario),
-      valorTotal: Number(item.precoUnitario) * Number(item.quantidade),
+      valorTotal,
       ncm,
+      imposto: {
+        cst: config.regime.cstICMS,
+        aliquotaICMS: config.regime.aliquotaICMS,
+        valorICMS
+      }
     };
   });
 
@@ -96,12 +157,21 @@ const emitirNfce = async ({ order, products }) => {
   try {
     response = await fetch(config.providerUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(env('NFCE_PROVIDER_TOKEN') ? { Authorization: `Bearer ${env('NFCE_PROVIDER_TOKEN')}` } : {}) },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(env('NFCE_PROVIDER_TOKEN') ? { Authorization: `Bearer ${env('NFCE_PROVIDER_TOKEN')}` } : {})
+      },
       body: JSON.stringify({
         ambiente: config.ambiente,
         serie: config.serie,
         empresa: config.company,
-        pedido: { id: String(order._id), numero: order.numero, total: order.total, desconto: order.desconto, itens },
+        pedido: {
+          id: String(order._id),
+          numero: order.numero,
+          total: order.total,
+          desconto: order.desconto,
+          itens
+        },
         certificado: { pfxConfigurado: true, senhaConfigurada: true },
       }),
       signal: AbortSignal.timeout(30000),
@@ -111,13 +181,29 @@ const emitirNfce = async ({ order, products }) => {
   }
 
   let body = {};
-  try { body = await response.json(); } catch { /* resposta sem JSON será tratada como rejeição */ }
+  try { body = await response.json(); } catch { /* resposta sem JSON = rejeição */ }
+
   if (!response.ok) {
     const motivo = normalizarResposta(body).mensagemSeErro || body.message || `Provedor fiscal respondeu HTTP ${response.status}`;
-    throw new NfceProviderError(motivo, 'SEFAZ_REJECTED', { providerStatus: response.status, response: body });
+    throw new NfceProviderError(motivo, 'SEFAZ_REJECTED', {
+      providerStatus: response.status,
+      response: body,
+      regime: config.regime
+    });
   }
 
-  return { ...normalizarResposta(body), avisos, ambiente: config.ambiente };
+  return {
+    ...normalizarResposta(body),
+    avisos,
+    ambiente: config.ambiente,
+    regime: config.regime
+  };
 };
 
-module.exports = { DEFAULT_NCM, NETWORK_MESSAGE, NfceProviderError, getFiscalConfig, emitirNfce };
+module.exports = {
+  DEFAULT_NCM,
+  NETWORK_MESSAGE,
+  NfceProviderError,
+  getFiscalConfig,
+  emitirNfce
+};
