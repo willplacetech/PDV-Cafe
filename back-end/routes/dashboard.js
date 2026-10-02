@@ -1,7 +1,7 @@
 const express = require('express');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
-const { indexarComandasPorId, normalizarPagamentos, pagamentosDoPedido } = require('../utils/pagamento');
+const { indexarComandasPorId, normalizarPagamentos, pagamentosDoPedido, carregarPagamentosDoPeriodo } = require('../utils/pagamento');
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
 const PaymentSettings = require('../models/PaymentSettings');
@@ -214,8 +214,8 @@ router.get('/', async (req, res) => {
       Comanda.countDocuments({ status: 'aberta' }),
       Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).select('numero total status utilizacaoInterna clienteNome createdAt itens pagamentos comandaId'),
       Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status utilizacaoInterna clienteId clienteNome clienteTelefone createdAt itens pagamentos tipoAtendimento comandaId'),
-      Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('dia') } }).select('pagamentos comandaId'),
-      Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('pagamentos comandaId'),
+      carregarPagamentosDoPeriodo({ inicio: inicioDoPeriodo('dia'), fim: new Date() }),
+      carregarPagamentosDoPeriodo({ inicio: inicioDoPeriodo('mes'), fim: fimDoMesAtual() }),
       Customer.countDocuments(),
       Customer.find().sort({ createdAt: -1 }).limit(8).select('nome telefone createdAt cafesFidelidade'),
       Product.find({ tipo: 'venda' }).select('nome codigo preco custo estoque categoria'),
@@ -226,7 +226,7 @@ router.get('/', async (req, res) => {
     const vendasHoje = pedidosDia.filter((pedido) => pedido.status !== 'cancelado' && !pedido.utilizacaoInterna);
     const vendasHojeTotal = vendasHoje.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
     const vendasHojeItens = vendasHoje.reduce((total, pedido) => total + (pedido.itens || []).reduce((itens, item) => itens + quantidadeNaUnidadeBase(item), 0), 0);
-    const vendasHojeRecebido = recebimentosDia.reduce((total, pedido) => total + pagamentosDe(comandasPorId, pedido).filter((pagamento) => pagamento.tipo !== 'credito_loja' && new Date(pagamento.dataPagamento) >= inicioDoPeriodo('dia')).reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).liquido, 0), 0);
+    const vendasHojeRecebido = recebimentosDia.filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((total, pagamento) => total + pagamentoTaxa(pagamento).liquido, 0);
     const vendasHojePendente = vendasHoje.reduce((total, pedido) => total + pedidoEmAReceberComComanda(comandasPorId, pedido), 0);
     const vendasMes = pedidosMes.filter((pedido) => pedido.status !== 'cancelado' && !pedido.utilizacaoInterna);
     const vendasPorTipo = vendasMes.reduce((tipos, pedido) => {
@@ -249,14 +249,14 @@ router.get('/', async (req, res) => {
         produtosMes.set(item.nome, atual);
       });
     });
-    recebimentosMes.forEach((pedido) => pagamentosDe(comandasPorId, pedido).filter((pagamento) => pagamento.tipo !== 'credito_loja' && new Date(pagamento.dataPagamento) >= inicioDoPeriodo('mes') && new Date(pagamento.dataPagamento) < fimDoMesAtual()).forEach((pagamento) => {
+    recebimentosMes.filter((pagamento) => pagamento.tipo !== 'credito_loja').forEach((pagamento) => {
       const atual = pagamentosMes.get(pagamento.tipo) || { bruto: 0, taxa: 0, total: 0 };
       const valores = pagamentoTaxa(pagamento);
       atual.bruto += valores.bruto;
       atual.taxa += valores.taxa;
       atual.total += valores.liquido;
       pagamentosMes.set(pagamento.tipo, atual);
-    }));
+    });
     const totalMes = vendasMes.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
     const descontosQuantidadeMes = vendasMes.reduce((total, pedido) => total + (pedido.itens || []).reduce((subtotal, item) => subtotal + Number(item.economiaQuantidade || 0), 0), 0);
     const rankingDescontos = new Map();
