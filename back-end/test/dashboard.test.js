@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { normalizarStatusFiltro } = require('../routes/orders');
-const { calcularStatusPagamentoComanda } = require('../routes/comandas');
+const { calcularStatusPagamentoComanda, calcularSubtotalComanda, normalizarTelefoneCliente } = require('../routes/comandas');
 
 const pagamentoRecebido = (pagamento) => {
   if (!pagamento || pagamento.tipo === 'credito_loja') return 0;
@@ -73,4 +73,21 @@ test('pagamento parcial da comanda calcula saldo e status corretamente', () => {
   assert.equal(atualizada.valorPago, 40);
   assert.equal(atualizada.saldoDevedor, 60);
   assert.equal(atualizada.statusPagamento, 'parcial');
+});
+
+test('subtotal da comanda soma todos os itens antes de fechar o pedido', () => {
+  const subtotal = calcularSubtotalComanda([
+    { precoUnitario: 12.5, quantidade: 2 },
+    { precoUnitario: 4.75, quantidade: 3 },
+    { precoUnitario: 1.25, quantidade: 4 },
+  ]);
+
+  assert.equal(subtotal, 44.25);
+});
+
+test('telefone do cliente é normalizado corretamente no fechamento da comanda', () => {
+  assert.equal(normalizarTelefoneCliente('(11) 99999-8888'), '11999998888');
+  assert.equal(normalizarTelefoneCliente(' 11 99999-8888 '), '11999998888');
+  assert.equal(normalizarTelefoneCliente(''), '');
+  assert.equal(normalizarTelefoneCliente(null), '');
 });

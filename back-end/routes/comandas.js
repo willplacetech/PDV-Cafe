@@ -17,6 +17,8 @@ const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'L'].includes(product?.unidadeVenda));
 
+const normalizarTelefoneCliente = (valor = '') => String(valor || '').replace(/\D/g, '');
+const calcularSubtotalComanda = (itens = []) => money((Array.isArray(itens) ? itens : []).reduce((soma, item) => soma + Number(item?.precoUnitario || 0) * Number(item?.quantidade || 0), 0));
 const calcularStatusPagamentoComanda = (comanda) => calcularStatusPagamento(comanda);
 
 async function recalcularPrecosComanda(comanda, session) {
@@ -485,7 +487,7 @@ router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador', 'garcom'
   try {
     session.startTransaction();
     const comanda = await Comanda.findById(req.params.id).session(session);
-    const telefone = String(req.body.telefone || '').replace(/\D/g, '');
+    const telefone = normalizarTelefoneCliente(req.body.telefone);
     const nome = String(req.body.nome || '').trim();
     if (!comanda || !telefone) throw new Error('Dados do cliente inválidos');
 
@@ -523,7 +525,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     const utilizacaoInterna = Boolean(req.body.utilizacaoInterna);
     const metodoPagamento = normalizarFormaPagamento(req.body.metodoPagamento);
     if (!comanda.estoqueBaixado) await ajustarEstoque(comanda.itens, 'baixar', session);
-    const subtotal = money(comanda.itens.reduce((sum, item) => item.precoUnitario * item.quantidade, 0));
+    const subtotal = calcularSubtotalComanda(comanda.itens);
     const discount = money(req.body.desconto || 0);
     if (discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
     const total = utilizacaoInterna ? 0 : money(subtotal - discount);
@@ -548,7 +550,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     comanda.historicoPagamentos = historico;
     const situacaoFinal = calcularStatusPagamento({ valorTotal: total, historicoPagamentos: historico });
 
-    const telefone = String(req.body.telefone || '').replace(/\D/g, '');
+    const telefone = normalizarTelefoneCliente(req.body.telefone);
     const nome = String(req.body.nome || '').trim();
     let customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
     if (telefone) {
@@ -602,4 +604,6 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
 });
 
 module.exports = router;
+module.exports.normalizarTelefoneCliente = normalizarTelefoneCliente;
+module.exports.calcularSubtotalComanda = calcularSubtotalComanda;
 module.exports.calcularStatusPagamentoComanda = calcularStatusPagamentoComanda;
