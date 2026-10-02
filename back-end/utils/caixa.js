@@ -1,5 +1,5 @@
-const Order = require('../models/Order');
 const FechamentoCaixa = require('../models/FechamentoCaixa');
+const { carregarPagamentosDoPeriodo, somarPorForma } = require('./pagamento');
 
 const DENOMINACOES_CEDULAS = [100, 50, 20, 10, 5, 2, 1];
 const DENOMINACOES_MOEDAS = [1, 0.5, 0.25, 0.1, 0.05];
@@ -17,9 +17,7 @@ const faixaDoDia = (value) => {
   return { inicio, fim };
 };
 
-const somarPagamentos = (orders, tipos) => money(orders.reduce((total, order) => total + (order.pagamentos || [])
-  .filter((pagamento) => tipos.includes(pagamento.tipo))
-  .reduce((subtotal, pagamento) => subtotal + Number(pagamento.valorRecebido || 0), 0), 0));
+const somarPagamentos = (pagamentos, tipos) => somarPorForma(pagamentos, tipos);
 
 const calcularContagem = (cedulas = [], moedas = []) => {
   const totalCedulas = money(cedulas.reduce((total, item) => total + Number(item.valor || 0) * Number(item.quantidade || 0), 0));
@@ -38,11 +36,11 @@ const calcularConferencia = (totalDinheiro, saldoEsperado) => {
 const buscarBaseSistema = async (data, turno) => {
   const { inicio, fim } = faixaDoDia(data);
   const fechamentoAnterior = await FechamentoCaixa.findOne({ data: { $lt: inicio }, turno, status: 'fechado' }).sort({ data: -1, createdAt: -1 }).lean();
-  const pedidos = await Order.find({ 'pagamentos.dataPagamento': { $gte: inicio, $lt: fim } }).select('pagamentos').lean();
-  const entradasDinheiro = somarPagamentos(pedidos, ['dinheiro']);
-  const pix = somarPagamentos(pedidos, ['pix']);
-  const credito = somarPagamentos(pedidos, ['cartao_credito', 'credito_loja']);
-  const debito = somarPagamentos(pedidos, ['cartao_debito']);
+  const pagamentos = await carregarPagamentosDoPeriodo({ inicio, fim });
+  const entradasDinheiro = somarPagamentos(pagamentos, ['dinheiro']);
+  const pix = somarPagamentos(pagamentos, ['pix']);
+  const credito = somarPagamentos(pagamentos, ['cartao_credito', 'credito_loja']);
+  const debito = somarPagamentos(pagamentos, ['cartao_debito']);
   const saldoAnterior = money(fechamentoAnterior?.sistema?.saldoEsperado || 0);
   return {
     saldoAnterior,

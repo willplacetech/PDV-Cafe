@@ -111,21 +111,6 @@ export default function Products() {
   };
 
   const produtosIngredientes = produtos.filter((produto) => produto.tipo === 'insumo' || produto.usavelEmReceita);
-  const fatoresBase = { kg: 1, L: 1, un: 1 };
-  const produtoIngrediente = (id) => produtosIngredientes.find((produto) => String(produto._id) === String(id));
-  const resumoFichaCoz = form.fichaTecnica.reduce((resumo, item) => {
-    const ingrediente = produtoIngrediente(item.produtoId?._id || item.produtoId);
-    const quantidadeBase = Number(item.quantidade || 0) * (fatoresBase[item.unidade] || 1);
-    const estoqueBase = Number(ingrediente?.resumoInsumo?.totalBase ?? ingrediente?.estoqueInsumos ?? ingrediente?.estoque ?? 0);
-    const porcoes = quantidadeBase > 0 ? Math.floor(estoqueBase / quantidadeBase) : 0;
-    resumo.disponivel = Math.min(resumo.disponivel, porcoes);
-    resumo.custo += quantidadeBase * Number(ingrediente?.resumoInsumo?.custoUnitarioBase || ingrediente?.custoUnitarioBase || ingrediente?.custoUnitario || 0);
-    if (porcoes <= 0 && ingrediente) resumo.faltantes.push(ingrediente.nome);
-    return resumo;
-  }, { disponivel: form.fichaTecnica.length ? Infinity : 0, custo: 0, faltantes: [] });
-  const atualizarIngrediente = (indice, campo, valor) => setForm((atual) => ({ ...atual, fichaTecnica: atual.fichaTecnica.map((item, itemIndice) => itemIndice === indice ? { ...item, [campo]: valor } : item) }));
-  const adicionarIngrediente = () => setForm((atual) => ({ ...atual, fichaTecnica: [...atual.fichaTecnica, { produtoId: '', quantidade: '', unidade: 'un' }] }));
-  const removerIngrediente = (indice) => setForm((atual) => ({ ...atual, fichaTecnica: atual.fichaTecnica.filter((_, itemIndice) => itemIndice !== indice) }));
 
   const resumoInsumo = form.tipo === 'insumo' ? (() => {
     const unidade = form.unidade || form.unidadeCompra || 'kg';

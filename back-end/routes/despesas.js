@@ -201,7 +201,7 @@ router.put('/:id', [
           const ano = parcela.dataVencimento.getUTCFullYear();
           const mes = parcela.dataVencimento.getUTCMonth();
           const ultimoDiaDoMes = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
-          parcela.dataVencimento.setUTCDate(Math.min(diaVencimento, ultimoDiaDoMes));
+          parcela.dataVencimento = new Date(Date.UTC(ano, mes, Math.min(diaVencimento, ultimoDiaDoMes)));
         }
         await parcela.save();
       }));

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda.js';
+import { FORMAS_PAGAMENTO, dataBR, normalizarPagamentos, rotuloPagamento, saldoDevedor, statusPagamentoInfo, totalPago } from '../utils/formasPagamento.jsx';
 
 const formatMoney = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const formatQuantity = (item) => {
@@ -20,62 +21,6 @@ const produtoPorPeso = (product) => Number(product?.pesoPorUnidade) > 0 && produ
 
 function buildCupomHtml(pedido, comanda) {
   return buildNotaVendaHtml(pedido, { comandaNumero: comanda?.numero });
-  /* modelo antigo mantido abaixo apenas como referência de compatibilidade */
-  const data = new Date(pedido.createdAt).toLocaleString('pt-BR');
-  const pagTipo = pedido.pagamentos?.[0]?.tipo || '';
-  const labelPag = {
-    pix: 'Pix', dinheiro: 'Dinheiro',
-    cartao_credito: 'Cartão de Crédito',
-    cartao_debito: 'Cartão de Débito',
-    credito_loja: 'Crédito na Loja',
-  }[pagTipo] || pagTipo;
-
-  const itensHtml = pedido.itens.map(item => `
-    <div style="display:flex;justify-content:space-between;border-bottom:1px dashed #000;padding:4px 0;">
-      <div style="flex:1;margin-right:8px;">
-        <div style="font-weight:bold;">${item.nome}</div>
-        <div style="font-size:10px;">Cod: ${item.codigo} | Qtd: ${item.quantidade} × R$ ${item.precoUnitario.toFixed(2).replace('.', ',')}</div>
-        ${item.modificadores?.length ? `<div style="font-size:10px;color:#7c4b1e;">☕ ${item.modificadores.join(' · ')}</div>` : ''}
-      </div>
-      <div style="font-weight:bold;white-space:nowrap;">R$ ${(item.quantidade * item.precoUnitario).toFixed(2).replace('.', ',')}</div>
-    </div>
-  `).join('');
-  const usoInterno = Boolean(pedido.utilizacaoInterna);
-
-  return `<!DOCTYPE html><html><head><title>Cupom #${pedido.numero}</title>
-  <style>
-    * { font-family: 'Courier New', monospace; font-size: 12px; }
-    body { width: 76mm; margin: 0; padding: 4mm; }
-    .center { text-align: center; }
-    .bold { font-weight: bold; }
-    .linha-dupla { border-top: 2px dashed #000; margin: 8px 0; }
-    @media print { @page { margin: 0; size: 80mm auto; } body { margin: 4mm; } }
-  </style></head><body>
-  <div class="center bold" style="font-size:14px;">SABOR DE ABRAÇO</div>
-  <div class="center" style="font-size:10px;">Cupom Não Fiscal</div>
-  <div class="linha-dupla"></div>
-  <div><span class="bold">Pedido:</span> #${pedido.numero}</div>
-  <div><span class="bold">Comanda:</span> #${comanda.numero}</div>
-  <div><span class="bold">Data:</span> ${data}</div>
-  <div><span class="bold">Atendente:</span> ${pedido.atendente}</div>
-  <div><span class="bold">Cliente:</span> ${pedido.clienteNome}</div>
-  <div class="linha-dupla"></div>
-  <div class="bold" style="text-align:center;">=== ITENS DO PEDIDO ===</div>
-  ${itensHtml}
-  <div class="linha-dupla"></div>
-  <div style="display:flex;justify-content:space-between;"><span>Subtotal:</span><span>R$ ${pedido.subtotal.toFixed(2).replace('.', ',')}</span></div>
-  ${pedido.desconto > 0 ? `<div style="display:flex;justify-content:space-between;color:#16a34a;"><span>Desconto:</span><span>-R$ ${pedido.desconto.toFixed(2).replace('.', ',')}</span></div>` : ''}
-  ${usoInterno ? `<div style="display:flex;justify-content:space-between;color:#7c4b1e;"><span>Uso interno:</span><span>SIM</span></div>` : ''}
-  <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:bold;border-top:2px solid #000;padding-top:8px;margin-top:8px;">
-    <span>TOTAL:</span><span>R$ ${pedido.total.toFixed(2).replace('.', ',')}</span>
-  </div>
-  <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:11px;">
-    <span>Pagamento:</span><span>${labelPag}</span>
-  </div>
-  <div class="linha-dupla"></div>
-  <div class="center" style="font-size:10px;">Obrigado pela preferência!<br>Volte sempre!</div>
-  <script>window.onload=function(){window.print();setTimeout(()=>window.close(),500);}</script>
-  </body></html>`;
 }
 
 function imprimirCupom(pedido, comanda) {
@@ -88,29 +33,6 @@ function imprimirCupom(pedido, comanda) {
 async function enviarWhatsApp(pedido, comanda, telefone) {
   if (!pedido) return;
   await compartilharNotaWhatsApp(pedido, { comandaNumero: comanda?.numero }, telefone);
-  return;
-  const data = new Date(pedido.createdAt).toLocaleString('pt-BR');
-  const itensTexto = pedido.itens.map(item =>
-    `• ${item.nome}${item.modificadores?.length ? ` (${item.modificadores.join(', ')})` : ''}\n  ${item.quantidade} × R$ ${item.precoUnitario.toFixed(2).replace('.', ',')} = R$ ${(item.quantidade * item.precoUnitario).toFixed(2).replace('.', ',')}`
-  ).join('\n');
-
-  const texto = encodeURIComponent(
-`🛒 *PEDIDO* #${pedido.numero} | Comanda #${comanda.numero}
-📅 ${data}
-👤 Cliente: ${pedido.clienteNome}
-💼 Atendente: ${pedido.atendente}
-━━━━━━━━━━━━━━━━
-📦 *ITENS:*
-${itensTexto}
-━━━━━━━━━━━━━━━━
-💰 Subtotal: R$ ${pedido.subtotal.toFixed(2).replace('.', ',')}
-${pedido.desconto > 0 ? `🎁 Desconto: -R$ ${pedido.desconto.toFixed(2).replace('.', ',')}\n` : ''}💵 *TOTAL: R$ ${pedido.total.toFixed(2).replace('.', ',')}*
-Obrigado pela preferência! 🙏`
-  );
-
-  const fone = telefone ? telefone.replace(/\D/g, '') : '';
-  const url = fone ? `https://wa.me/55${fone}?text=${texto}` : `https://wa.me/?text=${texto}`;
-  window.open(url, '_blank');
 }
 
 // ─── componente principal ─────────────────────────────────────────────────────
@@ -160,6 +82,8 @@ export default function Comandas() {
 
   const subtotal = useMemo(() => (selected?.itens || []).reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0), [selected]);
   const total = utilizacaoInterna ? 0 : Math.max(0, subtotal - (Number(discount) || 0));
+  const jaRecebido = useMemo(() => totalPago(selected?.historicoPagamentos), [selected]);
+  const saldoEmAberto = Math.max(0, total - jaRecebido);
 
   const create = async (event) => {
     event.preventDefault();
@@ -276,17 +200,19 @@ export default function Comandas() {
     try {
       if (paymentPartial && Number(partialAmount || 0) > 0) {
         const valorRecebido = Number(partialAmount);
-        const pagamentoMinimo = Math.min(Number(total || 0), valorRecebido);
-        if (pagamentoMinimo <= 0) {
-          throw new Error('Informe um valor parcial válido');
+        if (valorRecebido > saldoEmAberto) {
+          throw new Error(`O valor recebido não pode ser maior que o saldo em aberto (${formatMoney(saldoEmAberto)})`);
         }
-        await api.patch(`/comandas/${selected._id}/receber-parcial`, {
-          valorRecebido: pagamentoMinimo,
+        const { data: comandaAtualizada } = await api.patch(`/comandas/${selected._id}/receber-parcial`, {
+          valorRecebido,
           formaPagamento: utilizacaoInterna ? 'credito_loja' : paymentMethod,
         });
         setModalFechamento(false);
         setDiscount('0'); setPaymentMethod(''); setPaymentPartial(false); setPartialAmount(''); setUtilizacaoInterna(false); setPaymentError(false);
-        showToast(`Recebimento parcial registrado em #${comandaFechada.numero}`, 'success');
+        const restante = Number(comandaAtualizada?.saldoDevedor ?? (saldoEmAberto - valorRecebido));
+        showToast(restante > 0
+          ? `Recebimento parcial registrado em #${comandaFechada.numero}. Falta ${formatMoney(restante)}.`
+          : `Comanda #${comandaFechada.numero} quitada.`, 'success');
         await load();
         return;
       }
@@ -352,9 +278,19 @@ export default function Comandas() {
         <section className={`comandas-card comandas-list-card ${mobileView === 'detail' ? 'mobile-hidden' : ''}`}>
           <div className="comandas-card-heading"><div><h2>Em aberto</h2><p>Selecione uma comanda para editar.</p></div><span className="comandas-count">{comandas.length}</span></div>
           <div className="comandas-quick-products"><strong>Lançamento rápido</strong><div>{products.filter((product) => product.categoria !== 'Insumos').slice(0, 8).map((product) => <button key={product._id} type="button" onClick={() => { setProductId(product._id); setQuantity('1'); }} className={productId === product._id ? 'selected' : ''}>{product.nome}</button>)}</div></div>
-          {comandas.map((command) => <button className="comanda-select-button" key={command._id} onClick={() => { setSelected(command); setMobileView('detail'); }} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
-            <b>{command.tipoAtendimento === 'balcao' ? '📦' : '🪑'} #{command.numero}</b><br /><small>{command.tipoAtendimento === 'balcao' ? `Balcão · ${command.statusBalcao || 'aguardando'}` : 'Mesa'} · {command.clienteNome} · {command.itens.length} itens</small>
-          </button>)}
+          {comandas.map((command) => {
+            const info = statusPagamentoInfo(command.statusPagamento);
+            const saldo = saldoDevedor(command.valorTotal, command.historicoPagamentos);
+            return (
+              <button className="comanda-select-button" key={command._id} onClick={() => { setSelected(command); setMobileView('detail'); }} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
+                <b>{command.tipoAtendimento === 'balcao' ? '📦' : '🪑'} #{command.numero}</b>
+                {command.statusPagamento === 'parcial' && <span className="comanda-status-pill" style={{ background: info.bg, color: info.txt }}>{info.label}</span>}
+                <br />
+                <small>{command.tipoAtendimento === 'balcao' ? `Balcão · ${command.statusBalcao || 'aguardando'}` : 'Mesa'} · {command.clienteNome} · {command.itens.length} itens</small>
+                {saldo > 0 && <small style={{ display: 'block', marginTop: 4, fontWeight: 700 }}>A receber: {formatMoney(saldo)}</small>}
+              </button>
+            );
+          })}
         </section>
 
         <section className={`comandas-card comandas-detail-card ${mobileView === 'list' ? 'mobile-hidden' : ''}`}>
@@ -404,8 +340,34 @@ export default function Comandas() {
               </div>
             ))}
             <div className="comandas-checkout">
-              <div><small style={{ display: 'block', color: 'var(--text-secondary)' }}>Total da comanda</small><b style={{ fontSize: 20, color: 'var(--accent-primary)' }}>{formatMoney(subtotal)}</b></div>
-              <button onClick={abrirModalFechamento} className="comandas-primary-button">Fechar comanda</button>
+              <div>
+                <small style={{ display: 'block', color: 'var(--text-secondary)' }}>Total da comanda</small>
+                <b style={{ fontSize: 20, color: 'var(--accent-primary)' }}>{formatMoney(subtotal)}</b>
+                {jaRecebido > 0 && (
+                  <div style={{ marginTop: 6 }}>
+                    <span className="comanda-status-pill" style={{ background: statusPagamentoInfo(selected.statusPagamento).bg, color: statusPagamentoInfo(selected.statusPagamento).txt }}>
+                      {statusPagamentoInfo(selected.statusPagamento).label}
+                    </span>
+                    <small style={{ display: 'block', marginTop: 4, color: 'var(--text-secondary)' }}>
+                      Recebido {formatMoney(jaRecebido)} · Falta <strong style={{ color: 'var(--text-primary)' }}>{formatMoney(saldoEmAberto)}</strong>
+                    </small>
+                  </div>
+                )}
+                {jaRecebido > 0 && normalizarPagamentos(selected.historicoPagamentos).length > 0 && (
+                  <details style={{ marginTop: 8 }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>Histórico de recebimentos</summary>
+                    <div style={{ marginTop: 6, display: 'grid', gap: 4 }}>
+                      {normalizarPagamentos(selected.historicoPagamentos).map((pagamento, indice) => (
+                        <small key={indice} style={{ color: 'var(--text-secondary)' }}>
+                          {dataBR(pagamento.data)} · {rotuloPagamento(pagamento.tipo)} · <strong>{formatMoney(pagamento.valor)}</strong>
+                          {pagamento.usuario ? ` · ${pagamento.usuario}` : ''}
+                        </small>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+              <button onClick={abrirModalFechamento} className="comandas-primary-button">{jaRecebido > 0 ? 'Receber / Fechar' : 'Fechar comanda'}</button>
               <button onClick={cancel} className="comandas-cancel-button">Cancelar</button>
             </div>
           </>}
@@ -442,8 +404,9 @@ export default function Comandas() {
                   className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Total a cobrar</span>
-                <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent-primary)' }}>{formatMoney(total)}</span>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{jaRecebido > 0 ? 'Saldo em aberto' : 'Total a cobrar'}</span>
+                <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent-primary)' }}>{formatMoney(jaRecebido > 0 ? saldoEmAberto : total)}</span>
+                {jaRecebido > 0 && <small style={{ color: 'var(--text-secondary)' }}>Total {formatMoney(total)} · já recebido {formatMoney(jaRecebido)}</small>}
               </div>
             </div>
 
@@ -476,7 +439,7 @@ export default function Comandas() {
                   const checked = e.target.checked;
                   setPaymentPartial(checked);
                   if (checked) {
-                    setPartialAmount(String(Math.min(Number(total) || 0, Number(selected?.valorTotal || total || 0))));
+                    setPartialAmount(saldoEmAberto > 0 ? String(saldoEmAberto.toFixed(2)) : '');
                   } else {
                     setPartialAmount('');
                   }
@@ -491,7 +454,11 @@ export default function Comandas() {
             {paymentPartial && (
               <div style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Valor recebido agora (R$)</label>
-                <input type="number" min="0.01" step="0.01" value={partialAmount} onChange={e => setPartialAmount(e.target.value)} className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
+                <input type="number" min="0.01" max={saldoEmAberto} step="0.01" value={partialAmount} onChange={e => setPartialAmount(e.target.value)} className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
+                <small style={{ display: 'block', marginTop: 4, color: 'var(--text-secondary)' }}>
+                  Saldo em aberto: <strong>{formatMoney(saldoEmAberto)}</strong>
+                  {jaRecebido > 0 && <> · Já recebido: <strong>{formatMoney(jaRecebido)}</strong></>}
+                </small>
               </div>
             )}
 
@@ -506,11 +473,7 @@ export default function Comandas() {
                 style={{ width: '100%', borderColor: paymentError ? 'var(--error-bg)' : undefined, opacity: utilizacaoInterna ? 0.7 : 1 }}
               >
                 <option value="">Selecione…</option>
-                <option value="pix">Pix</option>
-                <option value="dinheiro">Dinheiro</option>
-                <option value="cartao_credito">Cartão de Crédito</option>
-                <option value="cartao_debito">Cartão de Débito</option>
-                <option value="credito_loja">Crédito na Loja</option>
+                {FORMAS_PAGAMENTO.map((forma) => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
               </select>
             </div>
 
@@ -656,6 +619,7 @@ export default function Comandas() {
         .comandas-page { width: 100%; max-width: 1180px; margin: 0 auto; }
         .service-mode-panel { display:grid; gap:12px; margin-bottom:16px; padding:18px; border:1px solid var(--border-color); border-radius:16px; background:var(--bg-secondary); box-shadow:var(--shadow-sm); }.service-mode-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.service-mode-heading h2{margin:0;font-size:17px}.service-mode-heading span{color:var(--text-secondary);font-size:12px}.table-shortcuts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.table-shortcut{display:grid;gap:6px;min-height:76px;padding:12px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-tertiary);color:var(--text-primary);cursor:pointer;text-align:left}.table-shortcut strong{font-size:20px}.table-shortcut span{color:var(--success-bg);font-size:11px;font-weight:700}.table-shortcut.occupied{border-color:var(--warning-bg)}.table-shortcut.occupied span{color:var(--warning-bg)}.counter-service{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;border-top:1px solid var(--border-light)}.counter-service>div{display:grid;gap:3px}.counter-service span{color:var(--text-secondary);font-size:12px}.counter-service strong{color:var(--accent-primary);font-size:13px}
         .page-heading { margin-bottom: 20px; }
+        .comanda-status-pill { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
         .page-heading p, .comandas-card-heading p { margin: 0; color: var(--text-secondary); font-size: 13px; }
         .comandas-open-form, .comandas-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 16px; box-shadow: var(--shadow-sm); }
         .comandas-open-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; padding: 18px; margin-bottom: 16px; }

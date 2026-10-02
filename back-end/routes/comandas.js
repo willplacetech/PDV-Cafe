@@ -6,7 +6,8 @@ const Order = require('../models/Order');
 const Customer = require('../models/Customer');
 const StockMovement = require('../models/StockMovement');
 const auth = require('../middleware/auth');
-const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
+const { obterTaxasCartao } = require('../utils/taxasCartao');
+const { calcularStatusPagamento, construirPagamento, formaPagamentoValida, normalizarFormaPagamento, saldoDevedor } = require('../utils/pagamento');
 const { precoPorUnidade } = require('../utils/pesoProduto');
 const { normalizarEstoqueLegado, produtoControlaPeso, dadosMovimentoEstoque } = require('../utils/estoqueProduto');
 const { calcularPrecoComDesconto, calcularPrecoGrupo } = require('../utils/descontosQuantidade');
@@ -16,20 +17,7 @@ const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'L'].includes(product?.unidadeVenda));
 
-const calcularStatusPagamentoComanda = (comanda) => {
-  const valorTotal = Number(comanda?.valorTotal || comanda?.total || 0);
-  const historicoPagamentos = Array.isArray(comanda?.historicoPagamentos) ? comanda.historicoPagamentos : [];
-  const valorPago = historicoPagamentos.reduce((soma, pagamento) => soma + Number(pagamento?.valor || 0), 0);
-  const saldoDevedor = Math.max(0, valorTotal - valorPago);
-
-  let statusPagamento = 'pendente';
-  if (valorTotal <= 0) statusPagamento = 'quitado';
-  else if (valorPago <= 0) statusPagamento = 'pendente';
-  else if (valorPago >= valorTotal) statusPagamento = 'quitado';
-  else statusPagamento = 'parcial';
-
-  return { valorTotal, valorPago, saldoDevedor, statusPagamento };
-};
+const calcularStatusPagamentoComanda = (comanda) => calcularStatusPagamento(comanda);
 
 async function recalcularPrecosComanda(comanda, session) {
   const ids = [...new Set(comanda.itens.map((item) => String(item.produtoId)))];
@@ -169,6 +157,39 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
+router.get('/cozinha', auth, auth.allowRoles('admin', 'operador', 'cozinha'), async (req, res) => {
+  try {
+    const comandas = await Comanda.find({ status: 'aberta', 'itens.aFazer': true }).sort({ createdAt: 1 });
+    res.json(comandas.map((comanda) => ({ ...comanda.toObject(), itens: comanda.itens.filter((item) => item.aFazer) })));
+  } catch (err) { res.status(500).json({ msg: err.message }); }
+});
+
+router.get('/a-receber', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+  try {
+    const { clienteId, dataInicio, dataFim } = req.query;
+    const filter = {
+      status: 'aberta',
+      utilizacaoInterna: { $ne: true },
+      statusPagamento: { $in: ['pendente', 'parcial'] },
+      valorTotal: { $gt: 0 },
+    };
+    if (clienteId && mongoose.isValidObjectId(clienteId)) filter.clienteId = clienteId;
+    if (dataInicio || dataFim) {
+      if ((dataInicio && !/^\d{4}-\d{2}-\d{2}$/.test(dataInicio)) || (dataFim && !/^\d{4}-\d{2}-\d{2}$/.test(dataFim))) {
+        return res.status(400).json({ msg: 'Período inválido' });
+      }
+      filter.createdAt = {};
+      if (dataInicio) filter.createdAt.$gte = new Date(`${dataInicio}T00:00:00.000Z`);
+      if (dataFim) filter.createdAt.$lte = new Date(`${dataFim}T23:59:59.999Z`);
+    }
+    const comandas = await Comanda.find(filter)
+      .populate('clienteId', 'nome telefone')
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json(comandas.map((comanda) => ({ ...comanda, ...calcularStatusPagamento(comanda) })));
+  } catch (err) { res.status(500).json({ msg: err.message }); }
+});
+
 router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
     const comanda = await Comanda.findById(req.params.id)
@@ -180,13 +201,6 @@ router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (
     if (err.name === 'CastError') return res.status(400).json({ msg: 'ID inválido' });
     res.status(500).json({ msg: err.message });
   }
-});
-
-router.get('/cozinha', auth, auth.allowRoles('admin', 'operador', 'cozinha'), async (req, res) => {
-  try {
-    const comandas = await Comanda.find({ status: 'aberta', 'itens.aFazer': true }).sort({ createdAt: 1 });
-    res.json(comandas.map((comanda) => ({ ...comanda.toObject(), itens: comanda.itens.filter((item) => item.aFazer) })));
-  } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
 router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
@@ -424,18 +438,29 @@ router.patch('/:id/receber-parcial', auth, auth.allowRoles('admin', 'operador', 
     const comanda = await Comanda.findById(req.params.id).session(session);
     if (!comanda || comanda.status !== 'aberta') throw new Error('Comanda não está aberta');
 
-    const valorRecebido = Number(req.body.valorRecebido || 0);
     const formaPagamento = String(req.body.formaPagamento || 'dinheiro');
-    if (!Number.isFinite(valorRecebido) || valorRecebido <= 0) throw new Error('Informe um valor válido para receber');
-    if (!['dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'credito_loja', 'fiado'].includes(formaPagamento)) {
-      throw new Error('Forma de pagamento inválida');
-    }
+    if (!formaPagamentoValida(formaPagamento)) throw new Error('Forma de pagamento inválida');
 
     const valorTotal = Number(comanda.valorTotal || 0);
     const totalCobrado = valorTotal > 0 ? valorTotal : money(comanda.itens.reduce((soma, item) => soma + Number(item.precoUnitario || 0) * Number(item.quantidade || 0), 0));
-    comanda.valorTotal = comanda.valorTotal || totalCobrado;
+    comanda.valorTotal = money(comanda.valorTotal || totalCobrado);
+
     const historico = Array.isArray(comanda.historicoPagamentos) ? comanda.historicoPagamentos : [];
-    historico.push({ valor: valorRecebido, formaPagamento, data: new Date(), usuario: req.user?.username || 'sistema' });
+    const saldoAtual = saldoDevedor(comanda.valorTotal, historico);
+    if (saldoAtual <= 0) throw new Error('Esta comanda já está quitada');
+
+    const pagamento = construirPagamento({
+      valor: req.body.valorRecebido,
+      formaPagamento,
+      taxas: await obterTaxasCartao(),
+      observacao: req.body.observacao,
+      usuario: req.user?.username || 'sistema',
+    });
+    if (pagamento.valor > saldoAtual) {
+      throw new Error(`O valor recebido (R$ ${pagamento.valor.toFixed(2)}) é maior que o saldo em aberto (R$ ${saldoAtual.toFixed(2)})`);
+    }
+
+    historico.push(pagamento);
     comanda.historicoPagamentos = historico;
 
     const atualizacao = calcularStatusPagamentoComanda(comanda);
@@ -493,17 +518,33 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     if (!comanda || comanda.status !== 'aberta' || !comanda.itens.length) throw new Error('Comanda sem itens ou já fechada');
     await recalcularPrecosComanda(comanda, session);
     const utilizacaoInterna = Boolean(req.body.utilizacaoInterna);
-    const metodoPagamento = req.body.metodoPagamento;
-    if (!utilizacaoInterna && !['dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'credito_loja'].includes(metodoPagamento)) {
-      throw new Error('Selecione uma forma de pagamento');
-    }
+    const metodoPagamento = normalizarFormaPagamento(req.body.metodoPagamento);
     if (!comanda.estoqueBaixado) await ajustarEstoque(comanda.itens, 'baixar', session);
-    const subtotal = money(comanda.itens.reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0));
+    const subtotal = money(comanda.itens.reduce((sum, item) => item.precoUnitario * item.quantidade, 0));
     const discount = money(req.body.desconto || 0);
     if (discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
     const total = utilizacaoInterna ? 0 : money(subtotal - discount);
+
+    const historico = Array.isArray(comanda.historicoPagamentos) ? comanda.historicoPagamentos : [];
+    comanda.valorTotal = total;
+    const saldoRestante = saldoDevedor(total, historico);
     const pagamentoFinal = utilizacaoInterna ? 'credito_loja' : metodoPagamento;
-    const creditoLoja = pagamentoFinal === 'credito_loja';
+    if (!utilizacaoInterna && saldoRestante > 0 && !pagamentoFinal) {
+      throw new Error('Selecione uma forma de pagamento');
+    }
+    const taxasCartao = await obterTaxasCartao();
+    if (saldoRestante > 0) {
+      historico.push(construirPagamento({
+        valor: saldoRestante,
+        formaPagamento: pagamentoFinal,
+        taxas: taxasCartao,
+        observacao: 'Fechamento da comanda',
+        usuario: req.user.username,
+      }));
+    }
+    comanda.historicoPagamentos = historico;
+    const situacaoFinal = calcularStatusPagamento({ valorTotal: total, historicoPagamentos: historico });
+
     const telefone = String(req.body.telefone || '').replace(/\D/g, '');
     const nome = String(req.body.nome || '').trim();
     let customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
@@ -519,7 +560,6 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
         await customer.save({ session });
       }
     }
-    const taxasCartao = await obterTaxasCartao();
     const order = new Order({
       itens: comanda.itens,
       tipoAtendimento: comanda.tipoAtendimento || 'mesa',
@@ -532,12 +572,8 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
       clienteTelefone: customer?.telefone || telefone,
       atendente: req.user.username,
       comandaId: comanda.id,
-      status: utilizacaoInterna || creditoLoja ? (utilizacaoInterna ? 'pago' : 'pendente') : 'pago',
-      pagamentos: utilizacaoInterna
-        ? [{ tipo: 'credito_loja', valorRecebido: 0, dataPagamento: new Date(), quitado: true, observacao: 'Utilização interna' }]
-        : creditoLoja
-          ? []
-          : [{ tipo: pagamentoFinal, valorRecebido: total, ...calcularPagamento(pagamentoFinal, total, taxasCartao), dataPagamento: new Date(), quitado: true }],
+      status: utilizacaoInterna ? 'pago' : (situacaoFinal.saldoDevedor > 0 ? 'parcial' : 'pago'),
+      pagamentos: [],
     });
     await order.save({ session });
     if (customer && !utilizacaoInterna) {
@@ -550,10 +586,9 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     comanda.desconto = discount;
     comanda.valorTotal = total;
     comanda.utilizacaoInterna = utilizacaoInterna;
-    comanda.valorPago = total;
-    comanda.saldoDevedor = 0;
-    comanda.statusPagamento = 'quitado';
-    comanda.historicoPagamentos = [{ valor: total, formaPagamento: utilizacaoInterna ? 'credito_loja' : metodoPagamento, data: new Date(), usuario: req.user.username || 'sistema' }];
+    comanda.valorPago = situacaoFinal.valorPago;
+    comanda.saldoDevedor = situacaoFinal.saldoDevedor;
+    comanda.statusPagamento = utilizacaoInterna ? 'quitado' : situacaoFinal.statusPagamento;
     await comanda.save({ session });
     await session.commitTransaction();
     res.json({ comanda, pedido: order });

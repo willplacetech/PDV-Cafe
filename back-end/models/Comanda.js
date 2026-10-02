@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { UNIDADES_PERMITIDAS, normalizarUnidade } = require('../utils/unidades');
+const { FORMAS_PAGAMENTO, calcularStatusPagamento } = require('../utils/pagamento');
 
 const itemSchema = new mongoose.Schema({
   produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
@@ -45,8 +46,12 @@ const comandaSchema = new mongoose.Schema({
   statusPagamento: { type: String, enum: ['pendente', 'parcial', 'quitado', 'cancelado'], default: 'pendente' },
   historicoPagamentos: [{
     valor: { type: Number, required: true, min: 0 },
-    formaPagamento: { type: String, enum: ['dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'credito_loja', 'fiado'], default: 'dinheiro' },
+    formaPagamento: { type: String, enum: FORMAS_PAGAMENTO, default: 'dinheiro' },
+    taxaPercentual: { type: Number, default: 0, min: 0 },
+    taxaValor: { type: Number, default: 0, min: 0 },
+    valorLiquido: { type: Number, default: 0, min: 0 },
     data: { type: Date, default: Date.now },
+    observacao: { type: String, default: '' },
     usuario: String,
   }],
   utilizacaoInterna: { type: Boolean, default: false },
@@ -62,23 +67,13 @@ comandaSchema.pre('save', async function(next) {
     this.numero = String(ultima ? Number(ultima.numero) + 1 : 1).padStart(4, '0');
   }
 
-  const valorTotal = Number(this.valorTotal || 0);
-  const historicoPagamentos = Array.isArray(this.historicoPagamentos) ? this.historicoPagamentos : [];
-  const valorPago = historicoPagamentos.reduce((soma, pagamento) => soma + Number(pagamento?.valor || 0), 0);
+  const { valorTotal, valorPago, saldoDevedor, statusPagamento } = calcularStatusPagamento({
+    valorTotal: this.valorTotal,
+    historicoPagamentos: this.historicoPagamentos,
+  });
   this.valorPago = valorPago;
-  this.saldoDevedor = Math.max(0, valorTotal - valorPago);
-
-  if (this.status === 'cancelada') {
-    this.statusPagamento = 'cancelado';
-  } else if (valorTotal <= 0) {
-    this.statusPagamento = 'quitado';
-  } else if (valorPago <= 0) {
-    this.statusPagamento = 'pendente';
-  } else if (valorPago >= valorTotal) {
-    this.statusPagamento = 'quitado';
-  } else {
-    this.statusPagamento = 'parcial';
-  }
+  this.saldoDevedor = saldoDevedor;
+  this.statusPagamento = this.status === 'cancelada' ? 'cancelado' : statusPagamento;
 
   next();
 });

@@ -9,6 +9,7 @@ const Despesa = require('../models/Despesa');
 const PaymentSettings = require('../models/PaymentSettings');
 const Purchase = require('../models/Purchase');
 const { calcularCustoUnitarioVenda } = require('../utils/estoqueInsumo');
+const { carregarPagamentosDoPeriodo, dinheiro: dinheiroPagamento } = require('../utils/pagamento');
 
 const router = express.Router();
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -41,21 +42,15 @@ const getMesRange = (mes) => {
 
 const resumoComparativo = async (mes) => {
   const { inicio, fim } = getMesRange(mes);
-  const [pedidos, despesas, pedidosComPagamentos] = await Promise.all([
+  const [pedidos, despesas, pagamentos] = await Promise.all([
     Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $in: ['pago', 'parcial'] } }).select('total').lean(),
     Despesa.find({ status: 'pago', dataPagamento: { $gte: inicio, $lt: fim } }).select('valor').lean(),
-    Order.find({ 'pagamentos.dataPagamento': { $gte: inicio, $lt: fim } }).select('pagamentos').lean(),
+    carregarPagamentosDoPeriodo({ inicio, fim }),
   ]);
   const receita = pedidos.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
   const despesasPagas = despesas.reduce((total, despesa) => total + Number(despesa.valor || 0), 0);
-  const entradas = pedidosComPagamentos.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => {
-    const data = new Date(pagamento.dataPagamento);
-    return data >= inicio && data < fim;
-  }).reduce((subtotal, pagamento) => subtotal + pagamentoTaxa(pagamento).liquido, 0), 0);
-  const taxasCartao = pedidosComPagamentos.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => {
-    const data = new Date(pagamento.dataPagamento);
-    return data >= inicio && data < fim;
-  }).reduce((subtotal, pagamento) => subtotal + pagamentoTaxa(pagamento).taxa, 0), 0);
+  const entradas = dinheiroPagamento(pagamentos.reduce((total, pagamento) => total + pagamentoTaxa(pagamento).liquido, 0));
+  const taxasCartao = dinheiroPagamento(pagamentos.reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0));
   return {
     mes,
     pedidos: pedidos.length,
@@ -63,8 +58,8 @@ const resumoComparativo = async (mes) => {
     entradas,
     taxasCartao,
     despesasPagas,
-    saldo: entradas - despesasPagas,
-    resultadoOperacional: receita - taxasCartao - despesasPagas,
+    saldo: dinheiroPagamento(entradas - despesasPagas),
+    resultadoOperacional: dinheiroPagamento(receita - taxasCartao - despesasPagas),
   };
 };
 
@@ -108,11 +103,12 @@ router.patch('/taxas-cartao', async (req, res) => {
 router.get('/dre', async (req, res) => {
   try {
     const { inicio, fim } = getMesRange(req.query.mes || req.query.data || null);
-    const [periodoVendas, comprasPeriodo] = await Promise.all([
+    const [periodoVendas, comprasPeriodo, pagamentosPeriodo] = await Promise.all([
       Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $in: ['pago', 'parcial'] } })
         .select('total itens pagamentos')
         .lean(),
       Purchase.find({ data: { $gte: inicio, $lt: fim } }).select('valorTotal').lean(),
+      carregarPagamentosDoPeriodo({ inicio, fim }),
     ]);
 
     const produtoIds = [...new Set(periodoVendas.flatMap((pedido) => (pedido.itens || []).map((item) => String(item.produtoId || ''))))]
@@ -158,12 +154,7 @@ router.get('/dre', async (req, res) => {
       despesasPorCategoria[despesa.categoria] = dinheiro((despesasPorCategoria[despesa.categoria] || 0) + valor);
     }
 
-    const taxasCartao = periodoVendas.reduce((total, pedido) => total + (pedido.pagamentos || [])
-      .filter((pagamento) => {
-        const data = new Date(pagamento.dataPagamento);
-        return data >= inicio && data < fim;
-      })
-      .reduce((subtotal, pagamento) => subtotal + pagamentoTaxa(pagamento).taxa, 0), 0);
+    const taxasCartao = dinheiro(pagamentosPeriodo.reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0));
 
     const depreciacao = Number(req.query.depreciacao || 0);
     const impostos = Number(req.query.impostos || 0);
@@ -210,22 +201,20 @@ router.get('/fluxo-caixa', async (req, res) => {
     const [ano, mesNumero] = mes.split('-').map(Number);
     const { inicio, fim } = getMesRange(mes);
 
-    const [vendas, despesas] = await Promise.all([
-      Order.find({ 'pagamentos.dataPagamento': { $gte: inicio, $lt: fim } }).lean(),
+    const [despesas, pagamentos] = await Promise.all([
       Despesa.find({ status: 'pago', dataPagamento: { $gte: inicio, $lt: fim } }).lean(),
+      carregarPagamentosDoPeriodo({ inicio, fim }),
     ]);
 
     const entradasPorDia = new Map();
     const saidasPorDia = new Map();
 
-    for (const pedido of vendas) {
-      for (const pagamento of pedido.pagamentos || []) {
-        if (!pagamento.dataPagamento) continue;
-        const data = new Date(pagamento.dataPagamento);
-        if (data < inicio || data >= fim) continue;
-        const chave = chaveDataSaoPaulo(data);
-        entradasPorDia.set(chave, (entradasPorDia.get(chave) || 0) + pagamentoTaxa(pagamento).liquido);
-      }
+    for (const pagamento of pagamentos) {
+      if (!pagamento.dataPagamento) continue;
+      const data = new Date(pagamento.dataPagamento);
+      if (data < inicio || data >= fim) continue;
+      const chave = chaveDataSaoPaulo(data);
+      entradasPorDia.set(chave, (entradasPorDia.get(chave) || 0) + pagamentoTaxa(pagamento).liquido);
     }
 
     for (const despesa of despesas) {

@@ -1,6 +1,7 @@
 const express = require('express');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
+const { indexarComandasPorId, normalizarPagamentos, pagamentosDoPedido } = require('../utils/pagamento');
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
 const PaymentSettings = require('../models/PaymentSettings');
@@ -37,23 +38,30 @@ const pagamentoTaxa = (pagamento) => {
   const taxa = Number(pagamento.taxaValor || (valor * Number(pagamento.taxaPercentual || 0) / 100));
   return { bruto: valor, taxa, liquido: valor - taxa };
 };
-const pagamentoRecebido = (pagamento) => {
-  if (!pagamento || pagamento.tipo === 'credito_loja') return 0;
-  return Number(pagamento.valorRecebido || 0);
-};
 const valorLiquidoPedido = (pedido) => Math.round((Math.max(0, Number(pedido.total || 0) - (pedido.pagamentos || []).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0)) + Number.EPSILON) * 100) / 100;
-const pedidoRecebidoTotal = (pedido) => (pedido.pagamentos || []).reduce((total, pagamento) => total + pagamentoRecebido(pagamento), 0);
-const pedidoEmAReceber = (pedido) => {
+/**
+ * Pedidos originados de comanda têm o dinheiro registrado em
+ * Comanda.historicoPagamentos (fonte única). Sem esta resolução o
+ * pagamento parcial de uma comanda nunca apareceria nos totais.
+ */
+const comandasPorIdDe = async (pedidos) => {
+  const ids = [...new Set(pedidos.map((pedido) => pedido.comandaId).filter(Boolean).map(String))];
+  if (!ids.length) return new Map();
+  return indexarComandasPorId(await Comanda.find({ _id: { $in: ids } }).select('historicoPagamentos valorTotal').lean());
+};
+
+const pagamentosDe = (comandasPorId, pedido) => normalizarPagamentos(pagamentosDoPedido(pedido, pedido?.comandaId ? comandasPorId.get(String(pedido.comandaId)) : null));
+
+const pedidoEmAReceberComComanda = (comandasPorId, pedido) => {
   if (!pedido || pedido.status === 'cancelado' || pedido.status === 'pago' || pedido.utilizacaoInterna) return 0;
-
-  const pagamentos = pedido.pagamentos || [];
-  const temCreditoLoja = pagamentos.some((pagamento) => pagamento.tipo === 'credito_loja');
-  const temPagamentoValido = pagamentos.some((pagamento) => pagamento.tipo !== 'credito_loja' && Number(pagamento.valorRecebido || 0) > 0);
-
-  if (temCreditoLoja && !temPagamentoValido) return 0;
-
   const total = Number(pedido.total || 0);
-  return Math.max(0, total - pedidoRecebidoTotal(pedido));
+  if (total <= 0) return 0;
+  const lista = pagamentosDe(comandasPorId, pedido);
+  const temCredito = lista.some((pagamento) => pagamento.tipo === 'credito_loja');
+  const temReal = lista.some((pagamento) => pagamento.tipo !== 'credito_loja' && pagamento.valorRecebido > 0);
+  if (temCredito && !temReal) return 0;
+  const recebido = lista.filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((soma, pagamento) => soma + pagamento.valorRecebido, 0);
+  return Math.max(0, total - recebido);
 };
 
 const periodoHistorico = (semanaInicio) => {
@@ -204,21 +212,22 @@ router.get('/', async (req, res) => {
         return { periodo, total, pedidos: pedidos.length, itens, ticketMedio: pedidos.length ? total / pedidos.length : 0, maisVendidos };
       })),
       Comanda.countDocuments({ status: 'aberta' }),
-      Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).select('numero total status utilizacaoInterna clienteNome createdAt itens pagamentos'),
-      Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status utilizacaoInterna clienteId clienteNome clienteTelefone createdAt itens pagamentos tipoAtendimento'),
-      Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('dia') } }).select('pagamentos'),
-      Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('pagamentos'),
+      Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).select('numero total status utilizacaoInterna clienteNome createdAt itens pagamentos comandaId'),
+      Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status utilizacaoInterna clienteId clienteNome clienteTelefone createdAt itens pagamentos tipoAtendimento comandaId'),
+      Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('dia') } }).select('pagamentos comandaId'),
+      Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('pagamentos comandaId'),
       Customer.countDocuments(),
       Customer.find().sort({ createdAt: -1 }).limit(8).select('nome telefone createdAt cafesFidelidade'),
       Product.find({ tipo: 'venda' }).select('nome codigo preco custo estoque categoria'),
       Order.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status total itens clienteId clienteNome'),
       Comanda.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status'),
     ]);
+    const comandasPorId = await comandasPorIdDe([...pedidosDia, ...pedidosMes, ...recebimentosDia, ...recebimentosMes]);
     const vendasHoje = pedidosDia.filter((pedido) => pedido.status !== 'cancelado' && !pedido.utilizacaoInterna);
     const vendasHojeTotal = vendasHoje.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
     const vendasHojeItens = vendasHoje.reduce((total, pedido) => total + (pedido.itens || []).reduce((itens, item) => itens + quantidadeNaUnidadeBase(item), 0), 0);
-    const vendasHojeRecebido = recebimentosDia.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => pagamento.tipo !== 'credito_loja' && new Date(pagamento.dataPagamento) >= inicioDoPeriodo('dia')).reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).liquido, 0), 0);
-    const vendasHojePendente = vendasHoje.reduce((total, pedido) => total + pedidoEmAReceber(pedido), 0);
+    const vendasHojeRecebido = recebimentosDia.reduce((total, pedido) => total + pagamentosDe(comandasPorId, pedido).filter((pagamento) => pagamento.tipo !== 'credito_loja' && new Date(pagamento.dataPagamento) >= inicioDoPeriodo('dia')).reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).liquido, 0), 0);
+    const vendasHojePendente = vendasHoje.reduce((total, pedido) => total + pedidoEmAReceberComComanda(comandasPorId, pedido), 0);
     const vendasMes = pedidosMes.filter((pedido) => pedido.status !== 'cancelado' && !pedido.utilizacaoInterna);
     const vendasPorTipo = vendasMes.reduce((tipos, pedido) => {
       const tipo = pedido.tipoAtendimento === 'balcao' ? 'balcao' : 'mesa';
@@ -240,7 +249,7 @@ router.get('/', async (req, res) => {
         produtosMes.set(item.nome, atual);
       });
     });
-    recebimentosMes.forEach((pedido) => (pedido.pagamentos || []).filter((pagamento) => pagamento.tipo !== 'credito_loja' && new Date(pagamento.dataPagamento) >= inicioDoPeriodo('mes') && new Date(pagamento.dataPagamento) < fimDoMesAtual()).forEach((pagamento) => {
+    recebimentosMes.forEach((pedido) => pagamentosDe(comandasPorId, pedido).filter((pagamento) => pagamento.tipo !== 'credito_loja' && new Date(pagamento.dataPagamento) >= inicioDoPeriodo('mes') && new Date(pagamento.dataPagamento) < fimDoMesAtual()).forEach((pagamento) => {
       const atual = pagamentosMes.get(pagamento.tipo) || { bruto: 0, taxa: 0, total: 0 };
       const valores = pagamentoTaxa(pagamento);
       atual.bruto += valores.bruto;
@@ -259,8 +268,8 @@ router.get('/', async (req, res) => {
       atual.unidades += Number(item.quantidade || 0);
       rankingDescontos.set(String(item.produtoId), atual);
     }));
-    const recebidoMes = vendasMes.reduce((total, pedido) => total + pedidoRecebidoTotal(pedido), 0);
-    const taxasMes = vendasMes.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).taxa, 0), 0);
+    const recebidoMes = vendasMes.reduce((total, pedido) => total + pagamentosDe(comandasPorId, pedido).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((soma, pagamento) => soma + pagamento.valorRecebido, 0), 0);
+    const taxasMes = vendasMes.reduce((total, pedido) => total + pagamentosDe(comandasPorId, pedido).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).taxa, 0), 0);
     const statusMes = pedidosMes.reduce((status, pedido) => { status[pedido.status] = (status[pedido.status] || 0) + 1; return status; }, {});
     const clientesRelatorio = new Map(clientesRecentes.map((cliente) => [String(cliente._id), {
       id: cliente._id,
@@ -283,7 +292,7 @@ router.get('/', async (req, res) => {
       itens: vendasMes.reduce((total, pedido) => total + (pedido.itens || []).reduce((soma, item) => soma + quantidadeNaUnidadeBase(item), 0), 0),
       total: totalMes,
       recebido: recebidoMes,
-      pendente: vendasMes.reduce((total, pedido) => total + pedidoEmAReceber(pedido), 0),
+      pendente: vendasMes.reduce((total, pedido) => total + pedidoEmAReceberComComanda(comandasPorId, pedido), 0),
       ticketMedio: vendasMes.length ? totalMes / vendasMes.length : 0,
       status: statusMes,
       pagamentos: [...pagamentosMes.entries()].map(([tipo, valores]) => ({ tipo, ...valores })).sort((a, b) => b.total - a.total),
