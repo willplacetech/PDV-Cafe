@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const auth = require('../middleware/auth');
 const Order = require('../models/Order');
+const Comanda = require('../models/Comanda');
 const Product = require('../models/Product');
 const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
 const Recipe = require('../models/Recipe');
@@ -93,6 +94,26 @@ router.patch('/taxas-cartao', async (req, res) => {
         atualizados += 1;
       });
       if (alterado) await pedido.save();
+    }
+
+    // Pagamentos de comandas vivem em Comanda.historicoPagamentos (fonte única),
+    // logo a reprocessagem de taxas precisa alcançar esses lançamentos também.
+    const comandas = await Comanda.find({
+      historicoPagamentos: { $elemMatch: { tipo, data: { $gte: inicio, $lt: fim } } },
+    });
+    for (const comanda of comandas) {
+      let alterado = false;
+      comanda.historicoPagamentos.forEach((pagamento) => {
+        const data = new Date(pagamento.data);
+        if (pagamento.tipo !== tipo || data < inicio || data >= fim) return;
+        const valor = dinheiro(pagamento.valor ?? pagamento.valorRecebido);
+        pagamento.taxaPercentual = percentual;
+        pagamento.taxaValor = dinheiro(valor * percentual / 100);
+        pagamento.valorLiquido = dinheiro(valor - pagamento.taxaValor);
+        alterado = true;
+        atualizados += 1;
+      });
+      if (alterado) await comanda.save();
     }
     res.json({ mes, tipo, taxaPercentual: percentual, pagamentosAtualizados: atualizados });
   } catch (error) {

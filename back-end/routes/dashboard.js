@@ -38,7 +38,7 @@ const pagamentoTaxa = (pagamento) => {
   const taxa = Number(pagamento.taxaValor || (valor * Number(pagamento.taxaPercentual || 0) / 100));
   return { bruto: valor, taxa, liquido: valor - taxa };
 };
-const valorLiquidoPedido = (pedido) => Math.round((Math.max(0, Number(pedido.total || 0) - (pedido.pagamentos || []).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0)) + Number.EPSILON) * 100) / 100;
+const valorLiquidoPedido = (comandasPorId, pedido) => Math.round((Math.max(0, Number(pedido.total || 0) - pagamentosDe(comandasPorId, pedido).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0)) + Number.EPSILON) * 100) / 100;
 /**
  * Pedidos originados de comanda têm o dinheiro registrado em
  * Comanda.historicoPagamentos (fonte única). Sem esta resolução o
@@ -241,7 +241,7 @@ router.get('/', async (req, res) => {
     vendasMes.forEach((pedido) => {
       if (pedido.clienteNome) clientesMes.add(pedido.clienteNome);
       const dia = new Date(pedido.createdAt).toLocaleDateString('pt-BR');
-      vendasPorDia.set(dia, (vendasPorDia.get(dia) || 0) + valorLiquidoPedido(pedido));
+      vendasPorDia.set(dia, (vendasPorDia.get(dia) || 0) + valorLiquidoPedido(comandasPorId, pedido));
       (pedido.itens || []).forEach((item) => {
         const atual = produtosMes.get(item.nome) || { nome: item.nome, quantidade: 0, total: 0 };
         atual.quantidade += quantidadeNaUnidadeBase(item);
