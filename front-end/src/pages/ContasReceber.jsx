@@ -33,8 +33,8 @@ export default function ContasReceber() {
   const [pagamentoMultiploModal, setPagamentoMultiploModal] = useState(null);
   const [novoPedidoModal, setNovoPedidoModal] = useState(null);
   const [novoPedidoForm, setNovoPedidoForm] = useState({ produtoId: '', quantidade: '1', nomeSolicitante: '', observacao: '', itens: [] });
-  const [formPagamento, setFormPagamento] = useState({ tipo: 'credito_loja', valorRecebido: '', observacao: '' });
-  const [formPagamentoMultiplo, setFormPagamentoMultiplo] = useState({ tipo: 'credito_loja', observacao: '' });
+  const [formPagamento, setFormPagamento] = useState({ tipo: 'dinheiro', valorRecebido: '', observacao: '' });
+  const [formPagamentoMultiplo, setFormPagamentoMultiplo] = useState({ tipo: 'dinheiro', observacao: '' });
   const [formComanda, setFormComanda] = useState(null);
   const [selecionados, setSelecionados] = useState(new Set());
   const { showToast } = useToast();
@@ -242,7 +242,7 @@ export default function ContasReceber() {
     if (clientes.size > 1) return showToast('Selecione apenas pedidos do mesmo cliente', 'warning');
     setPagamentoMultiploModal(true);
     setFormPagamentoMultiplo({
-      tipo: 'credito_loja',
+      tipo: 'dinheiro',
       observacao: ''
     });
   };
@@ -316,7 +316,7 @@ export default function ContasReceber() {
 
     setPagamentoModal(pedido);
     setFormPagamento({
-      tipo: 'credito_loja',
+      tipo: 'dinheiro',
       valorRecebido: valorAReceber,
       observacao: ''
     });
@@ -338,7 +338,7 @@ export default function ContasReceber() {
       showToast('✅ Pagamento registrado!', 'success');
       setPagamentoModal(null);
       setPagamentoConcluido(pedidoAtualizado);
-      setFormPagamento({ tipo: 'credito_loja', valorRecebido: '', observacao: '' });
+      setFormPagamento({ tipo: 'dinheiro', valorRecebido: '', observacao: '' });
       carregarPedidos();
     } catch { showToast('Erro ao registrar pagamento', 'error'); }
   };
@@ -905,7 +905,6 @@ export default function ContasReceber() {
               }}>
                 <option value="dinheiro">💵 Dinheiro</option>
                 <option value="pix">🔄 PIX</option>
-                <option value="credito_loja">🏪 Crédito Loja</option>
                 <option value="cartao_credito">💳 Cartão de Crédito</option>
                 <option value="cartao_debito">💳 Cartão de Débito</option>
               </select>
@@ -952,7 +951,6 @@ export default function ContasReceber() {
               }}>
                 <option value="dinheiro">💵 Dinheiro</option>
                 <option value="pix">🔄 PIX</option>
-                <option value="credito_loja">🏪 Crédito Loja</option>
                 <option value="cartao_credito">💳 Cartão de Crédito</option>
                 <option value="cartao_debito">💳 Cartão de Débito</option>
               </select>
@@ -1019,7 +1017,6 @@ export default function ContasReceber() {
             <select value={formPagamentoMultiplo.tipo} onChange={event => setFormPagamentoMultiplo({ ...formPagamentoMultiplo, tipo: event.target.value })} style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, marginBottom: 16 }}>
               <option value="dinheiro">💵 Dinheiro</option>
               <option value="pix">🔄 PIX</option>
-              <option value="credito_loja">🏪 Crédito Loja</option>
               <option value="cartao_credito">💳 Cartão de Crédito</option>
               <option value="cartao_debito">💳 Cartão de Débito</option>
             </select>
