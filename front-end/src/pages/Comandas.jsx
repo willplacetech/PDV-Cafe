@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api.jsx';
+import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/Toast.jsx';
 import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 import { FORMAS_PAGAMENTO, dataBR, normalizarPagamentos, rotuloPagamento, saldoDevedor, statusPagamentoInfo, totalPago } from '../utils/formasPagamento.jsx';
@@ -14,7 +15,6 @@ const formatQuantity = (item) => {
   }
   return `${quantidade} ${item.unidadeVenda || 'un'}`;
 };
-const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'L'].includes(product?.unidadeVenda));
 const produtoPorPeso = (product) => Number(product?.pesoPorUnidade) > 0 && product?.unidadeVenda === 'kg';
 
 // ─── helpers de cupom / whatsapp ─────────────────────────────────────────────

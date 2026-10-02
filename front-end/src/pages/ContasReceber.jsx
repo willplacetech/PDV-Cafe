@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../services/api.jsx';
+import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/Toast.jsx';
 import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 import PagamentoResultadoModal from '../components/PagamentoResultadoModal.jsx';
@@ -37,6 +38,8 @@ export default function ContasReceber() {
   const [formComanda, setFormComanda] = useState(null);
   const [selecionados, setSelecionados] = useState(new Set());
   const { showToast } = useToast();
+  const produtoNovoPedido = produtos.find((produto) => produto._id === novoPedidoForm.produtoId);
+  const passoQuantidadeNovoPedido = permiteFracionar(produtoNovoPedido) ? '0.001' : '1';
 
 
   useEffect(() => { carregarDados(); }, []);
@@ -362,11 +365,11 @@ export default function ContasReceber() {
   };
 
   const adicionarItemNovoPedido = () => {
-    if (!novoPedidoForm.produtoId || Number(novoPedidoForm.quantidade) < 0.001) return showToast('Selecione um produto e uma quantidade válida', 'warning');
+    if (!novoPedidoForm.produtoId || !Number.isFinite(Number(novoPedidoForm.quantidade)) || Number(novoPedidoForm.quantidade) < Number(passoQuantidadeNovoPedido)) return showToast('Selecione um produto e uma quantidade válida', 'warning');
     const produto = produtos.find((item) => item._id === novoPedidoForm.produtoId);
     const quantidade = Number(novoPedidoForm.quantidade);
     if (!produto) return;
-    if (!produto.vendidoFracionado && !Number.isInteger(quantidade)) return showToast('Este produto é vendido somente por unidade', 'warning');
+    if (!permiteFracionar(produto) && !Number.isInteger(quantidade)) return showToast('Este produto é vendido somente por unidade', 'warning');
     setNovoPedidoForm((form) => ({ ...form, produtoId: '', quantidade: '1', itens: [...form.itens, { produtoId: produto._id, nome: produto.nome, quantidade }] }));
   };
 
@@ -987,8 +990,8 @@ export default function ContasReceber() {
             <h3 style={{ margin: '0 0 6px' }}>➕ Novo pedido na conta</h3>
             <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)', fontSize: 13 }}>Pedido #{novoPedidoModal.numero} · {novoPedidoModal.clienteNome}</p>
             <div className="novo-pedido-item-form">
-              <label className="novo-pedido-field">Produto<select value={novoPedidoForm.produtoId} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, produtoId: event.target.value })}><option value="">Selecione um produto</option>{produtos.map(produto => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select></label>
-              <label className="novo-pedido-field novo-pedido-quantity">Quantidade<input type="number" min="0.001" step="0.001" value={novoPedidoForm.quantidade} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, quantidade: event.target.value })} /></label>
+              <label className="novo-pedido-field">Produto<select value={novoPedidoForm.produtoId} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, produtoId: event.target.value, quantidade: '1' })}><option value="">Selecione um produto</option>{produtos.map(produto => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select></label>
+              <label className="novo-pedido-field novo-pedido-quantity">Quantidade<input type="number" min={passoQuantidadeNovoPedido} step={passoQuantidadeNovoPedido} value={novoPedidoForm.quantidade} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, quantidade: event.target.value })} /></label>
               <button type="button" className="novo-pedido-add" onClick={adicionarItemNovoPedido}>Adicionar produto</button>
             </div>
             {novoPedidoForm.itens.length > 0 && <div className="novo-pedido-items">{novoPedidoForm.itens.map((item, index) => <div className="novo-pedido-item" key={`${item.produtoId}-${index}`}><span><strong>{item.quantidade}x</strong> {item.nome}</span><button type="button" onClick={() => setNovoPedidoForm({ ...novoPedidoForm, itens: novoPedidoForm.itens.filter((_, itemIndex) => itemIndex !== index) })}>Remover</button></div>)}</div>}
