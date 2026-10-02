@@ -40,6 +40,7 @@ export default function ContasReceber() {
   const { showToast } = useToast();
   const produtoNovoPedido = produtos.find((produto) => produto._id === novoPedidoForm.produtoId);
   const passoQuantidadeNovoPedido = permiteFracionar(produtoNovoPedido) ? '0.001' : '1';
+  const saldoPagamentoIndividual = Math.max(0, Number(pagamentoModal?.total || 0) - (pagamentoModal?.pagamentos || []).reduce((soma, pagamento) => soma + (Number(pagamento?.valorRecebido) || 0), 0));
 
 
   useEffect(() => { carregarDados(); }, []);
@@ -324,18 +325,18 @@ export default function ContasReceber() {
 
 
   const registrarPagamento = async () => {
+    const valorRecebido = Number(String(formPagamento.valorRecebido || '').replace(',', '.'));
+    if (!Number.isFinite(valorRecebido) || valorRecebido <= 0) return showToast('Informe um valor válido', 'warning');
+    if (valorRecebido > saldoPagamentoIndividual) return showToast(`O valor não pode ser maior que o saldo pendente (R$ ${saldoPagamentoIndividual.toFixed(2)})`, 'warning');
+
     try {
-      const valorTotal = Number(pagamentoModal?.total) || 0;
-      const valorPago = Array.isArray(pagamentoModal?.pagamentos)
-        ? pagamentoModal.pagamentos.reduce((soma, pagamento) => soma + (Number(pagamento?.valorRecebido) || 0), 0)
-        : 0;
-      const valorAReceber = Math.max(0, valorTotal - valorPago).toFixed(2);
       const { data: pedidoAtualizado } = await api.patch(`/orders/${pagamentoModal._id}/pagar`, {
         tipo: formPagamento.tipo,
-        valorRecebido: valorAReceber,
+        valorRecebido,
         observacao: formPagamento.observacao,
       });
-      showToast('✅ Pagamento registrado!', 'success');
+      const restante = Math.max(0, Number((saldoPagamentoIndividual - valorRecebido).toFixed(2)));
+      showToast(restante > 0 ? `Recebido R$ ${valorRecebido.toFixed(2)}. Falta R$ ${restante.toFixed(2)}.` : 'Pedido quitado.', 'success');
       setPagamentoModal(null);
       setPagamentoConcluido(pedidoAtualizado);
       setFormPagamento({ tipo: 'dinheiro', valorRecebido: '', observacao: '' });
@@ -957,10 +958,12 @@ export default function ContasReceber() {
             </div>
 
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Valor total para quitar (R$)</label>
-              <input type="text" readOnly autoFocus
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Valor a pagar (R$)</label>
+              <input type="number" min="0.01" max={saldoPagamentoIndividual} step="0.01" autoFocus
                 value={formPagamento.valorRecebido}
+                onChange={event => setFormPagamento({ ...formPagamento, valorRecebido: event.target.value })}
                 style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, fontSize: 16, background: 'var(--bg-tertiary)', fontWeight: 700 }} />
+              <small style={{ display: 'block', marginTop: 5, color: 'var(--text-secondary)' }}>Saldo pendente: R$ {saldoPagamentoIndividual.toFixed(2)}</small>
             </div>
 
             <div style={{ marginBottom: 16 }}>
@@ -976,7 +979,7 @@ export default function ContasReceber() {
               }}>Cancelar</button>
               <button onClick={registrarPagamento} style={{
                 flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer'
-              }}>Quitar Total</button>
+              }}>Pagar</button>
             </div>
           </div>
         </div>
@@ -1002,7 +1005,7 @@ export default function ContasReceber() {
 
       <PagamentoResultadoModal
         pedido={pagamentoConcluido}
-        titulo="Pagamento concluído"
+        titulo={pagamentoConcluido?.status === 'parcial' ? 'Pagamento parcial registrado' : 'Pagamento concluído'}
         onPrint={() => pagamentoConcluido?.status === 'pago' ? imprimirComprovante(pagamentoConcluido) : imprimirPedido(pagamentoConcluido)}
         onWhatsApp={() => enviarWhatsApp(pagamentoConcluido)}
         onClose={() => setPagamentoConcluido(null)}
