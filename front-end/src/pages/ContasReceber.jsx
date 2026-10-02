@@ -145,14 +145,23 @@ export default function ContasReceber() {
 
   const abrirReceberComanda = (comanda) => {
     const saldo = saldoDevedor(comanda?.valorTotal, comanda?.historicoPagamentos);
-    setFormComanda({ comanda, formaPagamento: 'dinheiro', valor: saldo > 0 ? saldo.toFixed(2) : '', observacao: '' });
+    setFormComanda({ comanda, formaPagamento: 'dinheiro', valor: saldo > 0 ? saldo.toFixed(2).replace('.', ',') : '', observacao: '' });
+  };
+
+
+  /** Aceita só dígitos e uma vírgula, evitando que o campo congele como number input. */
+  const digitarValorComanda = (texto) => {
+    const limpo = String(texto ?? '').replace(/[^\d,]/g, '').replace(/^,+/, '');
+    const partes = limpo.split(',');
+    const normalizado = partes.length > 1 ? `${partes[0]},${partes.slice(1).join('')}` : partes[0];
+    setFormComanda((atual) => ({ ...atual, valor: normalizado }));
   };
 
 
   const registrarRecebimentoComanda = async (event) => {
     event.preventDefault();
     if (!formComanda?.comanda?._id) return;
-    const valor = Number(formComanda.valor);
+    const valor = Number(String(formComanda.valor || '').replace(',', '.'));
     const saldo = saldoDevedor(formComanda.comanda.valorTotal, formComanda.comanda.historicoPagamentos);
     if (!Number.isFinite(valor) || valor <= 0) return showToast('Informe um valor válido', 'warning');
     if (valor > saldo) return showToast(`O valor não pode ser maior que o saldo em aberto (R$ ${saldo.toFixed(2)})`, 'warning');
@@ -841,17 +850,24 @@ export default function ContasReceber() {
 
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Forma de pagamento</label>
             <select value={formComanda.formaPagamento} onChange={e => setFormComanda(f => ({ ...f, formaPagamento: e.target.value }))} style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', marginBottom: 12, boxSizing: 'border-box' }}>
-              {FORMAS_PAGAMENTO.map(forma => <option key={forma.id} value={forma.id}>{forma.icone} {forma.label}</option>)}
+              {FORMAS_PAGAMENTO.filter((forma) => forma.value !== 'credito_loja').map((forma) => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
             </select>
+            <small style={{ display: 'block', margin: '-8px 0 12px', color: 'var(--text-secondary)' }}>Crédito na loja não entra como recebimento: aqui só entra dinheiro de verdade.</small>
 
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Valor recebido (R$)</label>
-            <input
-              type="number" min="0.01" step="0.01"
-              max={saldoDevedor(formComanda.comanda.valorTotal, formComanda.comanda.historicoPagamentos)}
-              value={formComanda.valor}
-              onChange={e => setFormComanda(f => ({ ...f, valor: e.target.value }))}
-              style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', marginBottom: 12, boxSizing: 'border-box' }}
-            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="text" inputMode="decimal" autoComplete="off"
+                placeholder="0,00"
+                value={formComanda.valor}
+                onChange={e => digitarValorComanda(e.target.value)}
+                style={{ flex: 1, padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', boxSizing: 'border-box' }}
+              />
+              <button type="button" onClick={() => digitarValorComanda(saldoDevedor(formComanda.comanda.valorTotal, formComanda.comanda.historicoPagamentos).toFixed(2))} style={{ padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Saldo total</button>
+            </div>
+            <small style={{ display: 'block', margin: '6px 0 12px', color: 'var(--text-secondary)' }}>
+              Máximo: R$ {saldoDevedor(formComanda.comanda.valorTotal, formComanda.comanda.historicoPagamentos).toFixed(2).replace('.', ',')}. Deixe abaixo do saldo para um pagamento parcial.
+            </small>
 
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Observação</label>
             <input value={formComanda.observacao} onChange={e => setFormComanda(f => ({ ...f, observacao: e.target.value }))} style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', marginBottom: 16, boxSizing: 'border-box' }} />

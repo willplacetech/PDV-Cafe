@@ -194,18 +194,28 @@ export default function Comandas() {
     setModalFechamento(true);
   };
 
+
+  /** Aceita o valor em pt-BR (vírgula decimal) e impede que o campo congele como number input. */
+  const digitarValorParcial = (texto) => {
+    const limpo = String(texto ?? '').replace(/[^\d,]/g, '').replace(/^,+/, '');
+    const partes = limpo.split(',');
+    setPartialAmount(partes.length > 1 ? `${partes[0]},${partes.slice(1).join('')}` : partes[0]);
+  };
+
+  const apenasNumeros = (texto) => String(texto ?? '').replace(',', '.');
+
   const confirmarFechamento = async () => {
     if (!utilizacaoInterna && !paymentMethod) { setPaymentError(true); showToast('Escolha a forma de pagamento', 'warning'); return; }
     const comandaFechada = selected;
     try {
-      if (paymentPartial && Number(partialAmount || 0) > 0) {
-        const valorRecebido = Number(partialAmount);
+      if (paymentPartial && !utilizacaoInterna && Number(apenasNumeros(partialAmount)) > 0) {
+        const valorRecebido = Number(apenasNumeros(partialAmount));
         if (valorRecebido > saldoEmAberto) {
           throw new Error(`O valor recebido não pode ser maior que o saldo em aberto (${formatMoney(saldoEmAberto)})`);
         }
         const { data: comandaAtualizada } = await api.patch(`/comandas/${selected._id}/receber-parcial`, {
           valorRecebido,
-          formaPagamento: utilizacaoInterna ? 'credito_loja' : paymentMethod,
+          formaPagamento: paymentMethod,
         });
         setModalFechamento(false);
         setDiscount('0'); setPaymentMethod(''); setPaymentPartial(false); setPartialAmount(''); setUtilizacaoInterna(false); setPaymentError(false);
@@ -419,6 +429,8 @@ export default function Comandas() {
                   setUtilizacaoInterna(checked);
                   if (checked) {
                     setPaymentMethod('credito_loja');
+                    setPaymentPartial(false);
+                    setPartialAmount('');
                   } else {
                     setPaymentMethod('');
                   }
@@ -435,6 +447,7 @@ export default function Comandas() {
               <input
                 type="checkbox"
                 checked={paymentPartial}
+                disabled={utilizacaoInterna}
                 onChange={(e) => {
                   const checked = e.target.checked;
                   setPaymentPartial(checked);
@@ -454,7 +467,7 @@ export default function Comandas() {
             {paymentPartial && (
               <div style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Valor recebido agora (R$)</label>
-                <input type="number" min="0.01" max={saldoEmAberto} step="0.01" value={partialAmount} onChange={e => setPartialAmount(e.target.value)} className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
+                <input type="text" inputMode="decimal" autoComplete="off" placeholder="0,00" value={partialAmount} onChange={e => digitarValorParcial(e.target.value)} className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
                 <small style={{ display: 'block', marginTop: 4, color: 'var(--text-secondary)' }}>
                   Saldo em aberto: <strong>{formatMoney(saldoEmAberto)}</strong>
                   {jaRecebido > 0 && <> · Já recebido: <strong>{formatMoney(jaRecebido)}</strong></>}

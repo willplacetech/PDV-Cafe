@@ -440,6 +440,9 @@ router.patch('/:id/receber-parcial', auth, auth.allowRoles('admin', 'operador', 
 
     const formaPagamento = String(req.body.formaPagamento || 'dinheiro');
     if (!formaPagamentoValida(formaPagamento)) throw new Error('Forma de pagamento inválida');
+    // Quitar um valor a receber pressupõe dinheiro real entrando; crédito na loja
+    // não é recebimento e por isso não é aceito nesta rota.
+    if (formaPagamento === 'credito_loja') throw new Error('Crédito na loja não é válido como recebimento em contas a receber');
 
     const valorTotal = Number(comanda.valorTotal || 0);
     const totalCobrado = valorTotal > 0 ? valorTotal : money(comanda.itens.reduce((soma, item) => soma + Number(item.precoUnitario || 0) * Number(item.quantidade || 0), 0));
