@@ -133,6 +133,18 @@ export default function Comandas() {
 
   const removeItem = async (itemId) => { await api.delete(`/comandas/${selected._id}/itens/${itemId}`); load(); };
 
+  const atualizarQuantidadeItem = async (itemId, valor) => {
+    if (!selected) return;
+    const quantidade = Number(valor);
+    if (!Number.isFinite(quantidade) || quantidade < 0.001) return;
+    try {
+      await api.patch(`/comandas/${selected._id}/itens/${itemId}`, { quantidade });
+      await load();
+    } catch (error) {
+      showToast(error.response?.data?.msg || 'Erro ao atualizar quantidade', 'error');
+    }
+  };
+
   const toggleItemSelection = (itemId) => {
     setSelectedItemIds((current) => current.includes(itemId)
       ? current.filter((id) => id !== itemId)
@@ -330,25 +342,44 @@ export default function Comandas() {
               </div>
             )}
 
-            {(selected.itens || []).map((item) => (
-              <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border-color)', padding: '10px 0' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1 }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedItemIds.includes(item._id)}
-                    onChange={() => toggleItemSelection(item._id)}
-                    style={{ marginTop: 5, width: 18, height: 18, accentColor: 'var(--accent-primary)' }}
-                    aria-label={`Selecionar ${item.nome}`}
-                  />
-                  <span>
-                    <b>{item.nome}</b><br />
-                    <small>{formatQuantity(item)} × {formatMoney(item.precoUnitario)}</small>
-                    {item.modificadores?.length > 0 && <><br /><small style={{ color: 'var(--accent-primary)' }}>☕ {item.modificadores.join(' · ')}</small></>}
-                  </span>
+            {(selected.itens || []).map((item) => {
+              const step = item.tipoVenda === 'peso' || Boolean(item.pesoPorUnidade) ? '0.001' : '1';
+              return (
+                <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border-color)', padding: '10px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedItemIds.includes(item._id)}
+                      onChange={() => toggleItemSelection(item._id)}
+                      style={{ marginTop: 5, width: 18, height: 18, accentColor: 'var(--accent-primary)' }}
+                      aria-label={`Selecionar ${item.nome}`}
+                    />
+                    <span>
+                      <b>{item.nome}</b><br />
+                      <small>{formatQuantity(item)} × {formatMoney(item.precoUnitario)}</small>
+                      {item.modificadores?.length > 0 && <><br /><small style={{ color: 'var(--accent-primary)' }}>☕ {item.modificadores.join(' · ')}</small></>}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-tertiary)' }}>
+                      <button type="button" onClick={() => atualizarQuantidadeItem(item._id, Number(item.quantidade || 0) - 1)} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>−</button>
+                      <input
+                        type="number"
+                        min="0.001"
+                        step={step}
+                        value={Number(item.quantidade || 0)}
+                        onChange={(e) => atualizarQuantidadeItem(item._id, e.target.value)}
+                        style={{ width: 72, height: 30, border: 0, background: 'transparent', textAlign: 'center', color: 'var(--text-primary)', fontWeight: 700 }}
+                        aria-label={`Quantidade de ${item.nome}`}
+                      />
+                      <button type="button" onClick={() => atualizarQuantidadeItem(item._id, Number(item.quantidade || 0) + 1)} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>+</button>
+                    </div>
+                    <span style={{ minWidth: 78, textAlign: 'right', fontWeight: 700 }}>{formatMoney(item.quantidade * item.precoUnitario)}</span>
+                    <button type="button" onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`} style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>×</button>
+                  </div>
                 </div>
-                <span>{formatMoney(item.quantidade * item.precoUnitario)} <button onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`}>×</button></span>
-              </div>
-            ))}
+              );
+            })}
             <div className="comandas-checkout">
               <div>
                 <small style={{ display: 'block', color: 'var(--text-secondary)' }}>Total da comanda</small>
