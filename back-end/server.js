@@ -43,6 +43,34 @@ app.use(cors(corsOptions));
 app.options('/api/*', cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 
+const limiteLogApiLentaMs = Math.max(100, Number(process.env.SLOW_API_LOG_MS) || 1000);
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) return next();
+  const iniciadoEm = Date.now();
+  let registrado = false;
+
+  const registrarConclusao = (aborted = false) => {
+    if (registrado) return;
+    registrado = true;
+    const duracaoMs = Date.now() - iniciadoEm;
+    const erroServidor = res.statusCode >= 500;
+    if (!aborted && !erroServidor && duracaoMs < limiteLogApiLentaMs) return;
+    const registro = JSON.stringify({
+      evento: aborted ? 'api_aborted' : erroServidor ? 'api_error' : 'api_slow',
+      metodo: req.method,
+      caminho: req.path,
+      status: res.statusCode,
+      duracaoMs,
+    });
+    if (aborted || erroServidor) console.error(`[API] ${registro}`);
+    else console.warn(`[API] ${registro}`);
+  };
+
+  res.once('finish', () => registrarConclusao());
+  res.once('close', () => { if (!res.writableEnded) registrarConclusao(true); });
+  next();
+});
+
 app.use((req, res, next) => {
   const cookieHeader = req.headers.cookie || '';
   req.cookies = Object.fromEntries(cookieHeader.split(';').filter(Boolean).map((cookie) => {
