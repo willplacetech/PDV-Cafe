@@ -35,6 +35,10 @@ export const ToastProvider = ({ children }) => {
   }, []);
 
   const showToast = useCallback((msg, type = 'info') => {
+    if (type === 'error') {
+      console.error('[PDV] Erro apresentado pela interface:', msg);
+      return;
+    }
     setToast({ open: true, msg, type });
     setTimeout(() => setToast((currentToast) => ({ ...currentToast, open: false })), 3500);
   }, []);

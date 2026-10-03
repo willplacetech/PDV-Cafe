@@ -14,6 +14,7 @@ export default function Caixa() {
   const [observacao, setObservacao] = useState('');
   const [movimento, setMovimento] = useState({ tipo: 'sangria', valor: '', responsavel: '', motivo: '' });
   const [carregando, setCarregando] = useState(true);
+  const [atualizando, setAtualizando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const { showToast } = useToast();
 
@@ -39,6 +40,20 @@ export default function Caixa() {
   };
 
   useEffect(() => { carregar(); }, [data, turno]);
+
+  const atualizarValores = async () => {
+    if (atualizando) return;
+    setAtualizando(true);
+    try {
+      const { data: atual } = await api.get('/caixa/atual', { params: { data, turno } });
+      if (!atual.fechamento) return showToast('Não há fechamento disponível para atualizar', 'warning');
+      setCaixa({ ...atual.fechamento, outrosMeios: atual.outrosMeios || atual.fechamento.outrosMeios });
+      setSistema(atual.sistema || atual.fechamento.sistema);
+      showToast('Valores do dia atualizados', 'success');
+    } catch (error) {
+      showToast(error.response?.data?.msg || 'Não foi possível atualizar os valores do caixa', 'error');
+    } finally { setAtualizando(false); }
+  };
 
   const totalDinheiro = Number((Number(valorContado) || 0).toFixed(2));
   const esperado = Number(sistema?.saldoEsperado || 0);
@@ -89,7 +104,7 @@ export default function Caixa() {
     <div className="caixa-page">
       <header className="page-heading caixa-heading">
         <div><span className="dashboard-eyebrow">CONFERÊNCIA DIÁRIA</span><h1>Fechamento de Caixa</h1><p>Compare o esperado pelo sistema com o dinheiro físico contado.</p></div>
-        <div className="caixa-filters"><label>Data<input type="date" value={data} disabled={bloqueado} onChange={(event) => setData(event.target.value)} /></label><label>Turno<input value={turno} disabled={bloqueado} onChange={(event) => setTurno(event.target.value)} /></label></div>
+        <div className="caixa-filters"><label>Data<input type="date" value={data} disabled={bloqueado} onChange={(event) => setData(event.target.value)} /></label><label>Turno<input value={turno} disabled={bloqueado} onChange={(event) => setTurno(event.target.value)} /></label><button type="button" onClick={atualizarValores} disabled={atualizando} style={{ minHeight: 40, alignSelf: 'end', padding: '8px 12px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 700, cursor: atualizando ? 'wait' : 'pointer' }}>{atualizando ? 'Atualizando...' : 'Atualizar valores'}</button></div>
       </header>
 
       <section className="caixa-panel caixa-expected">

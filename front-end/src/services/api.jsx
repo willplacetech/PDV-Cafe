@@ -28,6 +28,13 @@ api.interceptors.response.use(
   (res) => { finalizarRequisicao(res.config); return res; },
   (err) => {
     finalizarRequisicao(err.config);
+    console.error('[API]', {
+      method: err.config?.method?.toUpperCase(),
+      path: err.config?.url?.split('?')[0],
+      status: err.response?.status,
+      code: err.code,
+      message: err.message,
+    });
     if (err.response?.status === 401) {
       localStorage.removeItem('pdv_token');
       localStorage.removeItem('pdv_user');
