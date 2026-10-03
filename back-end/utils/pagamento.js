@@ -23,13 +23,14 @@ const taxaDePagamento = (pagamento) => {
 
 const normalizarPagamento = (pagamento) => {
   if (!pagamento) return null;
-  // Pagamentos legados podem não ter formaPagamento; assume dinheiro em vez
-  // de descartar dinheiro já recebido.
-  const tipoInformado = normalizarFormaPagamento(pagamento?.tipo || pagamento?.formaPagamento) || 'dinheiro';
+  const formaInformada = pagamento?.tipo || pagamento?.formaPagamento;
+  const tipoInformado = normalizarFormaPagamento(formaInformada);
+  if (formaInformada && !tipoInformado) return null;
+  const tipo = tipoInformado || 'dinheiro';
   const valorRecebido = dinheiro(pagamento?.valorRecebido ?? pagamento?.valor ?? 0);
   const { taxa, liquido } = taxaDePagamento({ ...pagamento, valorRecebido });
   return {
-    tipo: tipoInformado,
+    tipo,
     valorRecebido,
     taxaPercentual: Number(pagamento?.taxaPercentual || 0),
     taxaValor: taxa,

@@ -7,6 +7,8 @@ const {
   saldoDevedor,
   statusPagamentoDe,
   totalPago,
+  normalizarPagamentos,
+  recebidoTotal,
   construirPagamento,
   temCreditoLoja,
   temPagamentoReal,
@@ -60,7 +62,7 @@ test('comanda sem histórico começa totalmente em aberto', () => {
 
 test('crédito loja é forma válida e conta como recebimento', () => {
   assert.equal(formaPagamentoValida('credito_loja'), true);
-  assert.equal(formaPagamentoValida('fiado'), false);
+  assert.equal(formaPagamentoValida('forma_nao_permitida'), false);
 
   const historico = [construirPagamento({ valor: 50, formaPagamento: 'credito_loja' })];
   assert.equal(temCreditoLoja(historico), true);
@@ -70,12 +72,15 @@ test('crédito loja é forma válida e conta como recebimento', () => {
 
 
 test('forma desconhecida é recusada e nunca persistida', () => {
-  assert.equal(formaPagamentoValida('fiado'), false);
+  assert.equal(formaPagamentoValida('forma_nao_permitida'), false);
   assert.equal(formaPagamentoValida(''), false);
-  assert.equal(normalizarFormaPagamento('fiado'), null);
+  assert.equal(normalizarFormaPagamento('forma_nao_permitida'), null);
   assert.equal(normalizarFormaPagamento('CREDITO_LOJA'), null);
   assert.equal(normalizarFormaPagamento('credito_loja'), 'credito_loja');
   assert.equal(normalizarFormaPagamento('nao_definida'), null);
+  const pagamentoDesconhecido = [{ valor: 40, formaPagamento: 'forma_nao_permitida' }];
+  assert.deepEqual(normalizarPagamentos(pagamentoDesconhecido), []);
+  assert.equal(recebidoTotal(pagamentoDesconhecido), 0);
 });
 
 

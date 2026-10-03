@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/api.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/Toast.jsx';
@@ -48,6 +48,11 @@ export default function Comandas() {
   const [quantity, setQuantity] = useState('1');
   const [tipoVenda, setTipoVenda] = useState('inteiro');
   const [pesoVendidoKg, setPesoVendidoKg] = useState('');
+  const [adicionandoItem, setAdicionandoItem] = useState(false);
+  const [itensEmAtualizacao, setItensEmAtualizacao] = useState(() => new Set());
+  const [quantidadesRascunho, setQuantidadesRascunho] = useState({});
+  const operacoesItemRef = useRef(new Set());
+  const adicionandoItemRef = useRef(false);
 
   const mesasAtivas = [1, 2, 3, 4];
   const todasMesasOcupadas = mesasAtivas.every((mesa) => comandas.some((comanda) => comanda.tipoAtendimento !== 'balcao' && String(comanda.mesa || '') === String(mesa)));
@@ -119,27 +124,79 @@ export default function Comandas() {
 
   const produtoSelecionado = products.find((product) => product._id === productId);
 
-  const addItem = async (event) => {
-    event.preventDefault();
-    if (!selected || !productId) return;
-    try {
-      await api.post(`/comandas/${selected._id}/itens`, { produtoId: productId, quantidade: Number(quantity), tipoVenda: produtoPorPeso(produtoSelecionado) ? tipoVenda : 'unidade', pesoVendidoKg: tipoVenda === 'peso' ? Number(pesoVendidoKg) : undefined });
-      setProductId(''); setQuantity('1'); setTipoVenda('inteiro'); setPesoVendidoKg(''); load();
-    }
-    catch (error) { showToast(error.response?.data?.msg || 'Erro ao adicionar item', 'error'); }
+  const atualizarComandaLocal = (comanda) => {
+    setSelected((atual) => atual?._id === comanda._id ? comanda : atual);
+    setComandas((atuais) => atuais.map((item) => item._id === comanda._id ? comanda : item));
   };
 
-  const removeItem = async (itemId) => { await api.delete(`/comandas/${selected._id}/itens/${itemId}`); load(); };
+  const marcarItemEmAtualizacao = (itemId, ocupado) => {
+    setItensEmAtualizacao((atuais) => {
+      const proximos = new Set(atuais);
+      if (ocupado) proximos.add(itemId);
+      else proximos.delete(itemId);
+      return proximos;
+    });
+  };
+
+  const addItem = async (event) => {
+    event.preventDefault();
+    if (!selected || !productId || adicionandoItemRef.current) return;
+    adicionandoItemRef.current = true;
+    setAdicionandoItem(true);
+    try {
+      const { data } = await api.post(`/comandas/${selected._id}/itens`, { produtoId: productId, quantidade: Number(quantity), tipoVenda: produtoPorPeso(produtoSelecionado) ? tipoVenda : 'unidade', pesoVendidoKg: tipoVenda === 'peso' ? Number(pesoVendidoKg) : undefined });
+      atualizarComandaLocal(data);
+      setProductId(''); setQuantity('1'); setTipoVenda('inteiro'); setPesoVendidoKg('');
+    }
+    catch (error) { showToast(error.response?.data?.msg || 'Erro ao adicionar item', 'error'); }
+    finally { adicionandoItemRef.current = false; setAdicionandoItem(false); }
+  };
+
+  const removeItem = async (itemId) => {
+    if (!selected || operacoesItemRef.current.has(itemId)) return;
+    operacoesItemRef.current.add(itemId);
+    marcarItemEmAtualizacao(itemId, true);
+    try {
+      const { data } = await api.delete(`/comandas/${selected._id}/itens/${itemId}`);
+      atualizarComandaLocal(data);
+      setSelectedItemIds((atuais) => atuais.filter((id) => id !== itemId));
+      setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[itemId]; return proximas; });
+    } catch (error) {
+      showToast(error.response?.data?.msg || 'Erro ao remover item', 'error');
+    } finally {
+      operacoesItemRef.current.delete(itemId);
+      marcarItemEmAtualizacao(itemId, false);
+    }
+  };
 
   const atualizarQuantidadeItem = async (itemId, valor) => {
     if (!selected) return;
     const quantidade = Number(valor);
-    if (!Number.isFinite(quantidade) || quantidade < 0.001) return;
+    const itemAtual = selected.itens.find((item) => item._id === itemId);
+    if (!Number.isFinite(quantidade) || quantidade < 0.001) {
+      setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[itemId]; return proximas; });
+      if (itemAtual) showToast('Informe uma quantidade válida', 'warning');
+      return;
+    }
+    if (operacoesItemRef.current.has(itemId)) return;
+    if (!itemAtual || quantidade === Number(itemAtual.quantidade)) {
+      setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[itemId]; return proximas; });
+      return;
+    }
+    const quantidadeAnterior = Number(itemAtual.quantidade);
+    operacoesItemRef.current.add(itemId);
+    marcarItemEmAtualizacao(itemId, true);
+    setSelected((atual) => atual?._id === selected._id ? { ...atual, itens: atual.itens.map((item) => item._id === itemId ? { ...item, quantidade } : item) } : atual);
+    setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[itemId]; return proximas; });
     try {
-      await api.patch(`/comandas/${selected._id}/itens/${itemId}`, { quantidade });
-      await load();
+      const { data } = await api.patch(`/comandas/${selected._id}/itens/${itemId}`, { quantidade });
+      atualizarComandaLocal(data);
     } catch (error) {
+      setSelected((atual) => atual?._id === selected._id ? { ...atual, itens: atual.itens.map((item) => item._id === itemId ? { ...item, quantidade: quantidadeAnterior } : item) } : atual);
       showToast(error.response?.data?.msg || 'Erro ao atualizar quantidade', 'error');
+    } finally {
+      operacoesItemRef.current.delete(itemId);
+      marcarItemEmAtualizacao(itemId, false);
     }
   };
 
@@ -289,10 +346,10 @@ export default function Comandas() {
             <h2 style={{ marginTop: 0 }}>{selected.tipoAtendimento === 'balcao' ? '📦 Balcão' : '🪑 Mesa'} #{selected.numero} <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}>— {selected.clienteNome}</small></h2>
             {selected.tipoAtendimento === 'balcao' && <div className="balcao-status-bar"><span>Status: <strong>{selected.statusBalcao || 'aguardando'}</strong></span><div>{['aguardando', 'preparando', 'pronto', 'pago', 'entregue'].map((status) => <button type="button" key={status} className={selected.statusBalcao === status ? 'active' : ''} onClick={() => updateBalcaoStatus(status)}>{status}</button>)}</div></div>}
             <form onSubmit={addItem} className="comandas-add-form">
-              <select className="comandas-field" required value={productId} onChange={(e) => { setProductId(e.target.value); setTipoVenda('inteiro'); setPesoVendidoKg(''); }}><option value="">Adicionar produto…</option>{products.filter((product) => product.categoria !== 'Insumos').map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}{produtoPorPeso(product) ? '/kg' : ''}</option>)}</select>
-              {produtoPorPeso(produtoSelecionado) && <select className="comandas-field" value={tipoVenda} onChange={(e) => setTipoVenda(e.target.value)}><option value="inteiro">Bolo inteiro</option><option value="peso">Fatia pesada</option></select>}
-              {tipoVenda === 'peso' && produtoPorPeso(produtoSelecionado) ? <input className="comandas-field quantity-field" required type="number" min="0.001" step="0.001" placeholder="Peso vendido (kg)" value={pesoVendidoKg} onChange={(e) => setPesoVendidoKg(e.target.value)} /> : <input className="comandas-field quantity-field" required type="number" min={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} step={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} value={quantity} onChange={(e) => setQuantity(e.target.value)} />}
-              <button type="submit" className="comandas-secondary-button">Adicionar</button>
+              <select className="comandas-field" required disabled={adicionandoItem} value={productId} onChange={(e) => { setProductId(e.target.value); setTipoVenda('inteiro'); setPesoVendidoKg(''); }}><option value="">Adicionar produto…</option>{products.filter((product) => product.categoria !== 'Insumos').map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}{produtoPorPeso(product) ? '/kg' : ''}</option>)}</select>
+              {produtoPorPeso(produtoSelecionado) && <select className="comandas-field" disabled={adicionandoItem} value={tipoVenda} onChange={(e) => setTipoVenda(e.target.value)}><option value="inteiro">Bolo inteiro</option><option value="peso">Fatia pesada</option></select>}
+              {tipoVenda === 'peso' && produtoPorPeso(produtoSelecionado) ? <input className="comandas-field quantity-field" disabled={adicionandoItem} required type="number" min="0.001" step="0.001" placeholder="Peso vendido (kg)" value={pesoVendidoKg} onChange={(e) => setPesoVendidoKg(e.target.value)} /> : <input className="comandas-field quantity-field" disabled={adicionandoItem} required type="number" min={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} step={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} value={quantity} onChange={(e) => setQuantity(e.target.value)} />}
+              <button type="submit" disabled={adicionandoItem} className="comandas-secondary-button">{adicionandoItem ? 'Adicionando…' : 'Adicionar'}</button>
             </form>
 
             {selected.itens.length > 0 && (
@@ -311,7 +368,9 @@ export default function Comandas() {
             )}
 
             {(selected.itens || []).map((item) => {
-              const step = item.tipoVenda === 'peso' || Boolean(item.pesoPorUnidade) ? '0.001' : '1';
+              const step = item.tipoVenda === 'peso' ? 0.001 : 1;
+              const quantidadeExibida = quantidadesRascunho[item._id] ?? item.quantidade;
+              const itemOcupado = itensEmAtualizacao.has(item._id);
               return (
                 <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border-color)', padding: '10px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1 }}>
@@ -330,20 +389,22 @@ export default function Comandas() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-tertiary)' }}>
-                      <button type="button" onClick={() => atualizarQuantidadeItem(item._id, Number(item.quantidade || 0) - 1)} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>−</button>
+                      <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => atualizarQuantidadeItem(item._id, Math.max(step, Number(quantidadeExibida || 0) - step))} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: itemOcupado ? 'wait' : 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>−</button>
                       <input
                         type="number"
                         min="0.001"
                         step={step}
-                        value={Number(item.quantidade || 0)}
-                        onChange={(e) => atualizarQuantidadeItem(item._id, e.target.value)}
+                        disabled={itemOcupado}
+                        value={quantidadeExibida}
+                        onChange={(e) => setQuantidadesRascunho((atuais) => ({ ...atuais, [item._id]: e.target.value }))}
+                        onBlur={(event) => atualizarQuantidadeItem(item._id, event.currentTarget.value)}
                         style={{ width: 72, height: 30, border: 0, background: 'transparent', textAlign: 'center', color: 'var(--text-primary)', fontWeight: 700 }}
                         aria-label={`Quantidade de ${item.nome}`}
                       />
-                      <button type="button" onClick={() => atualizarQuantidadeItem(item._id, Number(item.quantidade || 0) + 1)} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>+</button>
+                      <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => atualizarQuantidadeItem(item._id, Number(quantidadeExibida || 0) + step)} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: itemOcupado ? 'wait' : 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>+</button>
                     </div>
-                    <span style={{ minWidth: 78, textAlign: 'right', fontWeight: 700 }}>{formatMoney(item.quantidade * item.precoUnitario)}</span>
-                    <button type="button" onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`} style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>×</button>
+                    <span style={{ minWidth: 78, textAlign: 'right', fontWeight: 700 }}>{formatMoney(Number(quantidadeExibida || 0) * item.precoUnitario)}</span>
+                    <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`} style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', cursor: itemOcupado ? 'wait' : 'pointer', fontSize: 20 }}>×</button>
                   </div>
                 </div>
               );
