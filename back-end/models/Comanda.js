@@ -7,6 +7,12 @@ const itemSchema = new mongoose.Schema({
   codigo: String,
   nome: { type: String, required: true },
   precoUnitario: { type: Number, required: true, min: 0 },
+  custoUnitarioHistorico: { type: Number, min: 0 },
+  controleEstoque: { type: String, enum: ['produto', 'insumos', 'nenhum'] },
+  movimentoEstoque: {
+    type: new mongoose.Schema({ pecas: { type: Number, min: 0 }, pesoKg: { type: Number, min: 0 } }, { _id: false }),
+    default: undefined,
+  },
   precoUnitarioOriginal: { type: Number, min: 0 },
   descontoQuantidade: { type: Number, min: 0, default: 0 },
   economiaQuantidade: { type: Number, min: 0, default: 0 },
@@ -32,6 +38,8 @@ const itemSchema = new mongoose.Schema({
 
 const comandaSchema = new mongoose.Schema({
   numero: { type: String, unique: true },
+  idempotencyKey: { type: String, maxlength: 128 },
+  idempotencyHash: String,
   clienteNome: { type: String, trim: true, default: 'Cliente nao identificado' },
   clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
   observacao: { type: String, trim: true },
@@ -60,6 +68,8 @@ const comandaSchema = new mongoose.Schema({
   atendente: { type: String, required: true },
   pedidoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order' },
 }, { timestamps: true });
+
+comandaSchema.index({ atendente: 1, idempotencyKey: 1 }, { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } });
 
 comandaSchema.pre('save', async function(next) {
   if (!this.numero) {

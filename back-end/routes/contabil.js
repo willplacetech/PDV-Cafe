@@ -5,7 +5,6 @@ const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
 const Product = require('../models/Product');
 const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
-const Recipe = require('../models/Recipe');
 const Despesa = require('../models/Despesa');
 const PaymentSettings = require('../models/PaymentSettings');
 const Purchase = require('../models/Purchase');
@@ -99,13 +98,13 @@ router.patch('/taxas-cartao', async (req, res) => {
     // Pagamentos de comandas vivem em Comanda.historicoPagamentos (fonte única),
     // logo a reprocessagem de taxas precisa alcançar esses lançamentos também.
     const comandas = await Comanda.find({
-      historicoPagamentos: { $elemMatch: { tipo, data: { $gte: inicio, $lt: fim } } },
+      historicoPagamentos: { $elemMatch: { formaPagamento: tipo, data: { $gte: inicio, $lt: fim } } },
     });
     for (const comanda of comandas) {
       let alterado = false;
       comanda.historicoPagamentos.forEach((pagamento) => {
         const data = new Date(pagamento.data);
-        if (pagamento.tipo !== tipo || data < inicio || data >= fim) return;
+        if (pagamento.formaPagamento !== tipo || data < inicio || data >= fim) return;
         const valor = dinheiro(pagamento.valor ?? pagamento.valorRecebido);
         pagamento.taxaPercentual = percentual;
         pagamento.taxaValor = dinheiro(valor * percentual / 100);
@@ -150,9 +149,16 @@ router.get('/dre', async (req, res) => {
         const produtoId = String(item.produtoId || '');
         const quantidade = quantidadeNaUnidadeBase(item);
         const produto = produtoPorId.get(produtoId);
-        const custoUnitario = ['coz', 'producao'].includes(produto?.tipoProduto)
-          ? Number(produto?.custoUnitario || produto?.custoUnitarioBase || 0)
-          : calcularCustoUnitarioVenda(produto);
+        // Vendas novas preservam o custo na data da venda. Legados mantem
+        // o calculo anterior porque nao ha informacao historica para reconstruir.
+        const custoHistorico = item.custoUnitarioHistorico;
+        const temCustoHistorico = custoHistorico !== undefined && custoHistorico !== null
+          && Number.isFinite(Number(custoHistorico)) && Number(custoHistorico) >= 0;
+        const custoUnitario = temCustoHistorico
+          ? Number(custoHistorico)
+          : ['coz', 'producao'].includes(produto?.tipoProduto)
+            ? Number(produto?.custoUnitario || produto?.custoUnitarioBase || 0)
+            : calcularCustoUnitarioVenda(produto);
         if (custoUnitario > 0) {
           cmv += quantidade * custoUnitario;
         } else {
@@ -185,7 +191,8 @@ router.get('/dre', async (req, res) => {
     const ebit = dinheiro(lucroBruto - despesasOperacionais);
     const ebitda = dinheiro(ebit + depreciacao);
     const despesasFinanceiras = 0;
-    const lucroLiquido = dinheiro(ebit - despesasFinanceiras - impostos);
+    // O parametro impostos ja integra deducoes e receitaLiquida.
+    const lucroLiquido = dinheiro(ebit - despesasFinanceiras);
     const compras = dinheiro(comprasPeriodo.reduce((total, compra) => total + Number(compra.valorTotal || 0), 0));
 
     res.json({

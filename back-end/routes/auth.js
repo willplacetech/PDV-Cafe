@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const router = express.Router();
-const jwtSecret = process.env.JWT_SECRET || 'desenvolvimento-altere-esta-chave';
+const { getJwtSecret } = require('../utils/authConfig');
 
 const cookieOptions = {
   httpOnly: true,
@@ -16,21 +16,25 @@ const cookieOptions = {
 // @route   POST api/auth/login
 // @desc    Login e retornar token
 // @access  Público
-router.post('/login', async (req, res) => {
+router.post('/login', async (req, res, next) => {
   const { username, password } = req.body || {};
-  const normalizedUsername = typeof username === 'string' ? username.toLowerCase().trim() : '';
-  const user = await User.findOne({ username: normalizedUsername }).select('+password');
-  if (!user || !(await user.matchPassword(password))) {
-    return res.status(401).json({ msg: 'Usuário ou senha inválidos' });
+  if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password || password.length > 1024) {
+    return res.status(400).json({ msg: 'Informe usuário e senha válidos' });
   }
-  const publicUser = { id: user.id, username: user.username, role: user.role };
-  const token = jwt.sign(publicUser, jwtSecret, { expiresIn: '24h' });
-  res.json({ user: publicUser, token });
+  try {
+    const user = await User.findOne({ username: username.toLowerCase().trim() }).select('+password');
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({ msg: 'Usuário ou senha inválidos' });
+    }
+    const publicUser = { id: user.id, username: user.username, role: user.role };
+    const token = jwt.sign(publicUser, getJwtSecret(), { expiresIn: '24h', algorithm: 'HS256' });
+    return res.json({ user: publicUser, token });
+  } catch (error) { return next(error); }
 });
 
 // @route   GET api/auth/me
-// @desc    Informar o operador da sessão pública
-// @access  Público durante a fase sem login
+// @desc    Informar o operador autenticado
+// @access  Privado
 router.get('/me', auth, (req, res) => {
   res.json({ id: req.user.id, username: req.user.username, role: req.user.role });
 });

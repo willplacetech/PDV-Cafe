@@ -211,6 +211,7 @@ const ProductSchema = new mongoose.Schema({
     default: 0,
     min: [0, 'Estoque não pode ser negativo'],
   },
+  estoquePesoNormalizado: { type: Boolean },
   estoquePesoKg: {
     type: Number,
     default: 0,

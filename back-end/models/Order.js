@@ -6,6 +6,12 @@ const itemSchema = new mongoose.Schema({
   codigo: String,
   nome: String,
   precoUnitario: { type: Number, required: true },
+  custoUnitarioHistorico: { type: Number, min: 0 },
+  controleEstoque: { type: String, enum: ['produto', 'insumos', 'nenhum'] },
+  movimentoEstoque: {
+    type: new mongoose.Schema({ pecas: { type: Number, min: 0 }, pesoKg: { type: Number, min: 0 } }, { _id: false }),
+    default: undefined,
+  },
   precoUnitarioOriginal: { type: Number, min: 0 },
   descontoQuantidade: { type: Number, min: 0, default: 0 },
   economiaQuantidade: { type: Number, min: 0, default: 0 },
@@ -50,7 +56,7 @@ const pagamentoSchema = new mongoose.Schema({
 });
 
 const nfceSchema = new mongoose.Schema({
-  status: { type: String, enum: ['nao_emitida', 'autorizada', 'rejeitada', 'cancelada'], default: 'nao_emitida' },
+  status: { type: String, enum: ['nao_emitida', 'processando', 'autorizada', 'rejeitada', 'cancelada'], default: 'nao_emitida' },
   numero: String,
   serie: String,
   chaveAcesso: String,
@@ -59,6 +65,7 @@ const nfceSchema = new mongoose.Schema({
   danfePdf: String,
   mensagemSeErro: String,
   dataEmissao: Date,
+  dataTentativaEmissao: Date,
 }, { _id: false });
 
 const orderSchema = new mongoose.Schema({

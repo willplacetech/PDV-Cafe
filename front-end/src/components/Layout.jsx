@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext.jsx';
-import { ThemeContext } from '../context/ThemeContext.jsx';
+import { AuthContext } from '../context/AuthContextDefinition.jsx';
+import { ThemeContext } from '../context/ThemeContextDefinition.js';
 
 const gruposMenu = [
   {

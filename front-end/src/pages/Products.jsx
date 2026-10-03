@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
-import { useToast } from '../components/Toast.jsx';
+import { useToast } from '../components/useToast.js';
 
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Outros'];
 const filtrosTipo = ['Todos', 'Estoque de Venda', 'Estoque de Insumos'];
@@ -49,7 +49,7 @@ export default function Products() {
   const [searchParams] = useSearchParams();
   const [produtos, setProdutos] = useState([]);
   const [fichas, setFichas] = useState([]);
-  const [form, setForm] = useState(vazio);
+  const [form, setForm] = useState(() => searchParams.get('tipo') === 'insumo' ? { ...vazio, tipo: 'insumo', categoria: 'Insumos' } : vazio);
   const [editing, setEditing] = useState(null);
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('Todos');
@@ -85,11 +85,15 @@ export default function Products() {
     carregarInicial();
   }, []);
 
-  useEffect(() => {
-    if (searchParams.get('tipo') === 'insumo' && !editing) {
+  const tipoSolicitado = searchParams.get('tipo');
+  const contextoFormulario = `${tipoSolicitado || ''}:${editing?._id || ''}`;
+  const [contextoAnterior, setContextoAnterior] = useState(contextoFormulario);
+  if (contextoAnterior !== contextoFormulario) {
+    setContextoAnterior(contextoFormulario);
+    if (tipoSolicitado === 'insumo' && !editing) {
       setForm((prev) => ({ ...prev, tipo: 'insumo', categoria: 'Insumos' }));
     }
-  }, [editing, searchParams]);
+  }
 
   useEffect(() => {
     if (!editing && produtos.length > 0) {
@@ -110,7 +114,6 @@ export default function Products() {
     return num;
   };
 
-  const produtosIngredientes = produtos.filter((produto) => produto.tipo === 'insumo' || produto.usavelEmReceita);
 
   const resumoInsumo = form.tipo === 'insumo' ? (() => {
     const unidade = form.unidade || form.unidadeCompra || 'kg';

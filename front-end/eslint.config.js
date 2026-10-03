@@ -18,4 +18,12 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  {
+    files: ['tests/e2e/**/*.js', 'cypress/**/*.js'],
+    languageOptions: { globals: { ...globals.browser, ...globals.mocha, cy: 'readonly', Cypress: 'readonly', expect: 'readonly' } },
+  },
+  {
+    files: ['tests/*.test.js', 'cypress.config.js'],
+    languageOptions: { globals: globals.node },
+  },
 ])

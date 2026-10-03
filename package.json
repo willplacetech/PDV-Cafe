@@ -4,15 +4,16 @@
   "private": true,
   "description": "Sabor de Abraço - Sistema de PDV (MERN)",
   "scripts": {
-    "dev:backend": "cd back-end && nodemon server.js",
-    "dev:frontend": "cd front-end && vite",
+    "dev:backend": "npm --prefix back-end run dev",
+    "dev:frontend": "npm --prefix front-end run dev",
     "start": "node back-end/server.js",
-    "test": "cd back-end && cross-env NODE_ENV=test jest --verbose --runInBand",
-    "test:watch": "cd back-end && cross-env NODE_ENV=test jest --watch",
-    "test:coverage": "cd back-end && cross-env NODE_ENV=test jest --coverage --runInBand",
-    "test:frontend": "cd front-end && cypress run",
-    "test:frontend:open": "cd front-end && cypress open",
-    "test:all": "npm run test && npm run test:frontend",
-    "lint": "cd front-end && npx eslint src"
+    "test": "npm --prefix back-end test",
+    "test:watch": "npm --prefix back-end run test:watch",
+    "test:coverage": "npm --prefix back-end run test:coverage",
+    "test:frontend": "npm --prefix front-end run test:frontend --",
+    "test:frontend:open": "npm --prefix front-end run test:frontend:open --",
+    "test:all": "npm test && npm run test:frontend:unit && npm run test:frontend",
+    "lint": "npm --prefix front-end run lint",
+    "test:frontend:unit": "npm --prefix front-end run test:unit"
   }
 }

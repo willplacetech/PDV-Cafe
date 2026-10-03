@@ -37,7 +37,12 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
         cleanupOutdatedCaches: true,
+        navigateFallbackDenylist: [/^\/api(?:\/|$)/],
         runtimeCaching: [
+          {
+            urlPattern: ({ request, url }) => Boolean(request.headers.get('authorization')) || /\/api(?:\/|$)/.test(url.pathname),
+            handler: 'NetworkOnly',
+          },
           {
             urlPattern: ({ request }) => request.destination === 'document' || request.mode === 'navigate',
             handler: 'NetworkFirst',
@@ -51,14 +56,6 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'static-assets',
-            },
-          },
-          {
-            urlPattern: ({ url }) => url.origin === self.location.origin && /\/api\//.test(url.pathname),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 5,
             },
           },
         ],

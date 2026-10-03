@@ -1,7 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import api from '../services/api.jsx';
-import { useToast } from '../components/Toast.jsx';
+import { useToast } from '../components/useToast.js';
 import AreaTabs from '../components/AreaTabs.jsx';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import DateInput from '../components/DateInput.jsx';

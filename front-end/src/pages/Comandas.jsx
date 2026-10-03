@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../services/api.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
-import { useToast } from '../components/Toast.jsx';
+import { useToast } from '../components/useToast.js';
 import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 import { FORMAS_PAGAMENTO, dataBR, normalizarPagamentos, rotuloPagamento, saldoDevedor, statusPagamentoInfo, totalPago } from '../utils/formasPagamento.jsx';
 
@@ -49,8 +49,10 @@ export default function Comandas() {
   const [tipoVenda, setTipoVenda] = useState('inteiro');
   const [pesoVendidoKg, setPesoVendidoKg] = useState('');
 
-  const mesasAtivas = [1, 2, 3, 4];
-  const todasMesasOcupadas = mesasAtivas.every((mesa) => comandas.some((comanda) => comanda.tipoAtendimento !== 'balcao' && String(comanda.mesa || '') === String(mesa)));
+  const [configuracaoMesas, setConfiguracaoMesas] = useState({ mesas: [], oferecerBalcao: true });
+  const mesasAtivas = configuracaoMesas.mesas.filter((mesa) => mesa.ativa);
+  const numerosMesasAtivas = mesasAtivas.map((mesa) => mesa.numero);
+  const todasMesasOcupadas = mesasAtivas.length > 0 && numerosMesasAtivas.every((mesa) => comandas.some((comanda) => comanda.tipoAtendimento !== 'balcao' && String(comanda.mesa || '') === String(mesa)));
 
   // modal de fechamento
   const [modalFechamento, setModalFechamento] = useState(false);
@@ -70,15 +72,19 @@ export default function Comandas() {
 
   const { showToast } = useToast();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
-      const [commands, catalog] = await Promise.all([api.get('/comandas?status=aberta'), api.get('/products')]);
+      const [commands, catalog, tables] = await Promise.all([api.get('/comandas?status=aberta'), api.get('/products'), api.get('/mesas')]);
+      setConfiguracaoMesas(tables.data);
       setComandas(commands.data);
       setProducts(catalog.data);
       setSelected((current) => commands.data.find((c) => c._id === current?._id) || commands.data[0] || null);
     } catch { showToast('Não foi possível carregar as comandas', 'error'); }
-  };
-  useEffect(() => { load(); }, []);
+  }, [showToast]);
+  useEffect(() => {
+    const inicializar = async () => { await load(); };
+    inicializar();
+  }, [load]);
 
   const subtotal = useMemo(() => (selected?.itens || []).reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0), [selected]);
   const total = utilizacaoInterna ? 0 : Math.max(0, subtotal - (Number(discount) || 0));
@@ -208,8 +214,11 @@ export default function Comandas() {
     if (!utilizacaoInterna && !paymentMethod) { setPaymentError(true); showToast('Escolha a forma de pagamento', 'warning'); return; }
     const comandaFechada = selected;
     try {
-      if (paymentPartial && !utilizacaoInterna && Number(apenasNumeros(partialAmount)) > 0) {
+      if (paymentPartial && !utilizacaoInterna) {
         const valorRecebido = Number(apenasNumeros(partialAmount));
+        if (!Number.isFinite(valorRecebido) || valorRecebido <= 0) {
+          throw new Error('Informe um valor recebido maior que zero para pagamento parcial');
+        }
         if (valorRecebido > saldoEmAberto) {
           throw new Error(`O valor recebido não pode ser maior que o saldo em aberto (${formatMoney(saldoEmAberto)})`);
         }
@@ -277,7 +286,7 @@ export default function Comandas() {
   return (
     <div className="comandas-page">
       <div className="page-heading"><div><h1>🪑 Mesas / Comandas</h1><p>Abra comandas, lance consumos e feche no caixa.</p></div></div>
-      <section className="service-mode-panel"><div className="service-mode-heading"><h2>🪑 Mesas (4)</h2><span>Escolha a mesa ou prossiga em balcão quando todas estiverem ocupadas</span></div><div className="table-shortcuts">{mesasAtivas.map((mesa) => { const aberta = comandas.find((comanda) => comanda.tipoAtendimento !== 'balcao' && String(comanda.mesa || '') === String(mesa)); return <button type="button" key={mesa} className={aberta ? 'table-shortcut occupied' : 'table-shortcut'} onClick={() => createMesa(mesa)}><strong>{mesa}</strong><span>{aberta ? '🟡 Ocupada' : '🟢 Livre'}</span></button>; })}</div><div className="counter-service"><div><strong>📦 Pague e leve — Balcão</strong><span>{comandas.filter((comanda) => comanda.tipoAtendimento === 'balcao').length} pedidos em andamento</span></div>{todasMesasOcupadas && <div style={{ fontSize: 12, color: 'var(--warning-bg)', fontWeight: 700, marginTop: 6 }}>⚠️ Todas as mesas estão em uso. Prosseguir em balcão.</div>}<button type="button" className="comandas-primary-button" onClick={createBalcao}>➕ Novo Pedido</button></div></section>
+      <section className="service-mode-panel"><div className="service-mode-heading"><h2>🪑 Mesas ({mesasAtivas.length})</h2><span>Escolha a mesa ou prossiga em balcão quando todas estiverem ocupadas</span></div><div className="table-shortcuts">{mesasAtivas.map((configuracaoMesa) => { const mesa = configuracaoMesa.numero; const aberta = comandas.find((comanda) => comanda.tipoAtendimento !== 'balcao' && String(comanda.mesa || '') === String(mesa)); return <button type="button" key={mesa} className={aberta ? 'table-shortcut occupied' : 'table-shortcut'} onClick={() => createMesa(mesa)}><strong>{configuracaoMesa.nome || mesa}</strong><span>{aberta ? '🟡 Ocupada' : '🟢 Livre'}</span></button>; })}</div><div className="counter-service"><div><strong>📦 Pague e leve — Balcão</strong><span>{comandas.filter((comanda) => comanda.tipoAtendimento === 'balcao').length} pedidos em andamento</span></div>{todasMesasOcupadas && configuracaoMesas.oferecerBalcao && <div style={{ fontSize: 12, color: 'var(--warning-bg)', fontWeight: 700, marginTop: 6 }}>⚠️ Todas as mesas estão em uso. Prosseguir em balcão.</div>}<button type="button" className="comandas-primary-button" onClick={createBalcao}>➕ Novo Pedido</button></div></section>
       <form onSubmit={create} className="comandas-open-form">
         <input className="comandas-field" placeholder="Nome do cliente" value={newCommand.clienteNome} onChange={(e) => setNewCommand({ ...newCommand, clienteNome: e.target.value })} />
         <input className="comandas-field" placeholder="Observação" value={newCommand.observacao} onChange={(e) => setNewCommand({ ...newCommand, observacao: e.target.value })} />

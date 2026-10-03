@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
-import { useToast } from '../components/Toast.jsx';
-import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
+import { useToast } from '../components/useToast.js';
+import { compartilharNotaWhatsApp, textoSeguro } from '../utils/notaVenda.js';
 
 
 const corCategoria = {
@@ -73,9 +73,12 @@ export default function PDV() {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const selectClienteRef = useRef(null);
+  const envioRef = useRef(false);
+  const idempotenciaRef = useRef(null);
+  const [enviando, setEnviando] = useState(false);
 
 
-  const carregarDados = async () => {
+  const carregarDados = useCallback(async () => {
     try {
       const [resProd, resCli, resMaisVendidos] = await Promise.all([
         api.get('/products/pdv'), api.get('/customers'), api.get('/products/mais-vendidos?limite=8')
@@ -86,12 +89,12 @@ export default function PDV() {
     } catch {
       showToast('Erro ao carregar dados', 'error');
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     const carregarInicial = async () => { await carregarDados(); };
     carregarInicial();
-  }, []);
+  }, [carregarDados]);
 
 
   const tocarFeedback = () => {
@@ -184,7 +187,7 @@ export default function PDV() {
   };
 
 
-  const removerItem = (idx) => setCarrinho(carrinho.filter((_, i) => i !== idx));
+  const removerItem = (idx) => setCarrinho(recalcularPrecosCarrinho(carrinho.filter((_, i) => i !== idx)));
 
 
   const subtotal = carrinho.reduce((ac, i) => ac + i.precoUnitario * i.quantidade, 0);
@@ -195,10 +198,13 @@ export default function PDV() {
 
 
   const finalizar = async () => {
+    if (envioRef.current) return;
     if (!carrinho.length) return showToast('Carrinho vazio!', 'warning');
+    envioRef.current = true;
+    setEnviando(true);
 
     try {
-      const { data: comanda } = await api.post('/comandas', {
+      const payload = {
         clienteId: clienteId || undefined,
         clienteNome: clienteSelecionado?.nome || clienteNome.trim() || 'Cliente não identificado',
         clienteTelefone: clienteSelecionado?.telefone || '',
@@ -207,12 +213,23 @@ export default function PDV() {
           quantidade: Number(item.quantidade),
           modificadores: item.modificadores || [],
         })),
+      };
+      const assinatura = JSON.stringify(payload);
+      if (idempotenciaRef.current?.assinatura !== assinatura) {
+        idempotenciaRef.current = { assinatura, chave: crypto.randomUUID() };
+      }
+      const { data: comanda } = await api.post('/comandas', payload, {
+        headers: { 'Idempotency-Key': idempotenciaRef.current.chave },
       });
+      idempotenciaRef.current = null;
       setCarrinho([]); setClienteId(''); setClienteNome('');
       showToast(`Comanda #${comanda.numero} aberta`, 'success');
       navigate('/comandas');
     } catch (err) {
       showToast(err.response?.data?.msg || 'Erro ao abrir comanda', 'error');
+    } finally {
+      envioRef.current = false;
+      setEnviando(false);
     }
   };
 
@@ -227,8 +244,8 @@ export default function PDV() {
     const itensHtml = pedido.itens.map(item => `
       <div style="display:flex; justify-content:space-between; border-bottom: 1px dashed #000; padding: 4px 0;">
         <div style="flex:1; margin-right:8px;">
-          <div style="font-weight:bold;">${item.nome}</div>
-          <div style="font-size:10px;">Cod: ${item.codigo} | Qtd: ${item.quantidade} x R$ ${item.precoUnitario.toFixed(2).replace('.',',')}</div>
+          <div style="font-weight:bold;">${textoSeguro(item.nome)}</div>
+          <div style="font-size:10px;">Cod: ${textoSeguro(item.codigo)} | Qtd: ${item.quantidade} x R$ ${item.precoUnitario.toFixed(2).replace('.',',')}</div>
         </div>
         <div style="font-weight:bold; white-space:nowrap;">R$ ${(item.quantidade * item.precoUnitario).toFixed(2).replace('.',',')}</div>
       </div>
@@ -237,7 +254,7 @@ export default function PDV() {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Cupom #${pedido.numero}</title>
+        <title>Cupom #${textoSeguro(pedido.numero)}</title>
         <style>
           * { font-family: 'Courier New', monospace; font-size: 12px; }
           body { width: 76mm; margin: 0; padding: 4mm; }
@@ -257,10 +274,10 @@ export default function PDV() {
         <div class="center" style="font-size:10px;">Cupom Não Fiscal</div>
         <div class="linha-dupla"></div>
         
-        <div><span class="bold">Pedido:</span> #${pedido.numero}</div>
+        <div><span class="bold">Pedido:</span> #${textoSeguro(pedido.numero)}</div>
         <div><span class="bold">Data:</span> ${data}</div>
-        <div><span class="bold">Atendente:</span> ${pedido.atendente}</div>
-        <div><span class="bold">Cliente:</span> ${pedido.clienteNome}</div>
+        <div><span class="bold">Atendente:</span> ${textoSeguro(pedido.atendente)}</div>
+        <div><span class="bold">Cliente:</span> ${textoSeguro(pedido.clienteNome)}</div>
         
         <div class="linha-dupla"></div>
         <div class="bold" style="text-align:center;">=== ITENS DO PEDIDO ===</div>
@@ -574,7 +591,7 @@ export default function PDV() {
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>R$ {total.toFixed(2).replace('.', ',')}</span>
                   </div>
                   
-                  <button onClick={finalizar} style={{
+                  <button onClick={finalizar} disabled={enviando} style={{
                     width: '100%', padding: '14px', background: 'var(--accent-primary)', color: '#fff',
                     border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
                     cursor: 'pointer', minHeight: 52

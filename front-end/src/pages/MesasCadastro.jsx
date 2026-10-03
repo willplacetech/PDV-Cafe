@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import api from '../services/api.jsx';
+import { useToast } from '../components/useToast.js';
 
 const criarMesaInicial = (numero) => ({
   id: numero,
@@ -9,13 +11,20 @@ const criarMesaInicial = (numero) => ({
 });
 
 export default function MesasCadastro() {
-  const [quantidadeTotal, setQuantidadeTotal] = useState(4);
-  const [mesas, setMesas] = useState([
-    criarMesaInicial(1),
-    criarMesaInicial(2),
-    criarMesaInicial(3),
-    criarMesaInicial(4),
-  ]);
+  const [mesas, setMesas] = useState([]);
+  const [oferecerBalcao, setOferecerBalcao] = useState(true);
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const { showToast } = useToast();
+  const quantidadeTotal = mesas.length;
+
+  useEffect(() => {
+    api.get('/mesas').then(({ data }) => {
+      setMesas(data.mesas);
+      setOferecerBalcao(data.oferecerBalcao);
+      setCarregando(false);
+    }).catch(() => showToast('Não foi possível carregar as mesas. Tente recarregar a página.', 'error'));
+  }, [showToast]);
 
   const proximoNumero = useMemo(() => {
     return Math.max(0, ...mesas.map((mesa) => Number(mesa.numero || 0))) + 1;
@@ -23,7 +32,6 @@ export default function MesasCadastro() {
 
   const adicionarMesa = () => {
     setMesas((atual) => [...atual, criarMesaInicial(proximoNumero)]);
-    setQuantidadeTotal((atual) => Number(atual || 0) + 1);
   };
 
   const editarNome = (id, nome) => {
@@ -45,10 +53,18 @@ export default function MesasCadastro() {
     )));
   };
 
-  const salvar = () => {
-    const mesasAtivas = mesas.filter((mesa) => mesa.ativa).length;
-    console.log('Mesas salvas:', { quantidadeTotal, mesasAtivas, mesas });
-    alert('Configuração de mesas salva com sucesso!');
+  const salvar = async () => {
+    if (carregando || salvando) return;
+    setSalvando(true);
+    try {
+      const { data } = await api.put('/mesas', { mesas, oferecerBalcao });
+      setMesas(data.mesas);
+      showToast('Configuração de mesas salva com sucesso!', 'success');
+    } catch (error) {
+      showToast(error.response?.data?.msg || 'Não foi possível salvar as mesas', 'error');
+    } finally {
+      setSalvando(false);
+    }
   };
 
   return (
@@ -64,7 +80,7 @@ export default function MesasCadastro() {
             type="number"
             min="1"
             value={quantidadeTotal}
-            onChange={(e) => setQuantidadeTotal(e.target.value)}
+            readOnly
             style={{ minHeight: 46, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--input-text)' }}
           />
         </label>
@@ -120,18 +136,18 @@ export default function MesasCadastro() {
         </table>
       </div>
 
-      <button type="button" onClick={adicionarMesa} style={{ background: 'var(--accent-primary)', color: '#fff', border: 0, borderRadius: 10, minHeight: 46, padding: '0 18px', fontWeight: 800, cursor: 'pointer', marginBottom: 16 }}>
+      <button type="button" onClick={adicionarMesa} disabled={carregando || salvando} style={{ background: 'var(--accent-primary)', color: '#fff', border: 0, borderRadius: 10, minHeight: 46, padding: '0 18px', fontWeight: 800, cursor: 'pointer', marginBottom: 16 }}>
         ➕ Adicionar Mesa
       </button>
 
       <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 20, boxShadow: 'var(--shadow-sm)', marginBottom: 20 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer' }}>
-          <input type="checkbox" style={{ width: 18, height: 18, accentColor: 'var(--accent-primary)' }} />
+          <input type="checkbox" checked={oferecerBalcao} onChange={(e) => setOferecerBalcao(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--accent-primary)' }} />
           Quando todas as mesas estiverem ocupadas → oferecer opção Balcão
         </label>
       </div>
 
-      <button type="button" onClick={salvar} style={{ background: 'var(--success-bg)', color: '#fff', border: 0, borderRadius: 10, minHeight: 48, padding: '0 18px', fontWeight: 800, cursor: 'pointer' }}>
+      <button type="button" onClick={salvar} disabled={carregando || salvando} style={{ background: 'var(--success-bg)', color: '#fff', border: 0, borderRadius: 10, minHeight: 48, padding: '0 18px', fontWeight: 800, cursor: 'pointer' }}>
         ✅ Salvar
       </button>
     </div>

@@ -1,13 +1,12 @@
-import { useContext, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
-import { useToast } from '../components/Toast.jsx';
-import { AuthContext } from '../context/AuthContext.jsx';
+import { useToast } from '../components/useToast.js';
+import { AuthContext } from '../context/AuthContextDefinition.jsx';
 
 const units = ['kg', 'L', 'un'];
 const factors = { g: 0.001, kg: 1, ml: 0.001, l: 1, L: 1, un: 1 };
 const emptyRecipe = { nome: '', produtoId: '', rendimento: '1', unidadeRendimento: 'un', ingredientes: [{ produtoId: '', quantidade: '', unidade: 'un' }] };
-const number = (value) => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const tipoDoProduto = (product) => {
   const safeProduct = product || {};
@@ -28,7 +27,7 @@ export default function FichasTecnicas({ embedded = false }) {
   const { user } = useContext(AuthContext);
   const canEdit = user?.role === 'admin';
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const [productsResponse, recipesResponse] = await Promise.all([api.get('/products'), api.get('/production/recipes')]);
       setProducts(Array.isArray(productsResponse.data) ? productsResponse.data.filter(Boolean) : []);
@@ -36,9 +35,12 @@ export default function FichasTecnicas({ embedded = false }) {
     } catch (error) {
       showToast(error.response?.data?.msg || 'Não foi possível carregar as fichas técnicas', 'error');
     } finally { setLoading(false); }
-  };
+  }, [showToast]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const inicializar = async () => { await load(); };
+    inicializar();
+  }, [load]);
 
   const recipeProducts = products.filter((product) => product && ['coz', 'producao'].includes(tipoDoProduto(product)));
   const ingredients = products.filter((product) => product && (product.tipo === 'insumo' || product.usavelEmReceita));
@@ -76,19 +78,22 @@ export default function FichasTecnicas({ embedded = false }) {
     return typeOk && String(product.nome || recipe.nome).toLowerCase().includes(search.toLowerCase()) && recipe.ingredientes.every(Boolean);
   });
 
+  const startEdit = useCallback((recipe) => {
+    setEditingId(recipe._id);
+    setRecipeForm({ nome: recipe.nome, produtoId: recipe.produtoId?._id || recipe.produtoId, rendimento: String(recipe.rendimento), unidadeRendimento: recipe.unidadeRendimento, ingredientes: (recipe.ingredientes || []).filter(Boolean).map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: String(item.quantidade), unidade: item.unidade })) });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   useEffect(() => {
     const productId = searchParams.get('produto');
     if (productId && recipes.length) {
       const recipe = recipes.find((item) => String(item.produtoId?._id || item.produtoId) === productId);
-      if (recipe) startEdit(recipe);
+      if (recipe) {
+        const selecionar = async () => { startEdit(recipe); };
+        selecionar();
+      }
     }
-  }, [recipes, searchParams]);
-
-  const startEdit = (recipe) => {
-    setEditingId(recipe._id);
-    setRecipeForm({ nome: recipe.nome, produtoId: recipe.produtoId?._id || recipe.produtoId, rendimento: String(recipe.rendimento), unidadeRendimento: recipe.unidadeRendimento, ingredientes: (recipe.ingredientes || []).filter(Boolean).map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: String(item.quantidade), unidade: item.unidade })) });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  }, [recipes, searchParams, startEdit]);
 
   const duplicate = (recipe) => {
     setEditingId(null);

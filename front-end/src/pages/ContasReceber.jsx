@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useState, useEffect, useMemo } from 'react';
 import api from '../services/api.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
-import { useToast } from '../components/Toast.jsx';
-import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda.js';
+import { useToast } from '../components/useToast.js';
+import { buildNotaVendaHtml, compartilharNotaWhatsApp, textoSeguro } from '../utils/notaVenda.js';
 import PagamentoResultadoModal from '../components/PagamentoResultadoModal.jsx';
 import DateInput from '../components/DateInput.jsx';
 import { FORMAS_PAGAMENTO, dataBR, normalizarPagamentos, rotuloPagamento, saldoDevedor, statusPagamentoInfo, totalPago as somarPagamentos } from '../utils/formasPagamento.jsx';
@@ -42,15 +42,7 @@ export default function ContasReceber() {
   const passoQuantidadeNovoPedido = permiteFracionar(produtoNovoPedido) ? '0.001' : '1';
 
 
-  useEffect(() => { carregarDados(); }, []);
-  useEffect(() => {
-    carregarPedidos();
-    carregarComandas();
-    setSelecionados(new Set());
-  }, [clienteFiltro, statusFiltro, inicio, fim, aba]);
-
-
-  const carregarDados = async () => {
+  const carregarDados = useCallback(async () => {
     try {
       const [clientesResponse, produtosResponse] = await Promise.all([
         api.get('/customers'),
@@ -59,10 +51,10 @@ export default function ContasReceber() {
       setClientes(clientesResponse.data);
       setProdutos(produtosResponse.data);
     } catch { showToast('Erro ao carregar clientes', 'error'); }
-  };
+  }, [showToast]);
 
 
-  const carregarComandas = async () => {
+  const carregarComandas = useCallback(async () => {
     if (aba !== 'comandas') return;
     try {
       const params = new URLSearchParams();
@@ -75,10 +67,10 @@ export default function ContasReceber() {
       showToast('Erro ao carregar comandas em aberto', 'error');
       setComandasAbertas([]);
     }
-  };
+  }, [aba, clienteFiltro, inicio, fim, showToast]);
 
 
-  const carregarPedidos = async () => {
+  const carregarPedidos = useCallback(async () => {
     try {
       setCarregando(true);
       const params = new URLSearchParams();
@@ -89,14 +81,26 @@ export default function ContasReceber() {
 
       const res = await api.get(`/orders?${params}`);
       setPedidos(res.data || []);
-    } catch { 
-      showToast('Erro ao carregar pedidos', 'error'); 
+      setSelecionados(new Set());
+    } catch {
+      showToast('Erro ao carregar pedidos', 'error');
       setPedidos([]);
     } finally {
       setCarregando(false);
     }
-  };
+  }, [clienteFiltro, statusFiltro, inicio, fim, showToast]);
 
+
+  useEffect(() => {
+    const inicializar = async () => { await carregarDados(); };
+    inicializar();
+  }, [carregarDados]);
+  useEffect(() => {
+    const atualizar = async () => {
+      await Promise.all([carregarPedidos(), carregarComandas()]);
+    };
+    atualizar();
+  }, [carregarPedidos, carregarComandas, aba]);
 
   const totais = useMemo(() => {
     let totalEmAberto = 0;
@@ -438,15 +442,15 @@ export default function ContasReceber() {
         ? p.pagamentos.reduce((ac, pg) => ac + (parseFloat(pg.valorRecebido) || 0), 0)
         : 0;
       const falta = Math.max(0, parseFloat(p.total) - totalPago);
-      
+
       return `
         <div style="border-bottom: 1px dashed #000; padding: 6px 0;">
           <div style="display:flex; justify-content:space-between; font-weight:bold;">
-            <span>#${p.numero} - ${p.clienteNome}</span>
+            <span>#${textoSeguro(p.numero)} - ${textoSeguro(p.clienteNome)}</span>
             <span>R$ ${parseFloat(p.total).toFixed(2).replace('.',',')}</span>
           </div>
           <div style="font-size:10px;">
-            Status: ${statusCor[p.status]?.label || p.status} | 
+            Status: ${textoSeguro(statusCor[p.status]?.label || p.status)} |
             ${falta > 0 ? `Falta: R$ ${falta.toFixed(2).replace('.',',')}` : 'Quitado'}
           </div>
         </div>
@@ -457,7 +461,7 @@ export default function ContasReceber() {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Relatório Completo - ${clienteNome}</title>
+        <title>Relatório Completo - ${textoSeguro(clienteNome)}</title>
         <style>
           * { font-family: 'Courier New', monospace; font-size: 12px; }
           body { width: 76mm; margin: 0; padding: 4mm; }
@@ -472,7 +476,7 @@ export default function ContasReceber() {
         <div class="center bold" style="font-size:14px;">RELATÓRIO DO CLIENTE</div>
         <div class="linha"></div>
         <div><span class="bold">Data:</span> ${data}</div>
-        <div><span class="bold">Cliente:</span> ${clienteNome}</div>
+        <div><span class="bold">Cliente:</span> ${textoSeguro(clienteNome)}</div>
         <div><span class="bold">Qtde Pedidos:</span> ${pedidos.length}</div>
         <div class="linha"></div>
         ${pedidosHtml}
@@ -574,11 +578,11 @@ export default function ContasReceber() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {/* ✅ Selecionar Todos */}
             {aba === 'pedidos' && pedidos.length > 0 && (
-              <button 
+              <button
                 onClick={toggleSelecionarTodos}
                 style={{
-                  padding: '6px 12px', 
-                  background: selecionados.size === pedidos.length && pedidos.length > 0 ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.2)', 
+                  padding: '6px 12px',
+                  background: selecionados.size === pedidos.length && pedidos.length > 0 ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.2)',
                   color: '#fff', border: '1px solid rgba(255,255,255,.3)', borderRadius: 8,
                   fontSize: 12, fontWeight: 600, cursor: 'pointer'
                 }}
@@ -600,7 +604,7 @@ export default function ContasReceber() {
                   border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer'
                 }}>✅ Quitar Total do Cliente</button>
               )}
-              
+
               {clienteFiltro && (
                 <button onClick={gerarRelatorioCompleto} style={{
                   padding: '6px 12px', background: 'var(--success-bg)', color: '#fff',
@@ -698,15 +702,15 @@ export default function ContasReceber() {
 
             return (
               <div key={pedido._id} style={{
-                background: estaSelecionado ? 'rgba(22,163,74,.12)' : 'var(--bg-secondary)', 
-                border: estaSelecionado ? '2px solid var(--success-bg)' : '1px solid var(--border-color)', 
+                background: estaSelecionado ? 'rgba(22,163,74,.12)' : 'var(--bg-secondary)',
+                border: estaSelecionado ? '2px solid var(--success-bg)' : '1px solid var(--border-color)',
                 borderRadius: 14, padding: 16,
                 transition: 'all 0.15s'
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: '1 1 220px' }}>
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       checked={estaSelecionado}
                       onChange={() => toggleSelecionar(pedido._id)}
                       style={{ width: 18, height: 18, cursor: 'pointer' }}
@@ -719,8 +723,8 @@ export default function ContasReceber() {
                     </div>
                   </div>
                   <span style={{
-                    background: st?.bg || 'var(--bg-tertiary)', 
-                    color: st?.txt || 'var(--text-secondary)', 
+                    background: st?.bg || 'var(--bg-tertiary)',
+                    color: st?.txt || 'var(--text-secondary)',
                     padding: '4px 10px',
                     borderRadius: 20, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap'
                   }}>{st?.label || pedido.status}</span>
@@ -768,14 +772,14 @@ export default function ContasReceber() {
                   gap: 10,
                   alignItems: 'stretch'
                 }}>
-                  <button 
-                    onClick={() => pedido.status === 'pago' ? imprimirComprovante(pedido) : imprimirPedido(pedido)} 
+                  <button
+                    onClick={() => pedido.status === 'pago' ? imprimirComprovante(pedido) : imprimirPedido(pedido)}
                     style={{
                       flex: '1 1 160px',
-                      padding: '10px 8px', 
-                      background: 'var(--brand-brown)', 
+                      padding: '10px 8px',
+                      background: 'var(--brand-brown)',
                       color: '#fff',
-                      border: 'none', borderRadius: 8, 
+                      border: 'none', borderRadius: 8,
                       fontSize: 13, fontWeight: 600, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                       whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'
@@ -783,18 +787,18 @@ export default function ContasReceber() {
                   >
                     🖨️ {pedido.status === 'pago' ? 'Comprovante' : 'Imprimir'}
                   </button>
-                  
-                  <button 
-                    onClick={() => enviarWhatsApp(pedido)} 
+
+                  <button
+                    onClick={() => enviarWhatsApp(pedido)}
                     style={{
                       flex: '1 1 160px',
-                      padding: '10px 8px', 
-                      background: 'var(--success-bg)', 
+                      padding: '10px 8px',
+                      background: 'var(--success-bg)',
                       color: '#fff',
-                      border: 'none', borderRadius: 8, 
+                      border: 'none', borderRadius: 8,
                       fontSize: 13, fontWeight: 600, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box' 
+                      whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'
                     }}
                   >
                     💬 WhatsApp
@@ -811,14 +815,14 @@ export default function ContasReceber() {
                           whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'
                         }}
                       >{pedido.comandaId ? '➕ Novo pedido' : '🔗 Vincular comanda'}</button>
-                      <button 
+                      <button
                         onClick={() => abrirModalReceber(pedido)}
                         style={{
                           flex: '1 1 160px',
-                          padding: '10px 8px', 
+                          padding: '10px 8px',
                           background: 'var(--success-bg)',
                           color: '#fff',
-                          border: 'none', borderRadius: 8, 
+                          border: 'none', borderRadius: 8,
                           fontSize: 13, fontWeight: 600, cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                           whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'

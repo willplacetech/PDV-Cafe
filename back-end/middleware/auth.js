@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const jwtSecret = process.env.JWT_SECRET || 'desenvolvimento-altere-esta-chave';
+const { getJwtSecret } = require('../utils/authConfig');
 
 const auth = (req, res, next) => {
   const token = req.headers.authorization?.startsWith('Bearer ')
@@ -9,9 +9,10 @@ const auth = (req, res, next) => {
   if (!token) return res.status(401).json({ msg: 'Acesso não autorizado' });
 
   try {
-    req.user = jwt.verify(token, jwtSecret);
+    req.user = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
     next();
-  } catch (_) {
+  } catch (error) {
+    if (error.status === 503) return res.status(503).json({ msg: error.message });
     res.status(401).json({ msg: 'Sessão inválida ou expirada' });
   }
 };

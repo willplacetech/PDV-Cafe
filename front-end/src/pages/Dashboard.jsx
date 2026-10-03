@@ -1,9 +1,9 @@
 import { useContext, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import api from '../services/api.jsx';
-import { useToast } from '../components/Toast.jsx';
+import { useToast } from '../components/useToast.js';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
-import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda.js';
+import { buildNotaVendaHtml, compartilharNotaWhatsApp, textoSeguro } from '../utils/notaVenda.js';
 import DashboardInsights from '../components/DashboardInsights.jsx';
 import DashboardTabs from '../components/DashboardTabs.jsx';
 import ProductSalesHistory from '../components/ProductSalesHistory.jsx';
@@ -80,7 +80,7 @@ export default function Dashboard() {
         });
       })
       .catch((error) => showToast(error.response?.data?.msg || 'Não foi possível carregar o dashboard', 'error'));
-  }, [user?.role]);
+  }, [user?.role, showToast]);
 
   useEffect(() => {
     if (user?.role !== 'admin') return;
@@ -195,8 +195,8 @@ export default function Dashboard() {
   };
 
   const imprimirRelatorioMes = () => {
-    const pagamentos = relatorioMes.pagamentos.map((pagamento) => `<div class="linha"><span>${rotuloPagamento(pagamento.tipo) || pagamento.tipo}${pagamento.taxa ? ` (taxa R$ ${money(pagamento.taxa)})` : ''}</span><b>R$ ${money(pagamento.total)}</b></div>`).join('');
-    const produtos = relatorioMes.produtos.map((produto) => `<div class="linha"><span>${produto.quantidade}x ${produto.nome}</span><b>R$ ${money(produto.total)}</b></div>`).join('');
+    const pagamentos = relatorioMes.pagamentos.map((pagamento) => `<div class="linha"><span>${textoSeguro(rotuloPagamento(pagamento.tipo) || pagamento.tipo)}${pagamento.taxa ? ` (taxa R$ ${money(pagamento.taxa)})` : ''}</span><b>R$ ${money(pagamento.total)}</b></div>`).join('');
+    const produtos = relatorioMes.produtos.map((produto) => `<div class="linha"><span>${produto.quantidade}x ${textoSeguro(produto.nome)}</span><b>R$ ${money(produto.total)}</b></div>`).join('');
     const dias = relatorioMes.vendasPorDia.map((dia) => `<div class="linha"><span>${dia.dia}</span><b>R$ ${money(dia.total)}</b></div>`).join('');
     const janela = window.open('', '_blank', 'width=420,height=700');
     janela.document.write(`<!DOCTYPE html><html><head><title>Fechamento Mensal</title><style>*{box-sizing:border-box;font-family:'Courier New',monospace;font-size:12px}body{width:76mm;margin:0;padding:4mm;color:#000}.center{text-align:center}.marca{font-size:16px;font-weight:bold}.separador{border-top:1px dashed #000;margin:8px 0}.linha{display:flex;justify-content:space-between;gap:8px;padding:3px 0}.titulo{font-weight:bold;margin:6px 0}.total{border-top:2px solid #000;padding-top:7px;margin-top:6px;font-weight:bold;font-size:14px}@media print{@page{margin:0;size:80mm auto}body{margin:4mm}}</style></head><body><div class="center marca">SABOR DE ABRACO</div><div class="center">FECHAMENTO MENSAL</div><div class="center">${relatorioMes.periodo || ''}</div><div class="separador"></div><div class="titulo">RESUMO</div><div class="linha"><span>Pedidos:</span><b>${relatorioMes.pedidos}</b></div><div class="linha"><span>Clientes:</span><b>${relatorioMes.clientes}</b></div><div class="linha"><span>Itens vendidos:</span><b>${relatorioMes.itens}</b></div><div class="linha"><span>Ticket medio:</span><b>R$ ${money(relatorioMes.ticketMedio)}</b></div><div class="linha total"><span>VENDAS:</span><b>R$ ${money(relatorioMes.total)}</b></div><div class="linha"><span>Recebido:</span><b>R$ ${money(relatorioMes.recebido)}</b></div><div class="linha"><span>A receber:</span><b>R$ ${money(relatorioMes.pendente)}</b></div><div class="separador"></div><div class="titulo">STATUS DOS PEDIDOS</div>${Object.entries(relatorioMes.status).map(([status, total]) => `<div class="linha"><span>${status}</span><b>${total}</b></div>`).join('')}<div class="separador"></div><div class="titulo">FORMAS DE PAGAMENTO</div>${pagamentos || '<div>Nenhum pagamento registrado</div>'}<div class="separador"></div><div class="titulo">PRODUTOS MAIS VENDIDOS</div>${produtos || '<div>Nenhuma venda registrada</div>'}<div class="separador"></div><div class="titulo">VENDAS POR DIA</div>${dias || '<div>Nenhuma venda registrada</div>'}<div class="separador"></div><div class="center"><b>Sabor de Abraço</b><br>Agradece a Preferência!<br>Volte sempre!</div><script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)}</script></body></html>`);
@@ -242,11 +242,11 @@ export default function Dashboard() {
   };
   const pagamentosComTaxaAtual = relatorioMes.pagamentos.map(pagamentoComTaxaAtual);
   const taxasCartaoAtual = pagamentosComTaxaAtual.reduce((total, pagamento) => total + pagamento.taxa, 0);
-  const recebidoLiquidoAtual = Math.max(0, Number(relatorioMes.recebido || 0) - Number(relatorioMes.taxasCartao || 0) + taxasCartaoAtual);
+  const recebidoLiquidoAtual = Math.max(0, Number(relatorioMes.recebido || 0) - taxasCartaoAtual);
   const aReceberMensal = Number(relatorioMes.pendente || 0);
 
   const imprimirRelatorioClientes = () => {
-    const clientes = relatorioClientes.clientes.map((cliente) => `<div class="cliente"><span>${cliente.nome}</span><span>${cliente.telefone || 'Nao informado'}</span></div>`).join('');
+    const clientes = relatorioClientes.clientes.map((cliente) => `<div class="cliente"><span>${textoSeguro(cliente.nome)}</span><span>${textoSeguro(cliente.telefone || 'Nao informado')}</span></div>`).join('');
     const janela = window.open('', '_blank', 'width=420,height=700');
     janela.document.write(`<!DOCTYPE html><html><head><title>Base de Clientes</title><style>*{box-sizing:border-box;font-family:'Courier New',monospace;font-size:12px}body{width:76mm;margin:0;padding:4mm;color:#000}.center{text-align:center}.marca{font-size:16px;font-weight:bold}.separador{border-top:1px dashed #000;margin:8px 0}.cabecalho,.cliente{display:grid;grid-template-columns:1fr 100px;gap:8px;padding:6px 0}.cabecalho{font-weight:bold;border-bottom:1px solid #000}.cliente{border-bottom:1px dashed #999}.cliente span:last-child{text-align:right}@media print{@page{margin:0;size:80mm auto}body{margin:4mm}}</style></head><body><div class="center marca">SABOR DE ABRACO</div><div class="center">BASE DE CLIENTES</div><div class="separador"></div><div class="cabecalho"><span>Nome</span><span>Telefone</span></div>${clientes || '<div>Nenhum cliente cadastrado</div>'}<div class="separador"></div><div class="center">Sabor de Abraço<br>Agradece a Preferência!<br>Volte sempre!</div><script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)}</script></body></html>`);
     janela.document.close();

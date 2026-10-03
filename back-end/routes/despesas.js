@@ -28,7 +28,17 @@ const gerarParcelasRecorrentes = async (despesaBase) => {
   const baseDate = new Date(despesaBase.dataVencimento);
   for (let index = 1; index <= 12; index += 1) {
     const proximo = new Date(baseDate);
-    proximo.setMonth(proximo.getMonth() + index);
+    const frequencia = despesaBase.frequenciaRecorrencia || 'mensal';
+    if (frequencia === 'semanal') {
+      proximo.setUTCDate(proximo.getUTCDate() + index * 7);
+    } else {
+      // Parte sempre da data original, mantendo o dia 31 apos meses curtos.
+      const mesDestino = baseDate.getUTCMonth() + index * (frequencia === 'anual' ? 12 : 1);
+      proximo.setUTCDate(1);
+      proximo.setUTCMonth(mesDestino);
+      const ultimoDia = new Date(Date.UTC(proximo.getUTCFullYear(), proximo.getUTCMonth() + 1, 0)).getUTCDate();
+      proximo.setUTCDate(Math.min(baseDate.getUTCDate(), ultimoDia));
+    }
     parcelas.push({
       descricao: despesaBase.descricao,
       categoria: despesaBase.categoria,

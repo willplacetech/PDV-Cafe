@@ -7,7 +7,7 @@ const pagamentoLabels = {
 };
 
 const dinheiro = (value) => Number(value || 0).toFixed(2).replace('.', ',');
-const textoSeguro = (value) => String(value ?? '').replace(/[<&>"']/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[char]));
+export const textoSeguro = (value) => String(value ?? '').replace(/[<&>"']/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[char]));
 const logoUrl = () => typeof window !== 'undefined' ? `${window.location.origin}/Abraco1.png` : '/Abraco1.png';
 
 export const totalPago = (pedido) => (Array.isArray(pedido?.pagamentos)

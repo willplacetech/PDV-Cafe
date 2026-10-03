@@ -6,7 +6,8 @@ const rateLimit = require('express-rate-limit');
 const colors = require('colors');
 const path = require('path'); // ← ADICIONADO
 const connectDB = require('./db');
-const User = require('./models/User');
+const { initializeAuth } = require('./utils/authConfig');
+const provisionarAdmin = require('./utils/provisionarAdmin');
 
 const app = express();
 
@@ -21,19 +22,20 @@ const allowedOrigins = [
   .map((origin) => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
 
-const isRenderOrigin = (origin) => /^https:\/\/[a-z0-9-]+\.onrender\.com$/i.test(origin);
 
 const corsOptions = {
   origin: (requestOrigin, callback) => {
     const normalizedOrigin = requestOrigin?.replace(/\/$/, '');
-    if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin) || isRenderOrigin(normalizedOrigin)) {
+    if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin)) {
       return callback(null, true);
     }
-    return callback(new Error('Origem não autorizada pelo CORS'));
+    const error = new Error('Origem não autorizada pelo CORS');
+    error.status = 403;
+    return callback(error);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
 };
 
 // Middlewares
@@ -42,15 +44,6 @@ app.use(helmet());
 app.use(cors(corsOptions));
 app.options('/api/*', cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
-
-app.use((req, res, next) => {
-  const cookieHeader = req.headers.cookie || '';
-  req.cookies = Object.fromEntries(cookieHeader.split(';').filter(Boolean).map((cookie) => {
-    const separator = cookie.indexOf('=');
-    return [cookie.slice(0, separator).trim(), decodeURIComponent(cookie.slice(separator + 1).trim())];
-  }));
-  next();
-});
 
 app.use('/api/auth/login', rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -76,6 +69,7 @@ app.use('/api/insumos', require('./routes/insumos'));
 app.use('/api/compras', require('./routes/purchases'));
 app.use('/api/receitas', require('./routes/receitas'));
 app.use('/api/produtos', require('./routes/products'));
+app.use('/api/mesas', require('./routes/mesas'));
 
 // Rota base da API
 app.get('/api', (req, res) => {
@@ -112,26 +106,29 @@ app.get('*', (req, res) => {
 
 // Tratamento de erro global
 app.use((err, req, res, next) => {
-  console.error(err.stack.red);
-  res.status(500).json({ msg: 'Erro interno do servidor' });
+  if (res.headersSent) return next(err);
+  const status = Number(err.status || err.statusCode) || 500;
+  if (status >= 500) console.error(err.stack || err.message);
+  res.status(status).json({ msg: status >= 500 && status !== 503 ? 'Erro interno do servidor' : err.message });
 });
 
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   await connectDB();
-  const adminUsername = (process.env.ADMIN_USERNAME || 'admin').toLowerCase();
-  if (!await User.exists({ username: adminUsername })) {
-    await User.create({ username: adminUsername, password: process.env.ADMIN_PASSWORD || '1234', role: 'admin' });
-    console.log(`Administrador inicial "${adminUsername}" criado.`.green);
-  }
+  await require('./models/Comanda').init();
+  await initializeAuth();
+  await provisionarAdmin();
   app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`.yellow.bold);
   });
 };
 
 if (require.main === module) {
-  startServer();
+  startServer().catch((error) => {
+    console.error(error.message);
+    process.exitCode = 1;
+  });
 }
 
 module.exports = app;

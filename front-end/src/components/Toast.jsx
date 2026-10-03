@@ -1,6 +1,6 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
-const ToastContext = createContext();
+import { ToastContext } from './ToastContext.js';
 
 export const ToastProvider = ({ children }) => {
   const [toast, setToast] = useState({ open: false, msg: '', type: 'info' });
@@ -41,5 +41,3 @@ export const ToastProvider = ({ children }) => {
     </ToastContext.Provider>
   );
 };
-
-export const useToast = () => useContext(ToastContext);

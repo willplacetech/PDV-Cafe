@@ -9,13 +9,17 @@ const produtoControlaPeso = (produto = {}) => Number(produto.pesoPorUnidade || 0
 
 const estoquePesoAtualKg = (produto = {}) => {
   if (!produtoControlaPeso(produto)) return 0;
-  if (Number(produto.estoquePesoKg || 0) > 0) return Number(produto.estoquePesoKg);
+  const pesoAusente = produto.estoquePesoKg == null || (typeof produto.$isDefault === 'function' && produto.$isDefault('estoquePesoKg'));
+  const gramasLegadas = !produto.estoquePesoNormalizado && Number(produto.estoque || 0) > 1000 && Number(produto.estoquePesoKg || 0) === 0;
+  if (!pesoAusente && !gramasLegadas) return Number(produto.estoquePesoKg);
   if (Number(produto.estoque || 0) > 1000) return Number(produto.estoque) / 1000;
   return Number(produto.estoque || 0) * pesoPorUnidadeEmKg(produto);
 };
 
 const estoquePecasAtual = (produto = {}) => {
-  if (!produtoControlaPeso(produto) || Number(produto.estoque || 0) <= 1000) return Number(produto.estoque || 0);
+  const pesoExplicito = produto.estoquePesoKg != null && !(typeof produto.$isDefault === 'function' && produto.$isDefault('estoquePesoKg'));
+  const gramasLegadas = !produto.estoquePesoNormalizado && Number(produto.estoque || 0) > 1000 && Number(produto.estoquePesoKg || 0) === 0;
+  if (!produtoControlaPeso(produto) || Number(produto.estoque || 0) <= 1000 || (pesoExplicito && !gramasLegadas)) return Number(produto.estoque || 0);
   const peso = pesoPorUnidadeEmKg(produto);
   return peso > 0 ? arredondar(estoquePesoAtualKg(produto) / peso) : 0;
 };
@@ -26,6 +30,7 @@ const normalizarEstoqueLegado = (produto) => {
   const pecas = estoquePecasAtual(produto);
   produto.estoque = pecas;
   produto.estoquePesoKg = arredondar(peso);
+  produto.estoquePesoNormalizado = true;
   return produto;
 };
 

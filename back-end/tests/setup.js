@@ -1,10 +1,14 @@
+process.env.JWT_SECRET = 'test-only-private-key-for-isolated-api-tests';
+
 const { MongoMemoryReplSet } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
+const path = require('path');
 
 let mongoServer;
 
 beforeAll(async () => {
   mongoServer = await MongoMemoryReplSet.create({
+    binary: { version: process.env.MONGOMS_VERSION || '7.0.24', downloadDir: path.resolve(__dirname, '../../.test-mongodb-cache') },
     replSet: { name: 'test-replica-set', count: 1 },
   });
   const uri = mongoServer.getUri();
@@ -19,12 +23,15 @@ beforeAll(async () => {
     User.init(),
     Customer.init(),
     Order.init(),
+    require('../models/Comanda').init(),
+    require('../models/RuntimeSettings').init(),
+    require('../models/MesasSettings').init(),
   ]);
-});
+}, 120000);
 
 afterAll(async () => {
   await mongoose.disconnect();
-  await mongoServer.stop();
+  if (mongoServer) await mongoServer.stop();
 });
 
 beforeEach(async () => {

@@ -22,14 +22,7 @@ const connectDB = async () => {
     await Product.updateMany({ categoria: 'Padaria' }, { $set: { categoria: 'Salgados' } });
     await Product.updateMany({ categoria: 'Grãos e insumos' }, { $set: { categoria: 'Insumos' } });
     await Product.updateMany({ categoria: { $in: ['Limpeza', 'Higiene', 'Hortifruti'] } }, { $set: { categoria: 'Outros' } });
-    const adminExists = await User.exists({ username: 'admin' });
-    if (!adminExists) {
-      await User.create({
-        username: 'admin',
-        password: process.env.ADMIN_PASSWORD || '1234',
-        role: 'admin',
-      });
-    }
+
 
     console.log(`MongoDB Conectado: ${conn.connection.host}`.cyan.underline.bold);
   } catch (error) {

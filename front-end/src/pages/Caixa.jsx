@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../services/api.jsx';
-import { useToast } from '../components/Toast.jsx';
+import { useToast } from '../components/useToast.js';
 
 const cedulas = [100, 50, 20, 10, 5, 2, 1];
 const moedas = [1, 0.5, 0.25, 0.1, 0.05];
@@ -22,8 +22,7 @@ export default function Caixa() {
   const [salvando, setSalvando] = useState(false);
   const { showToast } = useToast();
 
-  const carregar = async () => {
-    setCarregando(true);
+  const carregar = useCallback(async () => {
     try {
       const atualResponse = await api.get('/caixa/atual', { params: { data, turno } });
       let atual = atualResponse.data;
@@ -40,9 +39,12 @@ export default function Caixa() {
     } catch (error) {
       showToast(error.response?.data?.msg || 'Não foi possível carregar o caixa', 'error');
     } finally { setCarregando(false); }
-  };
+  }, [data, turno, showToast]);
 
-  useEffect(() => { carregar(); }, [data, turno]);
+  useEffect(() => {
+    const inicializar = async () => { await carregar(); };
+    inicializar();
+  }, [carregar]);
 
   const totalCedulas = useMemo(() => totalContagem(cedulasContadas), [cedulasContadas]);
   const totalMoedas = useMemo(() => totalContagem(moedasContadas), [moedasContadas]);

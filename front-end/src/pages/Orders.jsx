@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useState, useEffect, useMemo } from 'react';
 import api from '../services/api.jsx';
-import { useToast } from '../components/Toast.jsx';
+import { useToast } from '../components/useToast.js';
 
 export default function Orders() {
   const [pedidos, setPedidos] = useState([]);
@@ -10,12 +10,7 @@ export default function Orders() {
   const [cancelando, setCancelando] = useState(false);
   const { showToast } = useToast();
 
-  useEffect(() => {
-    carregar();
-  }, [filtroStatus]);
-
-  const carregar = async () => {
-    setCarregando(true);
+  const carregar = useCallback(async () => {
     try {
       const url = filtroStatus === 'todos' 
         ? '/orders' 
@@ -28,7 +23,12 @@ export default function Orders() {
     } finally {
       setCarregando(false);
     }
-  };
+  }, [filtroStatus]);
+
+  useEffect(() => {
+    const inicializar = async () => { await carregar(); };
+    inicializar();
+  }, [carregar]);
 
   // ✅ Função de cancelamento - AJUSTADA PARA SUA ROTA
   const cancelarPedido = async (pedidoId) => {
@@ -105,7 +105,7 @@ export default function Orders() {
         ].map(item => (
           <button
             key={item.valor}
-            onClick={() => setFiltroStatus(item.valor)}
+            onClick={() => { setCarregando(true); setFiltroStatus(item.valor); }}
             style={{
               padding: '6px 14px', borderRadius: '20px', border: 'none',
               fontSize: '12px', fontWeight: filtroStatus === item.valor ? '700' : '500',

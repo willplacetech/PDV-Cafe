@@ -92,7 +92,7 @@ const getFiscalConfig = () => {
     serie: env('NFCE_SERIE') || '1',
     providerUrl: env('NFCE_PROVIDER_URL'),
     certificadoVencendo,
-    certificadoExpiraEm: expires?.toISOString() || null,
+    certificadoExpiraEm: expires && !Number.isNaN(expires.getTime()) ? expires.toISOString() : null,
   };
 };
 
@@ -192,8 +192,20 @@ const emitirNfce = async ({ order, products }) => {
     });
   }
 
+  const resultado = normalizarResposta(body);
+  const status = String(body.status || body.nfce?.status || '').toLowerCase();
+  const cStat = String(body.cStat || body.nfce?.cStat || '');
+  if (response.status === 202 || ['processando', 'pendente', 'pending', 'processing', 'em_processamento'].includes(status)) {
+    throw new NfceProviderError('Emissão em processamento no provedor. Consulte a situação antes de tentar novamente.', 'PROVIDER_PENDING');
+  }
+  if (['rejeitada', 'rejected', 'cancelada', 'denegada'].includes(status) || (cStat && !['100', '150'].includes(cStat))) {
+    throw new NfceProviderError(resultado.mensagemSeErro || 'Emissão não autorizada pelo provedor', 'SEFAZ_REJECTED');
+  }
+  if (!resultado.numero || !resultado.serie || !/^\d{44}$/.test(String(resultado.chaveAcesso || '')) || !resultado.protocolo) {
+    throw new NfceProviderError('Resposta fiscal sem os dados de autorização obrigatórios', 'INVALID_PROVIDER_RESPONSE');
+  }
   return {
-    ...normalizarResposta(body),
+    ...resultado,
     avisos,
     ambiente: config.ambiente,
     regime: config.regime

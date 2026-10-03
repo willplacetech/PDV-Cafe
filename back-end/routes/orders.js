@@ -6,7 +6,8 @@ const Product = require('../models/Product');
 const auth = require('../middleware/auth');
 const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
 const { precoPorUnidade } = require('../utils/pesoProduto');
-const { normalizarEstoqueLegado, produtoControlaPeso, dadosMovimentoEstoque } = require('../utils/estoqueProduto');
+const { produtoControlaPeso } = require('../utils/estoqueProduto');
+const { ajustarEstoque } = require('../utils/movimentarEstoqueVenda');
 const { calcularPrecoComDesconto } = require('../utils/descontosQuantidade');
 
 const router = express.Router();
@@ -43,27 +44,11 @@ async function buildOrderItems(rawItems, session) {
     if (!product) throw new Error('Produto não encontrado');
     if (vendaPorPeso && (!Number.isFinite(pesoVendidoKg) || pesoVendidoKg <= 0)) throw new Error('Informe o peso vendido');
     if (!permiteFracionar(product) && !Number.isInteger(quantity)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
-    normalizarEstoqueLegado(product);
-    const movimento = dadosMovimentoEstoque(product, { quantidade: quantity, tipoVenda: vendaPorPeso ? 'peso' : undefined, pesoVendidoKg });
-    const atual = totals.get(String(item.produtoId));
-    totals.set(String(item.produtoId), { pecas: (typeof atual === 'number' ? atual : atual?.pecas || 0) + movimento.pecas, pesoKg: (typeof atual === 'number' ? 0 : atual?.pesoKg || 0) + movimento.pesoKg });
     const precoNormal = vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product);
     const pricing = vendaPorPeso ? { precoUnitario: precoNormal, precoNormal, economiaTotal: 0, faixaAplicada: null } : calcularPrecoComDesconto(product, quantidadesPorProduto.get(String(product._id)), precoNormal);
     return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: pricing.precoUnitario, precoUnitarioOriginal: pricing.precoNormal, descontoQuantidade: pricing.economiaUnitario, economiaQuantidade: pricing.economiaTotal, faixaDescontoQuantidade: pricing.faixaAplicada?.quantidadeMinima, quantidade: quantity, quantidadePecas: vendaPorPeso ? 0 : quantity, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso };
   });
-  for (const [productId, quantity] of totals) {
-    const product = byId.get(productId);
-    if (product.isModified('estoque') || product.isModified('estoquePesoKg')) await product.save({ session });
-    const movimento = typeof quantity === 'number' ? { pecas: quantity, pesoKg: 0 } : quantity;
-    const filtro = produtoControlaPeso(product)
-      ? { _id: productId, estoque: { $gte: movimento.pecas }, estoquePesoKg: { $gte: movimento.pesoKg } }
-      : { _id: productId, estoque: { $gte: movimento.pecas } };
-    const inc = produtoControlaPeso(product)
-      ? { $inc: { estoque: -movimento.pecas, estoquePesoKg: -movimento.pesoKg } }
-      : { $inc: { estoque: -movimento.pecas } };
-    const updated = await Product.findOneAndUpdate(filtro, inc, { new: true, session });
-    if (!updated) throw new Error(`Estoque insuficiente para "${byId.get(productId)?.nome || productId}"`);
-  }
+  await ajustarEstoque(items, 'baixar', session);
   return items;
 }
 
@@ -150,25 +135,7 @@ router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req,
     if (!order.comandaId) throw new Error('Este pedido não está vinculado a uma comanda');
     if (!Array.isArray(req.body.itens) || !req.body.itens.length) throw new Error('Adicione pelo menos um produto');
 
-    const quantidades = new Map();
-    req.body.itens.forEach((item) => {
-      const quantidade = Number(item.quantidade);
-      if (!mongoose.isValidObjectId(item.produtoId) || !Number.isFinite(quantidade) || quantidade < 0.001) throw new Error('Item inválido');
-      quantidades.set(String(item.produtoId), (quantidades.get(String(item.produtoId)) || 0) + quantidade);
-    });
-    const products = await Product.find({ _id: { $in: [...quantidades.keys()] } }).session(session);
-    const porId = new Map(products.map((product) => [String(product._id), product]));
-    const novosItens = req.body.itens.map((item) => {
-      const product = porId.get(String(item.produtoId));
-      const quantidade = Number(item.quantidade);
-      if (!product) throw new Error('Produto não encontrado');
-      if (!permiteFracionar(product) && !Number.isInteger(quantidade)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
-      return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda };
-    });
-    for (const [produtoId, quantidade] of quantidades) {
-      const updated = await Product.findOneAndUpdate({ _id: produtoId, estoque: { $gte: quantidade } }, { $inc: { estoque: -quantidade } }, { new: true, session });
-      if (!updated) throw new Error(`Estoque insuficiente para "${porId.get(produtoId)?.nome || produtoId}"`);
-    }
+    const novosItens = await buildOrderItems(req.body.itens, session);
 
     const subtotalNovos = novosItens.reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0);
     order.itens.push(...novosItens);
@@ -183,6 +150,9 @@ router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req,
     const comanda = await Comanda.findById(order.comandaId).session(session);
     if (comanda) {
       comanda.itens.push(...novosItens);
+      comanda.valorTotal = order.total;
+      comanda.saldoDevedor = Math.max(0, order.total - Number(comanda.valorPago || 0));
+      comanda.estoqueBaixado = true;
       if (registro) comanda.observacao = [comanda.observacao, `Novo pedido - ${registro}`].filter(Boolean).join(' | ');
       await comanda.save({ session });
     }
@@ -257,7 +227,15 @@ router.patch('/:id/cancelar', auth, auth.allowRoles('admin'), async (req, res) =
     session.startTransaction();
     const order = await Order.findById(req.params.id).session(session);
     if (!order || !['pendente', 'parcial'].includes(order.status)) throw new Error('Somente pedidos pendentes ou parciais podem ser cancelados');
-    for (const item of order.itens) await Product.findByIdAndUpdate(item.produtoId, { $inc: { estoque: item.quantidade } }, { session });
+    const comanda = order.comandaId ? await Comanda.findById(order.comandaId).session(session) : null;
+    if (!comanda || comanda.estoqueBaixado) {
+      await ajustarEstoque(order.itens, 'devolver', session, { legadoPedido: !comanda });
+    }
+    if (comanda && String(comanda.pedidoId || order._id) === String(order._id)) {
+      comanda.status = 'cancelada';
+      comanda.estoqueBaixado = false;
+      await comanda.save({ session });
+    }
     order.status = 'cancelado';
     await order.save({ session });
     await session.commitTransaction();
