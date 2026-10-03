@@ -30,6 +30,17 @@ describe('Controle de caixa', () => {
       { tipo: 'cartao_credito', valorRecebido: 30 },
       { tipo: 'cartao_debito', valorRecebido: 15 },
       { tipo: 'credito_loja', valorRecebido: 20 },
-    ])).toEqual({ pix: 10, credito: 30, debito: 15, total: 55 });
+    ])).toEqual({
+      pix: 10,
+      credito: 30,
+      taxaCredito: 0,
+      liquidoCredito: 30,
+      debito: 15,
+      taxaDebito: 0,
+      liquidoDebito: 15,
+      creditoLoja: 20,
+      total: 55,
+      totalLiquido: 55,
+    });
   });
 });

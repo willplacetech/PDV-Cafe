@@ -1,5 +1,5 @@
 const FechamentoCaixa = require('../models/FechamentoCaixa');
-const { carregarPagamentosDoPeriodo, somarPorForma } = require('./pagamento');
+const { carregarPagamentosDoPeriodo, normalizarPagamentos, somarPorForma } = require('./pagamento');
 
 const DENOMINACOES_CEDULAS = [100, 50, 20, 10, 5, 2, 1];
 const DENOMINACOES_MOEDAS = [1, 0.5, 0.25, 0.1, 0.05];
@@ -20,10 +20,25 @@ const faixaDoDia = (value) => {
 const somarPagamentos = (pagamentos, tipos) => somarPorForma(pagamentos, tipos);
 
 const calcularOutrosMeios = (pagamentos) => {
+  const normalizados = normalizarPagamentos(pagamentos);
   const pix = somarPagamentos(pagamentos, ['pix']);
   const credito = somarPagamentos(pagamentos, ['cartao_credito']);
   const debito = somarPagamentos(pagamentos, ['cartao_debito']);
-  return { pix, credito, debito, total: money(pix + credito + debito) };
+  const creditoLoja = somarPagamentos(pagamentos, ['credito_loja']);
+  const taxaCredito = money(normalizados.filter((pagamento) => pagamento.tipo === 'cartao_credito').reduce((total, pagamento) => total + pagamento.taxaValor, 0));
+  const taxaDebito = money(normalizados.filter((pagamento) => pagamento.tipo === 'cartao_debito').reduce((total, pagamento) => total + pagamento.taxaValor, 0));
+  return {
+    pix,
+    credito,
+    taxaCredito,
+    liquidoCredito: money(credito - taxaCredito),
+    debito,
+    taxaDebito,
+    liquidoDebito: money(debito - taxaDebito),
+    creditoLoja,
+    total: money(pix + credito + debito),
+    totalLiquido: money(pix + credito - taxaCredito + debito - taxaDebito),
+  };
 };
 
 const calcularContagem = (cedulas = [], moedas = []) => {

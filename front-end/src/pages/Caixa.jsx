@@ -130,9 +130,15 @@ export default function Caixa() {
             ['Dinheiro esperado', dinheiro(esperado)],
             ['Dinheiro contado', dinheiro(totalDinheiro)],
             ['Pix', dinheiro(caixa.outrosMeios?.pix)],
-            ['Cartão de crédito', dinheiro(caixa.outrosMeios?.credito)],
-            ['Cartão de débito', dinheiro(caixa.outrosMeios?.debito)],
-            ['Total em outros meios', dinheiro(caixa.outrosMeios?.total)],
+            ['Cartão de crédito (bruto)', dinheiro(caixa.outrosMeios?.credito)],
+            ['Taxa do crédito', dinheiro(caixa.outrosMeios?.taxaCredito)],
+            ['Crédito líquido', dinheiro(caixa.outrosMeios?.liquidoCredito)],
+            ['Cartão de débito (bruto)', dinheiro(caixa.outrosMeios?.debito)],
+            ['Taxa do débito', dinheiro(caixa.outrosMeios?.taxaDebito)],
+            ['Débito líquido', dinheiro(caixa.outrosMeios?.liquidoDebito)],
+            ['Crédito na loja (não recebido)', dinheiro(caixa.outrosMeios?.creditoLoja)],
+            ['Total recebido (bruto)', dinheiro(Number(sistema.entradasDinheiro || 0) + Number(caixa.outrosMeios?.total || 0))],
+            ['Total recebido líquido', dinheiro(Number(sistema.entradasDinheiro || 0) + Number(caixa.outrosMeios?.totalLiquido || 0))],
           ].map(([rotulo, valor]) => <div key={rotulo} style={{ display: 'grid', gap: 5, paddingTop: 8, borderTop: '1px solid var(--border-light)' }}><span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{rotulo}</span><strong>{valor}</strong></div>)}
         </div>
       </section>

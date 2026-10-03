@@ -45,8 +45,14 @@ const fechamentoCaixaSchema = new mongoose.Schema({
   outrosMeios: {
     pix: { type: Number, default: 0 },
     credito: { type: Number, default: 0 },
+    taxaCredito: { type: Number, default: 0 },
+    liquidoCredito: { type: Number, default: 0 },
     debito: { type: Number, default: 0 },
+    taxaDebito: { type: Number, default: 0 },
+    liquidoDebito: { type: Number, default: 0 },
+    creditoLoja: { type: Number, default: 0 },
     total: { type: Number, default: 0 },
+    totalLiquido: { type: Number, default: 0 },
   },
   status: { type: String, enum: ['aberto', 'fechado'], default: 'aberto', index: true },
 }, { timestamps: true });
