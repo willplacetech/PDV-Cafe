@@ -19,10 +19,24 @@ const faixaDoDia = (value) => {
 
 const somarPagamentos = (pagamentos, tipos) => somarPorForma(pagamentos, tipos);
 
+const calcularOutrosMeios = (pagamentos) => {
+  const pix = somarPagamentos(pagamentos, ['pix']);
+  const credito = somarPagamentos(pagamentos, ['cartao_credito']);
+  const debito = somarPagamentos(pagamentos, ['cartao_debito']);
+  return { pix, credito, debito, total: money(pix + credito + debito) };
+};
+
 const calcularContagem = (cedulas = [], moedas = []) => {
   const totalCedulas = money(cedulas.reduce((total, item) => total + Number(item.valor || 0) * Number(item.quantidade || 0), 0));
   const totalMoedas = money(moedas.reduce((total, item) => total + Number(item.valor || 0) * Number(item.quantidade || 0), 0));
   return { totalCedulas, totalMoedas, totalDinheiro: money(totalCedulas + totalMoedas) };
+};
+
+const normalizarValorContado = (valor) => {
+  if (valor === undefined || valor === null || String(valor).trim() === '') throw new Error('Informe o valor contado');
+  const total = Number(valor);
+  if (!Number.isFinite(total) || total < 0) throw new Error('Informe um valor contado válido');
+  return money(total);
 };
 
 const calcularConferencia = (totalDinheiro, saldoEsperado) => {
@@ -38,15 +52,13 @@ const buscarBaseSistema = async (data, turno) => {
   const fechamentoAnterior = await FechamentoCaixa.findOne({ data: { $lt: inicio }, turno, status: 'fechado' }).sort({ data: -1, createdAt: -1 }).lean();
   const pagamentos = await carregarPagamentosDoPeriodo({ inicio, fim });
   const entradasDinheiro = somarPagamentos(pagamentos, ['dinheiro']);
-  const pix = somarPagamentos(pagamentos, ['pix']);
-  const credito = somarPagamentos(pagamentos, ['cartao_credito', 'credito_loja']);
-  const debito = somarPagamentos(pagamentos, ['cartao_debito']);
+  const outrosMeios = calcularOutrosMeios(pagamentos);
   const saldoAnterior = money(fechamentoAnterior?.sistema?.saldoEsperado || 0);
   return {
     saldoAnterior,
     entradasDinheiro,
     saldoEsperado: saldoAnterior + entradasDinheiro,
-    outrosMeios: { pix, credito, debito, total: money(pix + credito + debito) },
+    outrosMeios,
     fechamentoAnteriorId: fechamentoAnterior?._id || null,
   };
 };
@@ -75,6 +87,8 @@ module.exports = {
   dataCaixa,
   faixaDoDia,
   calcularContagem,
+  calcularOutrosMeios,
+  normalizarValorContado,
   calcularConferencia,
   buscarBaseSistema,
   prepararSistema,

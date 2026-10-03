@@ -8,6 +8,7 @@ const {
   faixaDoDia,
   money,
   calcularContagem,
+  normalizarValorContado,
   calcularConferencia,
   buscarBaseSistema,
   prepararSistema,
@@ -24,6 +25,17 @@ const normalizarItens = (items, denominacoes, obrigatorio = false) => {
     throw new Error('Preencha a quantidade de todas as cédulas e moedas');
   }
   return denominacoes.map((valor) => ({ valor, quantidade: Number.isFinite(valores.get(valor)) ? valores.get(valor) : 0 }));
+};
+
+const normalizarContagem = (body, obrigatorio = false) => {
+  if (body.valorContado !== undefined) {
+    const valorContado = normalizarValorContado(body.valorContado);
+    return { valorContado, cedulas: [], moedas: [], totalCedulas: 0, totalMoedas: 0, totalDinheiro: valorContado };
+  }
+  const cedulas = normalizarItens(body.cedulas, DENOMINACOES_CEDULAS, obrigatorio);
+  const moedas = normalizarItens(body.moedas, DENOMINACOES_MOEDAS, obrigatorio);
+  const totais = calcularContagem(cedulas, moedas);
+  return { valorContado: totais.totalDinheiro, cedulas, moedas, ...totais };
 };
 
 const carregarCaixa = async (data, turno) => {
@@ -84,10 +96,7 @@ router.post('/:id/contagem-parcial', async (req, res) => {
     const fechamento = await FechamentoCaixa.findById(req.params.id);
     if (!fechamento) return res.status(404).json({ msg: 'Fechamento não encontrado' });
     if (fechamento.status === 'fechado') return res.status(409).json({ msg: 'Fechamento fechado e bloqueado para edição' });
-    const cedulas = normalizarItens(req.body.cedulas, DENOMINACOES_CEDULAS);
-    const moedas = normalizarItens(req.body.moedas, DENOMINACOES_MOEDAS);
-    const totais = calcularContagem(cedulas, moedas);
-    fechamento.contagemFisica = { cedulas, moedas, ...totais };
+    fechamento.contagemFisica = normalizarContagem(req.body);
     await fechamento.save();
     res.json(fechamento);
   } catch (error) { res.status(400).json({ msg: error.message }); }
@@ -98,17 +107,15 @@ router.post('/:id/fechar', async (req, res) => {
     const fechamento = await FechamentoCaixa.findById(req.params.id);
     if (!fechamento) return res.status(404).json({ msg: 'Fechamento não encontrado' });
     if (fechamento.status === 'fechado') return res.status(409).json({ msg: 'Fechamento já fechado e bloqueado para edição' });
-    const cedulas = normalizarItens(req.body.cedulas, DENOMINACOES_CEDULAS, true);
-    const moedas = normalizarItens(req.body.moedas, DENOMINACOES_MOEDAS, true);
-    const totais = calcularContagem(cedulas, moedas);
+    const contagemFisica = normalizarContagem(req.body, true);
     const base = await buscarBaseSistema(fechamento.data, fechamento.turno);
     const sistema = prepararSistema(base, fechamento);
-    const conferencia = calcularConferencia(totais.totalDinheiro, sistema.saldoEsperado);
+    const conferencia = calcularConferencia(contagemFisica.totalDinheiro, sistema.saldoEsperado);
     const observacao = String(req.body.observacao || '').trim();
     if (Math.abs(conferencia.diferenca) > 5 && !observacao) return res.status(400).json({ msg: 'Diferença acima de R$ 5,00 exige justificativa' });
     fechamento.sistema = sistema;
     fechamento.outrosMeios = base.outrosMeios;
-    fechamento.contagemFisica = { cedulas, moedas, ...totais };
+    fechamento.contagemFisica = contagemFisica;
     fechamento.conferencia = { ...conferencia, observacao, conferidoEm: new Date() };
     fechamento.usuarioFechamento = req.user.username;
     fechamento.status = 'fechado';

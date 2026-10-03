@@ -29,6 +29,7 @@ const fechamentoCaixaSchema = new mongoose.Schema({
     saldoEsperado: { type: Number, default: 0 },
   },
   contagemFisica: {
+    valorContado: { type: Number, min: 0 },
     cedulas: { type: [itemContagemSchema], default: [] },
     moedas: { type: [itemContagemSchema], default: [] },
     totalCedulas: { type: Number, default: 0 },
