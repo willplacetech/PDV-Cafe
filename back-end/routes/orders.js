@@ -171,11 +171,13 @@ router.patch('/:id/pagar', auth, auth.allowRoles('admin'), async (req, res) => {
     const paid = order.pagamentos.reduce((sum, payment) => sum + (payment.valorRecebido || 0), 0);
     const balance = money(order.total - paid);
     const value = money(req.body.valorRecebido);
-    if (!['dinheiro', 'pix', 'credito_loja', 'cartao_credito', 'cartao_debito'].includes(req.body.tipo || 'dinheiro')) return res.status(400).json({ msg: 'Forma de pagamento inválida' });
-    if (value !== balance || balance <= 0) return res.status(400).json({ msg: 'O recebimento deve quitar o saldo total do pedido' });
+    if (!['dinheiro', 'pix', 'cartao_credito', 'cartao_debito'].includes(req.body.tipo || 'dinheiro')) return res.status(400).json({ msg: 'Forma de pagamento inválida' });
+    if (!Number.isFinite(value) || value <= 0) return res.status(400).json({ msg: 'Informe um valor válido para receber' });
+    if (balance <= 0) return res.status(400).json({ msg: 'Pedido já está quitado' });
+    if (value > balance) return res.status(400).json({ msg: 'O recebimento não pode ser maior que o saldo pendente' });
     const tipo = req.body.tipo || 'dinheiro';
-    order.pagamentos.push({ tipo, valorRecebido: balance, ...calcularPagamento(tipo, balance, await obterTaxasCartao()), dataPagamento: new Date(), quitado: true, observacao: req.body.observacao });
-    order.status = 'pago';
+    order.pagamentos.push({ tipo, valorRecebido: value, ...calcularPagamento(tipo, value, await obterTaxasCartao()), dataPagamento: new Date(), quitado: value === balance, observacao: req.body.observacao });
+    order.status = value === balance ? 'pago' : 'parcial';
     await order.save();
     res.json(order);
   } catch (err) { res.status(400).json({ msg: err.message }); }
@@ -202,7 +204,7 @@ router.patch('/cliente/:clienteId/quitar', auth, auth.allowRoles('admin'), async
     const pedidos = await Order.find({ clienteId: req.params.clienteId, status: { $in: ['pendente', 'parcial'] } }).session(session);
     if (!pedidos.length) throw new Error('Este cliente não possui pendências');
     const tipo = req.body.tipo || 'dinheiro';
-    const tiposAceitos = ['dinheiro', 'pix', 'credito_loja', 'cartao_credito', 'cartao_debito'];
+    const tiposAceitos = ['dinheiro', 'pix', 'cartao_credito', 'cartao_debito'];
     if (!tiposAceitos.includes(tipo)) throw new Error('Forma de pagamento inválida');
     const taxasCartao = await obterTaxasCartao();
     pedidos.forEach((order) => {

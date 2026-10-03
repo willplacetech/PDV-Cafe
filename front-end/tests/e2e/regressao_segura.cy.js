@@ -21,17 +21,16 @@ describe('Regressões de cobrança e mesas sem banco externo', () => {
     });
   });
 
-  it('valor parcial vazio mantém comanda aberta e não chama fechamento integral', () => {
-    let fechamentos = 0;
-    cy.intercept('POST', '**/api/comandas/*/fechar', (request) => { fechamentos++; request.reply({}); });
-    visitar('/comandas');
-    cy.contains('button', 'Fechar comanda').click();
-    cy.contains('label', 'PAGAMENTO PARCIAL').parent().find('input[type="checkbox"]').check();
+  it('valor parcial vazio em Contas a Receber não envia pagamento', () => {
+    let pagamentos = 0;
+    cy.intercept('PATCH', '**/api/comandas/*/receber-parcial', (request) => { pagamentos++; request.reply({}); });
+    visitar('/contas-receber');
+    cy.contains('button', 'Comandas').click();
+    cy.contains('button', 'Receber').click();
     cy.get('input[placeholder="0,00"]').clear();
-    cy.get('select').filter(':visible').last().select('pix');
-    cy.contains('button', 'Confirmar Fechamento').click();
-    cy.contains('Informe um valor recebido maior que zero').should('be.visible').then(() => expect(fechamentos).to.equal(0));
-    cy.contains('button', 'Confirmar Fechamento').should('be.visible');
+    cy.contains('button', 'Confirmar recebimento').click();
+    cy.contains('Informe um valor válido').should('be.visible').then(() => expect(pagamentos).to.equal(0));
+    cy.contains('button', 'Confirmar recebimento').should('be.visible');
   });
 
   it('salva mesa na API e atendimento mostra o mesmo nome', () => {

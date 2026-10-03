@@ -22,16 +22,15 @@ test('recebido líquido subtrai taxa atual do bruto', () => {
   assert.equal(evaluate(code, { relatorioMes: { recebido: 100, taxasCartao: 3 }, taxasCartaoAtual: 5 }, 'recebidoLiquidoAtual'), 95);
 });
 
-for (const partialAmount of ['', '0', '0,00']) {
-  test(`pagamento parcial ${JSON.stringify(partialAmount)} não fecha comanda`, async () => {
+for (const valor of ['', '0', '0,00']) {
+  test(`recebimento parcial em Contas a Receber ${JSON.stringify(valor)} não envia pagamento`, async () => {
     const requests = [];
     const messages = [];
-    const code = 'const confirmarFechamento = ' + section('Comandas', 'const confirmarFechamento = ', 'const enviarComprovante');
-    const noop = () => {};
-    const bindings = { utilizacaoInterna: false, paymentMethod: 'pix', paymentPartial: true, partialAmount, selected: { _id: 'x' }, saldoEmAberto: 20, apenasNumeros: value => value.replace(',', '.'), setPaymentError: noop, showToast: (...args) => messages.push(args), api: { post: (...args) => { requests.push(args); throw new Error('Envio indevido'); } }, discount: '0', telefoneModal: '', nomeModal: '', formatMoney: String };
-    await evaluate(code, bindings, 'confirmarFechamento')();
+    const code = 'const registrarRecebimentoComanda = ' + section('ContasReceber', 'const registrarRecebimentoComanda = ', 'const toggleSelecionarTodos');
+    const bindings = { formComanda: { comanda: { _id: 'x', valorTotal: 20, historicoPagamentos: [] }, valor }, saldoDevedor: () => 20, showToast: (...args) => messages.push(args), api: { patch: (...args) => requests.push(args) } };
+    await evaluate(code, bindings, 'registrarRecebimentoComanda')({ preventDefault() {} });
     assert.equal(requests.length, 0);
-    assert.ok(messages.length > 0);
+    assert.equal(messages[0][0], 'Informe um valor válido');
   });
 }
 
@@ -42,7 +41,7 @@ test('remover linha retira desconto quando grupo perde mínimo', () => {
   const produtos = ['a', 'b'].map(_id => ({ _id, preco: 10, grupoDesconto: { nome: 'combo', ativo: true, quantidadeMinima: 2, precoPromocional: 8 } }));
   const carrinho = produtos.map(p => ({ produtoId: p._id, quantidade: 1, precoUnitario: 8, precoUnitarioOriginal: 10 }));
   let updated;
-  const removerItem = evaluate(`const precoPorUnidade = ${functions}; const recalcularPrecosCarrinho = ${recalculate}; const removerItem = ${remove}`, { produtos, carrinho, setCarrinho: value => { updated = value; } }, 'removerItem');
+  const removerItem = evaluate(`const precoPorUnidade = ${functions}; const recalcularPrecosCarrinho = ${recalculate}; const removerItem = ${remove}`, { produtos, carrinho, setCarrinho: value => { updated = typeof value === 'function' ? value(carrinho) : value; }, setQuantidadesRascunho: () => {} }, 'removerItem');
   removerItem(0);
   assert.equal(updated[0].precoUnitario, 10);
 });

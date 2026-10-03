@@ -62,6 +62,7 @@ export default function PDV() {
   const [produtos, setProdutos] = useState([]);
   const [maisVendidos, setMaisVendidos] = useState([]);
   const [carrinho, setCarrinho] = useState([]);
+  const [quantidadesRascunho, setQuantidadesRascunho] = useState({});
   const [busca, setBusca] = useState('');
   const [clientes, setClientes] = useState([]);
   const [clienteId, setClienteId] = useState('');
@@ -175,19 +176,29 @@ export default function PDV() {
 
 
   const alterarQtd = (idx, qtd) => {
+    const quantidade = Number(qtd);
+    if (!Number.isFinite(quantidade) || quantidade < 0.001) {
+      setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[idx]; return proximas; });
+      showToast('Informe uma quantidade válida', 'warning');
+      return;
+    }
     const novos = [...carrinho];
+    if (!novos[idx]) return;
     const prod = produtos.find(p => p._id === novos[idx].produtoId);
-    if (qtd < 0.001) return removerItem(idx);
-    if (!permiteFracionar(prod) && !Number.isInteger(qtd)) return showToast('Este produto é vendido por unidade', 'warning');
+    if (!permiteFracionar(prod) && !Number.isInteger(quantidade)) return showToast('Este produto é vendido por unidade', 'warning');
     const quantidadeOutrasLinhas = carrinho.reduce((total, item, itemIndex) => itemIndex !== idx && item.produtoId === novos[idx].produtoId ? total + item.quantidade : total, 0);
     const estoqueDisponivel = prod.aFazer ? Number(prod.cozDisponibilidade?.disponivel || 0) : Number(prod.estoque || 0);
-    if (!prod.permitirVendaSemInsumo && quantidadeOutrasLinhas + qtd > estoqueDisponivel) return showToast(`Máximo: ${estoqueDisponivel}`, 'warning');
-    novos[idx].quantidade = qtd;
+    if (!prod.permitirVendaSemInsumo && quantidadeOutrasLinhas + quantidade > estoqueDisponivel) return showToast(`Máximo: ${estoqueDisponivel}`, 'warning');
+    novos[idx].quantidade = quantidade;
     setCarrinho(recalcularPrecosCarrinho(novos));
+    setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[idx]; return proximas; });
   };
 
 
-  const removerItem = (idx) => setCarrinho(recalcularPrecosCarrinho(carrinho.filter((_, i) => i !== idx)));
+  const removerItem = (idx) => {
+    setCarrinho((atuais) => recalcularPrecosCarrinho(atuais.filter((_, i) => i !== idx)));
+    setQuantidadesRascunho({});
+  };
 
 
   const subtotal = carrinho.reduce((ac, i) => ac + i.precoUnitario * i.quantidade, 0);
@@ -519,6 +530,9 @@ export default function PDV() {
                 <div style={{ maxHeight: 320, overflowY: 'auto', marginBottom: 14, paddingRight: 4 }}>
                   {carrinho.map((item, i) => {
                     const prod = produtos.find(p => p._id === item.produtoId);
+                    const passoQuantidade = permiteFracionar(prod) ? 0.001 : 1;
+                    const quantidadeExibida = quantidadesRascunho[i] ?? item.quantidade;
+                    const quantidadeBase = Number(quantidadeExibida) > 0 ? Number(quantidadeExibida) : item.quantidade;
                     return (
                       <div key={i} style={{
                         padding: '10px 0', borderBottom: '1px solid var(--border-light)'
@@ -531,7 +545,7 @@ export default function PDV() {
                             </div>
                             {item.modificadores?.length > 0 && <div style={{ fontSize: 11, color: 'var(--accent-primary)', marginTop: 4 }}>☕ {item.modificadores.join(' · ')}</div>}
                           </div>
-                          <button onClick={() => removerItem(i)} style={{
+                          <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => removerItem(i)} style={{
                             background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)',
                             border: 'none', borderRadius: 8, padding: '6px 10px',
                             cursor: 'pointer', fontWeight: 700, fontSize: 12, minHeight: 32
@@ -539,12 +553,13 @@ export default function PDV() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 10, overflow: 'hidden' }}>
-                            <button onClick={() => alterarQtd(i, item.quantidade - (permiteFracionar(prod) ? 0.001 : 1))} style={{
+                            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => alterarQtd(i, Math.max(passoQuantidade, quantidadeBase - passoQuantidade))} style={{
                               width: 40, height: 40, background: 'transparent', border: 'none',
                               cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)'
                             }}>−</button>
-                            <input type="number" min={permiteFracionar(prod) ? 0.001 : 1} step={permiteFracionar(prod) ? 0.001 : 1} value={item.quantidade}
-                              onChange={e => alterarQtd(i, Number(e.target.value))}
+                            <input type="number" min={passoQuantidade} step={passoQuantidade} value={quantidadeExibida}
+                              onChange={(event) => setQuantidadesRascunho((atuais) => ({ ...atuais, [i]: event.target.value }))}
+                              onBlur={(event) => alterarQtd(i, event.currentTarget.value)}
                               style={{
                                 width: 48, textAlign: 'center', border: 'none',
                                 borderLeft: '1px solid var(--border-color)',
@@ -552,7 +567,7 @@ export default function PDV() {
                                 padding: '8px 4px', fontSize: 15, fontWeight: 700,
                                 background: 'var(--input-bg)', color: 'var(--input-text)'
                               }} />
-                            <button onClick={() => alterarQtd(i, item.quantidade + (permiteFracionar(prod) ? 0.001 : 1))} style={{
+                            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => alterarQtd(i, quantidadeBase + passoQuantidade)} style={{
                               width: 40, height: 40, background: 'transparent', border: 'none',
                               cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)'
                             }}>+</button>

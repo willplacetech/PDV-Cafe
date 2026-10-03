@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/api.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/useToast.js';
@@ -48,6 +48,11 @@ export default function Comandas() {
   const [quantity, setQuantity] = useState('1');
   const [tipoVenda, setTipoVenda] = useState('inteiro');
   const [pesoVendidoKg, setPesoVendidoKg] = useState('');
+  const [adicionandoItem, setAdicionandoItem] = useState(false);
+  const [itensEmAtualizacao, setItensEmAtualizacao] = useState(() => new Set());
+  const [quantidadesRascunho, setQuantidadesRascunho] = useState({});
+  const operacoesItemRef = useRef(new Set());
+  const adicionandoItemRef = useRef(false);
 
   const [configuracaoMesas, setConfiguracaoMesas] = useState({ mesas: [], oferecerBalcao: true });
   const mesasAtivas = configuracaoMesas.mesas.filter((mesa) => mesa.ativa);
@@ -58,8 +63,6 @@ export default function Comandas() {
   const [modalFechamento, setModalFechamento] = useState(false);
   const [discount, setDiscount] = useState('0');
   const [paymentMethod, setPaymentMethod] = useState('');
-  const [paymentPartial, setPaymentPartial] = useState(false);
-  const [partialAmount, setPartialAmount] = useState('');
   const [utilizacaoInterna, setUtilizacaoInterna] = useState(false);
   const [paymentError, setPaymentError] = useState(false);
   const [telefoneModal, setTelefoneModal] = useState('');
@@ -127,17 +130,81 @@ export default function Comandas() {
 
   const produtoSelecionado = products.find((product) => product._id === productId);
 
-  const addItem = async (event) => {
-    event.preventDefault();
-    if (!selected || !productId) return;
-    try {
-      await api.post(`/comandas/${selected._id}/itens`, { produtoId: productId, quantidade: Number(quantity), tipoVenda: produtoPorPeso(produtoSelecionado) ? tipoVenda : 'unidade', pesoVendidoKg: tipoVenda === 'peso' ? Number(pesoVendidoKg) : undefined });
-      setProductId(''); setQuantity('1'); setTipoVenda('inteiro'); setPesoVendidoKg(''); load();
-    }
-    catch (error) { showToast(error.response?.data?.msg || 'Erro ao adicionar item', 'error'); }
+  const atualizarComandaLocal = (comanda) => {
+    setSelected((atual) => atual?._id === comanda._id ? comanda : atual);
+    setComandas((atuais) => atuais.map((item) => item._id === comanda._id ? comanda : item));
   };
 
-  const removeItem = async (itemId) => { await api.delete(`/comandas/${selected._id}/itens/${itemId}`); load(); };
+  const marcarItemEmAtualizacao = (itemId, ocupado) => {
+    setItensEmAtualizacao((atuais) => {
+      const proximos = new Set(atuais);
+      if (ocupado) proximos.add(itemId);
+      else proximos.delete(itemId);
+      return proximos;
+    });
+  };
+
+  const addItem = async (event) => {
+    event.preventDefault();
+    if (!selected || !productId || adicionandoItemRef.current) return;
+    adicionandoItemRef.current = true;
+    setAdicionandoItem(true);
+    try {
+      const { data } = await api.post(`/comandas/${selected._id}/itens`, { produtoId: productId, quantidade: Number(quantity), tipoVenda: produtoPorPeso(produtoSelecionado) ? tipoVenda : 'unidade', pesoVendidoKg: tipoVenda === 'peso' ? Number(pesoVendidoKg) : undefined });
+      atualizarComandaLocal(data);
+      setProductId(''); setQuantity('1'); setTipoVenda('inteiro'); setPesoVendidoKg('');
+    }
+    catch (error) { showToast(error.response?.data?.msg || 'Erro ao adicionar item', 'error'); }
+    finally { adicionandoItemRef.current = false; setAdicionandoItem(false); }
+  };
+
+  const removeItem = async (itemId) => {
+    if (!selected || operacoesItemRef.current.has(itemId)) return;
+    operacoesItemRef.current.add(itemId);
+    marcarItemEmAtualizacao(itemId, true);
+    try {
+      const { data } = await api.delete(`/comandas/${selected._id}/itens/${itemId}`);
+      atualizarComandaLocal(data);
+      setSelectedItemIds((atuais) => atuais.filter((id) => id !== itemId));
+      setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[itemId]; return proximas; });
+    } catch (error) {
+      showToast(error.response?.data?.msg || 'Erro ao remover item', 'error');
+    } finally {
+      operacoesItemRef.current.delete(itemId);
+      marcarItemEmAtualizacao(itemId, false);
+    }
+  };
+
+  const atualizarQuantidadeItem = async (itemId, valor) => {
+    if (!selected) return;
+    const quantidade = Number(valor);
+    const itemAtual = selected.itens.find((item) => item._id === itemId);
+    if (!Number.isFinite(quantidade) || quantidade < 0.001) {
+      setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[itemId]; return proximas; });
+      if (itemAtual) showToast('Informe uma quantidade válida', 'warning');
+      return;
+    }
+    if (operacoesItemRef.current.has(itemId)) return;
+    if (!itemAtual || quantidade === Number(itemAtual.quantidade)) {
+      setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[itemId]; return proximas; });
+      return;
+    }
+    const quantidadeAnterior = Number(itemAtual.quantidade);
+    operacoesItemRef.current.add(itemId);
+    marcarItemEmAtualizacao(itemId, true);
+    setSelected((atual) => atual?._id === selected._id ? { ...atual, itens: atual.itens.map((item) => item._id === itemId ? { ...item, quantidade } : item) } : atual);
+    setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[itemId]; return proximas; });
+    try {
+      const { data } = await api.patch(`/comandas/${selected._id}/itens/${itemId}`, { quantidade });
+      atualizarComandaLocal(data);
+    } catch (error) {
+      setSelected((atual) => atual?._id === selected._id ? { ...atual, itens: atual.itens.map((item) => item._id === itemId ? { ...item, quantidade: quantidadeAnterior } : item) } : atual);
+      showToast(error.response?.data?.msg || 'Erro ao atualizar quantidade', 'error');
+    } finally {
+      operacoesItemRef.current.delete(itemId);
+      marcarItemEmAtualizacao(itemId, false);
+    }
+  };
 
   const toggleItemSelection = (itemId) => {
     setSelectedItemIds((current) => current.includes(itemId)
@@ -191,8 +258,6 @@ export default function Comandas() {
     if (!selected.itens.length) { showToast('A comanda não tem itens', 'warning'); return; }
     setDiscount('0');
     setPaymentMethod('');
-    setPaymentPartial(false);
-    setPartialAmount('');
     setUtilizacaoInterna(false);
     setPaymentError(false);
     setTelefoneModal('');
@@ -201,41 +266,10 @@ export default function Comandas() {
   };
 
 
-  /** Aceita o valor em pt-BR (vírgula decimal) e impede que o campo congele como number input. */
-  const digitarValorParcial = (texto) => {
-    const limpo = String(texto ?? '').replace(/[^\d,]/g, '').replace(/^,+/, '');
-    const partes = limpo.split(',');
-    setPartialAmount(partes.length > 1 ? `${partes[0]},${partes.slice(1).join('')}` : partes[0]);
-  };
-
-  const apenasNumeros = (texto) => String(texto ?? '').replace(',', '.');
-
   const confirmarFechamento = async () => {
     if (!utilizacaoInterna && !paymentMethod) { setPaymentError(true); showToast('Escolha a forma de pagamento', 'warning'); return; }
     const comandaFechada = selected;
     try {
-      if (paymentPartial && !utilizacaoInterna) {
-        const valorRecebido = Number(apenasNumeros(partialAmount));
-        if (!Number.isFinite(valorRecebido) || valorRecebido <= 0) {
-          throw new Error('Informe um valor recebido maior que zero para pagamento parcial');
-        }
-        if (valorRecebido > saldoEmAberto) {
-          throw new Error(`O valor recebido não pode ser maior que o saldo em aberto (${formatMoney(saldoEmAberto)})`);
-        }
-        const { data: comandaAtualizada } = await api.patch(`/comandas/${selected._id}/receber-parcial`, {
-          valorRecebido,
-          formaPagamento: paymentMethod,
-        });
-        setModalFechamento(false);
-        setDiscount('0'); setPaymentMethod(''); setPaymentPartial(false); setPartialAmount(''); setUtilizacaoInterna(false); setPaymentError(false);
-        const restante = Number(comandaAtualizada?.saldoDevedor ?? (saldoEmAberto - valorRecebido));
-        showToast(restante > 0
-          ? `Recebimento parcial registrado em #${comandaFechada.numero}. Falta ${formatMoney(restante)}.`
-          : `Comanda #${comandaFechada.numero} quitada.`, 'success');
-        await load();
-        return;
-      }
-
       const { data } = await api.post(`/comandas/${selected._id}/fechar`, {
         desconto: Number(discount),
         metodoPagamento: utilizacaoInterna ? 'credito_loja' : paymentMethod,
@@ -244,7 +278,7 @@ export default function Comandas() {
         nome: nomeModal,
       });
       setModalFechamento(false);
-      setDiscount('0'); setPaymentMethod(''); setPaymentPartial(false); setPartialAmount(''); setUtilizacaoInterna(false); setPaymentError(false);
+      setDiscount('0'); setPaymentMethod(''); setUtilizacaoInterna(false); setPaymentError(false);
       setModalSucesso({ pedido: data.pedido, comanda: comandaFechada, telefone: telefoneModal, nome: nomeModal });
       showToast(`Comanda #${comandaFechada.numero} fechada → Pedido #${data.pedido.numero}`, 'success');
       load();
@@ -318,10 +352,10 @@ export default function Comandas() {
             <h2 style={{ marginTop: 0 }}>{selected.tipoAtendimento === 'balcao' ? '📦 Balcão' : '🪑 Mesa'} #{selected.numero} <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}>— {selected.clienteNome}</small></h2>
             {selected.tipoAtendimento === 'balcao' && <div className="balcao-status-bar"><span>Status: <strong>{selected.statusBalcao || 'aguardando'}</strong></span><div>{['aguardando', 'preparando', 'pronto', 'pago', 'entregue'].map((status) => <button type="button" key={status} className={selected.statusBalcao === status ? 'active' : ''} onClick={() => updateBalcaoStatus(status)}>{status}</button>)}</div></div>}
             <form onSubmit={addItem} className="comandas-add-form">
-              <select className="comandas-field" required value={productId} onChange={(e) => { setProductId(e.target.value); setTipoVenda('inteiro'); setPesoVendidoKg(''); }}><option value="">Adicionar produto…</option>{products.filter((product) => product.categoria !== 'Insumos').map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}{produtoPorPeso(product) ? '/kg' : ''}</option>)}</select>
-              {produtoPorPeso(produtoSelecionado) && <select className="comandas-field" value={tipoVenda} onChange={(e) => setTipoVenda(e.target.value)}><option value="inteiro">Bolo inteiro</option><option value="peso">Fatia pesada</option></select>}
-              {tipoVenda === 'peso' && produtoPorPeso(produtoSelecionado) ? <input className="comandas-field quantity-field" required type="number" min="0.001" step="0.001" placeholder="Peso vendido (kg)" value={pesoVendidoKg} onChange={(e) => setPesoVendidoKg(e.target.value)} /> : <input className="comandas-field quantity-field" required type="number" min={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} step={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} value={quantity} onChange={(e) => setQuantity(e.target.value)} />}
-              <button type="submit" className="comandas-secondary-button">Adicionar</button>
+              <select className="comandas-field" required disabled={adicionandoItem} value={productId} onChange={(e) => { setProductId(e.target.value); setTipoVenda('inteiro'); setPesoVendidoKg(''); }}><option value="">Adicionar produto…</option>{products.filter((product) => product.categoria !== 'Insumos').map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}{produtoPorPeso(product) ? '/kg' : ''}</option>)}</select>
+              {produtoPorPeso(produtoSelecionado) && <select className="comandas-field" disabled={adicionandoItem} value={tipoVenda} onChange={(e) => setTipoVenda(e.target.value)}><option value="inteiro">Bolo inteiro</option><option value="peso">Fatia pesada</option></select>}
+              {tipoVenda === 'peso' && produtoPorPeso(produtoSelecionado) ? <input className="comandas-field quantity-field" disabled={adicionandoItem} required type="number" min="0.001" step="0.001" placeholder="Peso vendido (kg)" value={pesoVendidoKg} onChange={(e) => setPesoVendidoKg(e.target.value)} /> : <input className="comandas-field quantity-field" disabled={adicionandoItem} required type="number" min={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} step={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} value={quantity} onChange={(e) => setQuantity(e.target.value)} />}
+              <button type="submit" disabled={adicionandoItem} className="comandas-secondary-button">{adicionandoItem ? 'Adicionando…' : 'Adicionar'}</button>
             </form>
 
             {selected.itens.length > 0 && (
@@ -339,25 +373,48 @@ export default function Comandas() {
               </div>
             )}
 
-            {(selected.itens || []).map((item) => (
-              <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border-color)', padding: '10px 0' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1 }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedItemIds.includes(item._id)}
-                    onChange={() => toggleItemSelection(item._id)}
-                    style={{ marginTop: 5, width: 18, height: 18, accentColor: 'var(--accent-primary)' }}
-                    aria-label={`Selecionar ${item.nome}`}
-                  />
-                  <span>
-                    <b>{item.nome}</b><br />
-                    <small>{formatQuantity(item)} × {formatMoney(item.precoUnitario)}</small>
-                    {item.modificadores?.length > 0 && <><br /><small style={{ color: 'var(--accent-primary)' }}>☕ {item.modificadores.join(' · ')}</small></>}
-                  </span>
+            {(selected.itens || []).map((item) => {
+              const step = item.tipoVenda === 'peso' ? 0.001 : 1;
+              const quantidadeExibida = quantidadesRascunho[item._id] ?? item.quantidade;
+              const itemOcupado = itensEmAtualizacao.has(item._id);
+              return (
+                <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border-color)', padding: '10px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedItemIds.includes(item._id)}
+                      onChange={() => toggleItemSelection(item._id)}
+                      style={{ marginTop: 5, width: 18, height: 18, accentColor: 'var(--accent-primary)' }}
+                      aria-label={`Selecionar ${item.nome}`}
+                    />
+                    <span>
+                      <b>{item.nome}</b><br />
+                      <small>{formatQuantity(item)} × {formatMoney(item.precoUnitario)}</small>
+                      {item.modificadores?.length > 0 && <><br /><small style={{ color: 'var(--accent-primary)' }}>☕ {item.modificadores.join(' · ')}</small></>}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-tertiary)' }}>
+                      <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => atualizarQuantidadeItem(item._id, Math.max(step, Number(quantidadeExibida || 0) - step))} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: itemOcupado ? 'wait' : 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>−</button>
+                      <input
+                        type="number"
+                        min="0.001"
+                        step={step}
+                        disabled={itemOcupado}
+                        value={quantidadeExibida}
+                        onChange={(e) => setQuantidadesRascunho((atuais) => ({ ...atuais, [item._id]: e.target.value }))}
+                        onBlur={(event) => atualizarQuantidadeItem(item._id, event.currentTarget.value)}
+                        style={{ width: 72, height: 30, border: 0, background: 'transparent', textAlign: 'center', color: 'var(--text-primary)', fontWeight: 700 }}
+                        aria-label={`Quantidade de ${item.nome}`}
+                      />
+                      <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => atualizarQuantidadeItem(item._id, Number(quantidadeExibida || 0) + step)} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: itemOcupado ? 'wait' : 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>+</button>
+                    </div>
+                    <span style={{ minWidth: 78, textAlign: 'right', fontWeight: 700 }}>{formatMoney(Number(quantidadeExibida || 0) * item.precoUnitario)}</span>
+                    <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`} style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', cursor: itemOcupado ? 'wait' : 'pointer', fontSize: 20 }}>×</button>
+                  </div>
                 </div>
-                <span>{formatMoney(item.quantidade * item.precoUnitario)} <button onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`}>×</button></span>
-              </div>
-            ))}
+              );
+            })}
             <div className="comandas-checkout">
               <div>
                 <small style={{ display: 'block', color: 'var(--text-secondary)' }}>Total da comanda</small>
@@ -438,8 +495,6 @@ export default function Comandas() {
                   setUtilizacaoInterna(checked);
                   if (checked) {
                     setPaymentMethod('credito_loja');
-                    setPaymentPartial(false);
-                    setPartialAmount('');
                   } else {
                     setPaymentMethod('');
                   }
@@ -451,38 +506,6 @@ export default function Comandas() {
                 UTILIZAÇÃO INTERNA
               </label>
             </div>
-
-            <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 12px' }}>
-              <input
-                type="checkbox"
-                checked={paymentPartial}
-                disabled={utilizacaoInterna}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setPaymentPartial(checked);
-                  if (checked) {
-                    setPartialAmount(saldoEmAberto > 0 ? String(saldoEmAberto.toFixed(2)) : '');
-                  } else {
-                    setPartialAmount('');
-                  }
-                }}
-                style={{ width: 18, height: 18, accentColor: 'var(--accent-primary)' }}
-              />
-              <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)', cursor: 'pointer' }}>
-                PAGAMENTO PARCIAL
-              </label>
-            </div>
-
-            {paymentPartial && (
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Valor recebido agora (R$)</label>
-                <input type="text" inputMode="decimal" autoComplete="off" placeholder="0,00" value={partialAmount} onChange={e => digitarValorParcial(e.target.value)} className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
-                <small style={{ display: 'block', marginTop: 4, color: 'var(--text-secondary)' }}>
-                  Saldo em aberto: <strong>{formatMoney(saldoEmAberto)}</strong>
-                  {jaRecebido > 0 && <> · Já recebido: <strong>{formatMoney(jaRecebido)}</strong></>}
-                </small>
-              </div>
-            )}
 
             {/* forma de pagamento */}
             <div style={{ marginBottom: 14 }}>
