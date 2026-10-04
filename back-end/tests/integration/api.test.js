@@ -6,6 +6,7 @@ const User = require('../../models/User');
 const Product = require('../../models/Product');
 const Customer = require('../../models/Customer');
 const Order = require('../../models/Order');
+const Comanda = require('../../models/Comanda');
 const Purchase = require('../../models/Purchase');
 const Recipe = require('../../models/Recipe');
 const Despesa = require('../../models/Despesa');
@@ -433,6 +434,68 @@ describe('API Endpoints', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.periodos.dia.total).toBe(25);
     expect(res.body.vendasHoje.total).toBe(25);
+  });
+
+  test('recebimento de pedido de comanda com crédito atualiza saldo e histórico real', async () => {
+    const comanda = await Comanda.create({
+      status: 'fechada',
+      valorTotal: 100,
+      atendente: 'admin',
+      historicoPagamentos: [{ valor: 100, formaPagamento: 'credito_loja', data: new Date() }],
+    });
+    const order = await Order.create({
+      itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, precoUnitario: 100, quantidade: 1 }],
+      subtotal: 100,
+      total: 100,
+      status: 'pendente',
+      atendente: 'admin',
+      comandaId: comanda._id,
+      pagamentos: [],
+    });
+    comanda.pedidoId = order._id;
+    await comanda.save();
+
+    const pendentes = await request(app)
+      .get('/api/orders?status=abertas')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(pendentes.statusCode).toBe(200);
+    expect(pendentes.body).toHaveLength(1);
+    expect(pendentes.body[0].status).toBe('pendente');
+    expect(pendentes.body[0].pagamentos[0].tipo).toBe('credito_loja');
+
+    const dashboardPendente = await request(app)
+      .get('/api/dashboard')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(dashboardPendente.statusCode).toBe(200);
+    expect(dashboardPendente.body.vendasHoje.recebido).toBe(0);
+    expect(dashboardPendente.body.vendasHoje.pendente).toBe(100);
+
+    const parcial = await request(app)
+      .patch(`/api/orders/${order._id}/pagar`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ tipo: 'pix', valorRecebido: 30 });
+    expect(parcial.statusCode).toBe(200);
+    expect(parcial.body.status).toBe('parcial');
+    expect(parcial.body.pagamentos).toHaveLength(2);
+
+    const dashboardParcial = await request(app)
+      .get('/api/dashboard')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(dashboardParcial.body.vendasHoje.recebido).toBe(30);
+    expect(dashboardParcial.body.vendasHoje.pendente).toBe(70);
+
+    const atualizado = await Comanda.findById(comanda._id);
+    expect(atualizado.valorPago).toBe(30);
+    expect(atualizado.saldoDevedor).toBe(70);
+    expect(atualizado.statusPagamento).toBe('parcial');
+
+    const quitado = await request(app)
+      .patch(`/api/orders/${order._id}/pagar`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ tipo: 'dinheiro', valorRecebido: 70 });
+    expect(quitado.statusCode).toBe(200);
+    expect(quitado.body.status).toBe('pago');
+    expect((await Comanda.findById(comanda._id)).saldoDevedor).toBe(0);
   });
 
   test('GET /api/dashboard → 401 sem token', async () => {

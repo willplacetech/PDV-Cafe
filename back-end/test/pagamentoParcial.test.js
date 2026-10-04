@@ -12,7 +12,9 @@ const {
   construirPagamento,
   temCreditoLoja,
   temPagamentoReal,
+  emAReceber,
 } = require('../utils/pagamento');
+const migrarCreditosLoja = require('../utils/migrarCreditosLoja');
 
 
 test('pagamento parcial mantém a comanda em aberto e registra o saldo', () => {
@@ -60,14 +62,50 @@ test('comanda sem histórico começa totalmente em aberto', () => {
 });
 
 
-test('crédito loja é forma válida e conta como recebimento', () => {
+test('crédito loja permanece a receber até entrar pagamento real', () => {
   assert.equal(formaPagamentoValida('credito_loja'), true);
   assert.equal(formaPagamentoValida('forma_nao_permitida'), false);
 
   const historico = [construirPagamento({ valor: 50, formaPagamento: 'credito_loja' })];
   assert.equal(temCreditoLoja(historico), true);
-  assert.equal(saldoDevedor(50, historico), 0);
-  assert.equal(statusPagamentoDe(50, historico), 'quitado');
+  assert.equal(temPagamentoReal(historico), false);
+  assert.equal(totalPago(historico), 0);
+  assert.equal(saldoDevedor(50, historico), 50);
+  assert.equal(statusPagamentoDe(50, historico), 'pendente');
+  assert.equal(emAReceber(50, historico), 50);
+
+  historico.push(construirPagamento({ valor: 20, formaPagamento: 'dinheiro' }));
+  assert.equal(totalPago(historico), 20);
+  assert.equal(saldoDevedor(50, historico), 30);
+  assert.equal(statusPagamentoDe(50, historico), 'parcial');
+  assert.equal(emAReceber(50, historico), 30);
+});
+
+test('migração reabre crédito antigo e sincroniza o pedido vinculado', async () => {
+  const comandoAntigo = {
+    _id: 'comanda-1',
+    pedidoId: 'pedido-1',
+    valorTotal: 50,
+    historicoPagamentos: [{ valor: 50, formaPagamento: 'credito_loja' }],
+    valorPago: 50,
+    saldoDevedor: 0,
+    statusPagamento: 'quitado',
+  };
+  const atualizacoesComanda = [];
+  const atualizacoesPedido = [];
+  const Comanda = {
+    find: () => ({ select: () => ({ lean: async () => [comandoAntigo] }) }),
+    updateOne: async (filtro, alteracao) => { atualizacoesComanda.push({ filtro, alteracao }); return { modifiedCount: 1 }; },
+  };
+  const Order = {
+    updateOne: async (filtro, alteracao) => { atualizacoesPedido.push({ filtro, alteracao }); return { modifiedCount: 1 }; },
+  };
+
+  const resultado = await migrarCreditosLoja({ Comanda, Order });
+
+  assert.deepEqual(resultado, { comandasAtualizadas: 1, pedidosAtualizados: 1 });
+  assert.deepEqual(atualizacoesComanda[0].alteracao.$set, { valorPago: 0, saldoDevedor: 50, statusPagamento: 'pendente' });
+  assert.deepEqual(atualizacoesPedido[0].alteracao.$set, { status: 'pendente' });
 });
 
 

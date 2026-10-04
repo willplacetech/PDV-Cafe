@@ -35,7 +35,9 @@ export const normalizarPagamento = (pagamento) => ({
 
 export const normalizarPagamentos = (pagamentos) => (Array.isArray(pagamentos) ? pagamentos : []).map(normalizarPagamento);
 
-export const totalPago = (pagamentos) => arredondar(normalizarPagamentos(pagamentos).reduce((soma, pagamento) => soma + pagamento.valor, 0));
+export const totalPago = (pagamentos) => arredondar(normalizarPagamentos(pagamentos)
+  .filter((pagamento) => pagamento.tipo !== 'credito_loja')
+  .reduce((soma, pagamento) => soma + pagamento.valor, 0));
 
 export const saldoDevedor = (valorTotal, pagamentos) => arredondar(Math.max(0, Number(valorTotal || 0) - totalPago(pagamentos)));
 

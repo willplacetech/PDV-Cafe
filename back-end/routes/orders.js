@@ -9,6 +9,7 @@ const { precoPorUnidade } = require('../utils/pesoProduto');
 const { produtoControlaPeso } = require('../utils/estoqueProduto');
 const { ajustarEstoque } = require('../utils/movimentarEstoqueVenda');
 const { calcularPrecoComDesconto } = require('../utils/descontosQuantidade');
+const { calcularStatusPagamento, construirPagamento, normalizarPagamentos } = require('../utils/pagamento');
 
 const router = express.Router();
 const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'L'].includes(product?.unidadeVenda));
@@ -22,6 +23,53 @@ const normalizarStatusFiltro = (status) => {
   }
 
   return status;
+};
+
+const statusPedidoDe = (statusPagamento) => (statusPagamento === 'quitado' ? 'pago' : statusPagamento);
+
+const aplicarRecebimentoPedido = async ({ order, tipo, valorRecebido, observacao, taxas, session, quitar = false }) => {
+  if (!['dinheiro', 'pix', 'cartao_credito', 'cartao_debito'].includes(tipo)) throw new Error('Forma de pagamento inválida');
+
+  if (order.comandaId) {
+    const comanda = await Comanda.findById(order.comandaId).session(session);
+    if (!comanda || comanda.status === 'cancelada' || comanda.utilizacaoInterna) throw new Error('Comanda não aceita recebimentos');
+    const situacao = calcularStatusPagamento(comanda);
+    const saldo = situacao.saldoDevedor;
+    if (saldo <= 0) throw new Error('Pedido já está quitado');
+    const valor = quitar ? saldo : money(valorRecebido);
+    if (!Number.isFinite(valor) || valor <= 0) throw new Error('Informe um valor válido para receber');
+    if (valor > saldo) throw new Error('O recebimento não pode ser maior que o saldo pendente');
+
+    comanda.historicoPagamentos.push(construirPagamento({
+      valor,
+      formaPagamento: tipo,
+      taxas,
+      observacao,
+    }));
+    const atualizada = calcularStatusPagamento(comanda);
+    comanda.valorPago = atualizada.valorPago;
+    comanda.saldoDevedor = atualizada.saldoDevedor;
+    comanda.statusPagamento = atualizada.statusPagamento;
+    await comanda.save({ session });
+
+    order.status = statusPedidoDe(atualizada.statusPagamento);
+    await order.save({ session });
+    return { ...order.toObject(), pagamentos: normalizarPagamentos(comanda.historicoPagamentos) };
+  }
+
+  if (!['pendente', 'parcial'].includes(order.status)) throw new Error('Este pedido não aceita novos pagamentos');
+  const pagos = normalizarPagamentos(order.pagamentos)
+    .filter((pagamento) => pagamento.tipo !== 'credito_loja')
+    .reduce((soma, pagamento) => soma + pagamento.valorRecebido, 0);
+  const saldo = money(order.total - pagos);
+  if (saldo <= 0) throw new Error('Pedido já está quitado');
+  const valor = quitar ? saldo : money(valorRecebido);
+  if (!Number.isFinite(valor) || valor <= 0) throw new Error('Informe um valor válido para receber');
+  if (valor > saldo) throw new Error('O recebimento não pode ser maior que o saldo pendente');
+  order.pagamentos.push({ tipo, valorRecebido: valor, ...calcularPagamento(tipo, valor, taxas), dataPagamento: new Date(), quitado: valor === saldo, observacao });
+  order.status = valor === saldo ? 'pago' : 'parcial';
+  await order.save({ session });
+  return order.toObject();
 };
 
 async function buildOrderItems(rawItems, session) {
@@ -78,7 +126,22 @@ router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
     const statusNormalizado = normalizarStatusFiltro(status);
     if (statusNormalizado) filter.status = statusNormalizado;
     if (inicio && fim) filter.createdAt = { $gte: new Date(inicio), $lte: new Date(new Date(fim).setHours(23, 59, 59)) };
-    res.json(await Order.find(filter).sort({ createdAt: -1 }));
+    const pedidos = await Order.find(filter).sort({ createdAt: -1 }).lean();
+    const comandaIds = [...new Set(pedidos.map((pedido) => pedido.comandaId).filter(Boolean).map(String))];
+    const comandas = comandaIds.length
+      ? await Comanda.find({ _id: { $in: comandaIds } }).select('_id valorTotal historicoPagamentos').lean()
+      : [];
+    const comandasPorId = new Map(comandas.map((comanda) => [String(comanda._id), comanda]));
+    res.json(pedidos.map((pedido) => {
+      const comanda = pedido.comandaId ? comandasPorId.get(String(pedido.comandaId)) : null;
+      if (!comanda) return pedido;
+      const situacao = calcularStatusPagamento(comanda);
+      return {
+        ...pedido,
+        status: statusPedidoDe(situacao.statusPagamento),
+        pagamentos: normalizarPagamentos(comanda.historicoPagamentos),
+      };
+    }));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
@@ -165,36 +228,48 @@ router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req,
 });
 
 router.patch('/:id/pagar', auth, auth.allowRoles('admin'), async (req, res) => {
+  const session = await mongoose.startSession();
   try {
-    const order = await Order.findById(req.params.id);
-    if (!order || !['pendente', 'parcial'].includes(order.status)) return res.status(400).json({ msg: 'Este pedido não aceita novos pagamentos' });
-    const paid = order.pagamentos.reduce((sum, payment) => sum + (payment.valorRecebido || 0), 0);
-    const balance = money(order.total - paid);
-    const value = money(req.body.valorRecebido);
-    if (!['dinheiro', 'pix', 'cartao_credito', 'cartao_debito'].includes(req.body.tipo || 'dinheiro')) return res.status(400).json({ msg: 'Forma de pagamento inválida' });
-    if (!Number.isFinite(value) || value <= 0) return res.status(400).json({ msg: 'Informe um valor válido para receber' });
-    if (balance <= 0) return res.status(400).json({ msg: 'Pedido já está quitado' });
-    if (value > balance) return res.status(400).json({ msg: 'O recebimento não pode ser maior que o saldo pendente' });
+    session.startTransaction();
+    const order = await Order.findById(req.params.id).session(session);
+    if (!order) throw new Error('Pedido não encontrado');
     const tipo = req.body.tipo || 'dinheiro';
-    order.pagamentos.push({ tipo, valorRecebido: value, ...calcularPagamento(tipo, value, await obterTaxasCartao()), dataPagamento: new Date(), quitado: value === balance, observacao: req.body.observacao });
-    order.status = value === balance ? 'pago' : 'parcial';
-    await order.save();
-    res.json(order);
-  } catch (err) { res.status(400).json({ msg: err.message }); }
+    const atualizado = await aplicarRecebimentoPedido({
+      order,
+      tipo,
+      valorRecebido: req.body.valorRecebido,
+      observacao: req.body.observacao,
+      taxas: await obterTaxasCartao(),
+      session,
+    });
+    await session.commitTransaction();
+    res.json(atualizado);
+  } catch (err) {
+    if (session.inTransaction()) await session.abortTransaction();
+    res.status(400).json({ msg: err.message });
+  } finally { await session.endSession(); }
 });
 
 router.patch('/:id/quitar', auth, auth.allowRoles('admin'), async (req, res) => {
+  const session = await mongoose.startSession();
   try {
-    const order = await Order.findById(req.params.id);
-    if (!order || !['pendente', 'parcial'].includes(order.status)) return res.status(400).json({ msg: 'Este pedido não aceita quitação' });
-    const paid = order.pagamentos.reduce((sum, payment) => sum + (Number(payment.valorRecebido) || 0), 0);
-    const balance = money(order.total - paid);
-    if (balance <= 0) return res.status(400).json({ msg: 'Pedido já está quitado' });
-    order.pagamentos.push({ tipo: 'dinheiro', valorRecebido: balance, ...calcularPagamento('dinheiro', balance), dataPagamento: new Date(), quitado: true, observacao: 'Quitação total' });
-    order.status = 'pago';
-    await order.save();
-    res.json(order);
-  } catch (err) { res.status(400).json({ msg: err.message }); }
+    session.startTransaction();
+    const order = await Order.findById(req.params.id).session(session);
+    if (!order) throw new Error('Pedido não encontrado');
+    const atualizado = await aplicarRecebimentoPedido({
+      order,
+      tipo: 'dinheiro',
+      observacao: 'Quitação total',
+      taxas: await obterTaxasCartao(),
+      session,
+      quitar: true,
+    });
+    await session.commitTransaction();
+    res.json(atualizado);
+  } catch (err) {
+    if (session.inTransaction()) await session.abortTransaction();
+    res.status(400).json({ msg: err.message });
+  } finally { await session.endSession(); }
 });
 
 router.patch('/cliente/:clienteId/quitar', auth, auth.allowRoles('admin'), async (req, res) => {
@@ -204,19 +279,20 @@ router.patch('/cliente/:clienteId/quitar', auth, auth.allowRoles('admin'), async
     const pedidos = await Order.find({ clienteId: req.params.clienteId, status: { $in: ['pendente', 'parcial'] } }).session(session);
     if (!pedidos.length) throw new Error('Este cliente não possui pendências');
     const tipo = req.body.tipo || 'dinheiro';
-    const tiposAceitos = ['dinheiro', 'pix', 'cartao_credito', 'cartao_debito'];
-    if (!tiposAceitos.includes(tipo)) throw new Error('Forma de pagamento inválida');
     const taxasCartao = await obterTaxasCartao();
-    pedidos.forEach((order) => {
-      const pago = order.pagamentos.reduce((sum, payment) => sum + (Number(payment.valorRecebido) || 0), 0);
-      const saldo = money(order.total - pago);
-      if (saldo <= 0) return;
-      order.pagamentos.push({ tipo, valorRecebido: saldo, ...calcularPagamento(tipo, saldo, taxasCartao), dataPagamento: new Date(), quitado: true, observacao: req.body.observacao || 'Quitação total do cliente' });
-      order.status = 'pago';
-    });
-    await Promise.all(pedidos.map((order) => order.save({ session })));
+    const atualizados = [];
+    for (const order of pedidos) {
+      atualizados.push(await aplicarRecebimentoPedido({
+        order,
+        tipo,
+        observacao: req.body.observacao || 'Quitação total do cliente',
+        taxas: taxasCartao,
+        session,
+        quitar: true,
+      }));
+    }
     await session.commitTransaction();
-    res.json({ pedidos });
+    res.json({ pedidos: atualizados });
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
     res.status(400).json({ msg: err.message });

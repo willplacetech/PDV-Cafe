@@ -40,7 +40,7 @@ export default function ContasReceber() {
   const { showToast } = useToast();
   const produtoNovoPedido = produtos.find((produto) => produto._id === novoPedidoForm.produtoId);
   const passoQuantidadeNovoPedido = permiteFracionar(produtoNovoPedido) ? '0.001' : '1';
-  const saldoPagamentoIndividual = Math.max(0, Number(pagamentoModal?.total || 0) - (pagamentoModal?.pagamentos || []).reduce((soma, pagamento) => soma + (Number(pagamento?.valorRecebido) || 0), 0));
+  const saldoPagamentoIndividual = Math.max(0, Number(pagamentoModal?.total || 0) - somarPagamentos(pagamentoModal?.pagamentos));
 
 
   const carregarDados = useCallback(async () => {
@@ -116,9 +116,7 @@ export default function ContasReceber() {
       const valorTotal = parseFloat(pedido?.total) || 0;
       totalBruto += valorTotal;
 
-      const valorPago = Array.isArray(pedido?.pagamentos)
-        ? pedido.pagamentos.reduce((soma, pg) => soma + (parseFloat(pg?.valorRecebido) || 0), 0)
-        : 0;
+      const valorPago = somarPagamentos(pedido?.pagamentos);
       totalPagoGeral += valorPago;
 
       const status = String(pedido?.status || '').toLowerCase();
@@ -229,9 +227,7 @@ export default function ContasReceber() {
       .filter(p => selecionados.has(p._id))
       .reduce((soma, pedido) => {
         const valorTotal = parseFloat(pedido?.total) || 0;
-        const valorPago = Array.isArray(pedido?.pagamentos)
-          ? pedido.pagamentos.reduce((s, pg) => s + (parseFloat(pg?.valorRecebido) || 0), 0)
-          : 0;
+        const valorPago = somarPagamentos(pedido?.pagamentos);
         return soma + Math.max(0, valorTotal - valorPago);
       }, 0);
   }, [pedidos, selecionados]);
@@ -277,9 +273,7 @@ export default function ContasReceber() {
     for (const pedido of pedidosSelecionados) {
       try {
         const valorTotal = parseFloat(pedido?.total) || 0;
-        const valorPago = Array.isArray(pedido?.pagamentos)
-          ? pedido.pagamentos.reduce((s, pg) => s + (parseFloat(pg?.valorRecebido) || 0), 0)
-          : 0;
+        const valorPago = somarPagamentos(pedido.pagamentos);
         const valorAReceber = valorTotal - valorPago;
 
         const { data: pedidoAtualizado } = await api.patch(`/orders/${pedido._id}/pagar`, {
@@ -314,9 +308,7 @@ export default function ContasReceber() {
   // ✅ Receber pedido individual
   const abrirModalReceber = (pedido) => {
     const valorTotal = parseFloat(pedido?.total) || 0;
-    const valorPago = Array.isArray(pedido?.pagamentos)
-      ? pedido.pagamentos.reduce((soma, pg) => soma + (parseFloat(pg?.valorRecebido) || 0), 0)
-      : 0;
+    const valorPago = somarPagamentos(pedido?.pagamentos);
     const valorAReceber = (valorTotal - valorPago).toFixed(2);
 
     setPagamentoModal(pedido);
@@ -429,19 +421,17 @@ export default function ContasReceber() {
 
     const totaisRel = {
       bruto: pedidos.reduce((s, p) => s + (parseFloat(p.total) || 0), 0),
-      pago: pedidos.reduce((s, p) => s + (Array.isArray(p.pagamentos) ? p.pagamentos.reduce((a, pg) => a + (parseFloat(pg.valorRecebido) || 0), 0) : 0), 0),
+      pago: pedidos.reduce((s, p) => s + somarPagamentos(p.pagamentos), 0),
       aberto: pedidos.reduce((s, p) => {
         const st = String(p.status || '').toLowerCase();
         if (st === 'pago' || st === 'cancelado') return s;
-        const tp = Array.isArray(p.pagamentos) ? p.pagamentos.reduce((a, pg) => a + (parseFloat(pg.valorRecebido) || 0), 0) : 0;
+        const tp = somarPagamentos(p.pagamentos);
         return s + Math.max(0, parseFloat(p.total) - tp);
       }, 0)
     };
 
     const pedidosHtml = pedidos.map(p => {
-      const totalPago = Array.isArray(p.pagamentos)
-        ? p.pagamentos.reduce((ac, pg) => ac + (parseFloat(pg.valorRecebido) || 0), 0)
-        : 0;
+      const totalPago = somarPagamentos(p.pagamentos);
       const falta = Math.max(0, parseFloat(p.total) - totalPago);
 
       return `
@@ -695,9 +685,7 @@ export default function ContasReceber() {
         <div style={{ display: 'grid', gap: 12 }}>
           {pedidos.map(pedido => {
             const st = statusCor[pedido.status];
-            const totalPago = Array.isArray(pedido.pagamentos)
-              ? pedido.pagamentos.reduce((ac, pg) => ac + (parseFloat(pg.valorRecebido) || 0), 0)
-              : 0;
+            const totalPago = somarPagamentos(pedido.pagamentos);
             const falta = Math.max(0, parseFloat(pedido.total) - totalPago);
             const estaSelecionado = selecionados.has(pedido._id);
 

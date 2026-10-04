@@ -43,7 +43,8 @@ const normalizarPagamento = (pagamento) => {
 
 const normalizarPagamentos = (pagamentos) => (Array.isArray(pagamentos) ? pagamentos : []).map(normalizarPagamento).filter(Boolean);
 
-const totalPago = (pagamentos) => dinheiro(normalizarPagamentos(pagamentos).reduce((soma, pagamento) => soma + pagamento.valorRecebido, 0));
+const valorRecebidoReal = (pagamento) => (ehCreditoLoja(pagamento?.tipo) ? 0 : Number(pagamento?.valorRecebido || 0));
+const totalPago = (pagamentos) => dinheiro(normalizarPagamentos(pagamentos).reduce((soma, pagamento) => soma + valorRecebidoReal(pagamento), 0));
 const saldoDevedor = (valorTotal, pagamentos) => dinheiro(Math.max(0, Number(valorTotal || 0) - totalPago(pagamentos)));
 
 const statusPagamentoDe = (valorTotal, pagamentos) => {
@@ -80,7 +81,6 @@ const construirPagamento = ({ valor, formaPagamento, taxas, observacao, usuario 
   };
 };
 
-const valorRecebidoReal = (pagamento) => (ehCreditoLoja(pagamento?.tipo) ? 0 : Number(pagamento?.valorRecebido || 0));
 const recebidoTotal = (pagamentos) => dinheiro(normalizarPagamentos(pagamentos).reduce((soma, pagamento) => soma + valorRecebidoReal(pagamento), 0));
 const temPagamentoReal = (pagamentos) => normalizarPagamentos(pagamentos).some((pagamento) => !ehCreditoLoja(pagamento.tipo) && pagamento.valorRecebido > 0);
 const temCreditoLoja = (pagamentos) => normalizarPagamentos(pagamentos).some((pagamento) => ehCreditoLoja(pagamento.tipo));
@@ -88,9 +88,7 @@ const temCreditoLoja = (pagamentos) => normalizarPagamentos(pagamentos).some((pa
 const emAReceber = (total, pagamentos) => {
   const valorTotal = dinheiro(total);
   if (valorTotal <= 0) return 0;
-  const lista = normalizarPagamentos(pagamentos);
-  if (temCreditoLoja(lista) && !temPagamentoReal(lista)) return 0;
-  return dinheiro(Math.max(0, valorTotal - recebidoTotal(lista)));
+  return dinheiro(Math.max(0, valorTotal - recebidoTotal(pagamentos)));
 };
 
 /**

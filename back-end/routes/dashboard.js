@@ -57,11 +57,8 @@ const pedidoEmAReceberComComanda = (comandasPorId, pedido) => {
   const total = Number(pedido.total || 0);
   if (total <= 0) return 0;
   const lista = pagamentosDe(comandasPorId, pedido);
-  const temCredito = lista.some((pagamento) => pagamento.tipo === 'credito_loja');
-  const temReal = lista.some((pagamento) => pagamento.tipo !== 'credito_loja' && pagamento.valorRecebido > 0);
-  if (temCredito && !temReal) return 0;
   const recebido = lista.filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((soma, pagamento) => soma + pagamento.valorRecebido, 0);
-  return Math.max(0, total - recebido);
+  return Math.round((Math.max(0, total - recebido) + Number.EPSILON) * 100) / 100;
 };
 
 const periodoHistorico = (semanaInicio) => {
