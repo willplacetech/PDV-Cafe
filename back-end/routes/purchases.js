@@ -6,7 +6,7 @@ const Product = require('../models/Product');
 const Purchase = require('../models/Purchase');
 const StockMovement = require('../models/StockMovement');
 const HistoricoCusto = require('../models/HistoricoCusto');
-const { UNIDADES_PERMITIDAS, normalizarUnidade } = require('../utils/unidades');
+const { UNIDADES_PERMITIDAS, normalizarUnidade, validarQuantidadeCompra } = require('../utils/unidades');
 const { paraBase, estoqueTotalBase } = require('../utils/estoqueInsumo');
 const { normalizarEstoqueLegado, produtoControlaPeso } = require('../utils/estoqueProduto');
 
@@ -64,9 +64,12 @@ router.post('/', [
   body('itens').isArray({ min: 1 }),
   body('itens.*.produtoId').isMongoId(),
   body('itens.*.valorTotal').isFloat({ min: 0.000001 }),
-  body('itens.*.qtdEmbalagens').isInt({ min: 1 }),
+  body('itens.*.qtdEmbalagens').isFloat({ min: 0.000001 }),
   body('itens.*.conteudoPorEmbalagem').isFloat({ min: 0.000001 }),
   body('itens.*.unidadeConteudo').isIn(units),
+  body('itens').custom((itens) => Array.isArray(itens) && itens.every((item) => (
+    validarQuantidadeCompra(item.qtdEmbalagens, item.conteudoPorEmbalagem, item.unidadeConteudo)
+  ))).withMessage('Quantidade comprada inválida para a unidade informada'),
 ], async (req, res) => {
   if (!validate(req, res)) return;
 
@@ -85,7 +88,7 @@ router.post('/', [
         const valorTotal = Number(item.valorTotal);
         const qtdEmbalagens = Number(item.qtdEmbalagens);
         const conteudoPorEmbalagem = Number(item.conteudoPorEmbalagem);
-        const quantidadeTotal = qtdEmbalagens * conteudoPorEmbalagem;
+        const quantidadeTotal = Number((qtdEmbalagens * conteudoPorEmbalagem).toFixed(6));
         const quantidadeTotalBase = quantidadeBase(quantidadeTotal, item.unidadeConteudo);
         const custoUnitario = valorTotal / quantidadeTotalBase;
         const estoqueAtualBase = estoqueTotalBase(produto);

@@ -5,6 +5,8 @@ import { useToast } from '../components/useToast.js';
 const units = ['kg', 'L', 'un'];
 const decimalStep = (unit) => unit === 'un' ? '0.01' : '0.001';
 const decimalMinimum = (unit) => unit === 'un' ? 0.01 : 0.001;
+const purchaseQuantityStep = (unit) => unit === 'un' ? '1' : '0.001';
+const purchaseQuantityMinimum = (unit) => unit === 'un' ? 1 : 0.001;
 const newItem = () => ({ produtoId: '', valorTotal: '', qtdEmbalagens: '1', conteudoPorEmbalagem: '', unidadeConteudo: 'un' });
 const today = () => {
   const date = new Date();
@@ -72,6 +74,35 @@ export default function Purchases() {
     setForm((current) => ({ ...current, itens: current.itens.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
   };
 
+  const updatePurchaseQuantity = (index, value) => {
+    setForm((current) => ({
+      ...current,
+      itens: current.itens.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        const content = Number(item.conteudoPorEmbalagem);
+        return {
+          ...item,
+          qtdEmbalagens: value === '' ? '' : content > 0 ? String(Number(value) / content) : value,
+        };
+      }),
+    }));
+  };
+
+  const selectProduct = (index, produtoId) => {
+    const produto = products.find((item) => String(item._id) === String(produtoId));
+    setForm((current) => ({
+      ...current,
+      itens: current.itens.map((item, itemIndex) => itemIndex === index
+        ? {
+          ...item,
+          produtoId,
+          unidadeConteudo: produto?.unidadeConteudo || produto?.unidadeCompra || item.unidadeConteudo,
+          conteudoPorEmbalagem: produto?.conteudoPorEmbalagem > 0 ? String(produto.conteudoPorEmbalagem) : item.conteudoPorEmbalagem,
+        }
+        : item),
+    }));
+  };
+
   const addItem = () => setForm((current) => ({ ...current, itens: [...current.itens, newItem()] }));
   const removeItem = (index) => setForm((current) => ({ ...current, itens: current.itens.length === 1 ? current.itens : current.itens.filter((_, itemIndex) => itemIndex !== index) }));
 
@@ -106,7 +137,7 @@ export default function Purchases() {
     if (produtoExistente) {
       const fallbackIndex = supplyTargetIndex ?? form.itens.findIndex((item) => !item.produtoId);
       const targetIndex = fallbackIndex >= 0 ? fallbackIndex : 0;
-      updateItem(targetIndex, 'produtoId', produtoExistente._id);
+      selectProduct(targetIndex, produtoExistente._id);
       setSupplyModalOpen(false);
       setSupplyTargetIndex(null);
       focusNextInput(targetIndex);
@@ -149,7 +180,17 @@ export default function Purchases() {
       }
       const fallbackIndex = supplyTargetIndex ?? form.itens.findIndex((item) => !item.produtoId);
       const targetIndex = fallbackIndex >= 0 ? fallbackIndex : 0;
-      updateItem(targetIndex, 'produtoId', newProduct._id);
+      setForm((current) => ({
+        ...current,
+        itens: current.itens.map((item, itemIndex) => itemIndex === targetIndex
+          ? {
+            ...item,
+            produtoId: newProduct._id,
+            unidadeConteudo: newProduct.unidadeConteudo || newProduct.unidadeCompra || 'un',
+            conteudoPorEmbalagem: newProduct.conteudoPorEmbalagem > 0 ? String(newProduct.conteudoPorEmbalagem) : item.conteudoPorEmbalagem,
+          }
+          : item),
+      }));
       setSupplyModalOpen(false);
       setSupplyTargetIndex(null);
       focusNextInput(targetIndex);
@@ -197,10 +238,10 @@ export default function Purchases() {
         const unidadeExibicao = metaProduto.unidadeConteudo || unidadeConteudo;
         const valorUnitario = Number(metaProduto.custoUnitarioBase || unitCost || 0);
         return <div className="purchase-item" key={`purchase-item-${index}`}>
-          <label className="purchase-product-field">Produto comprado<div className="purchase-product-input-group"><select required value={item.produtoId} onChange={(event) => updateItem(index, 'produtoId', event.target.value)}><option value="">Selecione</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} [{product.tipo === 'insumo' ? 'Insumo' : 'Revenda'}]</option>)}</select><button type="button" className="secondary purchase-new-supply-button" onClick={() => openSupplyModal(index)}>➕ Novo Produto</button></div></label>
+          <label className="purchase-product-field">Produto comprado<div className="purchase-product-input-group"><select required value={item.produtoId} onChange={(event) => selectProduct(index, event.target.value)}><option value="">Selecione</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} [{product.tipo === 'insumo' ? 'Insumo' : 'Revenda'}]</option>)}</select><button type="button" className="secondary purchase-new-supply-button" onClick={() => openSupplyModal(index)}>➕ Novo Produto</button></div></label>
           <label>Valor total<input required type="number" min="0.01" step="0.01" value={item.valorTotal} onChange={(event) => updateItem(index, 'valorTotal', event.target.value)} /></label>
-          <label>Qtd. embalagens<input required type="number" min="1" step="1" value={item.qtdEmbalagens} onChange={(event) => updateItem(index, 'qtdEmbalagens', event.target.value)} /></label>
-          <label>Quantidade<input required type="number" min={decimalMinimum(item.unidadeConteudo)} step={decimalStep(item.unidadeConteudo)} value={item.conteudoPorEmbalagem} onChange={(event) => updateItem(index, 'conteudoPorEmbalagem', event.target.value)} /></label>
+          <label>Quantidade comprada ({unidadeConteudo})<input required type="number" min={purchaseQuantityMinimum(item.unidadeConteudo)} step={purchaseQuantityStep(item.unidadeConteudo)} value={item.conteudoPorEmbalagem && total > 0 ? String(Number(total.toFixed(item.unidadeConteudo === 'un' ? 0 : 3))) : ''} onChange={(event) => updatePurchaseQuantity(index, event.target.value)} /></label>
+          <label>Conteúdo por embalagem<input required type="number" min={decimalMinimum(item.unidadeConteudo)} step={decimalStep(item.unidadeConteudo)} value={item.conteudoPorEmbalagem} onChange={(event) => updateItem(index, 'conteudoPorEmbalagem', event.target.value)} /></label>
           <label>Unidade<select required value={item.unidadeConteudo} onChange={(event) => updateItem(index, 'unidadeConteudo', event.target.value)}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></label>
           <div className="purchase-calculation"><span>Total: <strong>{formatQuantidade(total, unidadeExibicao)}</strong></span><span>Custo unitario: <strong>{formatCustoUnitario(valorUnitario, unidadeExibicao)}</strong></span></div>
           <button type="button" className="danger" onClick={() => removeItem(index)} disabled={form.itens.length === 1}>Remover</button>

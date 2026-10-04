@@ -376,6 +376,31 @@ describe('API Endpoints', () => {
     expect(res.statusCode).toBe(201);
   });
 
+  test('POST /api/compras → aceita quantidade fracionada em kg', async () => {
+    const res = await request(app)
+      .post('/api/compras')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        fornecedor: 'Fornecedor Teste',
+        numeroNF: '12346',
+        data: new Date().toISOString(),
+        metodoCusteio: 'media_ponderada',
+        itens: [{
+          produtoId: insumo._id,
+          valorTotal: 7,
+          qtdEmbalagens: 0.35,
+          conteudoPorEmbalagem: 1,
+          unidadeConteudo: 'kg',
+        }],
+        valorTotal: 7,
+      });
+
+    expect(res.statusCode).toBe(201);
+    const compra = await Purchase.findOne({ numeroNF: '12346' });
+    expect(compra.itens[0].qtdEmbalagens).toBe(0.35);
+    expect(compra.itens[0].quantidadeTotal).toBe(0.35);
+  });
+
   test('RBAC: usuário cozinha não acessa compras', async () => {
     const res = await request(app)
       .get('/api/compras')
