@@ -367,8 +367,8 @@ export default function PDV() {
           <p>Monte o pedido e abra uma comanda.</p>
         </div>
       </div>
-      <button type="button" className="pdv-mobile-cart-trigger" onClick={() => setMobileCartOpen(true)}>
-        <span>🛒 Carrinho</span>
+      <button type="button" className="pdv-mobile-cart-trigger" onClick={() => setMobileCartOpen((open) => !open)} aria-expanded={mobileCartOpen}>
+        <span>{mobileCartOpen ? '− Minimizar carrinho' : '🛒 Carrinho'}</span>
         <strong>{totalItens} {totalItens === 1 ? 'item' : 'itens'} · R$ {total.toFixed(2).replace('.', ',')}</strong>
       </button>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }} className="pdv-grid">
@@ -517,7 +517,7 @@ export default function PDV() {
                   }}>{totalItens}</span>
                 )}
               </h3>
-              <button type="button" className="pdv-mobile-cart-close" onClick={() => setMobileCartOpen(false)} aria-label="Fechar carrinho">×</button>
+              <button type="button" className="pdv-mobile-cart-close" onClick={() => setMobileCartOpen(false)}>− Minimizar</button>
             </div>
             <label className="pdv-mobile-product-select">
               <span>Adicionar produto</span>
@@ -544,7 +544,7 @@ export default function PDV() {
               </div>
             ) : (
               <>
-                <div style={{ maxHeight: 320, overflowY: 'auto', marginBottom: 14, paddingRight: 4 }}>
+                <div className="pdv-cart-items" style={{ maxHeight: 320, overflowY: 'auto', marginBottom: 14, paddingRight: 4 }}>
                   {carrinho.map((item, i) => {
                     const prod = produtos.find(p => p._id === item.produtoId);
                     const passoQuantidade = permiteFracionar(prod) ? 0.001 : 1;
@@ -708,9 +708,10 @@ export default function PDV() {
           .pdv-grid { gap: 10px !important; min-width: 0; }
           .pdv-grid > div { min-width: 0; }
           .pdv-cart-panel { display: none; }
-          .pdv-cart-panel.mobile-open { display: block; position: fixed; inset: 0; z-index: 1200; overflow-y: auto; padding: 12px; background: var(--bg-primary); }
-          .pdv-cart-panel.mobile-open > div { min-height: calc(100svh - 24px); border-radius: 14px !important; }
-          .pdv-mobile-cart-close { display: inline-flex !important; }
+          .pdv-cart-panel.mobile-open { display: block; position: static; order: -1; overflow: visible; padding: 0; background: transparent; }
+          .pdv-cart-panel.mobile-open > div { min-height: 0; border-radius: 14px !important; }
+          .pdv-cart-panel.mobile-open .pdv-cart-items { max-height: none !important; overflow: visible !important; }
+          .pdv-mobile-cart-close { display: inline-flex !important; width: auto; min-width: 44px; height: 38px; padding: 0 10px; font-size: 12px; font-weight: 700; }
           .pdv-cart-panel.mobile-open .pdv-mobile-product-select { display: grid; gap: 6px; margin: 0 0 14px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
           .pdv-mobile-product-select select { width: 100%; min-height: 48px; padding: 10px 12px; border: 1.5px solid var(--border-color); border-radius: 10px; background: var(--input-bg); color: var(--input-text); font-size: 16px; }
           .pdv-grid > div > div { padding: 12px !important; border-radius: 12px !important; margin-bottom: 10px !important; }

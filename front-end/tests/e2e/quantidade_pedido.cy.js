@@ -48,7 +48,12 @@ describe('Quantidade em novos pedidos', () => {
     visitar('/pdv');
     cy.get('.pdv-mobile-cart-trigger').click();
     cy.get('.pdv-mobile-product-select select').should('be.visible').select('unidade');
+    cy.get('.pdv-cart-panel').should('have.css', 'position', 'static');
     cy.get('.pdv-cart-panel.mobile-open').should('contain', 'Produto por unidade');
+    cy.contains('.product-card', 'Produto por peso').scrollIntoView().should('be.visible');
+    cy.contains('.pdv-mobile-cart-close', 'Minimizar').click();
+    cy.get('.pdv-cart-panel').should('not.be.visible');
+    cy.get('.pdv-mobile-cart-trigger').should('have.attr', 'aria-expanded', 'false');
   });
 
   it('ajusta o passo no novo pedido na conta e aceita peso sem depender da opção fracionada', () => {
