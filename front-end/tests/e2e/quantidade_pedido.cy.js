@@ -43,6 +43,14 @@ describe('Quantidade em novos pedidos', () => {
     cy.get('input[type="number"]').eq(1).should('have.attr', 'step', '1');
   });
 
+  it('adiciona produtos pelo seletor do carrinho no celular', () => {
+    cy.viewport(375, 812);
+    visitar('/pdv');
+    cy.get('.pdv-mobile-cart-trigger').click();
+    cy.get('.pdv-mobile-product-select select').should('be.visible').select('unidade');
+    cy.get('.pdv-cart-panel.mobile-open').should('contain', 'Produto por unidade');
+  });
+
   it('ajusta o passo no novo pedido na conta e aceita peso sem depender da opção fracionada', () => {
     visitar('/contas-receber');
     cy.contains('button', 'Novo pedido').click();

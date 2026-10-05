@@ -519,11 +519,28 @@ export default function PDV() {
               </h3>
               <button type="button" className="pdv-mobile-cart-close" onClick={() => setMobileCartOpen(false)} aria-label="Fechar carrinho">×</button>
             </div>
+            <label className="pdv-mobile-product-select">
+              <span>Adicionar produto</span>
+              <select
+                value=""
+                onChange={(event) => {
+                  const produto = produtos.find((item) => item._id === event.target.value);
+                  if (produto) selecionarProduto(produto);
+                }}
+              >
+                <option value="">Selecione um produto...</option>
+                {produtos.filter((produto) => produto.tipo === 'venda').map((produto) => (
+                  <option key={produto._id} value={produto._id}>
+                    {produto.nome} — {formatMoney(produto.preco)}
+                  </option>
+                ))}
+              </select>
+            </label>
             {carrinho.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)', fontSize: 14 }}>
                 <div style={{ fontSize: 40, marginBottom: 8 }}>🛒</div>
                 Carrinho vazio<br />
-                <span style={{ fontSize: 12 }}>Toque nos produtos ao lado</span>
+                <span style={{ fontSize: 12 }}>Adicione produtos pelo seletor acima ou pelo catálogo</span>
               </div>
             ) : (
               <>
@@ -694,6 +711,8 @@ export default function PDV() {
           .pdv-cart-panel.mobile-open { display: block; position: fixed; inset: 0; z-index: 1200; overflow-y: auto; padding: 12px; background: var(--bg-primary); }
           .pdv-cart-panel.mobile-open > div { min-height: calc(100svh - 24px); border-radius: 14px !important; }
           .pdv-mobile-cart-close { display: inline-flex !important; }
+          .pdv-cart-panel.mobile-open .pdv-mobile-product-select { display: grid; gap: 6px; margin: 0 0 14px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
+          .pdv-mobile-product-select select { width: 100%; min-height: 48px; padding: 10px 12px; border: 1.5px solid var(--border-color); border-radius: 10px; background: var(--input-bg); color: var(--input-text); font-size: 16px; }
           .pdv-grid > div > div { padding: 12px !important; border-radius: 12px !important; margin-bottom: 10px !important; }
           .pdv-grid .product-card { min-height: 96px !important; padding: 10px !important; }
           .pdv-grid [style*="max-height: 420px"] { max-height: 280px !important; }
@@ -702,6 +721,7 @@ export default function PDV() {
         .product-card:active { transform: scale(0.97); }
         .product-card-added { animation: item-added .35s ease; border-color: var(--accent-primary) !important; }
         .pdv-mobile-cart-trigger, .pdv-mobile-cart-close { display: none; }
+        .pdv-mobile-product-select { display: none; }
         .pdv-mobile-cart-trigger { width: 100%; min-height: 50px; margin-bottom: 10px; padding: 10px 14px; align-items: center; justify-content: space-between; gap: 12px; border: 0; border-radius: 12px; background: var(--accent-primary); color: #fff; font: inherit; font-size: 14px; cursor: pointer; box-shadow: var(--shadow-sm); }
         .pdv-mobile-cart-trigger strong { font-size: 13px; white-space: nowrap; }
         .pdv-mobile-cart-close { align-items: center; justify-content: center; width: 38px; height: 38px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 24px; cursor: pointer; }
