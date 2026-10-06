@@ -101,8 +101,18 @@ const telefoneWhatsApp = (telefone) => {
   const digitos = String(telefone || '').replace(/\D/g, '');
   return digitos.length === 10 || digitos.length === 11 ? `55${digitos}` : digitos;
 };
+const urlPublicaDelivery = () => {
+  const configuradas = [process.env.DELIVERY_PUBLIC_URL, process.env.FRONTEND_URL?.split(',')[0]]
+    .map(url => url?.trim())
+    .filter(Boolean);
+  if (process.env.NODE_ENV === 'production') {
+    const publica = configuradas.find(url => !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(?:\/|$)/i.test(url));
+    return (publica || 'https://pdv-delivery-9j0a.onrender.com').replace(/\/$/, '');
+  }
+  return (configuradas[0] || 'http://localhost:5173').replace(/\/$/, '');
+};
 const mensagemWhatsApp = (pedido, tenant) => {
-  const base = (process.env.DELIVERY_PUBLIC_URL || process.env.FRONTEND_URL?.split(',')[0] || 'http://localhost:5173').replace(/\/$/, '');
+  const base = urlPublicaDelivery();
   const link = `${base}/pedido/${pedido.tokenRastreamento}`;
   const template = tenant.configuracao.mensagemWhatsApp || 'Acompanhe sua entrega: {link}';
   const mensagemPronta = template.includes('{link}') ? template.replaceAll('{link}', link) : `${template}\n${link}`;
@@ -124,4 +134,4 @@ const enviarWhatsApp = async (pedido, tenant) => {
   return resultado;
 };
 
-module.exports = { eventos, UUID, erro, texto, numero, validarId, senha, dadosPedido, criarPedido, mudarStatus, rastrear, mensagemWhatsApp, enviarWhatsApp, atualizarDisponibilidade };
+module.exports = { eventos, UUID, erro, texto, numero, validarId, senha, dadosPedido, criarPedido, mudarStatus, rastrear, urlPublicaDelivery, mensagemWhatsApp, enviarWhatsApp, atualizarDisponibilidade };
