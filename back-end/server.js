@@ -11,22 +11,13 @@ const provisionarAdmin = require('./utils/provisionarAdmin');
 
 const app = express();
 
-const allowedOrigins = [
-  ...(process.env.FRONTEND_URL || '').split(','),
-  'https://sabordabraco.onrender.com',
-  'https://saborabraco.onrender.com',
-  'https://pdv-cafe-web-willplacetech.onrender.com',
-  'https://pdv-mern-1.onrender.com',
-  'https://sabordabraco-95pc.onrender.com',
-]
-  .map((origin) => origin.trim().replace(/\/$/, ''))
-  .filter(Boolean);
+const { allowedOrigins } = require('./utils/sessionOrigins');
 
 
 const corsOptions = {
   origin: (requestOrigin, callback) => {
     const normalizedOrigin = requestOrigin?.replace(/\/$/, '');
-    if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin)) {
+    if (!normalizedOrigin || allowedOrigins().includes(normalizedOrigin)) {
       return callback(null, true);
     }
     const error = new Error('Origem não autorizada pelo CORS');
@@ -35,7 +26,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-CSRF-Protection'],
 };
 
 // Middlewares

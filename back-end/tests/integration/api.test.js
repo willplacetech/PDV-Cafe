@@ -17,9 +17,9 @@ let adminToken, operadorToken, cozinhaToken;
 let produtoVenda, insumo;
 
 beforeEach(async () => {
-  const admin = await User.create({ username: 'admin', password: '1234', role: 'admin' });
-  const operador = await User.create({ username: 'operador', password: '1234', role: 'operador' });
-  const cozinha = await User.create({ username: 'cozinha', password: '1234', role: 'cozinha' });
+  const admin = await User.create({ username: 'admin', password: 'senha-segura-123', role: 'admin' });
+  const operador = await User.create({ username: 'operador', password: 'senha-segura-123', role: 'operador' });
+  const cozinha = await User.create({ username: 'cozinha', password: 'senha-segura-123', role: 'cozinha' });
   adminToken = jwt.sign({ id: admin._id, username: admin.username, role: admin.role }, jwtSecret, { expiresIn: '1h' });
   operadorToken = jwt.sign({ id: operador._id, username: operador.username, role: operador.role }, jwtSecret, { expiresIn: '1h' });
   cozinhaToken = jwt.sign({ id: cozinha._id, username: cozinha.username, role: cozinha.role }, jwtSecret, { expiresIn: '1h' });
@@ -37,7 +37,7 @@ describe('API Endpoints', () => {
   test('POST /api/auth/login → retorna token', async () => {
     const res = await request(app)
       .post('/api/auth/login')
-      .send({ username: 'admin', password: '1234' });
+      .send({ username: 'admin', password: 'senha-segura-123' });
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty('token');
     expect(res.body.user.username).toBe('admin');
@@ -535,6 +535,7 @@ describe('API Endpoints', () => {
 
     const parcial = await request(app)
       .patch(`/api/orders/${order._id}/pagar`)
+      .set('Idempotency-Key', require('crypto').randomUUID())
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ tipo: 'pix', valorRecebido: 30 });
     expect(parcial.statusCode).toBe(200);
@@ -554,6 +555,7 @@ describe('API Endpoints', () => {
 
     const quitado = await request(app)
       .patch(`/api/orders/${order._id}/pagar`)
+      .set('Idempotency-Key', require('crypto').randomUUID())
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ tipo: 'dinheiro', valorRecebido: 70 });
     expect(quitado.statusCode).toBe(200);

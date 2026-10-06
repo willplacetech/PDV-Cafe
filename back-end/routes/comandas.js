@@ -8,11 +8,13 @@ const Customer = require('../models/Customer');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const { obterTaxasCartao } = require('../utils/taxasCartao');
-const { calcularStatusPagamento, construirPagamento, formaPagamentoValida, normalizarFormaPagamento, saldoDevedor } = require('../utils/pagamento');
+const { calcularStatusPagamento, construirPagamento, formaPagamentoValida, normalizarFormaPagamento, saldoDevedor, validarCancelamentoFinanceiro } = require('../utils/pagamento');
 const { precoPorUnidade } = require('../utils/pesoProduto');
 const { produtoControlaPeso } = require('../utils/estoqueProduto');
 const { calcularPrecoComDesconto, calcularPrecoGrupo } = require('../utils/descontosQuantidade');
 const { ajustarEstoque } = require('../utils/movimentarEstoqueVenda');
+
+const { executarOperacaoFinanceira } = require('../utils/operacaoFinanceira');
 
 const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -126,6 +128,16 @@ router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (
 });
 
 router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+  const origemOffline = req.body.origemOffline;
+  const origemConfere = (user) => origemOffline && typeof origemOffline === 'object' && !Array.isArray(origemOffline)
+    && typeof origemOffline.ownerId === 'string' && origemOffline.ownerId === String(user?.id ?? user?._id ?? '')
+    && Object.prototype.hasOwnProperty.call(origemOffline, 'tenantId')
+    && (origemOffline.tenantId === null || typeof origemOffline.tenantId === 'string')
+    && origemOffline.tenantId === (user?.tenantId ? String(user.tenantId) : null);
+  const conflitoOrigem = () => res.status(409).json({ code: 'OFFLINE_ORIGIN_MISMATCH',
+    msg: 'A origem desta venda nao corresponde ao operador e comercio atuais. A venda foi preservada para revisao.', recoverable: true });
+  // Pedidos online antigos continuam sem snapshot; a fila nova sempre o envia.
+  if (origemOffline !== undefined && !origemConfere(req.user)) return conflitoOrigem();
   const idTemporario = String(req.body.idTemporario || '').trim().slice(0, 100);
   const session = await mongoose.startSession();
   const idempotencyKey = req.header('Idempotency-Key');
@@ -202,6 +214,12 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
     // O comércio é capturado na venda; a entrega é processada depois, sem bloquear o PDV.
     const entrega = req.body.entrega && typeof req.body.entrega === 'object' && !Array.isArray(req.body.entrega) ? { usuarioId: req.user.id, tenantId: usuarioDelivery?.tenantId, telefone: typeof req.body.entrega.telefone === 'string' ? req.body.entrega.telefone.slice(0, 30) : '', endereco: Object.fromEntries(['rua', 'numero', 'bairro', 'complemento', 'referencia'].map(campo => [campo, typeof req.body.entrega.endereco?.[campo] === 'string' ? req.body.entrega.endereco[campo].slice(0, 300) : ''])), taxaEntrega } : undefined;
     const [comanda] = await Comanda.create([{ entrega, taxaEntrega, idTemporario: idTemporario || undefined, idempotencyKey: idempotencyKey || undefined, idempotencyHash: idempotencyKey ? idempotencyHash : undefined, clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, mesa: req.body.mesa, tipoAtendimento, statusBalcao: tipoAtendimento === 'balcao' ? 'aguardando' : undefined, itens, valorTotal, saldoDevedor: valorTotal, statusPagamento: 'pendente', estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
+    if (origemOffline !== undefined) {
+      // Revalidar depois do trabalho assincromo e antes do commit: inclusive um
+      // mesmo operador reassociado a outro comercio enquanto a venda processa.
+      const liveUser = await User.findById(req.user.id).select('tenantId').lean();
+      if (!origemConfere(liveUser)) { await session.abortTransaction(); return conflitoOrigem(); }
+    }
     await session.commitTransaction();
     res.status(201).json(comanda);
   } catch (err) {
@@ -367,21 +385,23 @@ router.patch('/:id/cancelar', auth, auth.allowRoles('admin', 'operador', 'garcom
     session.startTransaction();
     const comanda = await Comanda.findById(req.params.id).session(session);
     if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
+    const pedidos = await Order.find({ $or: [{ comandaId: comanda._id }, { _id: comanda.pedidoId }] }).session(session);
+    validarCancelamentoFinanceiro(comanda.historicoPagamentos, pedidos);
     if (comanda.estoqueBaixado) await ajustarEstoque(comanda.itens, 'devolver', session);
     comanda.status = 'cancelada';
+    comanda.estoqueBaixado = false;
     await comanda.save({ session });
     await session.commitTransaction();
     res.json(comanda);
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
-    res.status(400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message });
   } finally { await session.endSession(); }
 });
 
 router.patch('/:id/receber-parcial', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
-  const session = await mongoose.startSession();
   try {
-    session.startTransaction();
+    const resultado = await executarOperacaoFinanceira({ req, tipo: 'comanda-receber', recursoId: req.params.id, executar: async (session, dataRecebimento) => {
     const comanda = await Comanda.findById(req.params.id).session(session);
     if (!comanda || comanda.status !== 'aberta') throw new Error('Comanda não está aberta');
 
@@ -404,6 +424,7 @@ router.patch('/:id/receber-parcial', auth, auth.allowRoles('admin', 'operador', 
       formaPagamento,
       taxas: await obterTaxasCartao(),
       observacao: req.body.observacao,
+      data: dataRecebimento,
       usuario: req.user?.username || 'sistema',
     });
     if (pagamento.valor > saldoAtual) {
@@ -419,12 +440,12 @@ router.patch('/:id/receber-parcial', auth, auth.allowRoles('admin', 'operador', 
     comanda.statusPagamento = atualizacao.statusPagamento;
 
     await comanda.save({ session });
-    await session.commitTransaction();
-    res.json(comanda);
+    return comanda;
+    } });
+    res.json(resultado);
   } catch (err) {
-    if (session.inTransaction()) await session.abortTransaction();
-    res.status(400).json({ msg: err.message });
-  } finally { await session.endSession(); }
+    res.status(err.status || 400).json({ msg: err.message });
+  }
 });
 
 router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
@@ -461,15 +482,17 @@ router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador', 'garcom'
 });
 
 router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
-  const session = await mongoose.startSession();
   try {
-    session.startTransaction();
+    const resultado = await executarOperacaoFinanceira({ req, tipo: 'comanda-fechar', recursoId: req.params.id, executar: async (session, dataRecebimento) => {
     const comanda = await Comanda.findById(req.params.id).session(session);
     if (!comanda || comanda.status !== 'aberta' || !comanda.itens.length) throw new Error('Comanda sem itens ou já fechada');
     await recalcularPrecosComanda(comanda, session);
     const utilizacaoInterna = Boolean(req.body.utilizacaoInterna);
     const metodoPagamento = normalizarFormaPagamento(req.body.metodoPagamento);
-    if (!comanda.estoqueBaixado) await ajustarEstoque(comanda.itens, 'baixar', session);
+    if (!comanda.estoqueBaixado) {
+      await ajustarEstoque(comanda.itens, 'baixar', session);
+      comanda.estoqueBaixado = true;
+    }
     const subtotal = calcularSubtotalComanda(comanda.itens);
     const discount = money(req.body.desconto || 0);
     if (discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
@@ -489,7 +512,8 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
         formaPagamento: pagamentoFinal,
         taxas: taxasCartao,
         observacao: 'Fechamento da comanda',
-        usuario: req.user.username,
+        data: dataRecebimento,
+      usuario: req.user.username,
       }));
     }
     comanda.historicoPagamentos = historico;
@@ -541,12 +565,12 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     comanda.saldoDevedor = situacaoFinal.saldoDevedor;
     comanda.statusPagamento = utilizacaoInterna ? 'quitado' : situacaoFinal.statusPagamento;
     await comanda.save({ session });
-    await session.commitTransaction();
-    res.json({ comanda, pedido: order });
+    return { comanda, pedido: order };
+    } });
+    res.json(resultado);
   } catch (err) {
-    if (session.inTransaction()) await session.abortTransaction();
-    res.status(400).json({ msg: err.message });
-  } finally { await session.endSession(); }
+    res.status(err.status || 400).json({ msg: err.message });
+  }
 });
 
 module.exports = router;

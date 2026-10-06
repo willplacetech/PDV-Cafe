@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { attachSessionInterceptors } from './sessionInterceptors.js';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'https://pdv-cafe-back.onrender.com/api',
@@ -17,12 +18,12 @@ const finalizarRequisicao = (config) => {
 };
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('pdv_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
   config.pdvRequisicaoEmAndamento = true;
   emitirEventoApi('pdv:request-start');
   return config;
 });
+
+attachSessionInterceptors(api);
 
 api.interceptors.response.use(
   (res) => { finalizarRequisicao(res.config); return res; },
@@ -35,11 +36,6 @@ api.interceptors.response.use(
       code: err.code,
       message: err.message,
     });
-    if (err.response?.status === 401) {
-      localStorage.removeItem('pdv_token');
-      localStorage.removeItem('pdv_user');
-      if (window.location.pathname !== '/login') window.location.assign('/login');
-    }
     if (err.response?.status >= 500) {
       const msg = 'O servidor encontrou um problema. Aguarde um instante e tente novamente.';
       const data = err.response.data;

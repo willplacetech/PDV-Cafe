@@ -38,10 +38,28 @@ const normalizarContagem = (body, obrigatorio = false) => {
   return { valorContado: totais.totalDinheiro, cedulas, moedas, ...totais };
 };
 
+const normalizarDataCaixa = (valor) => dataCaixa(dataCaixa(valor).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }));
+
+// Include the read version in every write so a stale snapshot cannot alter a
+// closed caixa or overwrite another operation. Legacy documents may lack __v.
+const filtroCaixaAberto = (fechamento) => ({
+  _id: fechamento._id,
+  status: 'aberto',
+  ...(fechamento.__v ? { __v: fechamento.__v } : { $or: [{ __v: 0 }, { __v: { $exists: false } }] }),
+});
+
+const gravarCaixaAberto = (fechamento, campos) => FechamentoCaixa.findOneAndUpdate(
+  filtroCaixaAberto(fechamento),
+  { $set: campos, $inc: { __v: 1 } },
+  { new: true, runValidators: true },
+);
+
+const conflitoCaixa = (res) => res.status(409).json({ msg: 'Caixa alterado ou fechado durante a operação. Atualize e tente novamente' });
+
 const carregarCaixa = async (data, turno) => {
   const { inicio, fim } = faixaDoDia(data);
-  const fechamentoAberto = await FechamentoCaixa.findOne({ data: { $gte: inicio, $lt: fim }, turno, status: 'aberto' });
-  const fechamentoFechado = fechamentoAberto ? null : await FechamentoCaixa.findOne({ data: { $gte: inicio, $lt: fim }, turno, status: 'fechado' }).sort({ createdAt: -1 });
+  const fechamentoAberto = await FechamentoCaixa.findOne({ data: { $gte: inicio, $lt: fim }, turno, status: 'aberto', tipoRegistro: { $ne: 'ajuste' } });
+  const fechamentoFechado = fechamentoAberto ? null : await FechamentoCaixa.findOne({ data: { $gte: inicio, $lt: fim }, turno, status: 'fechado', tipoRegistro: { $ne: 'ajuste' } }).sort({ createdAt: -1 });
   const fechamento = fechamentoAberto || fechamentoFechado;
   if (fechamento?.status === 'fechado') return { fechamento, sistema: fechamento.sistema, outrosMeios: fechamento.outrosMeios };
   const base = await buscarBaseSistema(inicio, turno);
@@ -55,7 +73,7 @@ const carregarCaixa = async (data, turno) => {
 
 router.get('/atual', async (req, res) => {
   try {
-    const data = dataCaixa(req.query.data);
+    const data = normalizarDataCaixa(req.query.data);
     const turno = String(req.query.turno || 'principal').trim();
     const atual = await carregarCaixa(data, turno);
     res.json({ data, turno, ...atual });
@@ -64,13 +82,17 @@ router.get('/atual', async (req, res) => {
 
 router.post('/abrir', async (req, res) => {
   try {
-    const data = dataCaixa(req.body.data);
+    await FechamentoCaixa.init();
+    const data = normalizarDataCaixa(req.body.data);
     const turno = String(req.body.turno || 'principal').trim();
     const atual = await carregarCaixa(data, turno);
     if (atual.fechamento) return res.json(atual.fechamento);
-    const fechamento = await FechamentoCaixa.create({ data, turno, usuarioAbertura: req.user.username, sistema: atual.sistema, outrosMeios: atual.outrosMeios });
+    const fechamento = await FechamentoCaixa.create({ data, turno, chaveAbertura: JSON.stringify([data.toISOString(), turno]), usuarioAbertura: req.user.username, sistema: atual.sistema, outrosMeios: atual.outrosMeios });
     res.status(201).json(fechamento);
-  } catch (error) { res.status(400).json({ msg: error.message }); }
+  } catch (error) {
+    if (error.code === 11000) return conflitoCaixa(res);
+    res.status(400).json({ msg: error.message });
+  }
 });
 
 router.post('/:id/movimentos', async (req, res) => {
@@ -86,8 +108,9 @@ router.post('/:id/movimentos', async (req, res) => {
     fechamento.sistema[tipo].push({ valor: money(valor), responsavel, motivo, data: new Date() });
     const base = await buscarBaseSistema(fechamento.data, fechamento.turno);
     fechamento.sistema = prepararSistema(base, fechamento);
-    await fechamento.save();
-    res.status(201).json(fechamento);
+    const atualizado = await gravarCaixaAberto(fechamento, { sistema: fechamento.sistema.toObject() });
+    if (!atualizado) return conflitoCaixa(res);
+    res.status(201).json(atualizado);
   } catch (error) { res.status(400).json({ msg: error.message }); }
 });
 
@@ -96,9 +119,10 @@ router.post('/:id/contagem-parcial', async (req, res) => {
     const fechamento = await FechamentoCaixa.findById(req.params.id);
     if (!fechamento) return res.status(404).json({ msg: 'Fechamento não encontrado' });
     if (fechamento.status === 'fechado') return res.status(409).json({ msg: 'Fechamento fechado e bloqueado para edição' });
-    fechamento.contagemFisica = normalizarContagem(req.body);
-    await fechamento.save();
-    res.json(fechamento);
+    const contagemFisica = normalizarContagem(req.body);
+    const atualizado = await gravarCaixaAberto(fechamento, { contagemFisica });
+    if (!atualizado) return conflitoCaixa(res);
+    res.json(atualizado);
   } catch (error) { res.status(400).json({ msg: error.message }); }
 });
 
@@ -113,14 +137,16 @@ router.post('/:id/fechar', async (req, res) => {
     const conferencia = calcularConferencia(contagemFisica.totalDinheiro, sistema.saldoEsperado);
     const observacao = String(req.body.observacao || '').trim();
     if (Math.abs(conferencia.diferenca) > 5 && !observacao) return res.status(400).json({ msg: 'Diferença acima de R$ 5,00 exige justificativa' });
-    fechamento.sistema = sistema;
-    fechamento.outrosMeios = base.outrosMeios;
-    fechamento.contagemFisica = contagemFisica;
-    fechamento.conferencia = { ...conferencia, observacao, conferidoEm: new Date() };
-    fechamento.usuarioFechamento = req.user.username;
-    fechamento.status = 'fechado';
-    await fechamento.save();
-    res.json(fechamento);
+    const atualizado = await gravarCaixaAberto(fechamento, {
+      sistema,
+      outrosMeios: base.outrosMeios,
+      contagemFisica,
+      conferencia: { ...conferencia, observacao, conferidoEm: new Date() },
+      usuarioFechamento: req.user.username,
+      status: 'fechado',
+    });
+    if (!atualizado) return conflitoCaixa(res);
+    res.json(atualizado);
   } catch (error) { res.status(400).json({ msg: error.message }); }
 });
 

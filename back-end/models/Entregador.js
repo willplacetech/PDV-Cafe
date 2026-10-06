@@ -1,12 +1,13 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { validatePassword } = require('../utils/passwordPolicy');
 
 const entregadorSchema = new mongoose.Schema({
   nome: { type: String, required: true, trim: true, maxlength: 160 },
   telefone: { type: String, required: true, unique: true, match: /^\d{10,15}$/, set: valor => typeof valor === 'string' ? valor.replace(/\D/g, '') : valor },
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', default: null },
   ativo: { type: Boolean, default: true },
-  senhaAcesso: { type: String, required: true, minlength: 8, maxlength: 72, select: false, validate: valor => Buffer.byteLength(valor, 'utf8') <= 72 },
+  senhaAcesso: { type: String, required: true, select: false },
   status: { type: String, enum: ['offline', 'disponivel', 'em_entrega'], default: 'offline' },
   posicaoAtual: {
     type: new mongoose.Schema({
@@ -17,6 +18,13 @@ const entregadorSchema = new mongoose.Schema({
     default: undefined,
   },
 }, { timestamps: true });
+
+entregadorSchema.pre('validate', function(next) {
+  try {
+    if (this.isModified('senhaAcesso')) validatePassword(this.senhaAcesso);
+    next();
+  } catch (error) { next(error); }
+});
 
 entregadorSchema.pre('save', async function(next) {
   try {

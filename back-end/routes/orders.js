@@ -9,7 +9,9 @@ const { precoPorUnidade } = require('../utils/pesoProduto');
 const { produtoControlaPeso } = require('../utils/estoqueProduto');
 const { ajustarEstoque } = require('../utils/movimentarEstoqueVenda');
 const { calcularPrecoComDesconto } = require('../utils/descontosQuantidade');
-const { calcularStatusPagamento, construirPagamento, normalizarPagamentos } = require('../utils/pagamento');
+const { calcularStatusPagamento, construirPagamento, normalizarPagamentos, pagamentosDoPedido, validarCancelamentoFinanceiro } = require('../utils/pagamento');
+
+const { executarOperacaoFinanceira } = require('../utils/operacaoFinanceira');
 
 const router = express.Router();
 const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'L'].includes(product?.unidadeVenda));
@@ -27,7 +29,7 @@ const normalizarStatusFiltro = (status) => {
 
 const statusPedidoDe = (statusPagamento) => (statusPagamento === 'quitado' ? 'pago' : statusPagamento);
 
-const aplicarRecebimentoPedido = async ({ order, tipo, valorRecebido, observacao, taxas, session, quitar = false }) => {
+const aplicarRecebimentoPedido = async ({ order, tipo, valorRecebido, observacao, taxas, session, dataRecebimento, quitar = false }) => {
   if (!['dinheiro', 'pix', 'cartao_credito', 'cartao_debito'].includes(tipo)) throw new Error('Forma de pagamento inválida');
 
   if (order.comandaId) {
@@ -43,6 +45,7 @@ const aplicarRecebimentoPedido = async ({ order, tipo, valorRecebido, observacao
     comanda.historicoPagamentos.push(construirPagamento({
       valor,
       formaPagamento: tipo,
+      data: dataRecebimento,
       taxas,
       observacao,
     }));
@@ -66,7 +69,7 @@ const aplicarRecebimentoPedido = async ({ order, tipo, valorRecebido, observacao
   const valor = quitar ? saldo : money(valorRecebido);
   if (!Number.isFinite(valor) || valor <= 0) throw new Error('Informe um valor válido para receber');
   if (valor > saldo) throw new Error('O recebimento não pode ser maior que o saldo pendente');
-  order.pagamentos.push({ tipo, valorRecebido: valor, ...calcularPagamento(tipo, valor, taxas), dataPagamento: new Date(), quitado: valor === saldo, observacao });
+  order.pagamentos.push({ tipo, valorRecebido: valor, ...calcularPagamento(tipo, valor, taxas), dataPagamento: dataRecebimento || new Date(), quitado: valor === saldo, observacao });
   order.status = valor === saldo ? 'pago' : 'parcial';
   await order.save({ session });
   return order.toObject();
@@ -163,39 +166,83 @@ router.get('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
 });
 
 router.patch('/:id/alterar-comanda', auth, auth.allowRoles('admin'), async (req, res) => {
+  const comandaId = req.body.comandaId;
+  if (!comandaId) return res.status(400).json({ msg: 'Informe a comanda de destino' });
+  if (!mongoose.isValidObjectId(comandaId)) return res.status(400).json({ msg: 'Comanda invalida' });
+  const session = await mongoose.startSession();
   try {
-    const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json({ msg: 'Pedido não encontrado' });
-    if (!['pendente', 'parcial'].includes(order.status)) return res.status(400).json({ msg: 'Somente pedidos em aberto podem ser movidos para outra comanda' });
-
-    const comandaId = req.body.comandaId;
-    if (!comandaId) return res.status(400).json({ msg: 'Informe a comanda de destino' });
-    if (!mongoose.isValidObjectId(comandaId)) return res.status(400).json({ msg: 'Comanda inválida' });
-
-    const novaComanda = await Comanda.findById(comandaId);
-    if (!novaComanda || novaComanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda de destino não está aberta' });
-
-    if (order.comandaId && String(order.comandaId) !== String(comandaId)) {
-      const comandaAnterior = await Comanda.findById(order.comandaId);
-      if (comandaAnterior && String(comandaAnterior._id) !== String(comandaId)) {
-        comandaAnterior.pedidoId = undefined;
-        comandaAnterior.observacao = comandaAnterior.observacao || '';
-        await comandaAnterior.save();
+    let resultado;
+    await session.withTransaction(async () => {
+      const conflito = (msg) => { throw Object.assign(new Error(msg), { status: 409 }); };
+      const order = await Order.findById(req.params.id).session(session);
+      if (!order) throw Object.assign(new Error('Pedido nao encontrado'), { status: 404 });
+      if (!['pendente', 'parcial'].includes(order.status)) conflito('Somente pedidos em aberto podem ser transferidos');
+      if (String(order.comandaId || '') === String(comandaId)) {
+        resultado = order.toObject();
+        return;
       }
-    }
+      const novaComanda = await Comanda.findById(comandaId).session(session);
+      if (!novaComanda || novaComanda.status !== 'aberta') conflito('Comanda de destino nao esta aberta');
+      if (novaComanda.itens.length || novaComanda.historicoPagamentos.length || novaComanda.valorTotal || novaComanda.taxaEntrega || novaComanda.desconto || novaComanda.pedidoId || novaComanda.estoqueBaixado || novaComanda.utilizacaoInterna || novaComanda.entrega) {
+        conflito('A transferencia exige uma comanda de destino vazia, sem pagamentos, pedido ou entrega');
+      }
+      if (novaComanda.clienteId && String(novaComanda.clienteId) !== String(order.clienteId || '')) conflito('Comanda de destino pertence a outro cliente');
+      if (await Order.exists({ comandaId }).session(session)) conflito('Comanda de destino ja possui um pedido vinculado');
+      if (order.utilizacaoInterna || ['processando', 'autorizada', 'cancelada'].includes(order.nfce?.status) || order.pagamentos.some(p => ['pendente', 'emitido'].includes(p.fiscal?.status))) {
+        conflito('Pedido com utilizacao interna ou documento fiscal vinculado exige transferencia especifica');
+      }
 
-    if (order.comandaId && String(order.comandaId) === String(comandaId)) {
-      return res.json(order);
-    }
-
-    order.comandaId = comandaId;
-    novaComanda.pedidoId = order._id;
-    await Promise.all([order.save(), novaComanda.save()]);
-
-    res.json(order);
+      const anterior = order.comandaId ? await Comanda.findById(order.comandaId).session(session) : null;
+      if (order.comandaId && (!anterior || anterior.status === 'cancelada' || anterior.utilizacaoInterna || anterior.entrega || String(anterior.pedidoId || '') !== order.id)) {
+        conflito('Comanda de origem inconsistente ou vinculada a entrega; transferencia exige revisao');
+      }
+      if (anterior && (money(anterior.valorTotal) !== money(order.total) || await Order.exists({ comandaId: anterior._id, _id: { $ne: order._id } }).session(session))) {
+        conflito('Comanda de origem possui valores ou pedidos incompatíveis com a transferencia integral');
+      }
+      const historico = anterior ? anterior.historicoPagamentos.map(p => p.toObject()) : order.pagamentos.map(p => ({
+        _id: p._id, valor: p.valorRecebido, formaPagamento: p.tipo, taxaPercentual: p.taxaPercentual,
+        taxaValor: p.taxaValor, valorLiquido: p.valorLiquido, data: p.dataPagamento,
+        observacao: p.observacao, usuario: order.atendente,
+      }));
+      const situacao = calcularStatusPagamento({ valorTotal: order.total, historicoPagamentos: historico });
+      if (situacao.saldoDevedor <= 0) conflito('Pedido ja quitado; atualize antes de transferir');
+      const origem = anterior ? { ...anterior.toObject(), comandaId: anterior._id } : { ...order.toObject(), comandaId: null, valorTotal: order.total, historicoPagamentos: historico };
+      order.transferenciasComanda.push({ origem, destinoComandaId: novaComanda._id, data: new Date(), usuario: req.user.username });
+      novaComanda.itens = anterior ? anterior.itens.map(item => item.toObject()) : order.itens.map(item => item.toObject());
+      novaComanda.valorTotal = order.total;
+      novaComanda.taxaEntrega = order.taxaEntrega;
+      novaComanda.desconto = order.desconto;
+      novaComanda.historicoPagamentos = historico;
+      novaComanda.estoqueBaixado = anterior ? anterior.estoqueBaixado : true;
+      novaComanda.clienteId = order.clienteId;
+      novaComanda.clienteNome = order.clienteNome || anterior?.clienteNome || novaComanda.clienteNome;
+      novaComanda.tipoAtendimento = order.tipoAtendimento;
+      // This order was already created. Closing the destination prevents a second
+      // order and another inventory movement through the normal closing route.
+      novaComanda.status = 'fechada';
+      novaComanda.pedidoId = order._id;
+      if (anterior) {
+        anterior.pedidoId = undefined;
+        anterior.itens = [];
+        anterior.valorTotal = 0;
+        anterior.taxaEntrega = 0;
+        anterior.desconto = 0;
+        anterior.historicoPagamentos = [];
+        anterior.estoqueBaixado = false;
+        anterior.status = 'fechada';
+        await anterior.save({ session });
+      }
+      order.comandaId = novaComanda._id;
+      order.pagamentos = [];
+      order.status = statusPedidoDe(situacao.statusPagamento);
+      await order.save({ session });
+      await novaComanda.save({ session });
+      resultado = { ...order.toObject(), pagamentos: normalizarPagamentos(historico) };
+    });
+    res.json(resultado);
   } catch (err) {
-    res.status(400).json({ msg: err.message });
-  }
+    res.status(err.status || 400).json({ msg: err.message });
+  } finally { await session.endSession(); }
 });
 
 router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req, res) => {
@@ -237,9 +284,8 @@ router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req,
 });
 
 router.patch('/:id/pagar', auth, auth.allowRoles('admin'), async (req, res) => {
-  const session = await mongoose.startSession();
   try {
-    session.startTransaction();
+    const resultado = await executarOperacaoFinanceira({ req, tipo: 'pedido-pagar', recursoId: req.params.id, executar: async (session, dataRecebimento) => {
     const order = await Order.findById(req.params.id).session(session);
     if (!order) throw new Error('Pedido não encontrado');
     const tipo = req.body.tipo || 'dinheiro';
@@ -250,19 +296,19 @@ router.patch('/:id/pagar', auth, auth.allowRoles('admin'), async (req, res) => {
       observacao: req.body.observacao,
       taxas: await obterTaxasCartao(),
       session,
+      dataRecebimento,
     });
-    await session.commitTransaction();
-    res.json(atualizado);
+    return atualizado;
+    } });
+    res.json(resultado);
   } catch (err) {
-    if (session.inTransaction()) await session.abortTransaction();
-    res.status(400).json({ msg: err.message });
-  } finally { await session.endSession(); }
+    res.status(err.status || 400).json({ msg: err.message });
+  }
 });
 
 router.patch('/:id/quitar', auth, auth.allowRoles('admin'), async (req, res) => {
-  const session = await mongoose.startSession();
   try {
-    session.startTransaction();
+    const resultado = await executarOperacaoFinanceira({ req, tipo: 'pedido-quitar', recursoId: req.params.id, executar: async (session, dataRecebimento) => {
     const order = await Order.findById(req.params.id).session(session);
     if (!order) throw new Error('Pedido não encontrado');
     const atualizado = await aplicarRecebimentoPedido({
@@ -271,20 +317,20 @@ router.patch('/:id/quitar', auth, auth.allowRoles('admin'), async (req, res) => 
       observacao: 'Quitação total',
       taxas: await obterTaxasCartao(),
       session,
+      dataRecebimento,
       quitar: true,
     });
-    await session.commitTransaction();
-    res.json(atualizado);
+    return atualizado;
+    } });
+    res.json(resultado);
   } catch (err) {
-    if (session.inTransaction()) await session.abortTransaction();
-    res.status(400).json({ msg: err.message });
-  } finally { await session.endSession(); }
+    res.status(err.status || 400).json({ msg: err.message });
+  }
 });
 
 router.patch('/cliente/:clienteId/quitar', auth, auth.allowRoles('admin'), async (req, res) => {
-  const session = await mongoose.startSession();
   try {
-    session.startTransaction();
+    const resultado = await executarOperacaoFinanceira({ req, tipo: 'cliente-quitar', recursoId: req.params.clienteId, executar: async (session, dataRecebimento) => {
     const pedidos = await Order.find({ clienteId: req.params.clienteId, status: { $in: ['pendente', 'parcial'] } }).session(session);
     if (!pedidos.length) throw new Error('Este cliente não possui pendências');
     const tipo = req.body.tipo || 'dinheiro';
@@ -297,15 +343,16 @@ router.patch('/cliente/:clienteId/quitar', auth, auth.allowRoles('admin'), async
         observacao: req.body.observacao || 'Quitação total do cliente',
         taxas: taxasCartao,
         session,
+      dataRecebimento,
         quitar: true,
       }));
     }
-    await session.commitTransaction();
-    res.json({ pedidos: atualizados });
+    return { pedidos: atualizados };
+    } });
+    res.json(resultado);
   } catch (err) {
-    if (session.inTransaction()) await session.abortTransaction();
-    res.status(400).json({ msg: err.message });
-  } finally { await session.endSession(); }
+    res.status(err.status || 400).json({ msg: err.message });
+  }
 });
 
 router.patch('/:id/cancelar', auth, auth.allowRoles('admin'), async (req, res) => {
@@ -315,6 +362,12 @@ router.patch('/:id/cancelar', auth, auth.allowRoles('admin'), async (req, res) =
     const order = await Order.findById(req.params.id).session(session);
     if (!order || !['pendente', 'parcial'].includes(order.status)) throw new Error('Somente pedidos pendentes ou parciais podem ser cancelados');
     const comanda = order.comandaId ? await Comanda.findById(order.comandaId).session(session) : null;
+    if (order.comandaId && !comanda) {
+      const erro = new Error('Cancelamento bloqueado: comanda vinculada ausente. Regularize o historico financeiro antes de cancelar.');
+      erro.status = 409;
+      throw erro;
+    }
+    validarCancelamentoFinanceiro(pagamentosDoPedido(order, comanda), [order]);
     if (!comanda || comanda.estoqueBaixado) {
       await ajustarEstoque(order.itens, 'devolver', session, { legadoPedido: !comanda });
     }
@@ -329,7 +382,7 @@ router.patch('/:id/cancelar', auth, auth.allowRoles('admin'), async (req, res) =
     res.json(order);
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
-    res.status(400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message });
   } finally { await session.endSession(); }
 });
 

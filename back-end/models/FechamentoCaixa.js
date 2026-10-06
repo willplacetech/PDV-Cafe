@@ -18,6 +18,7 @@ const fechamentoCaixaSchema = new mongoose.Schema({
   usuarioFechamento: String,
   turno: { type: String, required: true, trim: true, default: 'principal' },
   tipoRegistro: { type: String, enum: ['fechamento', 'ajuste'], default: 'fechamento' },
+  chaveAbertura: { type: String },
   fechamentoOriginalId: { type: mongoose.Schema.Types.ObjectId, ref: 'FechamentoCaixa' },
   ajusteValor: { type: Number, default: 0 },
   ajusteMotivo: { type: String, default: '' },
@@ -58,5 +59,11 @@ const fechamentoCaixaSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 fechamentoCaixaSchema.index({ data: 1, turno: 1, status: 1 });
+// Only new openings carry this key. Existing history can contain duplicates,
+// and adjustment records must not compete with their original fechamento.
+fechamentoCaixaSchema.index({ chaveAbertura: 1 }, {
+  unique: true,
+  partialFilterExpression: { tipoRegistro: 'fechamento', chaveAbertura: { $type: 'string' } },
+});
 
 module.exports = mongoose.model('FechamentoCaixa', fechamentoCaixaSchema);

@@ -296,10 +296,10 @@ test('taxa de entrega é cobrada no caixa, preservada no recálculo e no fechame
   expect(venda.body.saldoDevedor).toBe(12);
   const alterada = await api('patch', `/comandas/${venda.body._id}/itens/${venda.body.itens[0]._id}`, pdvToken).send({ quantidade: 2 });
   expect(alterada.body.valorTotal).toBe(20);
-  const parcial = await api('patch', `/comandas/${venda.body._id}/receber-parcial`, pdvToken).send({ valorRecebido: 5, formaPagamento: 'dinheiro' });
+  const parcial = await api('patch', `/comandas/${venda.body._id}/receber-parcial`, pdvToken).set('Idempotency-Key', require('crypto').randomUUID()).send({ valorRecebido: 5, formaPagamento: 'dinheiro' });
   expect(parcial.status).toBe(200);
   expect(parcial.body.saldoDevedor).toBe(15);
-  const fechar = await api('post', `/comandas/${venda.body._id}/fechar`, pdvToken).send({ metodoPagamento: 'dinheiro', desconto: 0 });
+  const fechar = await api('post', `/comandas/${venda.body._id}/fechar`, pdvToken).set('Idempotency-Key', require('crypto').randomUUID()).send({ metodoPagamento: 'dinheiro', desconto: 0 });
   expect(fechar.status).toBe(200);
   expect(fechar.body.pedido).toMatchObject({ subtotal: 16, taxaEntrega: 4, total: 20 });
   expect(fechar.body.comanda.valorPago).toBe(20);
@@ -313,7 +313,7 @@ test('adicionar itens a pedido A Receber conserva a taxa de entrega e o saldo', 
   const pdvToken = assinar(pdv);
   const produto = await Product.create({ codigo: 'DEL-4', nome: 'Cafe', tipo: 'venda', categoria: 'Bebidas Quentes', preco: 8, estoque: 10 });
   const venda = await api('post', '/comandas', pdvToken).send({ clienteNome: 'Maria', itens: [{ produtoId: produto.id, quantidade: 1 }], entrega: { telefone: '11988888888', endereco: dados().origem.endereco, taxaEntrega: 4 } });
-  const fechar = await api('post', `/comandas/${venda.body._id}/fechar`, pdvToken).send({ metodoPagamento: 'credito_loja', desconto: 0 });
+  const fechar = await api('post', `/comandas/${venda.body._id}/fechar`, pdvToken).set('Idempotency-Key', require('crypto').randomUUID()).send({ metodoPagamento: 'credito_loja', desconto: 0 });
   expect(fechar.status).toBe(200);
   const adicionado = await api('patch', `/orders/${fechar.body.pedido._id}/adicionar-itens`, pdvToken).send({ itens: [{ produtoId: produto.id, quantidade: 1 }] });
   expect(adicionado.status).toBe(200);

@@ -21,7 +21,7 @@ const proteger = (tipo) => [auth, async (req, res, next) => {
     }
     if (!mongoose.isValidObjectId(req.user.id)) return res.status(403).json({ msg: 'Usuário inválido' });
     req.deliveryUser = await User.findById(req.user.id);
-    if (!req.deliveryUser || req.deliveryUser.role !== req.user.role) return res.status(403).json({ msg: 'Acesso revogado' });
+    if (!req.deliveryUser || req.deliveryUser.ativo === false || req.deliveryUser.role !== req.user.role || (req.deliveryUser.tokenVersion ?? 0) !== req.user.tokenVersion) return res.status(403).json({ msg: 'Acesso revogado' });
     if (tipo === 'plataforma') {
       if (req.deliveryUser.role !== 'admin_plataforma') return res.status(403).json({ msg: 'Acesso de plataforma obrigatório' });
       return next();

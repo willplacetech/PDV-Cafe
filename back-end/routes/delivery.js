@@ -7,8 +7,12 @@ const Tenant = require('../models/Tenant');
 const Entregador = require('../models/Entregador');
 const PedidoEntrega = require('../models/PedidoEntrega');
 const { getJwtSecret } = require('../utils/authConfig');
+const { validatePassword, validEmail } = require('../utils/passwordPolicy');
 const { tenantAuth, courierAuth, platformAuth, integrationAuth } = require('../middleware/deliveryAuth');
 const service = require('../utils/deliveryService');
+const sessions = require('../utils/authSessions');
+const auth = require('../middleware/auth');
+const { loginProtection } = require('../utils/sessionOrigins');
 
 const router = express.Router();
 const route = fn => async (req, res, next) => {
@@ -21,29 +25,38 @@ const route = fn => async (req, res, next) => {
 };
 const loginLimit = () => rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-8', legacyHeaders: false, message: { msg: 'Muitas tentativas. Tente novamente mais tarde.' } });
 const publicLimit = rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false, message: { msg: 'Muitas consultas. Aguarde um instante.' } });
-const assinar = claims => jwt.sign(claims, getJwtSecret(), { expiresIn: '7d', algorithm: 'HS256' });
 const autorTenant = req => ({ tipo: 'tenant', usuarioId: req.deliveryUser._id });
 const statusAtivos = ['despachado', 'a_caminho'];
 
-router.post('/delivery/login', loginLimit(), route(async (req, res) => {
+router.post('/delivery/login', loginProtection, loginLimit(), route(async (req, res) => {
   const email = service.texto(req.body.email, 'e-mail', true, 254).toLowerCase();
-  const senha = service.senha(req.body.senha);
+  const senha = validatePassword(req.body.senha, false);
   const user = await User.findOne({ email, role: { $in: ['tenant_admin', 'admin_plataforma'] } }).select('+password');
-  if (!user || !await user.matchPassword(senha)) throw service.erro('E-mail ou senha inválidos', 401);
+  if (!user || user.ativo === false || !await user.matchPassword(senha)) throw service.erro('E-mail ou senha inválidos', 401);
   if (user.role === 'tenant_admin' && !await Tenant.exists({ _id: user.tenantId, ativo: true })) throw service.erro('Comércio desativado', 403);
   const publico = { id: user.id, username: user.username, email: user.email, role: user.role, tenantId: user.tenantId };
-  res.json({ user: publico, token: assinar(publico) });
+  res.json(await sessions.issue(req, res, user, 'delivery', publico));
 }));
 
-router.post('/entregador/login', loginLimit(), route(async (req, res) => {
+router.post('/entregador/login', loginProtection, loginLimit(), route(async (req, res) => {
   const telefone = service.texto(req.body.telefone, 'telefone', true, 30).replace(/\D/g, '');
-  const senha = service.senha(req.body.senha);
+  const senha = validatePassword(req.body.senha, false);
   const entregador = await Entregador.findOne({ telefone, ativo: true }).select('+senhaAcesso');
   if (!entregador || !await entregador.matchPassword(senha)) throw service.erro('Telefone ou senha inválidos', 401);
   const tenantIds = entregador.tenantId ? [entregador.tenantId] : await PedidoEntrega.distinct('tenantId', { entregadorId: entregador._id });
   const claims = { role: 'entregador', entregadorId: entregador.id, tenantIds };
-  res.json({ token: assinar(claims), user: { nome: entregador.nome, ...claims } });
+  res.json(await sessions.issue(req, res, entregador, 'courier', { nome: entregador.nome, ...claims }));
 }));
+
+router.post('/delivery/refresh', ...sessions.refresh('delivery'));
+router.post('/entregador/refresh', ...sessions.refresh('courier'));
+for (const [path, scope, roles] of [['/delivery/logout', 'delivery', ['tenant_admin', 'admin_plataforma']], ['/entregador/logout', 'courier', ['entregador']]]) {
+  router.post(path, sessions.logoutAuth(scope, auth), auth.allowRoles(...roles), route(async (req, res) => {
+    await sessions.revokeAccessSession(req.user);
+    sessions.clearCookie(res, scope);
+    res.status(204).end();
+  }));
+}
 
 router.get('/tenant/configuracao', ...tenantAuth, route(async (req, res) => res.json(req.tenant)));
 router.put('/tenant/configuracao', ...tenantAuth, route(async (req, res) => {
@@ -104,7 +117,7 @@ router.get('/tenant/entregadores', ...tenantAuth, route(async (req, res) => {
   res.json(await Entregador.find({ tenantId: { $in: [null, req.tenantId] }, ativo: true }).select('nome telefone status tenantId').sort({ nome: 1 }).lean());
 }));
 router.post('/tenant/entregadores', ...tenantAuth, route(async (req, res) => {
-  const entregador = await Entregador.create({ nome: service.texto(req.body.nome, 'nome', true, 160), telefone: service.texto(req.body.telefone, 'telefone', true, 30), senhaAcesso: service.texto(req.body.senha, 'senha temporária', true, 72), tenantId: req.tenantId });
+  const entregador = await Entregador.create({ nome: service.texto(req.body.nome, 'nome', true, 160), telefone: service.texto(req.body.telefone, 'telefone', true, 30), senhaAcesso: validatePassword(req.body.senha), tenantId: req.tenantId });
   res.status(201).json(entregador);
 }));
 router.get('/tenant/estatisticas', ...tenantAuth, route(async (req, res) => {
@@ -161,8 +174,8 @@ const tenantDados = body => {
 };
 router.post('/plataforma/tenants', ...platformAuth, route(async (req, res) => {
   const email = service.texto(req.body.adminEmail, 'e-mail do administrador', true, 254).toLowerCase();
-  const senha = service.senha(req.body.adminSenha, true);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || senha.length < 8) throw service.erro('E-mail inválido ou senha menor que 8 caracteres');
+  const senha = validatePassword(req.body.adminSenha);
+  if (!validEmail(email)) throw service.erro('E-mail inválido');
   const session = await mongoose.startSession();
   let tenant;
   try {
@@ -192,7 +205,7 @@ router.post('/plataforma/tenants/:id/vincular-pdv', ...platformAuth, route(async
   res.json({ username: user.username, tenantId: user.tenantId });
 }));
 router.post('/plataforma/entregadores', ...platformAuth, route(async (req, res) => {
-  const entregador = await Entregador.create({ nome: service.texto(req.body.nome, 'nome', true), telefone: service.texto(req.body.telefone, 'telefone', true, 30), senhaAcesso: service.senha(req.body.senha, true), tenantId: null });
+  const entregador = await Entregador.create({ nome: service.texto(req.body.nome, 'nome', true), telefone: service.texto(req.body.telefone, 'telefone', true, 30), senhaAcesso: validatePassword(req.body.senha), tenantId: null });
   res.status(201).json(entregador);
 }));
 router.post('/plataforma/tenants/:id/token-integracao', ...platformAuth, route(async (req, res) => {

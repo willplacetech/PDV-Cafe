@@ -1,0 +1,17 @@
+# Sessões do PDV e Delivery
+
+O login retorna um Bearer com validade de 15 minutos, guardado somente na memória da página. `pdv_user`, `delivery_admin` e `delivery_entregador` guardam apenas identidade mínima (id, username, role, tenantId), sem tokens, telefone, endereço ou e-mail. Ao iniciar, credenciais legadas dessas chaves são removidas. A identidade offline serve apenas à interface e à origem das vendas pendentes; o backend exige autenticação atual.
+
+O refresh tem 48 bytes aleatórios e validade absoluta de sete dias. MongoDB guarda somente hashes e os dados da sessão; o índice TTL limpa documentos expirados, e cada requisição verifica expiração e revogação sem depender dessa limpeza. Acesso novo inclui `sid`; logout invalida essa sessão imediatamente. Alterações administrativas continuam incrementando `User.tokenVersion`, invalidando todas as sessões anteriores do usuário. Bearers legados sem `sid` mantêm o logout com revogação global por versão.
+
+Cookies HttpOnly são separados: PDV `/api/auth`, administrador Delivery `/api/delivery`, entregador `/api/entregador`. Produção usa Secure e SameSite=None para compatibilidade com instalações que tenham origens diferentes; desenvolvimento usa SameSite=Strict. Apenas refresh/logout que consomem cookies exigem `Origin` permitido e `X-CSRF-Protection: 1`. Login com Origin não permitido falha. Clientes sem Origin continuam recebendo Bearer, sem cookie. `FRONTEND_URL` aceita uma lista explícita de origens completas separadas por vírgulas; quando configurada, substitui as origens Render históricas. Produção não libera localhost nem wildcard.
+
+Prefira servir frontend e API na mesma origem (`VITE_API_URL=/api`): cookies entre serviços `*.onrender.com` podem ser considerados de terceiros e bloqueados pelo navegador. Instalações separadas precisam validar cookies no navegador real e podem precisar de domínios próprios do mesmo site. Os testes locais não comprovam que o deploy remoto esteja ativo ou compatível.
+
+A rotação usa atualização atômica e sucessor determinístico secreto, permitindo que duas requisições simultâneas recebam o mesmo cookie. O hash anterior tem tolerância de 30 segundos. Reutilizar um hash anterior comprovado depois da tolerância revoga a sessão; enviar um segredo aleatório para um id conhecido não revoga credenciais válidas. Web Locks, quando disponíveis, serializam refresh, login e logout entre abas. A implementação também agrupa refresh na página e impede que respostas antigas restaurem a identidade depois de logout.
+
+O interceptor aguarda refresh antes de enviar requisições autenticadas sem Bearer. Em 401 tenta refresh uma vez e reutiliza a mesma requisição e Idempotency-Key. Respostas de uma geração anterior da sessão não encerram a nova sessão nem reenviam a operação sob outra conta.
+
+Logout local funciona offline e preserva fila, catálogo e vendas. Um marcador local impede restaurar automaticamente o cookie depois dessa saída. Quando offline, a revogação remota não pode ser garantida; um novo login estabelece outra sessão. Login online aguarda refresh/logout em voo, impedindo que uma resposta antiga sobrescreva seu cookie.
+
+Verificação local: `node --test tests/accessSession.test.js tests/logoutOffline.test.js tests/sessionInterceptors.test.js` em `front-end`; `npm run test:integration -- --runTestsByPath tests/integration/authSessions.test.js tests/integration/authRevocation.test.js --forceExit` em `back-end`. MongoDB desses testes é uma réplica em memória isolada, sem banco real.

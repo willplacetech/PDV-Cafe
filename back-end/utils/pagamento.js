@@ -62,7 +62,7 @@ const calcularStatusPagamento = (comanda) => {
   return { valorTotal, valorPago, saldoDevedor: dinheiro(Math.max(0, valorTotal - valorPago)), statusPagamento: statusPagamentoDe(valorTotal, comanda?.historicoPagamentos || comanda?.pagamentos) };
 };
 
-const construirPagamento = ({ valor, formaPagamento, taxas, observacao, usuario }) => {
+const construirPagamento = ({ valor, formaPagamento, taxas, observacao, usuario, data }) => {
   const tipo = normalizarFormaPagamento(formaPagamento);
   if (!tipo) throw new Error('Forma de pagamento inválida');
   const valorRecebido = dinheiro(valor);
@@ -75,7 +75,7 @@ const construirPagamento = ({ valor, formaPagamento, taxas, observacao, usuario 
     taxaPercentual: percentual,
     taxaValor,
     valorLiquido: dinheiro(valorRecebido - taxaValor),
-    data: new Date(),
+    data: data || new Date(),
     observacao: observacao || '',
     usuario: usuario || 'sistema',
   };
@@ -108,6 +108,20 @@ const indexarComandasPorId = (comandas) => new Map((comandas || []).map((comanda
 
 const pagamentosResolvidos = (pedido, comandasPorId) => pagamentosDoPedido(pedido, pedido?.comandaId ? comandasPorId?.get(String(pedido.comandaId)) : null);
 
+const validarCancelamentoFinanceiro = (pagamentos, pedidos = []) => {
+  if (temPagamentoReal(pagamentos)) {
+    const erro = new Error('Cancelamento bloqueado: existem recebimentos. Regularize os recebimentos com estorno previo antes de cancelar.');
+    erro.status = 409;
+    throw erro;
+  }
+  if (pedidos.some((pedido) => ['processando', 'autorizada'].includes(pedido.nfce?.status)
+    || (pedido.pagamentos || []).some((pagamento) => ['pendente', 'emitido'].includes(pagamento.fiscal?.status)))) {
+    const erro = new Error('Cancelamento bloqueado: regularize o documento fiscal autorizado ou em processamento antes de cancelar.');
+    erro.status = 409;
+    throw erro;
+  }
+};
+
 /**
  * Carrega todos os pagamentos de um período, sem contar duas vezes.
  * Pedidos com comanda vinculada usam Comanda.historicoPagamentos;
@@ -122,7 +136,7 @@ const carregarPagamentosDoPeriodo = async ({ inicio, fim }) => {
 
   const [pedidos, comandas] = await Promise.all([
     Order.find({ 'pagamentos.dataPagamento': janela }).select('comandaId pagamentos').lean(),
-    Comanda.find({ status: { $ne: 'cancelada' }, 'historicoPagamentos.data': janela }).select('historicoPagamentos').lean(),
+    Comanda.find({ 'historicoPagamentos.data': janela }).select('historicoPagamentos').lean(),
   ]);
   const comandasPorId = indexarComandasPorId(comandas);
   const pagamentos = [];
@@ -130,6 +144,7 @@ const carregarPagamentosDoPeriodo = async ({ inicio, fim }) => {
 
   pedidos.forEach((pedido) => {
     const comanda = pedido.comandaId ? comandasPorId.get(String(pedido.comandaId)) : null;
+    if (comanda && comandasConsumidas.has(String(pedido.comandaId))) return;
     if (comanda) comandasConsumidas.add(String(pedido.comandaId));
     normalizarPagamentos(comanda ? comanda.historicoPagamentos : pedido.pagamentos)
       .filter((pagamento) => dentroDoPeriodo(pagamento.dataPagamento))
@@ -175,6 +190,7 @@ module.exports = {
   emAReceber,
   pagamentosDoPedido,
   pagamentosResolvidos,
+  validarCancelamentoFinanceiro,
   indexarComandasPorId,
   carregarPagamentosDoPeriodo,
   somarPorForma,

@@ -94,6 +94,12 @@ const orderSchema = new mongoose.Schema({
   atendente: { type: String, required: true },
   observacao: String,
   comandaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Comanda' },
+  transferenciasComanda: [{
+    origem: { type: mongoose.Schema.Types.Mixed, required: true },
+    destinoComandaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Comanda', required: true },
+    data: { type: Date, required: true },
+    usuario: { type: String, required: true },
+  }],
   tipoAtendimento: { type: String, enum: ['mesa', 'balcao'], default: 'mesa', index: true },
 }, { timestamps: true });
 

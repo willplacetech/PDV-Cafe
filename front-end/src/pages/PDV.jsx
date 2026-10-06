@@ -261,7 +261,8 @@ export default function PDV() {
     const salvarOffline = async () => {
       const resultado = await enfileirar('/comandas', payload, idTemporario);
       if (!resultado.ok) {
-        if (resultado.motivo === 'limite') showToast('Limite de 50 vendas pendentes atingido. Conecte à internet para sincronizar.', 'warning');
+        if (resultado.motivo === 'sessao') showToast('Entre com seu operador antes de salvar a venda offline. O carrinho foi preservado.', 'warning');
+        else if (resultado.motivo === 'limite') showToast('Limite de 50 vendas pendentes atingido. Conecte à internet para sincronizar.', 'warning');
         else showToast('Conecte à internet para sincronizar. A venda não foi removida do carrinho.', 'warning');
         return false;
       }

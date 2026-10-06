@@ -1,8 +1,9 @@
+# Somente ambiente de teste. Criar um NOVO Blueprint, separado da produção.
 services:
   - type: web
     runtime: node
-    name: pdv-cafe-api-willplacetech
-    branch: Compras
+    name: pdv-cafe-api-teste-off-delivery
+    branch: feature/pwa-offline-sincronizacao
     region: oregon
     plan: free
     rootDir: back-end
@@ -10,22 +11,50 @@ services:
     startCommand: npm start
     healthCheckPath: /api
     envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
       - key: MONGO_URI
         sync: false
+      - key: MONGO_DB_NAME
+        value: TesteOffDelivery
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: DELIVERY_ADMIN_EMAIL
+        sync: false
+      - key: DELIVERY_ADMIN_PASSWORD
+        sync: false
       - key: FRONTEND_URL
-        value: https://sabordabraco-95pc.onrender.com,https://sabordabraco.onrender.com,https://pdv-cafe-web-willplacetech.onrender.com,https://pdv-mern-1.onrender.com
+        fromService:
+          name: pdv-cafe-web-teste-off-delivery
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: DELIVERY_PUBLIC_URL
+        fromService:
+          name: pdv-cafe-web-teste-off-delivery
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
 
   - type: web
     runtime: static
-    name: sabordabraco
-    branch: Compras
+    name: pdv-cafe-web-teste-off-delivery
+    branch: feature/pwa-offline-sincronizacao
     rootDir: front-end
-    buildCommand: npm ci && npm run build
+    # Render não interpola valores YAML. A URL pública recebe /api no build.
+    buildCommand: npm ci && VITE_API_URL="${API_PUBLIC_URL%/}/api" npm run build
     staticPublishPath: dist
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
     envVars:
-      - key: VITE_API_URL
-        value: https://pdv-cafe-back.onrender.com/api
+      - key: NODE_VERSION
+        value: "22"
+      - key: API_PUBLIC_URL
+        fromService:
+          name: pdv-cafe-api-teste-off-delivery
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL

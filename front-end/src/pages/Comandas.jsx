@@ -1,3 +1,4 @@
+import { criarOperacoesFinanceiras } from '../utils/operacaoFinanceira';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/api.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
@@ -61,6 +62,13 @@ export default function Comandas() {
 
   // modal de fechamento
   const [modalFechamento, setModalFechamento] = useState(false);
+  const operacoesFechamentoRef = useRef(null);
+  if (operacoesFechamentoRef.current === null) { operacoesFechamentoRef.current = criarOperacoesFinanceiras(api); }
+  const fechandoRef = useRef(false);
+  const [fechando, setFechando] = useState(false);
+  useEffect(() => {
+    if (!modalFechamento) operacoesFechamentoRef.current.limpar();
+  }, [modalFechamento]);
   const [discount, setDiscount] = useState('0');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [utilizacaoInterna, setUtilizacaoInterna] = useState(false);
@@ -268,9 +276,12 @@ export default function Comandas() {
 
   const confirmarFechamento = async () => {
     if (!utilizacaoInterna && !paymentMethod) { setPaymentError(true); showToast('Escolha a forma de pagamento', 'warning'); return; }
+    if (fechandoRef.current) return;
+    fechandoRef.current = true;
+    setFechando(true);
     const comandaFechada = selected;
     try {
-      const { data } = await api.post(`/comandas/${selected._id}/fechar`, {
+      const { data } = await operacoesFechamentoRef.current.enviar('post', `/comandas/${selected._id}/fechar`, {
         desconto: Number(discount),
         metodoPagamento: utilizacaoInterna ? 'credito_loja' : paymentMethod,
         utilizacaoInterna,
@@ -283,6 +294,7 @@ export default function Comandas() {
       showToast(`Comanda #${comandaFechada.numero} fechada → Pedido #${data.pedido.numero}`, 'success');
       load();
     } catch (error) { showToast(error.response?.data?.msg || error.message || 'Erro ao registrar pagamento', 'error'); }
+    finally { fechandoRef.current = false; setFechando(false); }
   };
 
   const enviarComprovante = async () => {
@@ -452,14 +464,14 @@ export default function Comandas() {
 
       {/* ── MODAL DE FECHAMENTO ───────────────────────────────────────────── */}
       {modalFechamento && selected && (
-        <div onClick={() => setModalFechamento(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000, padding: 16 }}>
+        <div onClick={() => { if (!fechandoRef.current) setModalFechamento(false); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000, padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 18, padding: 24, boxShadow: 'var(--shadow-lg)', color: 'var(--text-primary)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
               <div>
                 <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent-primary)', letterSpacing: '.08em' }}>FECHAR COMANDA</span>
                 <h2 style={{ margin: '4px 0 0', fontSize: 20 }}>#{selected.numero} — {selected.clienteNome}</h2>
               </div>
-              <button onClick={() => setModalFechamento(false)} style={{ border: 0, background: 'transparent', fontSize: 22, cursor: 'pointer', color: 'var(--text-secondary)' }}>×</button>
+              <button onClick={() => { if (!fechandoRef.current) setModalFechamento(false); }} style={{ border: 0, background: 'transparent', fontSize: 22, cursor: 'pointer', color: 'var(--text-secondary)' }}>×</button>
             </div>
 
             {/* itens resumo */}
@@ -478,7 +490,7 @@ export default function Comandas() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Desconto (R$)</label>
-                <input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={e => setDiscount(e.target.value)}
+                <input disabled={fechando} type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={e => setDiscount(e.target.value)}
                   className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
@@ -489,7 +501,7 @@ export default function Comandas() {
             </div>
 
             <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 12px' }}>
-              <input
+              <input disabled={fechando}
                 type="checkbox"
                 checked={utilizacaoInterna}
                 onChange={(e) => {
@@ -512,7 +524,7 @@ export default function Comandas() {
             {/* forma de pagamento */}
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Forma de pagamento</label>
-              <select
+              <select disabled={fechando}
                 className="comandas-field"
                 value={utilizacaoInterna ? 'credito_loja' : paymentMethod}
                 onChange={e => { setPaymentMethod(e.target.value); setPaymentError(false); }}
@@ -529,7 +541,7 @@ export default function Comandas() {
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
                 👤 Nome do cliente <span style={{ fontWeight: 400 }}>(opcional)</span>
               </label>
-              <input type="text" placeholder="Nome do cliente" value={nomeModal} onChange={e => setNomeModal(e.target.value)}
+              <input disabled={fechando} type="text" placeholder="Nome do cliente" value={nomeModal} onChange={e => setNomeModal(e.target.value)}
                 className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
             </div>
 
@@ -538,11 +550,11 @@ export default function Comandas() {
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
                 📱 Celular do cliente <span style={{ fontWeight: 400 }}>(opcional — salva nome e telefone no cadastro)</span>
               </label>
-              <input type="tel" placeholder="(00) 00000-0000" value={telefoneModal} onChange={e => setTelefoneModal(e.target.value)}
+              <input disabled={fechando} type="tel" placeholder="(00) 00000-0000" value={telefoneModal} onChange={e => setTelefoneModal(e.target.value)}
                 className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
             </div>
 
-            <button onClick={confirmarFechamento} style={{ width: '100%', minHeight: 50, border: 0, borderRadius: 12, background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>
+            <button disabled={fechando} onClick={confirmarFechamento} style={{ width: '100%', minHeight: 50, border: 0, borderRadius: 12, background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>
               ✅ Confirmar Fechamento
             </button>
           </div>
@@ -560,7 +572,7 @@ export default function Comandas() {
             <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
               <label style={{ display: 'grid', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
                 Nome do cliente
-                <input
+                <input disabled={fechando}
                   value={modalMoverComanda.clienteNome}
                   onChange={(event) => setModalMoverComanda((prev) => ({ ...prev, clienteNome: event.target.value }))}
                   className="comandas-field"
@@ -569,7 +581,7 @@ export default function Comandas() {
               </label>
               <label style={{ display: 'grid', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
                 Observação
-                <input
+                <input disabled={fechando}
                   value={modalMoverComanda.observacao}
                   onChange={(event) => setModalMoverComanda((prev) => ({ ...prev, observacao: event.target.value }))}
                   className="comandas-field"

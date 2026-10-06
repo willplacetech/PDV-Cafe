@@ -1,4 +1,5 @@
-import { useCallback, useState, useEffect, useMemo } from 'react';
+import { criarOperacoesFinanceiras } from '../utils/operacaoFinanceira';
+import { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import api from '../services/api.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/useToast.js';
@@ -37,6 +38,13 @@ export default function ContasReceber() {
   const [formPagamentoMultiplo, setFormPagamentoMultiplo] = useState({ tipo: 'dinheiro', observacao: '' });
   const [formComanda, setFormComanda] = useState(null);
   const [selecionados, setSelecionados] = useState(new Set());
+  const operacoesRef = useRef(null);
+  if (operacoesRef.current === null) { operacoesRef.current = criarOperacoesFinanceiras(api); }
+  const recebendoRef = useRef(false);
+  const [recebendo, setRecebendo] = useState(false);
+  useEffect(() => {
+    if (!pagamentoModal && !formComanda && !pagamentoMultiploModal && !quitarClienteModal) operacoesRef.current.limpar();
+  }, [pagamentoModal, formComanda, pagamentoMultiploModal, quitarClienteModal]);
   const { showToast } = useToast();
   const produtoNovoPedido = produtos.find((produto) => produto._id === novoPedidoForm.produtoId);
   const passoQuantidadeNovoPedido = permiteFracionar(produtoNovoPedido) ? '0.001' : '1';
@@ -171,8 +179,11 @@ export default function ContasReceber() {
     const saldo = saldoDevedor(formComanda.comanda.valorTotal, formComanda.comanda.historicoPagamentos);
     if (!Number.isFinite(valor) || valor <= 0) return showToast('Informe um valor válido', 'warning');
     if (valor > saldo) return showToast(`O valor não pode ser maior que o saldo em aberto (R$ ${saldo.toFixed(2)})`, 'warning');
+    if (recebendoRef.current) return;
+    recebendoRef.current = true;
+    setRecebendo(true);
     try {
-      await api.patch(`/comandas/${formComanda.comanda._id}/receber-parcial`, {
+      await operacoesRef.current.enviar('patch', `/comandas/${formComanda.comanda._id}/receber-parcial`, {
         valorRecebido: valor,
         formaPagamento: formComanda.formaPagamento,
         observacao: formComanda.observacao,
@@ -183,7 +194,7 @@ export default function ContasReceber() {
       await carregarComandas();
     } catch (error) {
       showToast(error.response?.data?.msg || 'Não foi possível registrar o recebimento', 'error');
-    }
+    } finally { recebendoRef.current = false; setRecebendo(false); }
   };
 
 
@@ -265,6 +276,9 @@ export default function ContasReceber() {
 
   // ✅ Registrar pagamento de TODOS os marcados
   const registrarPagamentoMultiplo = async () => {
+    if (recebendoRef.current) return;
+    recebendoRef.current = true;
+    setRecebendo(true);
     const pedidosSelecionados = pedidos.filter(p => selecionados.has(p._id));
     const pedidosRecebidos = [];
     let sucessos = 0;
@@ -276,11 +290,11 @@ export default function ContasReceber() {
         const valorPago = somarPagamentos(pedido.pagamentos);
         const valorAReceber = valorTotal - valorPago;
 
-        const { data: pedidoAtualizado } = await api.patch(`/orders/${pedido._id}/pagar`, {
+        const { data: pedidoAtualizado } = await operacoesRef.current.enviar('patch', `/orders/${pedido._id}/pagar`, {
           tipo: formPagamentoMultiplo.tipo,
           valorRecebido: valorAReceber,
           observacao: formPagamentoMultiplo.observacao
-        });
+        }, { reusarConcluido: true });
         pedidosRecebidos.push(pedidoAtualizado);
         sucessos++;
       } catch {
@@ -288,12 +302,13 @@ export default function ContasReceber() {
       }
     }
 
-    setPagamentoMultiploModal(null);
-    setSelecionados(new Set());
-    if (pedidosRecebidos.length > 0) {
+    if (falhas === 0) { setPagamentoMultiploModal(null); setSelecionados(new Set()); }
+    if (falhas === 0 && pedidosRecebidos.length > 0) {
       setPagamentoConcluido(consolidarPedidos(pedidosRecebidos));
     }
-    carregarPedidos();
+    if (falhas === 0) carregarPedidos();
+    recebendoRef.current = false;
+    setRecebendo(false);
 
     if (sucessos > 0 && falhas === 0) {
       showToast(`✅ ${sucessos} pedido(s) recebido(s) com sucesso!`, 'success');
@@ -325,8 +340,11 @@ export default function ContasReceber() {
     if (!Number.isFinite(valorRecebido) || valorRecebido <= 0) return showToast('Informe um valor válido', 'warning');
     if (valorRecebido > saldoPagamentoIndividual) return showToast(`O valor não pode ser maior que o saldo pendente (R$ ${saldoPagamentoIndividual.toFixed(2)})`, 'warning');
 
+    if (recebendoRef.current) return;
+    recebendoRef.current = true;
+    setRecebendo(true);
     try {
-      const { data: pedidoAtualizado } = await api.patch(`/orders/${pagamentoModal._id}/pagar`, {
+      const { data: pedidoAtualizado } = await operacoesRef.current.enviar('patch', `/orders/${pagamentoModal._id}/pagar`, {
         tipo: formPagamento.tipo,
         valorRecebido,
         observacao: formPagamento.observacao,
@@ -337,7 +355,7 @@ export default function ContasReceber() {
       setPagamentoConcluido(pedidoAtualizado);
       setFormPagamento({ tipo: 'dinheiro', valorRecebido: '', observacao: '' });
       carregarPedidos();
-    } catch { showToast('Erro ao registrar pagamento', 'error'); }
+    } catch { showToast('Erro ao registrar pagamento', 'error'); } finally { recebendoRef.current = false; setRecebendo(false); }
   };
 
 
@@ -347,13 +365,16 @@ export default function ContasReceber() {
   };
 
   const confirmarQuitacaoCliente = async () => {
+    if (recebendoRef.current) return;
+    recebendoRef.current = true;
+    setRecebendo(true);
     try {
-      const { data } = await api.patch(`/orders/cliente/${clienteFiltro}/quitar`, { tipo: formPagamentoMultiplo.tipo, observacao: formPagamentoMultiplo.observacao });
+      const { data } = await operacoesRef.current.enviar('patch', `/orders/cliente/${clienteFiltro}/quitar`, { tipo: formPagamentoMultiplo.tipo, observacao: formPagamentoMultiplo.observacao });
       setQuitarClienteModal(false);
       setPagamentoConcluido(consolidarPedidos(data.pedidos));
       showToast('✅ Todas as pendências do cliente foram quitadas!', 'success');
       carregarPedidos();
-    } catch (error) { showToast(error.response?.data?.msg || 'Erro ao quitar pendências', 'error'); }
+    } catch (error) { showToast(error.response?.data?.msg || 'Erro ao quitar pendências', 'error'); } finally { recebendoRef.current = false; setRecebendo(false); }
   };
 
   const abrirNovoPedido = (pedido) => {
@@ -831,7 +852,7 @@ export default function ContasReceber() {
 
       {/* MODAL DE RECEBIMENTO DE COMANDA */}
       {formComanda && (
-        <div onClick={() => setFormComanda(null)} style={{
+        <div onClick={() => { if (!recebendoRef.current) setFormComanda(null); }} style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 10000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
         }}>
@@ -845,14 +866,14 @@ export default function ContasReceber() {
             </p>
 
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Forma de pagamento</label>
-            <select value={formComanda.formaPagamento} onChange={e => setFormComanda(f => ({ ...f, formaPagamento: e.target.value }))} style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', marginBottom: 12, boxSizing: 'border-box' }}>
+            <select disabled={recebendo} value={formComanda.formaPagamento} onChange={e => setFormComanda(f => ({ ...f, formaPagamento: e.target.value }))} style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', marginBottom: 12, boxSizing: 'border-box' }}>
               {FORMAS_PAGAMENTO.filter((forma) => forma.value !== 'credito_loja').map((forma) => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
             </select>
             <small style={{ display: 'block', margin: '-8px 0 12px', color: 'var(--text-secondary)' }}>Crédito na loja não entra como recebimento: aqui só entra dinheiro de verdade.</small>
 
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Valor recebido (R$)</label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <input
+              <input disabled={recebendo}
                 type="text" inputMode="decimal" autoComplete="off"
                 placeholder="0,00"
                 value={formComanda.valor}
@@ -866,11 +887,11 @@ export default function ContasReceber() {
             </small>
 
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Observação</label>
-            <input value={formComanda.observacao} onChange={e => setFormComanda(f => ({ ...f, observacao: e.target.value }))} style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', marginBottom: 16, boxSizing: 'border-box' }} />
+            <input disabled={recebendo} value={formComanda.observacao} onChange={e => setFormComanda(f => ({ ...f, observacao: e.target.value }))} style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', marginBottom: 16, boxSizing: 'border-box' }} />
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setFormComanda(null)} style={{ padding: '9px 16px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>Cancelar</button>
-              <button type="submit" style={{ padding: '9px 16px', border: 'none', borderRadius: 8, background: 'var(--success-bg)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Confirmar recebimento</button>
+              <button type="button" onClick={() => { if (!recebendoRef.current) setFormComanda(null); }} style={{ padding: '9px 16px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>Cancelar</button>
+              <button type="submit" disabled={recebendo} style={{ padding: '9px 16px', border: 'none', borderRadius: 8, background: 'var(--success-bg)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Confirmar recebimento</button>
             </div>
           </form>
         </div>
@@ -878,7 +899,7 @@ export default function ContasReceber() {
 
       {/* ✅ MODAL DE RECEBIMENTO MÚLTIPLO (para marcados) */}
       {pagamentoMultiploModal && (
-        <div onClick={() => setPagamentoMultiploModal(null)} style={{
+        <div onClick={() => { if (!recebendoRef.current) setPagamentoMultiploModal(null); }} style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20
         }}>
@@ -893,7 +914,7 @@ export default function ContasReceber() {
 
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Forma de Pagamento</label>
-              <select value={formPagamentoMultiplo.tipo} onChange={e => setFormPagamentoMultiplo({...formPagamentoMultiplo, tipo: e.target.value})} style={{
+              <select disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={e => setFormPagamentoMultiplo({...formPagamentoMultiplo, tipo: e.target.value})} style={{
                 width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10
               }}>
                 <option value="dinheiro">💵 Dinheiro</option>
@@ -905,17 +926,17 @@ export default function ContasReceber() {
 
 
             <div style={{ marginBottom: 16 }}>
-              <input type="text" placeholder="Ex: Pagamento em lote"
+              <input disabled={recebendo} type="text" placeholder="Ex: Pagamento em lote"
                 value={formPagamentoMultiplo.observacao}
                 onChange={e => setFormPagamentoMultiplo({...formPagamentoMultiplo, observacao: e.target.value})}
                 style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10 }} />
             </div>
 
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setPagamentoMultiploModal(null)} style={{
+              <button onClick={() => { if (!recebendoRef.current) setPagamentoMultiploModal(null); }} style={{
                 flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer'
               }}>Cancelar</button>
-              <button onClick={registrarPagamentoMultiplo} style={{
+              <button disabled={recebendo} onClick={registrarPagamentoMultiplo} style={{
                 flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer'
               }}>✅ Receber Tudo</button>
             </div>
@@ -925,7 +946,7 @@ export default function ContasReceber() {
 
       {/* ✅ MODAL DE RECEBIMENTO INDIVIDUAL */}
       {pagamentoModal && (
-        <div onClick={() => setPagamentoModal(null)} style={{
+        <div onClick={() => { if (!recebendoRef.current) setPagamentoModal(null); }} style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20
         }}>
@@ -939,7 +960,7 @@ export default function ContasReceber() {
 
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Forma de Pagamento</label>
-              <select value={formPagamento.tipo} onChange={e => setFormPagamento({...formPagamento, tipo: e.target.value})} style={{
+              <select disabled={recebendo} value={formPagamento.tipo} onChange={e => setFormPagamento({...formPagamento, tipo: e.target.value})} style={{
                 width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10
               }}>
                 <option value="dinheiro">💵 Dinheiro</option>
@@ -951,7 +972,7 @@ export default function ContasReceber() {
 
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Valor a pagar (R$)</label>
-              <input type="number" min="0.01" max={saldoPagamentoIndividual} step="0.01" autoFocus
+              <input disabled={recebendo} type="number" min="0.01" max={saldoPagamentoIndividual} step="0.01" autoFocus
                 value={formPagamento.valorRecebido}
                 onChange={event => setFormPagamento({ ...formPagamento, valorRecebido: event.target.value })}
                 style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, fontSize: 16, background: 'var(--bg-tertiary)', fontWeight: 700 }} />
@@ -959,17 +980,17 @@ export default function ContasReceber() {
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <input type="text" placeholder="Ex: Pagamento parcial"
+              <input disabled={recebendo} type="text" placeholder="Ex: Pagamento parcial"
                 value={formPagamento.observacao}
                 onChange={e => setFormPagamento({...formPagamento, observacao: e.target.value})}
                 style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10 }} />
             </div>
 
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setPagamentoModal(null)} style={{
+              <button onClick={() => { if (!recebendoRef.current) setPagamentoModal(null); }} style={{
                 flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer'
               }}>Cancelar</button>
-              <button onClick={registrarPagamento} style={{
+              <button disabled={recebendo} onClick={registrarPagamento} style={{
                 flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer'
               }}>Pagar</button>
             </div>
@@ -983,12 +1004,12 @@ export default function ContasReceber() {
             <h3 style={{ margin: '0 0 6px' }}>➕ Novo pedido na conta</h3>
             <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)', fontSize: 13 }}>Pedido #{novoPedidoModal.numero} · {novoPedidoModal.clienteNome}</p>
             <div className="novo-pedido-item-form">
-              <label className="novo-pedido-field">Produto<select value={novoPedidoForm.produtoId} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, produtoId: event.target.value, quantidade: '1' })}><option value="">Selecione um produto</option>{produtos.map(produto => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select></label>
-              <label className="novo-pedido-field novo-pedido-quantity">Quantidade<input type="number" min={passoQuantidadeNovoPedido} step={passoQuantidadeNovoPedido} value={novoPedidoForm.quantidade} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, quantidade: event.target.value })} /></label>
+              <label className="novo-pedido-field">Produto<select disabled={recebendo} value={novoPedidoForm.produtoId} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, produtoId: event.target.value, quantidade: '1' })}><option value="">Selecione um produto</option>{produtos.map(produto => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select></label>
+              <label className="novo-pedido-field novo-pedido-quantity">Quantidade<input disabled={recebendo} type="number" min={passoQuantidadeNovoPedido} step={passoQuantidadeNovoPedido} value={novoPedidoForm.quantidade} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, quantidade: event.target.value })} /></label>
               <button type="button" className="novo-pedido-add" onClick={adicionarItemNovoPedido}>Adicionar produto</button>
             </div>
             {novoPedidoForm.itens.length > 0 && <div className="novo-pedido-items">{novoPedidoForm.itens.map((item, index) => <div className="novo-pedido-item" key={`${item.produtoId}-${index}`}><span><strong>{item.quantidade}x</strong> {item.nome}</span><button type="button" onClick={() => setNovoPedidoForm({ ...novoPedidoForm, itens: novoPedidoForm.itens.filter((_, itemIndex) => itemIndex !== index) })}>Remover</button></div>)}</div>}
-            <label style={{ display: 'block', marginBottom: 12, fontSize: 12, fontWeight: 700 }}>Nome de quem está fazendo o novo pedido<input value={novoPedidoForm.nomeSolicitante} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, nomeSolicitante: event.target.value })} placeholder="Ex.: Maria" style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10 }} /></label>
+            <label style={{ display: 'block', marginBottom: 12, fontSize: 12, fontWeight: 700 }}>Nome de quem está fazendo o novo pedido<input disabled={recebendo} value={novoPedidoForm.nomeSolicitante} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, nomeSolicitante: event.target.value })} placeholder="Ex.: Maria" style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10 }} /></label>
             <label style={{ display: 'block', marginBottom: 16, fontSize: 12, fontWeight: 700 }}>Observação do novo pedido<textarea value={novoPedidoForm.observacao} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, observacao: event.target.value })} placeholder="Ex.: café e salgado para Maria" rows="3" style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10, resize: 'vertical' }} /></label>
             <div style={{ display: 'flex', gap: 10 }}><button onClick={() => setNovoPedidoModal(null)} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button><button onClick={adicionarItensAoPedido} style={{ flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 0, borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Confirmar novo pedido</button></div>
           </div>
@@ -1004,20 +1025,20 @@ export default function ContasReceber() {
       />
 
       {quitarClienteModal && (
-        <div onClick={() => setQuitarClienteModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20 }}>
+        <div onClick={() => { if (!recebendoRef.current) setQuitarClienteModal(false); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20 }}>
           <div onClick={event => event.stopPropagation()} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 380 }}>
             <h3 style={{ margin: '0 0 8px' }}>✅ Quitar total do cliente</h3>
             <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)' }}>Todas as pendências do cliente selecionado serão quitadas.</p>
             <label style={{ display: 'block', marginBottom: 5, fontSize: 13, fontWeight: 700 }}>Forma de pagamento</label>
-            <select value={formPagamentoMultiplo.tipo} onChange={event => setFormPagamentoMultiplo({ ...formPagamentoMultiplo, tipo: event.target.value })} style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, marginBottom: 16 }}>
+            <select disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={event => setFormPagamentoMultiplo({ ...formPagamentoMultiplo, tipo: event.target.value })} style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, marginBottom: 16 }}>
               <option value="dinheiro">💵 Dinheiro</option>
               <option value="pix">🔄 PIX</option>
               <option value="cartao_credito">💳 Cartão de Crédito</option>
               <option value="cartao_debito">💳 Cartão de Débito</option>
             </select>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setQuitarClienteModal(false)} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={confirmarQuitacaoCliente} style={{ flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Quitar tudo</button>
+              <button onClick={() => { if (!recebendoRef.current) setQuitarClienteModal(false); }} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              <button disabled={recebendo} onClick={confirmarQuitacaoCliente} style={{ flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Quitar tudo</button>
             </div>
           </div>
         </div>
