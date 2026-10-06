@@ -73,6 +73,7 @@ const orderSchema = new mongoose.Schema({
   idTemporario: { type: String, trim: true, unique: true, sparse: true },
   itens: [itemSchema],
   subtotal: { type: Number, required: true, min: 0 },
+  taxaEntrega: { type: Number, default: 0, min: 0, validate: Number.isFinite },
   desconto: { type: Number, default: 0, min: 0 },
   utilizacaoInterna: { type: Boolean, default: false },
   total: { type: Number, required: true, min: 0 },

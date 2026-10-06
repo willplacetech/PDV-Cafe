@@ -5,6 +5,7 @@ const Comanda = require('../models/Comanda');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Customer = require('../models/Customer');
+const User = require('../models/User');
 const auth = require('../middleware/auth');
 const { obterTaxasCartao } = require('../utils/taxasCartao');
 const { calcularStatusPagamento, construirPagamento, formaPagamentoValida, normalizarFormaPagamento, saldoDevedor } = require('../utils/pagamento');
@@ -54,7 +55,7 @@ async function recalcularPrecosComanda(comanda, session) {
       item.faltamParaGrupo = grupoPricing?.faltamParaGrupo || 0;
     }
   });
-  comanda.valorTotal = money(comanda.itens.reduce((sum, item) => sum + Number(item.precoUnitario || 0) * Number(item.quantidade || 0), 0));
+  comanda.valorTotal = money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
   const pago = calcularStatusPagamento(comanda).valorPago;
   if (comanda.valorTotal < pago) throw new Error('A alteracao reduziria a comanda abaixo do valor ja recebido. Estorne o pagamento antes.');
   comanda.saldoDevedor = money(Math.max(0, comanda.valorTotal - pago));
@@ -195,8 +196,12 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
     });
     await ajustarEstoque(itens, 'baixar', session);
     const tipoAtendimento = req.body.tipoAtendimento === 'balcao' ? 'balcao' : 'mesa';
-    const valorTotal = money(itens.reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0));
-    const [comanda] = await Comanda.create([{ idTemporario: idTemporario || undefined, idempotencyKey: idempotencyKey || undefined, idempotencyHash: idempotencyKey ? idempotencyHash : undefined, clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, mesa: req.body.mesa, tipoAtendimento, statusBalcao: tipoAtendimento === 'balcao' ? 'aguardando' : undefined, itens, valorTotal, saldoDevedor: valorTotal, statusPagamento: 'pendente', estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
+    const taxaEntrega = req.body.entrega && typeof req.body.entrega.taxaEntrega === 'number' && Number.isFinite(req.body.entrega.taxaEntrega) && req.body.entrega.taxaEntrega >= 0 ? money(req.body.entrega.taxaEntrega) : 0;
+    const valorTotal = money(calcularSubtotalComanda(itens) + taxaEntrega);
+    const usuarioDelivery = req.body.entrega && mongoose.isValidObjectId(req.user.id) ? await User.findById(req.user.id).select('tenantId').session(session).catch(() => null) : null;
+    // O comércio é capturado na venda; a entrega é processada depois, sem bloquear o PDV.
+    const entrega = req.body.entrega && typeof req.body.entrega === 'object' && !Array.isArray(req.body.entrega) ? { usuarioId: req.user.id, tenantId: usuarioDelivery?.tenantId, telefone: typeof req.body.entrega.telefone === 'string' ? req.body.entrega.telefone.slice(0, 30) : '', endereco: Object.fromEntries(['rua', 'numero', 'bairro', 'complemento', 'referencia'].map(campo => [campo, typeof req.body.entrega.endereco?.[campo] === 'string' ? req.body.entrega.endereco[campo].slice(0, 300) : ''])), taxaEntrega } : undefined;
+    const [comanda] = await Comanda.create([{ entrega, taxaEntrega, idTemporario: idTemporario || undefined, idempotencyKey: idempotencyKey || undefined, idempotencyHash: idempotencyKey ? idempotencyHash : undefined, clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, mesa: req.body.mesa, tipoAtendimento, statusBalcao: tipoAtendimento === 'balcao' ? 'aguardando' : undefined, itens, valorTotal, saldoDevedor: valorTotal, statusPagamento: 'pendente', estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
     await session.commitTransaction();
     res.status(201).json(comanda);
   } catch (err) {
@@ -242,7 +247,7 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
     comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product), quantidade, quantidadePecas: vendaPorPeso ? 0 : quantidade, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
     await ajustarEstoque([comanda.itens[comanda.itens.length - 1]], 'baixar', session);
     await recalcularPrecosComanda(comanda, session);
-    comanda.valorTotal = money(comanda.itens.reduce((sum, item) => sum + Number(item.precoUnitario || 0) * Number(item.quantidade || 0), 0));
+    comanda.valorTotal = money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
     comanda.saldoDevedor = Math.max(0, comanda.valorTotal - Number(comanda.valorPago || 0));
     comanda.estoqueBaixado = true;
     await comanda.save({ session });
@@ -279,7 +284,7 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'g
     await ajustarEstoque([item], 'baixar', session);
     comanda.estoqueBaixado = true;
     await recalcularPrecosComanda(comanda, session);
-    comanda.valorTotal = money(comanda.itens.reduce((sum, linha) => sum + Number(linha.precoUnitario || 0) * Number(linha.quantidade || 0), 0));
+    comanda.valorTotal = money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
     comanda.saldoDevedor = Math.max(0, comanda.valorTotal - Number(comanda.valorPago || 0));
     await comanda.save({ session });
     await session.commitTransaction();
@@ -468,7 +473,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     const subtotal = calcularSubtotalComanda(comanda.itens);
     const discount = money(req.body.desconto || 0);
     if (discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
-    const total = utilizacaoInterna ? 0 : money(subtotal - discount);
+    const total = utilizacaoInterna ? 0 : money(subtotal + Number(comanda.taxaEntrega || 0) - discount);
 
     const historico = Array.isArray(comanda.historicoPagamentos) ? comanda.historicoPagamentos : [];
     comanda.valorTotal = total;
@@ -509,6 +514,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
       itens: comanda.itens,
       tipoAtendimento: comanda.tipoAtendimento || 'mesa',
       subtotal,
+      taxaEntrega: Number(comanda.taxaEntrega || 0),
       desconto: discount,
       utilizacaoInterna,
       total,

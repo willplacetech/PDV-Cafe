@@ -90,7 +90,7 @@ export default function Comandas() {
   }, [load]);
 
   const subtotal = useMemo(() => (selected?.itens || []).reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0), [selected]);
-  const total = utilizacaoInterna ? 0 : Math.max(0, subtotal - (Number(discount) || 0));
+  const total = utilizacaoInterna ? 0 : Math.max(0, subtotal + Number(selected?.taxaEntrega || 0) - (Number(discount) || 0));
   const jaRecebido = useMemo(() => totalPago(selected?.historicoPagamentos), [selected]);
   const saldoEmAberto = Math.max(0, total - jaRecebido);
 
@@ -471,6 +471,8 @@ export default function Comandas() {
                 </div>
               ))}
             </div>
+
+            {Number(selected?.taxaEntrega) > 0 && <p style={{ display: 'flex', justifyContent: 'space-between' }}><span>Taxa de entrega</span><strong>{formatMoney(selected.taxaEntrega)}</strong></p>}
 
             {/* desconto */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>

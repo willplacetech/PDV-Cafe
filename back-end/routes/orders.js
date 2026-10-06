@@ -212,7 +212,7 @@ router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req,
     const subtotalNovos = novosItens.reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0);
     order.itens.push(...novosItens);
     order.subtotal = money(Number(order.subtotal || 0) + subtotalNovos);
-    order.total = money(order.subtotal - Number(order.desconto || 0));
+    order.total = money(order.subtotal + Number(order.taxaEntrega || 0) - Number(order.desconto || 0));
     const nome = String(req.body.nomeSolicitante || '').trim();
     const observacao = String(req.body.observacao || '').trim();
     const registro = [nome, observacao].filter(Boolean).join(': ');

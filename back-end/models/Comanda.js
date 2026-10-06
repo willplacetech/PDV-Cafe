@@ -48,6 +48,7 @@ const comandaSchema = new mongoose.Schema({
   statusBalcao: { type: String, enum: ['aguardando', 'preparando', 'pronto', 'pago', 'entregue'], default: 'aguardando' },
   mesa: { type: String, trim: true },
   itens: { type: [itemSchema], default: [] },
+  taxaEntrega: { type: Number, default: 0, min: 0, validate: Number.isFinite },
   desconto: { type: Number, default: 0, min: 0 },
   valorTotal: { type: Number, default: 0, min: 0 },
   valorPago: { type: Number, default: 0, min: 0 },
@@ -67,6 +68,21 @@ const comandaSchema = new mongoose.Schema({
   estoqueBaixado: { type: Boolean, default: false },
   status: { type: String, enum: ['aberta', 'fechada', 'cancelada'], default: 'aberta', index: true },
   atendente: { type: String, required: true },
+  entrega: {
+    type: new mongoose.Schema({
+      usuarioId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', immutable: true },
+      telefone: String,
+      endereco: mongoose.Schema.Types.Mixed,
+      taxaEntrega: Number,
+      pedidoEntregaId: { type: mongoose.Schema.Types.ObjectId, ref: 'PedidoEntrega' },
+      status: { type: String, enum: ['pendente', 'processado', 'erro'], default: 'pendente' },
+      tentativas: { type: Number, default: 0 },
+      ultimoErro: String,
+      proximaTentativa: Date,
+    }, { _id: false }),
+    default: undefined,
+  },
   pedidoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order' },
 }, { timestamps: true });
 

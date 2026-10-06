@@ -10,6 +10,9 @@ const auth = (req, res, next) => {
 
   try {
     req.user = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
+    if (['tenant_admin', 'admin_plataforma', 'entregador', 'sistema'].includes(req.user.role) && !/^\/api\/(tenant(?:\/|$)|plataforma(?:\/|$)|entregador(?:\/|$)|pedidos\/integracao(?:\?|$)|auth\/me(?:\?|$))/.test(req.originalUrl || '')) {
+      return res.status(403).json({ msg: 'Esta sessão só permite acesso ao DeliveryLink' });
+    }
     next();
   } catch (error) {
     if (error.status === 503) return res.status(503).json({ msg: error.message });

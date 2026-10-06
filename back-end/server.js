@@ -40,7 +40,7 @@ const corsOptions = {
 
 // Middlewares
 app.disable('x-powered-by');
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: { directives: { frameSrc: ["'self'", "https://www.openstreetmap.org"] } } }));
 app.use(cors(corsOptions));
 app.options('/api/*', cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
@@ -99,6 +99,8 @@ app.use('/api/receitas', require('./routes/receitas'));
 app.use('/api/produtos', require('./routes/products'));
 app.use('/api/mesas', require('./routes/mesas'));
 
+app.use('/api', require('./routes/delivery'));
+
 // Rota base da API
 app.get('/api', (req, res) => {
   res.json({ 
@@ -145,8 +147,11 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   await connectDB();
   await require('./models/Comanda').init();
+  await Promise.all(['Tenant', 'PedidoEntrega', 'Entregador', 'User'].map(name => require(`./models/${name}`).init()));
   await initializeAuth();
   await provisionarAdmin();
+  await require('./utils/provisionarDeliveryAdmin')();
+  require('./utils/deliveryOutbox').iniciar();
   app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`.yellow.bold);
   });

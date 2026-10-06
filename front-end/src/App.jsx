@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
@@ -5,21 +6,26 @@ import { ToastProvider } from './components/Toast.jsx';
 import PrivateRoute from './components/PrivateRoute.jsx';
 import RoleRoute from './components/RoleRoute.jsx';
 import Layout from './components/Layout.jsx';
-import Login from './pages/Login.jsx';
-import PDV from './pages/PDV.jsx';
-import Products from './pages/Products.jsx';
-import Customers from './pages/Customers.jsx';
-import ContasReceber from './pages/ContasReceber';
-import Users from './pages/Users';
-import Comandas from './pages/Comandas.jsx';
-import MesasCadastro from './pages/MesasCadastro.jsx';
-import Dashboard from './pages/Dashboard.jsx';
-import Production from './pages/Production.jsx';
-import Purchases from './pages/Purchases.jsx';
-import Kitchen from './pages/Kitchen.jsx';
-import Financeiro from './pages/Financeiro.jsx';
-import Caixa from './pages/Caixa.jsx';
+const Login = lazy(() => import('./pages/Login.jsx'));
+const PDV = lazy(() => import('./pages/PDV.jsx'));
+const Products = lazy(() => import('./pages/Products.jsx'));
+const Customers = lazy(() => import('./pages/Customers.jsx'));
+const ContasReceber = lazy(() => import('./pages/ContasReceber'));
+const Users = lazy(() => import('./pages/Users'));
+const Comandas = lazy(() => import('./pages/Comandas.jsx'));
+const MesasCadastro = lazy(() => import('./pages/MesasCadastro.jsx'));
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
+const Production = lazy(() => import('./pages/Production.jsx'));
+const Purchases = lazy(() => import('./pages/Purchases.jsx'));
+const Kitchen = lazy(() => import('./pages/Kitchen.jsx'));
+const Financeiro = lazy(() => import('./pages/Financeiro.jsx'));
+const Caixa = lazy(() => import('./pages/Caixa.jsx'));
 
+
+const DeliveryAdmin = lazy(() => import('./pages/DeliveryAdmin.jsx'));
+const DeliveryPlataforma = lazy(() => import('./pages/DeliveryPlataforma.jsx'));
+const DeliveryEntregador = lazy(() => import('./pages/DeliveryEntregador.jsx'));
+const RastreioEntrega = lazy(() => import('./pages/RastreioEntrega.jsx'));
 
 export default function App() {
   return (
@@ -27,7 +33,12 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
           <Router>
+            <Suspense fallback={<p role="status" style={{ padding: 24 }}>Carregando…</p>}>
             <Routes>
+              <Route path="/admin" element={<DeliveryAdmin />} />
+              <Route path="/plataforma" element={<DeliveryPlataforma />} />
+              <Route path="/entregador" element={<DeliveryEntregador />} />
+              <Route path="/pedido/:token" element={<RastreioEntrega />} />
               <Route path="/login" element={<Login />} />
               <Route element={<PrivateRoute />}>
                 <Route element={<Layout />}>
@@ -57,6 +68,7 @@ export default function App() {
                 </Route>
               </Route>
             </Routes>
+            </Suspense>
           </Router>
         </ToastProvider>
       </AuthProvider>

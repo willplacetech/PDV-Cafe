@@ -170,6 +170,7 @@ const emitirNfce = async ({ order, products }) => {
           numero: order.numero,
           total: order.total,
           desconto: order.desconto,
+          ...(Number(order.taxaEntrega) > 0 ? { frete: Number(order.taxaEntrega) } : {}),
           itens
         },
         certificado: { pfxConfigurado: true, senhaConfigurada: true },

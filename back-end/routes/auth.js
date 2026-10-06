@@ -26,7 +26,7 @@ router.post('/login', async (req, res, next) => {
     if (!user || !(await user.matchPassword(password))) {
       return res.status(401).json({ msg: 'Usuário ou senha inválidos' });
     }
-    const publicUser = { id: user.id, username: user.username, role: user.role };
+    const publicUser = { id: user.id, username: user.username, role: user.role, ...(user.tenantId ? { tenantId: user.tenantId } : {}) };
     const token = jwt.sign(publicUser, getJwtSecret(), { expiresIn: '24h', algorithm: 'HS256' });
     return res.json({ user: publicUser, token });
   } catch (error) { return next(error); }

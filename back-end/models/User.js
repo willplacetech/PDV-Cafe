@@ -17,9 +17,11 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'operador', 'cozinha', 'garcom'],
+    enum: ['admin', 'operador', 'cozinha', 'garcom', 'admin_plataforma', 'tenant_admin', 'entregador'],
     default: 'operador',
   },
+  email: { type: String, trim: true, lowercase: true, unique: true, sparse: true, maxlength: 254 },
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
   createdAt: {
     type: Date,
     default: Date.now,

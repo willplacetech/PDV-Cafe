@@ -5,6 +5,7 @@ import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/useToast.js';
 import { compartilharNotaWhatsApp, textoSeguro } from '../utils/notaVenda.js';
 import useFilaOffline from '../hooks/useFilaOffline.js';
+import DeliveryPDV from '../components/DeliveryPDV.jsx';
 
 
 const corCategoria = {
@@ -74,6 +75,7 @@ export default function PDV() {
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const { showToast } = useToast();
   const { enfileirar } = useFilaOffline();
+  const [entregaPDV, setEntregaPDV] = useState(null);
   const navigate = useNavigate();
   const selectClienteRef = useRef(null);
   const envioRef = useRef(false);
@@ -214,7 +216,7 @@ export default function PDV() {
 
 
   const subtotal = carrinho.reduce((ac, i) => ac + i.precoUnitario * i.quantidade, 0);
-  const total = subtotal;
+  const total = subtotal + (entregaPDV ? Number(entregaPDV.taxaEntrega) || 0 : 0);
   const descontoQuantidadeTotal = carrinho.reduce((acumulado, item) => acumulado + Number(item.economiaQuantidade || 0), 0);
   const totalItens = carrinho.reduce((ac, i) => ac + i.quantidade, 0);
   const clienteSelecionado = clientes.find(c => c._id === clienteId);
@@ -223,6 +225,7 @@ export default function PDV() {
   const finalizar = async () => {
     if (envioRef.current) return;
     if (!carrinho.length) return showToast('Carrinho vazio!', 'warning');
+    if (entregaPDV && (!String(clienteSelecionado?.nome || clienteNome || '').trim() || !entregaPDV.telefone.trim() || !['rua', 'numero', 'bairro'].every(campo => entregaPDV.endereco[campo]?.trim()) || !Number.isFinite(Number(entregaPDV.taxaEntrega)) || Number(entregaPDV.taxaEntrega) < 0)) return showToast('Informe nome, telefone e endereco completo para entrega.', 'warning');
     envioRef.current = true;
     setEnviando(true);
 
@@ -237,6 +240,8 @@ export default function PDV() {
       })),
     };
 
+    if (entregaPDV) payload.entrega = { ...entregaPDV, taxaEntrega: Number(entregaPDV.taxaEntrega) };
+
     const assinatura = JSON.stringify(payload);
     if (idempotenciaRef.current?.assinatura !== assinatura) {
       const chave = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -250,6 +255,7 @@ export default function PDV() {
       setCarrinho([]);
       setClienteId('');
       setClienteNome('');
+      setEntregaPDV(null);
     };
 
     const salvarOffline = async () => {
@@ -461,6 +467,7 @@ export default function PDV() {
             background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
             borderRadius: 16, padding: 16
           }}>
+            <DeliveryPDV value={entregaPDV} onChange={setEntregaPDV} />
             <div style={{ marginBottom: 18 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
                 <div>
@@ -661,6 +668,7 @@ export default function PDV() {
                     <span>Subtotal</span>
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
                   </div>
+                  {entregaPDV && Number(entregaPDV.taxaEntrega) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}><span>Taxa de entrega</span><span>{formatMoney(Number(entregaPDV.taxaEntrega))}</span></div>}
                   {descontoQuantidadeTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13, color: 'var(--success-bg)', fontWeight: 700 }}><span>Desconto por quantidade</span><span>-{formatMoney(descontoQuantidadeTotal)}</span></div>}
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, fontWeight: 700, fontSize: 24, color: 'var(--accent-primary)' }}>
                     <span>Total</span>

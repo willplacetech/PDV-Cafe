@@ -52,7 +52,7 @@ test('cliques repetidos ao abrir comanda enviam apenas uma requisição', async 
   const pending = new Promise(resolve => { release = resolve; });
   const noop = () => {};
   const code = 'const finalizar = ' + section('PDV', 'const finalizar = ', '// ==========================================');
-  const bindings = { navigator: { onLine: true }, enfileirar: async () => ({ ok: true }), carrinho: [{ produtoId: 'a', quantidade: 1 }], clienteId: '', clienteSelecionado: null, clienteNome: '', showToast: noop, navigate: noop, setCarrinho: noop, setClienteId: noop, setClienteNome: noop, setEnviando: noop, envioRef: { current: false }, idempotenciaRef: { current: null }, crypto: { randomUUID: () => 'test-uuid' }, api: { post: async () => { sends++; await pending; return { data: { numero: 1 } }; } } };
+  const bindings = { entregaPDV: null, setEntregaPDV: () => {}, navigator: { onLine: true }, enfileirar: async () => ({ ok: true }), carrinho: [{ produtoId: 'a', quantidade: 1 }], clienteId: '', clienteSelecionado: null, clienteNome: '', showToast: noop, navigate: noop, setCarrinho: noop, setClienteId: noop, setClienteNome: noop, setEnviando: noop, envioRef: { current: false }, idempotenciaRef: { current: null }, crypto: { randomUUID: () => 'test-uuid' }, api: { post: async () => { sends++; await pending; return { data: { numero: 1 } }; } } };
   const fn = evaluate(code, bindings, 'finalizar');
   const first = fn();
   const second = fn();
@@ -87,6 +87,7 @@ test('cupom PDV escapa cliente e dados de produto', () => {
 const finalizarPDV = (overrides = {}) => {
   const noop = () => {};
   const bindings = {
+    entregaPDV: null, setEntregaPDV: () => {},
     navigator: { onLine: false },
     carrinho: [{ produtoId: 'a', quantidade: 1 }],
     clienteId: '', clienteSelecionado: null, clienteNome: '',
@@ -151,4 +152,23 @@ test('erro de validacao nao entra na fila e mantem a chave para repetir o mesmo 
   assert.equal(enfileiradas, 0);
   assert.equal(chaves.length, 2);
   assert.equal(chaves[0], chaves[1]);
+});
+
+test('PDV offline conserva dados de entrega junto da venda na fila existente', async () => {
+  let salvo;
+  const entregaPDV = { telefone: '11988888888', endereco: { rua: 'Rua Um', numero: '12', bairro: 'Centro' }, taxaEntrega: '4.50' };
+  const { fn } = finalizarPDV({ entregaPDV, clienteNome: 'Maria', enfileirar: async (url, payload) => { salvo = payload; return { ok: true }; } });
+  await fn();
+  assert.equal(salvo.entrega.taxaEntrega, 4.5);
+  assert.equal(salvo.entrega.endereco.rua, 'Rua Um');
+  assert.equal(salvo.clienteNome, 'Maria');
+});
+
+test('entrega incompleta no PDV avisa antes de enviar e preserva o carrinho', async () => {
+  let envios = 0;
+  let aviso;
+  const { fn } = finalizarPDV({ entregaPDV: { telefone: '', endereco: {}, taxaEntrega: 0 }, api: { post: async () => { envios++; } }, enfileirar: async () => { envios++; }, showToast: (msg, tipo) => { aviso = tipo; } });
+  await fn();
+  assert.equal(envios, 0);
+  assert.equal(aviso, 'warning');
 });
