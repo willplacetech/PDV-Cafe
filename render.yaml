@@ -28,15 +28,9 @@ services:
       - key: DELIVERY_ADMIN_PASSWORD
         sync: false
       - key: FRONTEND_URL
-        fromService:
-          name: pdv-cafe-web-teste-off-delivery
-          type: web
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://pdv-delivery-9j0a.onrender.com
       - key: DELIVERY_PUBLIC_URL
-        fromService:
-          name: pdv-cafe-web-teste-off-delivery
-          type: web
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://pdv-delivery-9j0a.onrender.com
 
   - type: web
     runtime: static
@@ -54,7 +48,4 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: API_PUBLIC_URL
-        fromService:
-          name: pdv-cafe-api-teste-off-delivery
-          type: web
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://pdv-completo-z6ly.onrender.com

@@ -2,7 +2,7 @@ import axios from 'axios';
 import { attachSessionInterceptors } from './sessionInterceptors.js';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://pdv-cafe-back.onrender.com/api',
+  baseURL: import.meta.env.VITE_API_URL || 'https://pdv-completo-z6ly.onrender.com/api',
   withCredentials: true,
   timeout: 30000,
 });
