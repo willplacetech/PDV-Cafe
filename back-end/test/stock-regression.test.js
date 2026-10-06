@@ -21,6 +21,7 @@ function harness(products = []) {
   products.forEach((p) => mock.method(p, 'save', async () => p));
   mock.method(Product, 'find', (filter) => query(products.filter(p => filter._id.$in.map(String).includes(String(p._id)))));
   mock.method(Product, 'findById', (key) => query(products.find(p => String(p._id) === String(key))));
+  mock.method(Order, 'find', () => query([]));
   const update = async (filter, change) => {
     const p = products.find(p => String(p._id) === String(filter._id));
     if (!p) return null;

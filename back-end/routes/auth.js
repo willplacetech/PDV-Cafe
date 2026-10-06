@@ -17,12 +17,16 @@ const cookieOptions = {
   path: '/',
 };
 
-const { loginProtection } = require('../utils/sessionOrigins');
+const { trustedOrigin } = require('../utils/sessionOrigins');
 
 // @route   POST api/auth/login
 // @desc    Login e retornar token
 // @access  Público
-router.post('/login', loginProtection, async (req, res, next) => {
+router.post('/login', async (req, res, next) => {
+  const origin = req?.headers?.origin;
+  if (typeof origin === 'string' && !trustedOrigin(req)) {
+    return res.status(403).json({ msg: 'Origem da sessão não autorizada' });
+  }
   const { username, password } = req.body || {};
   if (typeof username !== 'string' || !validUsername(username.trim()) || typeof password !== 'string' || !validLoginPassword(password)) {
     return res.status(400).json({ msg: 'Informe usuário e senha válidos' });
