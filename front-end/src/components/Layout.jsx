@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext.jsx';
-import { ThemeContext } from '../context/ThemeContext.jsx';
+import { AuthContext } from '../context/AuthContextDefinition.jsx';
+import { ThemeContext } from '../context/ThemeContextDefinition.js';
 import StatusConexao from './StatusConexao.jsx';
 
 const gruposMenu = [
@@ -45,7 +45,7 @@ const gruposMenu = [
     label: '💰 FINANCEIRO',
     items: [
       { label: 'Fechamento de Caixa', icon: '💵', to: '/caixa', admin: true },
-      { label: 'Dashboard', icon: '📊', to: '/financeiro', admin: true },
+      { label: 'Dashboard', icon: '📊', to: '/dashboard', admin: true },
       { label: 'DRE / Demonstrativo', icon: '📈', to: '/financeiro', admin: true },
     ],
   },

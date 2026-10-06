@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api.jsx';
-import { useToast } from '../components/Toast.jsx';
-import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
+import { permiteFracionar } from '../utils/quantidadeVenda.js';
+import { useToast } from '../components/useToast.js';
+import { compartilharNotaWhatsApp, textoSeguro } from '../utils/notaVenda.js';
 import useFilaOffline from '../hooks/useFilaOffline.js';
 
 
@@ -18,7 +19,6 @@ const corCategoria = {
 const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Outros'];
 const normalizarTexto = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 const formatMoney = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
-const permiteFracionar = (produto) => !Number(produto?.pesoPorUnidade) && (Boolean(produto?.vendidoFracionado) || ['kg', 'L'].includes(produto?.unidadeVenda));
 const precoPorUnidade = (produto) => {
   const pesoEmKg = Number(produto?.pesoPorUnidade || 0) * (produto?.unidadePeso === 'g' ? 0.001 : 1);
   const preco = pesoEmKg > 0 ? Number(produto.preco || 0) * pesoEmKg : Number(produto.preco || 0);
@@ -63,6 +63,7 @@ export default function PDV() {
   const [produtos, setProdutos] = useState([]);
   const [maisVendidos, setMaisVendidos] = useState([]);
   const [carrinho, setCarrinho] = useState([]);
+  const [quantidadesRascunho, setQuantidadesRascunho] = useState({});
   const [busca, setBusca] = useState('');
   const [clientes, setClientes] = useState([]);
   const [clienteId, setClienteId] = useState('');
@@ -75,6 +76,9 @@ export default function PDV() {
   const { enfileirar } = useFilaOffline();
   const navigate = useNavigate();
   const selectClienteRef = useRef(null);
+  const envioRef = useRef(false);
+  const idempotenciaRef = useRef(null);
+  const [enviando, setEnviando] = useState(false);
 
 
   const carregarDados = useCallback(async () => {
@@ -96,7 +100,7 @@ export default function PDV() {
     let temCatalogoOffline = false;
     try { temCatalogoOffline = JSON.parse(localStorage.getItem('pdv_catalogo_offline') || '[]').length > 0; } catch { /* ignora armazenamento local inválido */ }
     if (resultados.every((resultado) => resultado.status === 'rejected') && !temCatalogoOffline) {
-      showToast('Sem conexão e sem catálogo salvo neste dispositivo', 'error');
+      showToast('Sem conexão e sem catálogo salvo neste dispositivo', 'warning');
     }
   }, [showToast]);
 
@@ -184,19 +188,29 @@ export default function PDV() {
 
 
   const alterarQtd = (idx, qtd) => {
+    const quantidade = Number(qtd);
+    if (!Number.isFinite(quantidade) || quantidade < 0.001) {
+      setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[idx]; return proximas; });
+      showToast('Informe uma quantidade válida', 'warning');
+      return;
+    }
     const novos = [...carrinho];
+    if (!novos[idx]) return;
     const prod = produtos.find(p => p._id === novos[idx].produtoId);
-    if (qtd < 0.001) return removerItem(idx);
-    if (!permiteFracionar(prod) && !Number.isInteger(qtd)) return showToast('Este produto é vendido por unidade', 'warning');
+    if (!permiteFracionar(prod) && !Number.isInteger(quantidade)) return showToast('Este produto é vendido por unidade', 'warning');
     const quantidadeOutrasLinhas = carrinho.reduce((total, item, itemIndex) => itemIndex !== idx && item.produtoId === novos[idx].produtoId ? total + item.quantidade : total, 0);
     const estoqueDisponivel = prod.aFazer ? Number(prod.cozDisponibilidade?.disponivel || 0) : Number(prod.estoque || 0);
-    if (!prod.permitirVendaSemInsumo && quantidadeOutrasLinhas + qtd > estoqueDisponivel) return showToast(`Máximo: ${estoqueDisponivel}`, 'warning');
-    novos[idx].quantidade = qtd;
+    if (!prod.permitirVendaSemInsumo && quantidadeOutrasLinhas + quantidade > estoqueDisponivel) return showToast(`Máximo: ${estoqueDisponivel}`, 'warning');
+    novos[idx].quantidade = quantidade;
     setCarrinho(recalcularPrecosCarrinho(novos));
+    setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[idx]; return proximas; });
   };
 
 
-  const removerItem = (idx) => setCarrinho(carrinho.filter((_, i) => i !== idx));
+  const removerItem = (idx) => {
+    setCarrinho((atuais) => recalcularPrecosCarrinho(atuais.filter((_, i) => i !== idx)));
+    setQuantidadesRascunho({});
+  };
 
 
   const subtotal = carrinho.reduce((ac, i) => ac + i.precoUnitario * i.quantidade, 0);
@@ -207,11 +221,12 @@ export default function PDV() {
 
 
   const finalizar = async () => {
+    if (envioRef.current) return;
     if (!carrinho.length) return showToast('Carrinho vazio!', 'warning');
+    envioRef.current = true;
+    setEnviando(true);
 
-    const idTemporario = `${Date.now()}-${globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)}`;
     const payload = {
-      idTemporario,
       clienteId: clienteId || undefined,
       clienteNome: clienteSelecionado?.nome || clienteNome.trim() || 'Cliente não identificado',
       clienteTelefone: clienteSelecionado?.telefone || '',
@@ -222,7 +237,16 @@ export default function PDV() {
       })),
     };
 
+    const assinatura = JSON.stringify(payload);
+    if (idempotenciaRef.current?.assinatura !== assinatura) {
+      const chave = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      idempotenciaRef.current = { assinatura, chave };
+    }
+    const idTemporario = idempotenciaRef.current.chave;
+    payload.idTemporario = idTemporario;
+
     const limparCarrinho = () => {
+      idempotenciaRef.current = null;
       setCarrinho([]);
       setClienteId('');
       setClienteNome('');
@@ -231,8 +255,8 @@ export default function PDV() {
     const salvarOffline = async () => {
       const resultado = await enfileirar('/comandas', payload, idTemporario);
       if (!resultado.ok) {
-        if (resultado.motivo === 'limite') showToast('Limite de 50 vendas pendentes atingido. Conecte à internet para sincronizar.', 'error');
-        else showToast('Conecte à internet para sincronizar. A venda não foi removida do carrinho.', 'error');
+        if (resultado.motivo === 'limite') showToast('Limite de 50 vendas pendentes atingido. Conecte à internet para sincronizar.', 'warning');
+        else showToast('Conecte à internet para sincronizar. A venda não foi removida do carrinho.', 'warning');
         return false;
       }
       limparCarrinho();
@@ -240,22 +264,27 @@ export default function PDV() {
       return true;
     };
 
-    if (!navigator.onLine) {
-      await salvarOffline();
-      return;
-    }
-
     try {
-      const { data: comanda } = await api.post('/comandas', payload);
+      if (!navigator.onLine) {
+        await salvarOffline();
+        return;
+      }
+
+      const { data: comanda } = await api.post('/comandas', payload, {
+        headers: { 'Idempotency-Key': idTemporario },
+      });
       limparCarrinho();
       showToast(`Comanda #${comanda.numero} aberta`, 'success');
       navigate('/comandas');
     } catch (err) {
-      if (!err.response || err.response.status >= 500 || !navigator.onLine) {
+      if (!err.response || [0, 408].includes(err.response.status) || err.response.status >= 500 || !navigator.onLine) {
         await salvarOffline();
         return;
       }
       showToast(err.response?.data?.msg || 'Erro ao abrir comanda', 'error');
+    } finally {
+      envioRef.current = false;
+      setEnviando(false);
     }
   };
 
@@ -270,8 +299,8 @@ export default function PDV() {
     const itensHtml = pedido.itens.map(item => `
       <div style="display:flex; justify-content:space-between; border-bottom: 1px dashed #000; padding: 4px 0;">
         <div style="flex:1; margin-right:8px;">
-          <div style="font-weight:bold;">${item.nome}</div>
-          <div style="font-size:10px;">Cod: ${item.codigo} | Qtd: ${item.quantidade} x R$ ${item.precoUnitario.toFixed(2).replace('.',',')}</div>
+          <div style="font-weight:bold;">${textoSeguro(item.nome)}</div>
+          <div style="font-size:10px;">Cod: ${textoSeguro(item.codigo)} | Qtd: ${item.quantidade} x R$ ${item.precoUnitario.toFixed(2).replace('.',',')}</div>
         </div>
         <div style="font-weight:bold; white-space:nowrap;">R$ ${(item.quantidade * item.precoUnitario).toFixed(2).replace('.',',')}</div>
       </div>
@@ -280,7 +309,7 @@ export default function PDV() {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Cupom #${pedido.numero}</title>
+        <title>Cupom #${textoSeguro(pedido.numero)}</title>
         <style>
           * { font-family: 'Courier New', monospace; font-size: 12px; }
           body { width: 76mm; margin: 0; padding: 4mm; }
@@ -300,10 +329,10 @@ export default function PDV() {
         <div class="center" style="font-size:10px;">Cupom Não Fiscal</div>
         <div class="linha-dupla"></div>
         
-        <div><span class="bold">Pedido:</span> #${pedido.numero}</div>
+        <div><span class="bold">Pedido:</span> #${textoSeguro(pedido.numero)}</div>
         <div><span class="bold">Data:</span> ${data}</div>
-        <div><span class="bold">Atendente:</span> ${pedido.atendente}</div>
-        <div><span class="bold">Cliente:</span> ${pedido.clienteNome}</div>
+        <div><span class="bold">Atendente:</span> ${textoSeguro(pedido.atendente)}</div>
+        <div><span class="bold">Cliente:</span> ${textoSeguro(pedido.clienteNome)}</div>
         
         <div class="linha-dupla"></div>
         <div class="bold" style="text-align:center;">=== ITENS DO PEDIDO ===</div>
@@ -382,8 +411,8 @@ export default function PDV() {
           <p>Monte o pedido e abra uma comanda.</p>
         </div>
       </div>
-      <button type="button" className="pdv-mobile-cart-trigger" onClick={() => setMobileCartOpen(true)}>
-        <span>🛒 Carrinho</span>
+      <button type="button" className="pdv-mobile-cart-trigger" onClick={() => setMobileCartOpen((open) => !open)} aria-expanded={mobileCartOpen}>
+        <span>{mobileCartOpen ? '− Minimizar carrinho' : '🛒 Carrinho'}</span>
         <strong>{totalItens} {totalItens === 1 ? 'item' : 'itens'} · R$ {total.toFixed(2).replace('.', ',')}</strong>
       </button>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }} className="pdv-grid">
@@ -532,19 +561,39 @@ export default function PDV() {
                   }}>{totalItens}</span>
                 )}
               </h3>
-              <button type="button" className="pdv-mobile-cart-close" onClick={() => setMobileCartOpen(false)} aria-label="Fechar carrinho">×</button>
+              <button type="button" className="pdv-mobile-cart-close" onClick={() => setMobileCartOpen(false)}>− Minimizar</button>
             </div>
+            <label className="pdv-mobile-product-select">
+              <span>Adicionar produto</span>
+              <select
+                value=""
+                onChange={(event) => {
+                  const produto = produtos.find((item) => item._id === event.target.value);
+                  if (produto) selecionarProduto(produto);
+                }}
+              >
+                <option value="">Selecione um produto...</option>
+                {produtos.filter((produto) => produto.tipo === 'venda').map((produto) => (
+                  <option key={produto._id} value={produto._id}>
+                    {produto.nome} — {formatMoney(produto.preco)}
+                  </option>
+                ))}
+              </select>
+            </label>
             {carrinho.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)', fontSize: 14 }}>
                 <div style={{ fontSize: 40, marginBottom: 8 }}>🛒</div>
                 Carrinho vazio<br />
-                <span style={{ fontSize: 12 }}>Toque nos produtos ao lado</span>
+                <span style={{ fontSize: 12 }}>Adicione produtos pelo seletor acima ou pelo catálogo</span>
               </div>
             ) : (
               <>
-                <div style={{ maxHeight: 320, overflowY: 'auto', marginBottom: 14, paddingRight: 4 }}>
+                <div className="pdv-cart-items" style={{ maxHeight: 320, overflowY: 'auto', marginBottom: 14, paddingRight: 4 }}>
                   {carrinho.map((item, i) => {
                     const prod = produtos.find(p => p._id === item.produtoId);
+                    const passoQuantidade = permiteFracionar(prod) ? 0.001 : 1;
+                    const quantidadeExibida = quantidadesRascunho[i] ?? item.quantidade;
+                    const quantidadeBase = Number(quantidadeExibida) > 0 ? Number(quantidadeExibida) : item.quantidade;
                     return (
                       <div key={i} style={{
                         padding: '10px 0', borderBottom: '1px solid var(--border-light)'
@@ -557,7 +606,7 @@ export default function PDV() {
                             </div>
                             {item.modificadores?.length > 0 && <div style={{ fontSize: 11, color: 'var(--accent-primary)', marginTop: 4 }}>☕ {item.modificadores.join(' · ')}</div>}
                           </div>
-                          <button onClick={() => removerItem(i)} style={{
+                          <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => removerItem(i)} style={{
                             background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)',
                             border: 'none', borderRadius: 8, padding: '6px 10px',
                             cursor: 'pointer', fontWeight: 700, fontSize: 12, minHeight: 32
@@ -565,12 +614,13 @@ export default function PDV() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 10, overflow: 'hidden' }}>
-                            <button onClick={() => alterarQtd(i, item.quantidade - (permiteFracionar(prod) ? 0.001 : 1))} style={{
+                            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => alterarQtd(i, Math.max(passoQuantidade, quantidadeBase - passoQuantidade))} style={{
                               width: 40, height: 40, background: 'transparent', border: 'none',
                               cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)'
                             }}>−</button>
-                            <input type="number" min={permiteFracionar(prod) ? 0.001 : 1} step={permiteFracionar(prod) ? 0.001 : 1} value={item.quantidade}
-                              onChange={e => alterarQtd(i, Number(e.target.value))}
+                            <input type="number" min={passoQuantidade} step={passoQuantidade} value={quantidadeExibida}
+                              onChange={(event) => setQuantidadesRascunho((atuais) => ({ ...atuais, [i]: event.target.value }))}
+                              onBlur={(event) => alterarQtd(i, event.currentTarget.value)}
                               style={{
                                 width: 48, textAlign: 'center', border: 'none',
                                 borderLeft: '1px solid var(--border-color)',
@@ -578,7 +628,7 @@ export default function PDV() {
                                 padding: '8px 4px', fontSize: 15, fontWeight: 700,
                                 background: 'var(--input-bg)', color: 'var(--input-text)'
                               }} />
-                            <button onClick={() => alterarQtd(i, item.quantidade + (permiteFracionar(prod) ? 0.001 : 1))} style={{
+                            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => alterarQtd(i, quantidadeBase + passoQuantidade)} style={{
                               width: 40, height: 40, background: 'transparent', border: 'none',
                               cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)'
                             }}>+</button>
@@ -617,7 +667,7 @@ export default function PDV() {
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>R$ {total.toFixed(2).replace('.', ',')}</span>
                   </div>
                   
-                  <button onClick={finalizar} style={{
+                  <button onClick={finalizar} disabled={enviando} style={{
                     width: '100%', padding: '14px', background: 'var(--accent-primary)', color: '#fff',
                     border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
                     cursor: 'pointer', minHeight: 52
@@ -702,9 +752,12 @@ export default function PDV() {
           .pdv-grid { gap: 10px !important; min-width: 0; }
           .pdv-grid > div { min-width: 0; }
           .pdv-cart-panel { display: none; }
-          .pdv-cart-panel.mobile-open { display: block; position: fixed; inset: 0; z-index: 1200; overflow-y: auto; padding: 12px; background: var(--bg-primary); }
-          .pdv-cart-panel.mobile-open > div { min-height: calc(100svh - 24px); border-radius: 14px !important; }
-          .pdv-mobile-cart-close { display: inline-flex !important; }
+          .pdv-cart-panel.mobile-open { display: block; position: static; order: -1; overflow: visible; padding: 0; background: transparent; }
+          .pdv-cart-panel.mobile-open > div { min-height: 0; border-radius: 14px !important; }
+          .pdv-cart-panel.mobile-open .pdv-cart-items { max-height: none !important; overflow: visible !important; }
+          .pdv-mobile-cart-close { display: inline-flex !important; width: auto; min-width: 44px; height: 38px; padding: 0 10px; font-size: 12px; font-weight: 700; }
+          .pdv-cart-panel.mobile-open .pdv-mobile-product-select { display: grid; gap: 6px; margin: 0 0 14px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
+          .pdv-mobile-product-select select { width: 100%; min-height: 48px; padding: 10px 12px; border: 1.5px solid var(--border-color); border-radius: 10px; background: var(--input-bg); color: var(--input-text); font-size: 16px; }
           .pdv-grid > div > div { padding: 12px !important; border-radius: 12px !important; margin-bottom: 10px !important; }
           .pdv-grid .product-card { min-height: 96px !important; padding: 10px !important; }
           .pdv-grid [style*="max-height: 420px"] { max-height: 280px !important; }
@@ -713,6 +766,7 @@ export default function PDV() {
         .product-card:active { transform: scale(0.97); }
         .product-card-added { animation: item-added .35s ease; border-color: var(--accent-primary) !important; }
         .pdv-mobile-cart-trigger, .pdv-mobile-cart-close { display: none; }
+        .pdv-mobile-product-select { display: none; }
         .pdv-mobile-cart-trigger { width: 100%; min-height: 50px; margin-bottom: 10px; padding: 10px 14px; align-items: center; justify-content: space-between; gap: 12px; border: 0; border-radius: 12px; background: var(--accent-primary); color: #fff; font: inherit; font-size: 14px; cursor: pointer; box-shadow: var(--shadow-sm); }
         .pdv-mobile-cart-trigger strong { font-size: 13px; white-space: nowrap; }
         .pdv-mobile-cart-close { align-items: center; justify-content: center; width: 38px; height: 38px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 24px; cursor: pointer; }

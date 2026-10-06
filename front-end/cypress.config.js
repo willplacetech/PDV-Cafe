@@ -11,8 +11,6 @@ export default defineConfig({
     defaultCommandTimeout: 10000,
     video: false,
     screenshotOnRunFailure: true,
-    setupNodeEvents(on, config) {
-      return config;
-    },
+
   },
 });

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
-import { useToast } from '../components/Toast.jsx';
+import { useToast } from '../components/useToast.js';
 
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Outros'];
 const filtrosTipo = ['Todos', 'Estoque de Venda', 'Estoque de Insumos'];
@@ -49,7 +49,7 @@ export default function Products() {
   const [searchParams] = useSearchParams();
   const [produtos, setProdutos] = useState([]);
   const [fichas, setFichas] = useState([]);
-  const [form, setForm] = useState(vazio);
+  const [form, setForm] = useState(() => searchParams.get('tipo') === 'insumo' ? { ...vazio, tipo: 'insumo', categoria: 'Insumos' } : vazio);
   const [editing, setEditing] = useState(null);
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('Todos');
@@ -85,11 +85,15 @@ export default function Products() {
     carregarInicial();
   }, []);
 
-  useEffect(() => {
-    if (searchParams.get('tipo') === 'insumo' && !editing) {
+  const tipoSolicitado = searchParams.get('tipo');
+  const contextoFormulario = `${tipoSolicitado || ''}:${editing?._id || ''}`;
+  const [contextoAnterior, setContextoAnterior] = useState(contextoFormulario);
+  if (contextoAnterior !== contextoFormulario) {
+    setContextoAnterior(contextoFormulario);
+    if (tipoSolicitado === 'insumo' && !editing) {
       setForm((prev) => ({ ...prev, tipo: 'insumo', categoria: 'Insumos' }));
     }
-  }, [editing, searchParams]);
+  }
 
   useEffect(() => {
     if (!editing && produtos.length > 0) {
@@ -110,22 +114,6 @@ export default function Products() {
     return num;
   };
 
-  const produtosIngredientes = produtos.filter((produto) => produto.tipo === 'insumo' || produto.usavelEmReceita);
-  const fatoresBase = { kg: 1, L: 1, un: 1 };
-  const produtoIngrediente = (id) => produtosIngredientes.find((produto) => String(produto._id) === String(id));
-  const resumoFichaCoz = form.fichaTecnica.reduce((resumo, item) => {
-    const ingrediente = produtoIngrediente(item.produtoId?._id || item.produtoId);
-    const quantidadeBase = Number(item.quantidade || 0) * (fatoresBase[item.unidade] || 1);
-    const estoqueBase = Number(ingrediente?.resumoInsumo?.totalBase ?? ingrediente?.estoqueInsumos ?? ingrediente?.estoque ?? 0);
-    const porcoes = quantidadeBase > 0 ? Math.floor(estoqueBase / quantidadeBase) : 0;
-    resumo.disponivel = Math.min(resumo.disponivel, porcoes);
-    resumo.custo += quantidadeBase * Number(ingrediente?.resumoInsumo?.custoUnitarioBase || ingrediente?.custoUnitarioBase || ingrediente?.custoUnitario || 0);
-    if (porcoes <= 0 && ingrediente) resumo.faltantes.push(ingrediente.nome);
-    return resumo;
-  }, { disponivel: form.fichaTecnica.length ? Infinity : 0, custo: 0, faltantes: [] });
-  const atualizarIngrediente = (indice, campo, valor) => setForm((atual) => ({ ...atual, fichaTecnica: atual.fichaTecnica.map((item, itemIndice) => itemIndice === indice ? { ...item, [campo]: valor } : item) }));
-  const adicionarIngrediente = () => setForm((atual) => ({ ...atual, fichaTecnica: [...atual.fichaTecnica, { produtoId: '', quantidade: '', unidade: 'un' }] }));
-  const removerIngrediente = (indice) => setForm((atual) => ({ ...atual, fichaTecnica: atual.fichaTecnica.filter((_, itemIndice) => itemIndice !== indice) }));
 
   const resumoInsumo = form.tipo === 'insumo' ? (() => {
     const unidade = form.unidade || form.unidadeCompra || 'kg';

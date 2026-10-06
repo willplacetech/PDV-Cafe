@@ -2,7 +2,6 @@ import { useState } from 'react';
 import api from '../services/api.jsx';
 import { AuthContext } from './AuthContextDefinition.jsx';
 
-export { AuthContext } from './AuthContextDefinition.jsx';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
@@ -20,6 +19,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    if ('caches' in window) caches.delete('api-cache').catch(() => {});
     localStorage.clear();
     setUser(null);
     location.reload();

@@ -95,4 +95,39 @@ describe('Vendas offline', () => {
     });
     cy.contains('Café offline').should('be.visible');
   });
+
+  it('mantem o carrinho mobile de Compras e salva duas vendas offline apos recarregar', () => {
+    cy.viewport(375, 812);
+    cy.on('window:before:load', (window) => {
+      Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: false });
+    });
+    cy.intercept('POST', '**/api/comandas', { statusCode: 500, body: {} });
+    cy.visit('/pdv', {
+      onBeforeLoad(window) {
+        window.localStorage.setItem('pdv_token', 'token-teste');
+        window.localStorage.setItem('pdv_user', JSON.stringify({ username: 'teste', role: 'admin' }));
+        window.localStorage.setItem('pdv_catalogo_offline', JSON.stringify([produto]));
+        Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: false });
+      },
+    });
+
+    for (let indice = 0; indice < 2; indice += 1) {
+      cy.get('.pdv-mobile-cart-trigger').click();
+      cy.get('.pdv-mobile-product-select select').select(produto._id);
+      cy.contains('.pdv-cart-panel button', 'Abrir Comanda').click();
+      cy.window().should((window) => {
+        expect(JSON.parse(window.localStorage.getItem('pdv_fila_offline') || '[]')).to.have.length(indice + 1);
+      });
+      cy.contains('.pdv-mobile-cart-close', 'Minimizar').click();
+    }
+
+    cy.reload();
+    cy.window().should((window) => {
+      const fila = JSON.parse(window.localStorage.getItem('pdv_fila_offline') || '[]');
+      expect(fila).to.have.length(2);
+      expect(fila[0].idTemporario).not.to.equal(fila[1].idTemporario);
+      expect(fila.every((venda) => venda.payload.itens[0].produtoId === produto._id)).to.equal(true);
+    });
+  });
+
 });

@@ -9,6 +9,7 @@ const Order = require('../../models/Order');
 const Comanda = require('../../models/Comanda');
 const Purchase = require('../../models/Purchase');
 const Recipe = require('../../models/Recipe');
+const Despesa = require('../../models/Despesa');
 
 const jwtSecret = process.env.JWT_SECRET || 'desenvolvimento-altere-esta-chave';
 
@@ -102,6 +103,159 @@ describe('API Endpoints', () => {
       });
     expect(res.statusCode).toBe(201);
     expect(res.body.ncm).toBe('');
+  });
+
+  test('PUT /api/despesas/:id → atualiza parcelas abertas da recorrência mantendo o intervalo', async () => {
+    const origem = await Despesa.create({
+      descricao: 'Aluguel antigo',
+      categoria: 'Aluguel',
+      valor: 1000,
+      dataVencimento: new Date('2026-01-10T00:00:00.000Z'),
+      recorrente: true,
+    });
+    const parcela = await Despesa.create({
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2026-02-10T00:00:00.000Z'),
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+    const parcelaPaga = await Despesa.create({
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2025-12-10T00:00:00.000Z'),
+      dataPagamento: new Date('2025-12-10T00:00:00.000Z'),
+      status: 'pago',
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+
+    const resposta = await request(app)
+      .put(`/api/despesas/${origem._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        descricao: 'Aluguel atualizado',
+        valor: 1200,
+        dataVencimento: '2026-01-15',
+        alterarTodas: true,
+      });
+
+    expect(resposta.statusCode).toBe(200);
+    expect(resposta.body.parcelasAtualizadas).toBe(2);
+    const origemAtualizada = await Despesa.findById(origem._id);
+    const parcelaAtualizada = await Despesa.findById(parcela._id);
+    expect(origemAtualizada.descricao).toBe('Aluguel atualizado');
+    expect(origemAtualizada.valor).toBe(1200);
+    expect(origemAtualizada.dataVencimento.toISOString()).toBe('2026-01-15T00:00:00.000Z');
+    expect(parcelaAtualizada.descricao).toBe('Aluguel atualizado');
+    expect(parcelaAtualizada.valor).toBe(1200);
+    expect(parcelaAtualizada.dataVencimento.toISOString()).toBe('2026-02-15T00:00:00.000Z');
+    const parcelaPagaPreservada = await Despesa.findById(parcelaPaga._id);
+    expect(parcelaPagaPreservada.descricao).toBe('Aluguel antigo');
+    expect(parcelaPagaPreservada.valor).toBe(1000);
+  });
+
+  test('PUT /api/despesas/:id → aplica dia de vencimento e limita ao último dia do mês', async () => {
+    const origem = await Despesa.create({
+      descricao: 'Assinatura mensal',
+      categoria: 'Internet',
+      valor: 100,
+      dataVencimento: new Date('2027-01-10T00:00:00.000Z'),
+      recorrente: true,
+    });
+    const fevereiro = await Despesa.create({
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2027-02-10T00:00:00.000Z'),
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+    const marco = await Despesa.create({
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2027-03-10T00:00:00.000Z'),
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+
+    const resposta = await request(app)
+      .put(`/api/despesas/${origem._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ diaVencimento: 31, alterarTodas: true });
+
+    expect(resposta.statusCode).toBe(200);
+    expect(resposta.body.parcelasAtualizadas).toBe(3);
+    await expect(Despesa.findById(origem._id).then((despesa) => despesa.dataVencimento.toISOString()))
+      .resolves.toBe('2027-01-31T00:00:00.000Z');
+    await expect(Despesa.findById(fevereiro._id).then((despesa) => despesa.dataVencimento.toISOString()))
+      .resolves.toBe('2027-02-28T00:00:00.000Z');
+    await expect(Despesa.findById(marco._id).then((despesa) => despesa.dataVencimento.toISOString()))
+      .resolves.toBe('2027-03-31T00:00:00.000Z');
+
+    const diaInvalido = await request(app)
+      .put(`/api/despesas/${origem._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ diaVencimento: 32, alterarTodas: true });
+    expect(diaInvalido.statusCode).toBe(400);
+  });
+
+  test('PUT /api/despesas/:id → normaliza parcelas da recorrência que estão nos dias 20 e 21', async () => {
+    const origem = await Despesa.create({
+      descricao: 'Despesa recorrente',
+      categoria: 'Outros',
+      valor: 50,
+      dataVencimento: new Date('2026-09-20T00:00:00.000Z'),
+      recorrente: true,
+    });
+    const parcelaDia21 = await Despesa.create({
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2026-10-21T00:00:00.000Z'),
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+
+    const resposta = await request(app)
+      .put(`/api/despesas/${parcelaDia21._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ diaVencimento: 20, alterarTodas: true });
+
+    expect(resposta.statusCode).toBe(200);
+    expect(resposta.body.parcelasAtualizadas).toBe(2);
+    const origemAtualizada = await Despesa.findById(origem._id);
+    const parcelaAtualizada = await Despesa.findById(parcelaDia21._id);
+    expect(origemAtualizada.dataVencimento.toISOString()).toBe('2026-09-20T00:00:00.000Z');
+    expect(parcelaAtualizada.dataVencimento.toISOString()).toBe('2026-10-20T00:00:00.000Z');
+  });
+
+  test('PUT e DELETE /api/despesas/:id → altera e remove somente a despesa selecionada', async () => {
+    const despesa = await Despesa.create({
+      descricao: 'Conta de água',
+      categoria: 'Água',
+      valor: 80,
+      dataVencimento: new Date('2026-01-10T00:00:00.000Z'),
+    });
+
+    const atualizada = await request(app)
+      .put(`/api/despesas/${despesa._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ descricao: 'Conta de água revisada', valor: 95 });
+
+    expect(atualizada.statusCode).toBe(200);
+    expect(atualizada.body.descricao).toBe('Conta de água revisada');
+    expect(atualizada.body.valor).toBe(95);
+
+    const removida = await request(app)
+      .delete(`/api/despesas/${despesa._id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(removida.statusCode).toBe(200);
+    await expect(Despesa.findById(despesa._id)).resolves.toBeNull();
   });
 
   test('Produtos de revenda calculam custo por preço e conteúdo da embalagem', async () => {
@@ -233,6 +387,7 @@ describe('API Endpoints', () => {
     const primeiraResposta = await request(app)
       .post('/api/comandas')
       .set('Authorization', `Bearer ${adminToken}`)
+      .set('Idempotency-Key', payload.idTemporario)
       .send(payload);
     const segundaResposta = await request(app)
       .post('/api/comandas')
@@ -242,6 +397,24 @@ describe('API Endpoints', () => {
     expect(primeiraResposta.statusCode).toBe(201);
     expect(segundaResposta.statusCode).toBe(200);
     expect(segundaResposta.body._id).toBe(primeiraResposta.body._id);
+    expect(await Comanda.countDocuments({ idTemporario: payload.idTemporario })).toBe(1);
+    expect((await Product.findById(produtoVenda._id)).estoque).toBe(99);
+  });
+
+  test('POST /api/comandas preserva conflito de idempotencia ao reenviar venda offline alterada', async () => {
+    const payload = {
+      idTemporario: 'offline-comanda-conflito',
+      clienteNome: 'Venda offline',
+      itens: [{ produtoId: produtoVenda._id, quantidade: 1 }],
+    };
+    const criar = (body) => request(app)
+      .post('/api/comandas')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Idempotency-Key', payload.idTemporario)
+      .send(body);
+    expect((await criar(payload)).statusCode).toBe(201);
+    const alterada = await criar({ ...payload, itens: [{ produtoId: produtoVenda._id, quantidade: 2 }] });
+    expect(alterada.statusCode).toBe(409);
     expect(await Comanda.countDocuments({ idTemporario: payload.idTemporario })).toBe(1);
     expect((await Product.findById(produtoVenda._id)).estoque).toBe(99);
   });
@@ -265,6 +438,31 @@ describe('API Endpoints', () => {
         valorTotal: 70,
       });
     expect(res.statusCode).toBe(201);
+  });
+
+  test('POST /api/compras → aceita quantidade fracionada em kg', async () => {
+    const res = await request(app)
+      .post('/api/compras')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        fornecedor: 'Fornecedor Teste',
+        numeroNF: '12346',
+        data: new Date().toISOString(),
+        metodoCusteio: 'media_ponderada',
+        itens: [{
+          produtoId: insumo._id,
+          valorTotal: 7,
+          qtdEmbalagens: 0.35,
+          conteudoPorEmbalagem: 1,
+          unidadeConteudo: 'kg',
+        }],
+        valorTotal: 7,
+      });
+
+    expect(res.statusCode).toBe(201);
+    const compra = await Purchase.findOne({ numeroNF: '12346' });
+    expect(compra.itens[0].qtdEmbalagens).toBe(0.35);
+    expect(compra.itens[0].quantidadeTotal).toBe(0.35);
   });
 
   test('RBAC: usuário cozinha não acessa compras', async () => {
@@ -299,6 +497,68 @@ describe('API Endpoints', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.periodos.dia.total).toBe(25);
     expect(res.body.vendasHoje.total).toBe(25);
+  });
+
+  test('recebimento de pedido de comanda com crédito atualiza saldo e histórico real', async () => {
+    const comanda = await Comanda.create({
+      status: 'fechada',
+      valorTotal: 100,
+      atendente: 'admin',
+      historicoPagamentos: [{ valor: 100, formaPagamento: 'credito_loja', data: new Date() }],
+    });
+    const order = await Order.create({
+      itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, precoUnitario: 100, quantidade: 1 }],
+      subtotal: 100,
+      total: 100,
+      status: 'pendente',
+      atendente: 'admin',
+      comandaId: comanda._id,
+      pagamentos: [],
+    });
+    comanda.pedidoId = order._id;
+    await comanda.save();
+
+    const pendentes = await request(app)
+      .get('/api/orders?status=abertas')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(pendentes.statusCode).toBe(200);
+    expect(pendentes.body).toHaveLength(1);
+    expect(pendentes.body[0].status).toBe('pendente');
+    expect(pendentes.body[0].pagamentos[0].tipo).toBe('credito_loja');
+
+    const dashboardPendente = await request(app)
+      .get('/api/dashboard')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(dashboardPendente.statusCode).toBe(200);
+    expect(dashboardPendente.body.vendasHoje.recebido).toBe(0);
+    expect(dashboardPendente.body.vendasHoje.pendente).toBe(100);
+
+    const parcial = await request(app)
+      .patch(`/api/orders/${order._id}/pagar`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ tipo: 'pix', valorRecebido: 30 });
+    expect(parcial.statusCode).toBe(200);
+    expect(parcial.body.status).toBe('parcial');
+    expect(parcial.body.pagamentos).toHaveLength(2);
+
+    const dashboardParcial = await request(app)
+      .get('/api/dashboard')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(dashboardParcial.body.vendasHoje.recebido).toBe(30);
+    expect(dashboardParcial.body.vendasHoje.pendente).toBe(70);
+
+    const atualizado = await Comanda.findById(comanda._id);
+    expect(atualizado.valorPago).toBe(30);
+    expect(atualizado.saldoDevedor).toBe(70);
+    expect(atualizado.statusPagamento).toBe('parcial');
+
+    const quitado = await request(app)
+      .patch(`/api/orders/${order._id}/pagar`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ tipo: 'dinheiro', valorRecebido: 70 });
+    expect(quitado.statusCode).toBe(200);
+    expect(quitado.body.status).toBe('pago');
+    expect((await Comanda.findById(comanda._id)).saldoDevedor).toBe(0);
   });
 
   test('GET /api/dashboard → 401 sem token', async () => {

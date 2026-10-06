@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext.jsx';
-import { useToast } from '../components/Toast.jsx';
+import { AuthContext } from '../context/AuthContextDefinition.jsx';
+import { useToast } from '../components/useToast.js';
 import AreaTabs from '../components/AreaTabs.jsx';
 import api from '../services/api.jsx';
 

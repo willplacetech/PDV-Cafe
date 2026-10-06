@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { UNIDADES_PERMITIDAS, normalizarUnidade } = require('../utils/unidades');
+const { UNIDADES_PERMITIDAS, normalizarUnidade, validarQuantidadeCompra } = require('../utils/unidades');
 
 const PurchaseItemSchema = new mongoose.Schema({
   produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
@@ -8,7 +8,17 @@ const PurchaseItemSchema = new mongoose.Schema({
   unidade: { type: String, enum: UNIDADES_PERMITIDAS, set: normalizarUnidade },
   rendimento: { type: Number, min: [0.01, 'Rendimento deve ser maior ou igual a 0,01'], default: null },
   valorTotal: { type: Number, required: true, min: [0.000001, 'Valor total deve ser maior que zero'] },
-  qtdEmbalagens: { type: Number, required: true, min: [1, 'Quantidade de embalagens deve ser pelo menos 1'], validate: { validator: Number.isInteger, message: 'Quantidade de embalagens deve ser inteira' } },
+  qtdEmbalagens: {
+    type: Number,
+    required: true,
+    min: [0.000001, 'Quantidade comprada deve ser maior que zero'],
+    validate: {
+      validator(value) {
+        return validarQuantidadeCompra(value, this.conteudoPorEmbalagem, this.unidadeConteudo);
+      },
+      message: 'Quantidade comprada inválida para a unidade informada',
+    },
+  },
   conteudoPorEmbalagem: { type: Number, required: true, min: [0.000001, 'Conteúdo por embalagem deve ser maior que zero'] },
   unidadeConteudo: { type: String, enum: UNIDADES_PERMITIDAS, required: true, set: normalizarUnidade },
   quantidadeTotal: { type: Number, required: true, min: [0.000001, 'Quantidade total deve ser maior que zero'] },

@@ -11,3 +11,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>
 );
+if ('caches' in window) caches.delete('api-cache').catch(() => {});

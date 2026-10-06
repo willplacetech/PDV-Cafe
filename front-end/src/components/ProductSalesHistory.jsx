@@ -31,8 +31,6 @@ export default function ProductSalesHistory({ products, topProducts = [] }) {
   useEffect(() => {
     if (!open) return undefined;
     let active = true;
-    setLoading(true);
-    setError('');
     api.get('/dashboard/historico-produtos', { params: { semanaInicio: weekStart, ...(productId ? { produtoId: productId } : {}) } })
       .then((response) => { if (active) setHistory(response.data); })
       .catch((requestError) => { if (active) setError(requestError.response?.data?.msg || 'Não foi possível carregar o histórico de vendas.'); })
@@ -58,11 +56,11 @@ export default function ProductSalesHistory({ products, topProducts = [] }) {
         <h2>Vendas por produto — semana completa</h2>
         <p>{open ? `Gráfico de quantidades de ${weekRange(weekStart)}.` : 'Abra para consultar as quantidades vendidas por produto.'}</p>
       </div>
-      <button type="button" className="product-history-toggle" onClick={() => setOpen((value) => !value)} aria-expanded={open}>{open ? 'Ocultar' : 'Consultar'}</button>
+      <button type="button" className="product-history-toggle" onClick={() => { setLoading(true); setError(''); setOpen((value) => !value); }} aria-expanded={open}>{open ? 'Ocultar' : 'Consultar'}</button>
     </div>
     {open && <><div className="product-history-filters">
       <label>Produto
-        <select value={productId} onChange={(event) => setProductId(event.target.value)}>
+        <select value={productId} onChange={(event) => { setLoading(true); setError(''); setProductId(event.target.value); }}>
           <option value="">Todos os produtos</option>
           {sortedProducts.map((product) => <option key={product._id} value={product._id}>{salesRank.has(product.nome) ? `★ ${product.nome}` : product.nome}</option>)}
         </select>
@@ -70,9 +68,9 @@ export default function ProductSalesHistory({ products, topProducts = [] }) {
       <div className="product-history-period-control">
         <span>Semana completa</span>
         <div className="product-history-week-navigation">
-          <button type="button" onClick={() => setWeekStart((value) => shiftWeek(value, -1))} aria-label="Semana anterior">&lt;</button>
+          <button type="button" onClick={() => { setLoading(true); setError(''); setWeekStart((value) => shiftWeek(value, -1)); }} aria-label="Semana anterior">&lt;</button>
           <small>{weekRange(weekStart)}</small>
-          <button type="button" onClick={() => setWeekStart((value) => shiftWeek(value, 1))} aria-label="Próxima semana">&gt;</button>
+          <button type="button" onClick={() => { setLoading(true); setError(''); setWeekStart((value) => shiftWeek(value, 1)); }} aria-label="Próxima semana">&gt;</button>
         </div>
       </div>
     </div>

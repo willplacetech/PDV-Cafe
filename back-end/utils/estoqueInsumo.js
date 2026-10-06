@@ -1,9 +1,9 @@
-const fatoresBase = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, un: 1 };
+const fatoresBase = { mg: 0.001, g: 1, kg: 1000, ml: 1, l: 1000, L: 1000, un: 1 };
 const unidadesPermitidas = ['kg', 'L', 'un'];
 
 const paraBase = (quantidade, unidade) => Number(quantidade || 0) * (fatoresBase[unidade] || 1);
 
-const unidadesDiretas = ['mg', 'g', 'kg', 'ml', 'l', 'un'];
+const unidadesDiretas = ['mg', 'g', 'kg', 'ml', 'l', 'L', 'un'];
 const unidadesEmbalagem = ['lata', 'caixa', 'pacote', 'rolo'];
 
 const unidadeControle = (produto = {}) => produto.unidade || (produto.tipo === 'venda' && produto.usavelEmReceita ? (produto.unidadeVenda || 'un') : (produto.unidadeCompra || produto.unidadeControle || 'un'));
@@ -173,6 +173,7 @@ const ajustarEstoque = (produto, deltaEmbalagens) => {
   const totalAntes = (embalagensAntes * conteudoBase) / fator;
   const novoTotal = embalagensAntes + deltaEmbalagens;
   if (novoTotal < 0) throw new Error(`Não é possível reduzir ${Math.abs(deltaEmbalagens)} embalagem(s): o estoque atual é ${embalagensAntes}`);
+  if (produto.tipo === 'venda' && produto.usavelEmReceita) produto.estoque = novoTotal;
   produto.estoqueEmbalagens = novoTotal;
   produto.estoqueInsumos = novoTotal;
   const embalagensDepois = embalagensFechadas(produto);
@@ -205,7 +206,7 @@ const calcularCustoDaFichaTecnica = async (fichaTecnica) => {
   const itensValidos = fichaTecnica.filter((item) => idDoProduto(item) && Number.isFinite(Number(item.quantidade)) && Number(item.quantidade) > 0);
   const ids = [...new Set(itensValidos.map((item) => String(idDoProduto(item))))];
   const insumos = await Product.find({ _id: { $in: ids } })
-    .select('nome precoCompra custoUnitarioBase unidadeCompra unidadeConteudo conteudoPorEmbalagem tipo usavelEmReceita estoqueInsumos estoqueEmbalagens estoqueConteudoAberto')
+    .select('nome precoCompra custoUnitarioBase unidade unidadeVenda unidadeCompra unidadeConteudo conteudoPorEmbalagem tipo usavelEmReceita estoque estoqueInsumos estoqueEmbalagens estoqueConteudoAberto')
     .lean();
   const insumosPorId = new Map(insumos.map((insumo) => [String(insumo._id), insumo]));
   const detalhes = [];
@@ -278,23 +279,20 @@ const calcularCustoDaFichaTecnica = async (fichaTecnica) => {
   return { custoTotal, detalhes, fonte, mensagem };
 };
 
-const reporInsumo = (produto, quantidade, unidade) => {
-  const quantidadeBase = paraBase(quantidade, unidade);
+const definirSaldoBase = (produto, totalBase) => {
   const conteudoEmbalagem = conteudoPorEmbalagemBase(produto);
-  const controle = unidadeControle(produto);
-  if (quantidadeBase <= 0) throw new Error(`Quantidade inválida para o insumo ${produto.nome}`);
-  if (unidadesDiretas.includes(controle)) {
-    const acrescimo = quantidadeBase / (fatoresBase[controle] || 1);
-    produto.estoqueEmbalagens = embalagensFechadas(produto) + acrescimo;
-    produto.estoqueInsumos = produto.estoqueEmbalagens;
-    return;
-  }
-  const totalDepois = estoqueTotalBase(produto) + quantidadeBase;
-  const fechadas = conteudoEmbalagem > 0 ? Math.floor(totalDepois / conteudoEmbalagem) : totalDepois;
+  const fechadas = conteudoEmbalagem > 0 ? Math.floor((totalBase + 1e-9) / conteudoEmbalagem) : totalBase;
+  const abertoBase = conteudoEmbalagem > 0 ? Math.max(0, totalBase - fechadas * conteudoEmbalagem) : 0;
+  if (produto.tipo === 'venda' && produto.usavelEmReceita) produto.estoque = fechadas;
   produto.estoqueEmbalagens = fechadas;
   produto.estoqueInsumos = fechadas;
-  const abertoBase = conteudoEmbalagem > 0 ? totalDepois - (fechadas * conteudoEmbalagem) : 0;
-  produto.estoqueConteudoAberto = abertoBase / (fatoresBase[unidadeBase(produto)] || 1);
+  produto.estoqueConteudoAberto = Number((abertoBase / (fatoresBase[unidadeBase(produto)] || 1)).toFixed(6));
+};
+
+const reporInsumo = (produto, quantidade, unidade) => {
+  const quantidadeBase = paraBase(quantidade, unidade);
+  if (!Number.isFinite(quantidadeBase) || quantidadeBase <= 0) throw new Error('Quantidade invalida para o insumo ' + produto.nome);
+  definirSaldoBase(produto, estoqueTotalBase(produto) + quantidadeBase);
 };
 
 const consumirInsumo = (produto, quantidade, unidade) => {
@@ -309,18 +307,7 @@ const consumirInsumo = (produto, quantidade, unidade) => {
   
   const novoTotalBase = totalBase - quantidadeBase;
   
-  // Recalcular embalagens fechadas e conteúdo aberto a partir do total base restante
-  if (conteudoEmbalagem > 0) {
-    const novasFechadas = Math.floor(novoTotalBase / conteudoEmbalagem);
-    const novoAbertoBase = novoTotalBase - (novasFechadas * conteudoEmbalagem);
-    produto.estoqueEmbalagens = novasFechadas;
-    produto.estoqueConteudoAberto = Number((novoAbertoBase / (fatoresBase[unidadeBase(produto)] || 1)).toFixed(6));
-  } else {
-    // Sem embalagem definida, estoque é direto em unidades base
-    produto.estoqueEmbalagens = novoTotalBase;
-    produto.estoqueConteudoAberto = 0;
-  }
-  produto.estoqueInsumos = produto.estoqueEmbalagens;
+  definirSaldoBase(produto, novoTotalBase);
   
   const quantidadeConvertida = conteudoEmbalagem > 0 ? quantidadeBase / conteudoEmbalagem : quantidadeBase;
   return { 

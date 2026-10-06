@@ -29,6 +29,7 @@ const fechamentoCaixaSchema = new mongoose.Schema({
     saldoEsperado: { type: Number, default: 0 },
   },
   contagemFisica: {
+    valorContado: { type: Number, min: 0 },
     cedulas: { type: [itemContagemSchema], default: [] },
     moedas: { type: [itemContagemSchema], default: [] },
     totalCedulas: { type: Number, default: 0 },
@@ -44,8 +45,14 @@ const fechamentoCaixaSchema = new mongoose.Schema({
   outrosMeios: {
     pix: { type: Number, default: 0 },
     credito: { type: Number, default: 0 },
+    taxaCredito: { type: Number, default: 0 },
+    liquidoCredito: { type: Number, default: 0 },
     debito: { type: Number, default: 0 },
+    taxaDebito: { type: Number, default: 0 },
+    liquidoDebito: { type: Number, default: 0 },
+    creditoLoja: { type: Number, default: 0 },
     total: { type: Number, default: 0 },
+    totalLiquido: { type: Number, default: 0 },
   },
   status: { type: String, enum: ['aberto', 'fechado'], default: 'aberto', index: true },
 }, { timestamps: true });

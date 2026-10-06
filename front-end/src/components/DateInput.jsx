@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 const displayDate = (value) => {
   if (!value) return '';
@@ -20,9 +20,11 @@ const isoDate = (value) => {
 export default function DateInput({ value, onChange, style, ...props }) {
   const [text, setText] = useState(displayDate(value));
 
-  useEffect(() => {
+  const [previousValue, setPreviousValue] = useState(value);
+  if (previousValue !== value) {
+    setPreviousValue(value);
     setText(displayDate(value));
-  }, [value]);
+  }
 
   const handleChange = (event) => {
     const digits = event.target.value.replace(/\D/g, '').slice(0, 8);

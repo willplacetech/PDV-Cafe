@@ -1,7 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import api from '../services/api.jsx';
-import { useToast } from '../components/Toast.jsx';
+import { useToast } from '../components/useToast.js';
 import AreaTabs from '../components/AreaTabs.jsx';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import DateInput from '../components/DateInput.jsx';
@@ -10,6 +10,11 @@ const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { mini
 const statusColors = { pago: '#16a34a', pendente: '#d97706', atrasado: '#dc2626' };
 const categorias = ['Aluguel', 'Energia', 'Água', 'Internet', 'Fornecedores/Insumos', 'Salários/Pró-labore', 'Impostos', 'Marketing', 'Manutenção', 'Transporte', 'Outros'];
 const percentChange = (current, previous) => previous ? ((current - previous) / Math.abs(previous)) * 100 : (current ? 100 : 0);
+const dateKey = (value) => {
+  const isoDate = typeof value === 'string' ? value.slice(0, 10) : new Date(value).toISOString().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(isoDate) ? isoDate : '';
+};
+const formatDate = (value) => dateKey(value).split('-').reverse().join('/');
 
 export default function Financeiro() {
   const { user } = useContext(AuthContext);
@@ -28,6 +33,11 @@ export default function Financeiro() {
   const [mesSelecionado, setMesSelecionado] = useState(new Date().toISOString().slice(0, 7));
   const [filtro, setFiltro] = useState({ status: '', categoria: '', dataInicio: '', dataFim: '' });
   const [form, setForm] = useState({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
+  const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
+  const [alterarTodasRecorrentes, setAlterarTodasRecorrentes] = useState(false);
+  const [formatoVencimentoRecorrente, setFormatoVencimentoRecorrente] = useState('dia');
+  const [diaVencimentoRecorrente, setDiaVencimentoRecorrente] = useState('');
+  const [salvandoDespesa, setSalvandoDespesa] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [erroCarregamento, setErroCarregamento] = useState('');
   const { showToast } = useToast();
@@ -77,10 +87,64 @@ export default function Financeiro() {
   const despesasFiltradas = useMemo(() => despesas.filter((despesa) => {
     const matchesStatus = !filtro.status || despesa.status === filtro.status;
     const matchesCategoria = !filtro.categoria || despesa.categoria === filtro.categoria;
-    const matchesInicio = !filtro.dataInicio || new Date(despesa.dataVencimento) >= new Date(`${filtro.dataInicio}T00:00:00`);
-    const matchesFim = !filtro.dataFim || new Date(despesa.dataVencimento) <= new Date(`${filtro.dataFim}T23:59:59`);
+    const vencimento = dateKey(despesa.dataVencimento);
+    const matchesInicio = !filtro.dataInicio || vencimento >= filtro.dataInicio;
+    const matchesFim = !filtro.dataFim || vencimento <= filtro.dataFim;
     return matchesStatus && matchesCategoria && matchesInicio && matchesFim;
   }), [despesas, filtro]);
+
+  const recarregarDespesas = async () => {
+    const [despesasResponse, resumoResponse] = await Promise.all([
+      api.get('/despesas'),
+      api.get('/despesas/resumo', { params: { mes: mesSelecionado } }),
+    ]);
+    setDespesas(despesasResponse.data || []);
+    setResumo(resumoResponse.data || { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
+  };
+
+  const aplicarDiaNasParcelasRecorrentes = async (despesa, dia, camposAtualizacao) => {
+    const origemId = despesa.origemRecorrencia || despesa._id;
+    const parcelasAbertas = despesas.filter((parcela) => (
+      parcela.recorrente
+      && parcela.status !== 'pago'
+      && (String(parcela._id) === String(origemId) || String(parcela.origemRecorrencia) === String(origemId))
+    ));
+    const parcelas = parcelasAbertas.some((parcela) => String(parcela._id) === String(despesa._id))
+      ? parcelasAbertas
+      : [...parcelasAbertas, despesa].filter((parcela) => parcela.status !== 'pago');
+
+    if (!parcelas.length) {
+      throw new Error('Não há parcelas abertas da recorrência para atualizar');
+    }
+
+    const datasEsperadas = new Map();
+    for (const parcela of parcelas) {
+      const vencimentoAtual = new Date(parcela.dataVencimento);
+      const ano = vencimentoAtual.getUTCFullYear();
+      const mes = vencimentoAtual.getUTCMonth();
+      const ultimoDiaDoMes = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
+      const vencimento = new Date(Date.UTC(ano, mes, Math.min(dia, ultimoDiaDoMes)));
+      const dataIso = vencimento.toISOString();
+      datasEsperadas.set(String(parcela._id), dataIso);
+      await api.put(`/despesas/${parcela._id}`, {
+        ...camposAtualizacao,
+        dataVencimento: dataIso,
+      });
+    }
+
+    const { data: despesasAtuais } = await api.get('/despesas');
+    const despesasPorId = new Map(despesasAtuais.map((item) => [String(item._id), item]));
+    const naoAtualizadas = [...datasEsperadas].filter(([id, dataIso]) => (
+      !despesasPorId.has(id) || dateKey(despesasPorId.get(id).dataVencimento) !== dataIso.slice(0, 10)
+    ));
+
+    if (naoAtualizadas.length) {
+      throw new Error(`O servidor não confirmou a atualização de ${naoAtualizadas.length} parcela(s)`);
+    }
+
+    setDespesas(despesasAtuais);
+    return parcelas.length;
+  };
 
   if (!user || user.role !== 'admin') return <Navigate to="/pdv" replace />;
 
@@ -88,30 +152,108 @@ export default function Financeiro() {
 
   const salvarDespesa = async (event) => {
     event.preventDefault();
+    setSalvandoDespesa(true);
     try {
-      await api.post('/despesas', {
-        ...form,
+      const payload = {
+        descricao: form.descricao,
+        categoria: form.categoria,
+        fornecedor: form.fornecedor,
         valor: Number(form.valor),
-        dataVencimento: form.dataVencimento || new Date().toISOString(),
-      });
+      };
+
+      if (despesaEmEdicao) {
+        const usaDiaVencimento = despesaEmEdicao.recorrente
+          && alterarTodasRecorrentes
+          && formatoVencimentoRecorrente === 'dia';
+        if (usaDiaVencimento) {
+          const quantidade = await aplicarDiaNasParcelasRecorrentes(
+            despesaEmEdicao,
+            Number(diaVencimentoRecorrente),
+            payload,
+          );
+          showToast(`${quantidade} parcela(s) pendente(s) ou atrasada(s) atualizada(s)`, 'success');
+        } else {
+          payload.dataVencimento = form.dataVencimento;
+          const { data: despesaAtualizada } = await api.put(`/despesas/${despesaEmEdicao._id}`, {
+            ...payload,
+            alterarTodas: despesaEmEdicao.recorrente && alterarTodasRecorrentes,
+          });
+          if (alterarTodasRecorrentes) {
+            const quantidade = Number(despesaAtualizada.parcelasAtualizadas || 0);
+            if (!quantidade) {
+              throw new Error('O servidor não confirmou a atualização de nenhuma parcela recorrente');
+            }
+            showToast(`${quantidade} parcela(s) pendente(s) ou atrasada(s) atualizada(s)`, 'success');
+          } else {
+            showToast('Despesa atualizada com sucesso', 'success');
+          }
+        }
+      } else {
+        await api.post('/despesas', {
+          ...payload,
+          dataVencimento: form.dataVencimento || new Date().toISOString(),
+          recorrente: form.recorrente,
+        });
+        showToast('Despesa cadastrada com sucesso', 'success');
+      }
 
       setForm({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
-      const response = await api.get('/despesas');
-      setDespesas(response.data);
-      showToast('Despesa cadastrada com sucesso', 'success');
+      setDespesaEmEdicao(null);
+      setAlterarTodasRecorrentes(false);
+      setFormatoVencimentoRecorrente('dia');
+      setDiaVencimentoRecorrente('');
+      await recarregarDespesas();
     } catch (error) {
-      showToast(error.response?.data?.msg || 'Não foi possível salvar a despesa', 'error');
+      showToast(error.response?.data?.msg || error.message || 'Não foi possível salvar a despesa', 'error');
+    } finally {
+      setSalvandoDespesa(false);
     }
   };
 
   const marcarPago = async (id) => {
     try {
       await api.put(`/despesas/${id}/pagar`);
-      const response = await api.get('/despesas');
-      setDespesas(response.data);
+      await recarregarDespesas();
       showToast('Despesa marcada como paga', 'success');
     } catch (error) {
       showToast(error.response?.data?.msg || 'Não foi possível marcar como pago', 'error');
+    }
+  };
+
+  const editarDespesa = (despesa) => {
+    const dataVencimento = new Date(despesa.dataVencimento);
+    setDespesaEmEdicao(despesa);
+    setAlterarTodasRecorrentes(Boolean(despesa.recorrente));
+    setFormatoVencimentoRecorrente(despesa.recorrente ? 'dia' : 'data');
+    setDiaVencimentoRecorrente(String(dataVencimento.getUTCDate()));
+    setForm({
+      descricao: despesa.descricao || '',
+      categoria: despesa.categoria || 'Outros',
+      fornecedor: despesa.fornecedor || '',
+      valor: String(despesa.valor ?? ''),
+      dataVencimento: dataVencimento.toISOString().slice(0, 10),
+      recorrente: Boolean(despesa.recorrente),
+    });
+    document.getElementById('nova-despesa')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const cancelarEdicaoDespesa = () => {
+    setDespesaEmEdicao(null);
+    setAlterarTodasRecorrentes(false);
+    setFormatoVencimentoRecorrente('dia');
+    setDiaVencimentoRecorrente('');
+    setForm({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
+  };
+
+  const excluirDespesa = async (despesa) => {
+    if (!window.confirm(`Deseja excluir a despesa "${despesa.descricao}"?`)) return;
+    try {
+      await api.delete(`/despesas/${despesa._id}`);
+      if (despesaEmEdicao?._id === despesa._id) cancelarEdicaoDespesa();
+      await recarregarDespesas();
+      showToast('Despesa excluída com sucesso', 'success');
+    } catch (error) {
+      showToast(error.response?.data?.msg || 'Não foi possível excluir a despesa', 'error');
     }
   };
 
@@ -264,7 +406,7 @@ export default function Financeiro() {
                     <th>Valor</th>
                     <th>Vencimento</th>
                     <th>Status</th>
-                    <th>Ação</th>
+                    <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -274,16 +416,22 @@ export default function Financeiro() {
                         <td>{item.descricao}</td>
                         <td>{item.categoria}</td>
                         <td>{money(item.valor)}</td>
-                        <td>{new Date(item.dataVencimento).toLocaleDateString('pt-BR')}</td>
+                        <td>{formatDate(item.dataVencimento)}</td>
                         <td>{renderStatusBadge(item.status)}</td>
                         <td>
-                          {item.status !== 'pago' ? (
-                            <button type="button" className="dashboard-print-button" onClick={() => marcarPago(item._id)}>
-                              Marcar Pago
+                          <div className="financeiro-row-actions">
+                            {item.status !== 'pago' && (
+                              <button type="button" className="financeiro-submit-button financeiro-action-button" onClick={() => marcarPago(item._id)}>
+                                Marcar Pago
+                              </button>
+                            )}
+                            <button type="button" className="financeiro-secondary-button financeiro-action-button" onClick={() => editarDespesa(item)}>
+                              Editar
                             </button>
-                          ) : (
-                            '—'
-                          )}
+                            <button type="button" className="financeiro-delete-button financeiro-action-button" onClick={() => excluirDespesa(item)}>
+                              Excluir
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -300,8 +448,8 @@ export default function Financeiro() {
           <section className="financeiro-panel" id="nova-despesa">
             <div className="dashboard-section-heading">
               <div>
-                <span className="dashboard-eyebrow">CADASTRO</span>
-                <h2>Nova despesa</h2>
+                <span className="dashboard-eyebrow">{despesaEmEdicao ? 'EDIÇÃO' : 'CADASTRO'}</span>
+                <h2>{despesaEmEdicao ? 'Editar despesa' : 'Nova despesa'}</h2>
               </div>
             </div>
 
@@ -330,18 +478,71 @@ export default function Financeiro() {
                 <input type="number" step="0.01" value={form.valor} onChange={(event) => setForm({ ...form, valor: event.target.value })} required />
               </label>
 
-              <label>
-                Vencimento
-                <DateInput value={form.dataVencimento} onChange={(value) => setForm({ ...form, dataVencimento: value })} required />
-              </label>
+              {!(despesaEmEdicao?.recorrente
+                && alterarTodasRecorrentes
+                && formatoVencimentoRecorrente === 'dia') && (
+                <label>
+                  Vencimento
+                  <DateInput value={form.dataVencimento} onChange={(value) => setForm({ ...form, dataVencimento: value })} required />
+                </label>
+              )}
 
-              <label className="checkbox-row">
-                <input type="checkbox" checked={form.recorrente} onChange={(event) => setForm({ ...form, recorrente: event.target.checked })} />
-                Despesa recorrente
-              </label>
+              {despesaEmEdicao?.recorrente ? (
+                <>
+                  <label className="checkbox-row financeiro-recurring-option">
+                    <input
+                      type="checkbox"
+                      checked={alterarTodasRecorrentes}
+                      onChange={(event) => {
+                        setAlterarTodasRecorrentes(event.target.checked);
+                        if (event.target.checked) setFormatoVencimentoRecorrente('dia');
+                      }}
+                    />
+                    Aplicar alterações a todas as parcelas pendentes e atrasadas desta recorrência
+                  </label>
+                  <p className="financeiro-recurring-help">
+                    {alterarTodasRecorrentes
+                      ? 'O vencimento escolhido será aplicado a cada parcela aberta. Parcelas pagas não serão alteradas.'
+                      : 'A série não será alterada. Marque esta opção para aplicar a mudança a todas as parcelas abertas.'}
+                  </p>
+                  {alterarTodasRecorrentes && (
+                    <>
+                      <label>
+                        Formato do vencimento
+                        <select value={formatoVencimentoRecorrente} onChange={(event) => setFormatoVencimentoRecorrente(event.target.value)}>
+                          <option value="data">Data completa</option>
+                          <option value="dia">Dia do mês</option>
+                        </select>
+                      </label>
+                      {formatoVencimentoRecorrente === 'dia' ? (
+                        <label>
+                          Dia do vencimento (1 a 31)
+                          <input
+                            type="number"
+                            min="1"
+                            max="31"
+                            step="1"
+                            value={diaVencimentoRecorrente}
+                            onChange={(event) => setDiaVencimentoRecorrente(event.target.value)}
+                            required
+                          />
+                        </label>
+                      ) : null}
+                    </>
+                  )}
+                </>
+              ) : !despesaEmEdicao && (
+                <label className="checkbox-row">
+                  <input type="checkbox" checked={form.recorrente} onChange={(event) => setForm({ ...form, recorrente: event.target.checked })} />
+                  Despesa recorrente
+                </label>
+              )}
 
               <div className="form-submit">
-                <button type="submit" className="financeiro-submit-button">Salvar</button>
+                {despesaEmEdicao && <button type="button" className="financeiro-secondary-button" onClick={cancelarEdicaoDespesa}>Cancelar</button>}
+                <button type="submit" className="financeiro-submit-button" disabled={salvandoDespesa}>
+                  {salvandoDespesa ? 'Salvando...' : despesaEmEdicao ? 'Salvar alterações' : 'Salvar'}
+                </button>
               </div>
             </form>
           </section>
@@ -700,6 +901,7 @@ export default function Financeiro() {
           display: flex;
           align-items: end;
           justify-content: flex-end;
+          gap: 8px;
           grid-column: 1 / -1;
         }
 
@@ -722,6 +924,58 @@ export default function Financeiro() {
 
         .financeiro-submit-button:hover {
           filter: brightness(0.98);
+        }
+
+        .financeiro-submit-button:disabled {
+          cursor: wait;
+          opacity: 0.7;
+        }
+
+        .financeiro-action-button {
+          min-width: 0;
+          min-height: 36px;
+          padding: 8px 10px;
+          border-radius: 8px;
+          font-size: 12px;
+        }
+
+        .financeiro-row-actions {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 6px;
+          min-width: 225px;
+        }
+
+        .financeiro-delete-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 36px;
+          padding: 8px 10px;
+          border: 1px solid rgba(220, 38, 38, .3);
+          border-radius: 8px;
+          background: rgba(220, 38, 38, .08);
+          color: #dc2626;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .financeiro-delete-button:hover {
+          background: rgba(220, 38, 38, .14);
+        }
+
+        .financeiro-recurring-option {
+          grid-column: 1 / -1;
+        }
+
+        .financeiro-recurring-help {
+          grid-column: 1 / -1;
+          margin: -8px 0 0;
+          color: var(--text-secondary);
+          font-size: 12px;
+          line-height: 1.45;
         }
 
         .financeiro-secondary-button {

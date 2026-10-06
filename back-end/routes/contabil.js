@@ -2,13 +2,14 @@ const express = require('express');
 const mongoose = require('mongoose');
 const auth = require('../middleware/auth');
 const Order = require('../models/Order');
+const Comanda = require('../models/Comanda');
 const Product = require('../models/Product');
 const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
-const Recipe = require('../models/Recipe');
 const Despesa = require('../models/Despesa');
 const PaymentSettings = require('../models/PaymentSettings');
 const Purchase = require('../models/Purchase');
 const { calcularCustoUnitarioVenda } = require('../utils/estoqueInsumo');
+const { carregarPagamentosDoPeriodo, dinheiro: dinheiroPagamento } = require('../utils/pagamento');
 
 const router = express.Router();
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -41,21 +42,15 @@ const getMesRange = (mes) => {
 
 const resumoComparativo = async (mes) => {
   const { inicio, fim } = getMesRange(mes);
-  const [pedidos, despesas, pedidosComPagamentos] = await Promise.all([
+  const [pedidos, despesas, pagamentos] = await Promise.all([
     Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $in: ['pago', 'parcial'] } }).select('total').lean(),
     Despesa.find({ status: 'pago', dataPagamento: { $gte: inicio, $lt: fim } }).select('valor').lean(),
-    Order.find({ 'pagamentos.dataPagamento': { $gte: inicio, $lt: fim } }).select('pagamentos').lean(),
+    carregarPagamentosDoPeriodo({ inicio, fim }),
   ]);
   const receita = pedidos.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
   const despesasPagas = despesas.reduce((total, despesa) => total + Number(despesa.valor || 0), 0);
-  const entradas = pedidosComPagamentos.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => {
-    const data = new Date(pagamento.dataPagamento);
-    return data >= inicio && data < fim;
-  }).reduce((subtotal, pagamento) => subtotal + pagamentoTaxa(pagamento).liquido, 0), 0);
-  const taxasCartao = pedidosComPagamentos.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => {
-    const data = new Date(pagamento.dataPagamento);
-    return data >= inicio && data < fim;
-  }).reduce((subtotal, pagamento) => subtotal + pagamentoTaxa(pagamento).taxa, 0), 0);
+  const entradas = dinheiroPagamento(pagamentos.reduce((total, pagamento) => total + pagamentoTaxa(pagamento).liquido, 0));
+  const taxasCartao = dinheiroPagamento(pagamentos.reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0));
   return {
     mes,
     pedidos: pedidos.length,
@@ -63,8 +58,8 @@ const resumoComparativo = async (mes) => {
     entradas,
     taxasCartao,
     despesasPagas,
-    saldo: entradas - despesasPagas,
-    resultadoOperacional: receita - taxasCartao - despesasPagas,
+    saldo: dinheiroPagamento(entradas - despesasPagas),
+    resultadoOperacional: dinheiroPagamento(receita - taxasCartao - despesasPagas),
   };
 };
 
@@ -99,6 +94,26 @@ router.patch('/taxas-cartao', async (req, res) => {
       });
       if (alterado) await pedido.save();
     }
+
+    // Pagamentos de comandas vivem em Comanda.historicoPagamentos (fonte única),
+    // logo a reprocessagem de taxas precisa alcançar esses lançamentos também.
+    const comandas = await Comanda.find({
+      historicoPagamentos: { $elemMatch: { formaPagamento: tipo, data: { $gte: inicio, $lt: fim } } },
+    });
+    for (const comanda of comandas) {
+      let alterado = false;
+      comanda.historicoPagamentos.forEach((pagamento) => {
+        const data = new Date(pagamento.data);
+        if (pagamento.formaPagamento !== tipo || data < inicio || data >= fim) return;
+        const valor = dinheiro(pagamento.valor ?? pagamento.valorRecebido);
+        pagamento.taxaPercentual = percentual;
+        pagamento.taxaValor = dinheiro(valor * percentual / 100);
+        pagamento.valorLiquido = dinheiro(valor - pagamento.taxaValor);
+        alterado = true;
+        atualizados += 1;
+      });
+      if (alterado) await comanda.save();
+    }
     res.json({ mes, tipo, taxaPercentual: percentual, pagamentosAtualizados: atualizados });
   } catch (error) {
     res.status(500).json({ msg: error.message });
@@ -108,11 +123,12 @@ router.patch('/taxas-cartao', async (req, res) => {
 router.get('/dre', async (req, res) => {
   try {
     const { inicio, fim } = getMesRange(req.query.mes || req.query.data || null);
-    const [periodoVendas, comprasPeriodo] = await Promise.all([
+    const [periodoVendas, comprasPeriodo, pagamentosPeriodo] = await Promise.all([
       Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $in: ['pago', 'parcial'] } })
         .select('total itens pagamentos')
         .lean(),
       Purchase.find({ data: { $gte: inicio, $lt: fim } }).select('valorTotal').lean(),
+      carregarPagamentosDoPeriodo({ inicio, fim }),
     ]);
 
     const produtoIds = [...new Set(periodoVendas.flatMap((pedido) => (pedido.itens || []).map((item) => String(item.produtoId || ''))))]
@@ -133,9 +149,16 @@ router.get('/dre', async (req, res) => {
         const produtoId = String(item.produtoId || '');
         const quantidade = quantidadeNaUnidadeBase(item);
         const produto = produtoPorId.get(produtoId);
-        const custoUnitario = ['coz', 'producao'].includes(produto?.tipoProduto)
-          ? Number(produto?.custoUnitario || produto?.custoUnitarioBase || 0)
-          : calcularCustoUnitarioVenda(produto);
+        // Vendas novas preservam o custo na data da venda. Legados mantem
+        // o calculo anterior porque nao ha informacao historica para reconstruir.
+        const custoHistorico = item.custoUnitarioHistorico;
+        const temCustoHistorico = custoHistorico !== undefined && custoHistorico !== null
+          && Number.isFinite(Number(custoHistorico)) && Number(custoHistorico) >= 0;
+        const custoUnitario = temCustoHistorico
+          ? Number(custoHistorico)
+          : ['coz', 'producao'].includes(produto?.tipoProduto)
+            ? Number(produto?.custoUnitario || produto?.custoUnitarioBase || 0)
+            : calcularCustoUnitarioVenda(produto);
         if (custoUnitario > 0) {
           cmv += quantidade * custoUnitario;
         } else {
@@ -158,12 +181,7 @@ router.get('/dre', async (req, res) => {
       despesasPorCategoria[despesa.categoria] = dinheiro((despesasPorCategoria[despesa.categoria] || 0) + valor);
     }
 
-    const taxasCartao = periodoVendas.reduce((total, pedido) => total + (pedido.pagamentos || [])
-      .filter((pagamento) => {
-        const data = new Date(pagamento.dataPagamento);
-        return data >= inicio && data < fim;
-      })
-      .reduce((subtotal, pagamento) => subtotal + pagamentoTaxa(pagamento).taxa, 0), 0);
+    const taxasCartao = dinheiro(pagamentosPeriodo.reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0));
 
     const depreciacao = Number(req.query.depreciacao || 0);
     const impostos = Number(req.query.impostos || 0);
@@ -173,7 +191,8 @@ router.get('/dre', async (req, res) => {
     const ebit = dinheiro(lucroBruto - despesasOperacionais);
     const ebitda = dinheiro(ebit + depreciacao);
     const despesasFinanceiras = 0;
-    const lucroLiquido = dinheiro(ebit - despesasFinanceiras - impostos);
+    // O parametro impostos ja integra deducoes e receitaLiquida.
+    const lucroLiquido = dinheiro(ebit - despesasFinanceiras);
     const compras = dinheiro(comprasPeriodo.reduce((total, compra) => total + Number(compra.valorTotal || 0), 0));
 
     res.json({
@@ -210,22 +229,20 @@ router.get('/fluxo-caixa', async (req, res) => {
     const [ano, mesNumero] = mes.split('-').map(Number);
     const { inicio, fim } = getMesRange(mes);
 
-    const [vendas, despesas] = await Promise.all([
-      Order.find({ 'pagamentos.dataPagamento': { $gte: inicio, $lt: fim } }).lean(),
+    const [despesas, pagamentos] = await Promise.all([
       Despesa.find({ status: 'pago', dataPagamento: { $gte: inicio, $lt: fim } }).lean(),
+      carregarPagamentosDoPeriodo({ inicio, fim }),
     ]);
 
     const entradasPorDia = new Map();
     const saidasPorDia = new Map();
 
-    for (const pedido of vendas) {
-      for (const pagamento of pedido.pagamentos || []) {
-        if (!pagamento.dataPagamento) continue;
-        const data = new Date(pagamento.dataPagamento);
-        if (data < inicio || data >= fim) continue;
-        const chave = chaveDataSaoPaulo(data);
-        entradasPorDia.set(chave, (entradasPorDia.get(chave) || 0) + pagamentoTaxa(pagamento).liquido);
-      }
+    for (const pagamento of pagamentos) {
+      if (!pagamento.dataPagamento) continue;
+      const data = new Date(pagamento.dataPagamento);
+      if (data < inicio || data >= fim) continue;
+      const chave = chaveDataSaoPaulo(data);
+      entradasPorDia.set(chave, (entradasPorDia.get(chave) || 0) + pagamentoTaxa(pagamento).liquido);
     }
 
     for (const despesa of despesas) {

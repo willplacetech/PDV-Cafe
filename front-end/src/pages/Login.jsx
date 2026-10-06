@@ -1,8 +1,8 @@
 import { useState, useContext, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext.jsx';
-import { ThemeContext } from '../context/ThemeContext.jsx';
-import { useToast } from '../components/Toast.jsx';
+import { AuthContext } from '../context/AuthContextDefinition.jsx';
+import { ThemeContext } from '../context/ThemeContextDefinition.js';
+import { useToast } from '../components/useToast.js';
 
 export default function Login() {
   const imagensMarca = ['/Abraco5.png', '/Abraco10.png', '/Abraco11.png'];

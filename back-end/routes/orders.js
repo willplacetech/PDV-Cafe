@@ -6,8 +6,10 @@ const Product = require('../models/Product');
 const auth = require('../middleware/auth');
 const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
 const { precoPorUnidade } = require('../utils/pesoProduto');
-const { normalizarEstoqueLegado, produtoControlaPeso, dadosMovimentoEstoque } = require('../utils/estoqueProduto');
+const { produtoControlaPeso } = require('../utils/estoqueProduto');
+const { ajustarEstoque } = require('../utils/movimentarEstoqueVenda');
 const { calcularPrecoComDesconto } = require('../utils/descontosQuantidade');
+const { calcularStatusPagamento, construirPagamento, normalizarPagamentos } = require('../utils/pagamento');
 
 const router = express.Router();
 const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'L'].includes(product?.unidadeVenda));
@@ -21,6 +23,53 @@ const normalizarStatusFiltro = (status) => {
   }
 
   return status;
+};
+
+const statusPedidoDe = (statusPagamento) => (statusPagamento === 'quitado' ? 'pago' : statusPagamento);
+
+const aplicarRecebimentoPedido = async ({ order, tipo, valorRecebido, observacao, taxas, session, quitar = false }) => {
+  if (!['dinheiro', 'pix', 'cartao_credito', 'cartao_debito'].includes(tipo)) throw new Error('Forma de pagamento inválida');
+
+  if (order.comandaId) {
+    const comanda = await Comanda.findById(order.comandaId).session(session);
+    if (!comanda || comanda.status === 'cancelada' || comanda.utilizacaoInterna) throw new Error('Comanda não aceita recebimentos');
+    const situacao = calcularStatusPagamento(comanda);
+    const saldo = situacao.saldoDevedor;
+    if (saldo <= 0) throw new Error('Pedido já está quitado');
+    const valor = quitar ? saldo : money(valorRecebido);
+    if (!Number.isFinite(valor) || valor <= 0) throw new Error('Informe um valor válido para receber');
+    if (valor > saldo) throw new Error('O recebimento não pode ser maior que o saldo pendente');
+
+    comanda.historicoPagamentos.push(construirPagamento({
+      valor,
+      formaPagamento: tipo,
+      taxas,
+      observacao,
+    }));
+    const atualizada = calcularStatusPagamento(comanda);
+    comanda.valorPago = atualizada.valorPago;
+    comanda.saldoDevedor = atualizada.saldoDevedor;
+    comanda.statusPagamento = atualizada.statusPagamento;
+    await comanda.save({ session });
+
+    order.status = statusPedidoDe(atualizada.statusPagamento);
+    await order.save({ session });
+    return { ...order.toObject(), pagamentos: normalizarPagamentos(comanda.historicoPagamentos) };
+  }
+
+  if (!['pendente', 'parcial'].includes(order.status)) throw new Error('Este pedido não aceita novos pagamentos');
+  const pagos = normalizarPagamentos(order.pagamentos)
+    .filter((pagamento) => pagamento.tipo !== 'credito_loja')
+    .reduce((soma, pagamento) => soma + pagamento.valorRecebido, 0);
+  const saldo = money(order.total - pagos);
+  if (saldo <= 0) throw new Error('Pedido já está quitado');
+  const valor = quitar ? saldo : money(valorRecebido);
+  if (!Number.isFinite(valor) || valor <= 0) throw new Error('Informe um valor válido para receber');
+  if (valor > saldo) throw new Error('O recebimento não pode ser maior que o saldo pendente');
+  order.pagamentos.push({ tipo, valorRecebido: valor, ...calcularPagamento(tipo, valor, taxas), dataPagamento: new Date(), quitado: valor === saldo, observacao });
+  order.status = valor === saldo ? 'pago' : 'parcial';
+  await order.save({ session });
+  return order.toObject();
 };
 
 async function buildOrderItems(rawItems, session) {
@@ -43,27 +92,11 @@ async function buildOrderItems(rawItems, session) {
     if (!product) throw new Error('Produto não encontrado');
     if (vendaPorPeso && (!Number.isFinite(pesoVendidoKg) || pesoVendidoKg <= 0)) throw new Error('Informe o peso vendido');
     if (!permiteFracionar(product) && !Number.isInteger(quantity)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
-    normalizarEstoqueLegado(product);
-    const movimento = dadosMovimentoEstoque(product, { quantidade: quantity, tipoVenda: vendaPorPeso ? 'peso' : undefined, pesoVendidoKg });
-    const atual = totals.get(String(item.produtoId));
-    totals.set(String(item.produtoId), { pecas: (typeof atual === 'number' ? atual : atual?.pecas || 0) + movimento.pecas, pesoKg: (typeof atual === 'number' ? 0 : atual?.pesoKg || 0) + movimento.pesoKg });
     const precoNormal = vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product);
     const pricing = vendaPorPeso ? { precoUnitario: precoNormal, precoNormal, economiaTotal: 0, faixaAplicada: null } : calcularPrecoComDesconto(product, quantidadesPorProduto.get(String(product._id)), precoNormal);
     return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: pricing.precoUnitario, precoUnitarioOriginal: pricing.precoNormal, descontoQuantidade: pricing.economiaUnitario, economiaQuantidade: pricing.economiaTotal, faixaDescontoQuantidade: pricing.faixaAplicada?.quantidadeMinima, quantidade: quantity, quantidadePecas: vendaPorPeso ? 0 : quantity, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso };
   });
-  for (const [productId, quantity] of totals) {
-    const product = byId.get(productId);
-    if (product.isModified('estoque') || product.isModified('estoquePesoKg')) await product.save({ session });
-    const movimento = typeof quantity === 'number' ? { pecas: quantity, pesoKg: 0 } : quantity;
-    const filtro = produtoControlaPeso(product)
-      ? { _id: productId, estoque: { $gte: movimento.pecas }, estoquePesoKg: { $gte: movimento.pesoKg } }
-      : { _id: productId, estoque: { $gte: movimento.pecas } };
-    const inc = produtoControlaPeso(product)
-      ? { $inc: { estoque: -movimento.pecas, estoquePesoKg: -movimento.pesoKg } }
-      : { $inc: { estoque: -movimento.pecas } };
-    const updated = await Product.findOneAndUpdate(filtro, inc, { new: true, session });
-    if (!updated) throw new Error(`Estoque insuficiente para "${byId.get(productId)?.nome || productId}"`);
-  }
+  await ajustarEstoque(items, 'baixar', session);
   return items;
 }
 
@@ -102,7 +135,22 @@ router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
     const statusNormalizado = normalizarStatusFiltro(status);
     if (statusNormalizado) filter.status = statusNormalizado;
     if (inicio && fim) filter.createdAt = { $gte: new Date(inicio), $lte: new Date(new Date(fim).setHours(23, 59, 59)) };
-    res.json(await Order.find(filter).sort({ createdAt: -1 }));
+    const pedidos = await Order.find(filter).sort({ createdAt: -1 }).lean();
+    const comandaIds = [...new Set(pedidos.map((pedido) => pedido.comandaId).filter(Boolean).map(String))];
+    const comandas = comandaIds.length
+      ? await Comanda.find({ _id: { $in: comandaIds } }).select('_id valorTotal historicoPagamentos').lean()
+      : [];
+    const comandasPorId = new Map(comandas.map((comanda) => [String(comanda._id), comanda]));
+    res.json(pedidos.map((pedido) => {
+      const comanda = pedido.comandaId ? comandasPorId.get(String(pedido.comandaId)) : null;
+      if (!comanda) return pedido;
+      const situacao = calcularStatusPagamento(comanda);
+      return {
+        ...pedido,
+        status: statusPedidoDe(situacao.statusPagamento),
+        pagamentos: normalizarPagamentos(comanda.historicoPagamentos),
+      };
+    }));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
@@ -159,25 +207,7 @@ router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req,
     if (!order.comandaId) throw new Error('Este pedido não está vinculado a uma comanda');
     if (!Array.isArray(req.body.itens) || !req.body.itens.length) throw new Error('Adicione pelo menos um produto');
 
-    const quantidades = new Map();
-    req.body.itens.forEach((item) => {
-      const quantidade = Number(item.quantidade);
-      if (!mongoose.isValidObjectId(item.produtoId) || !Number.isFinite(quantidade) || quantidade < 0.001) throw new Error('Item inválido');
-      quantidades.set(String(item.produtoId), (quantidades.get(String(item.produtoId)) || 0) + quantidade);
-    });
-    const products = await Product.find({ _id: { $in: [...quantidades.keys()] } }).session(session);
-    const porId = new Map(products.map((product) => [String(product._id), product]));
-    const novosItens = req.body.itens.map((item) => {
-      const product = porId.get(String(item.produtoId));
-      const quantidade = Number(item.quantidade);
-      if (!product) throw new Error('Produto não encontrado');
-      if (!permiteFracionar(product) && !Number.isInteger(quantidade)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
-      return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda };
-    });
-    for (const [produtoId, quantidade] of quantidades) {
-      const updated = await Product.findOneAndUpdate({ _id: produtoId, estoque: { $gte: quantidade } }, { $inc: { estoque: -quantidade } }, { new: true, session });
-      if (!updated) throw new Error(`Estoque insuficiente para "${porId.get(produtoId)?.nome || produtoId}"`);
-    }
+    const novosItens = await buildOrderItems(req.body.itens, session);
 
     const subtotalNovos = novosItens.reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0);
     order.itens.push(...novosItens);
@@ -192,6 +222,9 @@ router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req,
     const comanda = await Comanda.findById(order.comandaId).session(session);
     if (comanda) {
       comanda.itens.push(...novosItens);
+      comanda.valorTotal = order.total;
+      comanda.saldoDevedor = Math.max(0, order.total - Number(comanda.valorPago || 0));
+      comanda.estoqueBaixado = true;
       if (registro) comanda.observacao = [comanda.observacao, `Novo pedido - ${registro}`].filter(Boolean).join(' | ');
       await comanda.save({ session });
     }
@@ -204,34 +237,48 @@ router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req,
 });
 
 router.patch('/:id/pagar', auth, auth.allowRoles('admin'), async (req, res) => {
+  const session = await mongoose.startSession();
   try {
-    const order = await Order.findById(req.params.id);
-    if (!order || !['pendente', 'parcial'].includes(order.status)) return res.status(400).json({ msg: 'Este pedido não aceita novos pagamentos' });
-    const paid = order.pagamentos.reduce((sum, payment) => sum + (payment.valorRecebido || 0), 0);
-    const balance = money(order.total - paid);
-    const value = money(req.body.valorRecebido);
-    if (!['dinheiro', 'pix', 'credito_loja', 'cartao_credito', 'cartao_debito'].includes(req.body.tipo || 'dinheiro')) return res.status(400).json({ msg: 'Forma de pagamento inválida' });
-    if (value !== balance || balance <= 0) return res.status(400).json({ msg: 'O recebimento deve quitar o saldo total do pedido' });
+    session.startTransaction();
+    const order = await Order.findById(req.params.id).session(session);
+    if (!order) throw new Error('Pedido não encontrado');
     const tipo = req.body.tipo || 'dinheiro';
-    order.pagamentos.push({ tipo, valorRecebido: balance, ...calcularPagamento(tipo, balance, await obterTaxasCartao()), dataPagamento: new Date(), quitado: true, observacao: req.body.observacao });
-    order.status = 'pago';
-    await order.save();
-    res.json(order);
-  } catch (err) { res.status(400).json({ msg: err.message }); }
+    const atualizado = await aplicarRecebimentoPedido({
+      order,
+      tipo,
+      valorRecebido: req.body.valorRecebido,
+      observacao: req.body.observacao,
+      taxas: await obterTaxasCartao(),
+      session,
+    });
+    await session.commitTransaction();
+    res.json(atualizado);
+  } catch (err) {
+    if (session.inTransaction()) await session.abortTransaction();
+    res.status(400).json({ msg: err.message });
+  } finally { await session.endSession(); }
 });
 
 router.patch('/:id/quitar', auth, auth.allowRoles('admin'), async (req, res) => {
+  const session = await mongoose.startSession();
   try {
-    const order = await Order.findById(req.params.id);
-    if (!order || !['pendente', 'parcial'].includes(order.status)) return res.status(400).json({ msg: 'Este pedido não aceita quitação' });
-    const paid = order.pagamentos.reduce((sum, payment) => sum + (Number(payment.valorRecebido) || 0), 0);
-    const balance = money(order.total - paid);
-    if (balance <= 0) return res.status(400).json({ msg: 'Pedido já está quitado' });
-    order.pagamentos.push({ tipo: 'dinheiro', valorRecebido: balance, ...calcularPagamento('dinheiro', balance), dataPagamento: new Date(), quitado: true, observacao: 'Quitação total' });
-    order.status = 'pago';
-    await order.save();
-    res.json(order);
-  } catch (err) { res.status(400).json({ msg: err.message }); }
+    session.startTransaction();
+    const order = await Order.findById(req.params.id).session(session);
+    if (!order) throw new Error('Pedido não encontrado');
+    const atualizado = await aplicarRecebimentoPedido({
+      order,
+      tipo: 'dinheiro',
+      observacao: 'Quitação total',
+      taxas: await obterTaxasCartao(),
+      session,
+      quitar: true,
+    });
+    await session.commitTransaction();
+    res.json(atualizado);
+  } catch (err) {
+    if (session.inTransaction()) await session.abortTransaction();
+    res.status(400).json({ msg: err.message });
+  } finally { await session.endSession(); }
 });
 
 router.patch('/cliente/:clienteId/quitar', auth, auth.allowRoles('admin'), async (req, res) => {
@@ -241,19 +288,20 @@ router.patch('/cliente/:clienteId/quitar', auth, auth.allowRoles('admin'), async
     const pedidos = await Order.find({ clienteId: req.params.clienteId, status: { $in: ['pendente', 'parcial'] } }).session(session);
     if (!pedidos.length) throw new Error('Este cliente não possui pendências');
     const tipo = req.body.tipo || 'dinheiro';
-    const tiposAceitos = ['dinheiro', 'pix', 'credito_loja', 'cartao_credito', 'cartao_debito'];
-    if (!tiposAceitos.includes(tipo)) throw new Error('Forma de pagamento inválida');
     const taxasCartao = await obterTaxasCartao();
-    pedidos.forEach((order) => {
-      const pago = order.pagamentos.reduce((sum, payment) => sum + (Number(payment.valorRecebido) || 0), 0);
-      const saldo = money(order.total - pago);
-      if (saldo <= 0) return;
-      order.pagamentos.push({ tipo, valorRecebido: saldo, ...calcularPagamento(tipo, saldo, taxasCartao), dataPagamento: new Date(), quitado: true, observacao: req.body.observacao || 'Quitação total do cliente' });
-      order.status = 'pago';
-    });
-    await Promise.all(pedidos.map((order) => order.save({ session })));
+    const atualizados = [];
+    for (const order of pedidos) {
+      atualizados.push(await aplicarRecebimentoPedido({
+        order,
+        tipo,
+        observacao: req.body.observacao || 'Quitação total do cliente',
+        taxas: taxasCartao,
+        session,
+        quitar: true,
+      }));
+    }
     await session.commitTransaction();
-    res.json({ pedidos });
+    res.json({ pedidos: atualizados });
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
     res.status(400).json({ msg: err.message });
@@ -266,7 +314,15 @@ router.patch('/:id/cancelar', auth, auth.allowRoles('admin'), async (req, res) =
     session.startTransaction();
     const order = await Order.findById(req.params.id).session(session);
     if (!order || !['pendente', 'parcial'].includes(order.status)) throw new Error('Somente pedidos pendentes ou parciais podem ser cancelados');
-    for (const item of order.itens) await Product.findByIdAndUpdate(item.produtoId, { $inc: { estoque: item.quantidade } }, { session });
+    const comanda = order.comandaId ? await Comanda.findById(order.comandaId).session(session) : null;
+    if (!comanda || comanda.estoqueBaixado) {
+      await ajustarEstoque(order.itens, 'devolver', session, { legadoPedido: !comanda });
+    }
+    if (comanda && String(comanda.pedidoId || order._id) === String(order._id)) {
+      comanda.status = 'cancelada';
+      comanda.estoqueBaixado = false;
+      await comanda.save({ session });
+    }
     order.status = 'cancelado';
     await order.save({ session });
     await session.commitTransaction();

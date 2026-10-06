@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../services/api.jsx';
-import { useToast } from '../components/Toast.jsx';
+import { useToast } from '../components/useToast.js';
 
 const formatTime = (value) => new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const formatQuantity = (item) => `${Number(item.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${item.unidadeVenda || 'un'}`;
@@ -10,20 +10,21 @@ export default function Kitchen() {
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const response = await api.get('/comandas/cozinha');
       setComandas(response.data);
     } catch (error) {
       showToast(error.response?.data?.msg || 'Não foi possível carregar a cozinha', 'error');
     } finally { setLoading(false); }
-  };
+  }, [showToast]);
 
   useEffect(() => {
-    load();
+    const inicializar = async () => { await load(); };
+    inicializar();
     const interval = window.setInterval(load, 15000);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [load]);
 
   return <div className="kitchen-page">
     <header className="kitchen-heading page-heading"><div><span className="kitchen-eyebrow">PRODUÇÃO DO MOMENTO</span><h1>Cozinha</h1><p>Itens marcados como A Fazer nas comandas em aberto.</p></div><strong>{comandas.reduce((total, comanda) => total + comanda.itens.length, 0)} itens</strong></header>

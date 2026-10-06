@@ -35,3 +35,5 @@ pnpm-debug.log*
 .DS_Store
 *.swp
 *.swo
+# Banco descartável das verificações locais
+.test-mongodb-cache/

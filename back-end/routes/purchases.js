@@ -6,7 +6,9 @@ const Product = require('../models/Product');
 const Purchase = require('../models/Purchase');
 const StockMovement = require('../models/StockMovement');
 const HistoricoCusto = require('../models/HistoricoCusto');
-const { UNIDADES_PERMITIDAS, normalizarUnidade } = require('../utils/unidades');
+const { UNIDADES_PERMITIDAS, normalizarUnidade, validarQuantidadeCompra } = require('../utils/unidades');
+const { paraBase, estoqueTotalBase } = require('../utils/estoqueInsumo');
+const { normalizarEstoqueLegado, produtoControlaPeso } = require('../utils/estoqueProduto');
 
 const router = express.Router();
 const units = UNIDADES_PERMITIDAS;
@@ -22,7 +24,7 @@ const validate = (req, res) => {
 const quantidadeBase = (quantidade, unidade) => {
   const unidadeNormalizada = normalizarUnidade(unidade);
   if (!units.includes(unidadeNormalizada)) throw new Error(`Unidade de conteúdo inválida: ${unidade}`);
-  return Number(quantidade);
+  return paraBase(quantidade, unidadeNormalizada);
 };
 
 router.use(auth);
@@ -62,9 +64,12 @@ router.post('/', [
   body('itens').isArray({ min: 1 }),
   body('itens.*.produtoId').isMongoId(),
   body('itens.*.valorTotal').isFloat({ min: 0.000001 }),
-  body('itens.*.qtdEmbalagens').isInt({ min: 1 }),
+  body('itens.*.qtdEmbalagens').isFloat({ min: 0.000001 }),
   body('itens.*.conteudoPorEmbalagem').isFloat({ min: 0.000001 }),
   body('itens.*.unidadeConteudo').isIn(units),
+  body('itens').custom((itens) => Array.isArray(itens) && itens.every((item) => (
+    validarQuantidadeCompra(item.qtdEmbalagens, item.conteudoPorEmbalagem, item.unidadeConteudo)
+  ))).withMessage('Quantidade comprada inválida para a unidade informada'),
 ], async (req, res) => {
   if (!validate(req, res)) return;
 
@@ -83,12 +88,16 @@ router.post('/', [
         const valorTotal = Number(item.valorTotal);
         const qtdEmbalagens = Number(item.qtdEmbalagens);
         const conteudoPorEmbalagem = Number(item.conteudoPorEmbalagem);
-        const quantidadeTotal = qtdEmbalagens * conteudoPorEmbalagem;
+        const quantidadeTotal = Number((qtdEmbalagens * conteudoPorEmbalagem).toFixed(6));
         const quantidadeTotalBase = quantidadeBase(quantidadeTotal, item.unidadeConteudo);
         const custoUnitario = valorTotal / quantidadeTotalBase;
-        const estoqueAtualBase = produto.tipo === 'venda'
-          ? Number(produto.estoque || 0) * quantidadeBase(produto.conteudoPorEmbalagem || 1, produto.unidadeConteudo || produto.unidadeVenda || 'un')
-          : (Number(produto.estoqueEmbalagens || produto.estoqueInsumos || 0) * quantidadeBase(produto.conteudoPorEmbalagem || 0, produto.unidadeConteudo || 'g')) + Number(produto.estoqueConteudoAberto || 0);
+        const estoqueAtualBase = estoqueTotalBase(produto);
+        const conteudoAtualBase = quantidadeBase(produto.conteudoPorEmbalagem || 0, produto.unidadeConteudo || produto.unidadeVenda || 'un');
+        const conteudoNovoBase = quantidadeBase(conteudoPorEmbalagem, item.unidadeConteudo);
+        const saldoExistente = estoqueAtualBase > 0 || Number(produto.estoque || 0) > 0 || Number(produto.estoqueEmbalagens || produto.estoqueInsumos || 0) > 0 || Number(produto.estoqueConteudoAberto || 0) > 0;
+        if (saldoExistente && (conteudoAtualBase !== conteudoNovoBase || normalizarUnidade(produto.unidadeConteudo) !== normalizarUnidade(item.unidadeConteudo))) {
+          throw new Error('A embalagem nao pode mudar enquanto existir saldo. Cadastre outro produto para a nova embalagem.');
+        }
         const custoAtual = Number(produto.custoUnitarioBase || 0);
         const custoNovo = req.body.metodoCusteio === 'ultimo_preco'
           ? custoUnitario
@@ -99,7 +108,9 @@ router.post('/', [
         produto.conteudoPorEmbalagem = conteudoPorEmbalagem;
         produto.unidadeConteudo = item.unidadeConteudo;
         if (produto.tipo === 'venda') {
+          if (produtoControlaPeso(produto)) normalizarEstoqueLegado(produto);
           produto.estoque = Number(produto.estoque || 0) + qtdEmbalagens;
+          if (produtoControlaPeso(produto)) produto.estoquePesoKg = Number(produto.estoquePesoKg || 0) + quantidadeTotalBase / 1000;
         } else {
           produto.estoqueEmbalagens = Number(produto.estoqueEmbalagens || produto.estoqueInsumos || 0) + qtdEmbalagens;
           produto.estoqueInsumos = produto.estoqueEmbalagens;

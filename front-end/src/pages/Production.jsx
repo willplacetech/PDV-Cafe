@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
-import { useToast } from '../components/Toast.jsx';
+import { useToast } from '../components/useToast.js';
 import FichasTecnicas from './FichasTecnicas.jsx';
 
 const units = ['kg', 'L', 'un'];
@@ -34,11 +34,9 @@ export default function Production() {
   const [movForm, setMovForm] = useState({ produtoId: '', quantidadeEmbalagens: '', motivo: '' });
   const [movPreview, setMovPreview] = useState(null);
   const [movimentos, setMovimentos] = useState([]);
-  const [filtroFicha, setFiltroFicha] = useState('todos');
-  const [buscaFicha, setBuscaFicha] = useState('');
   const { showToast } = useToast();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const [productsResponse, stockResponse, recipesResponse, dashboardResponse, movimentosResponse] = await Promise.all([
         api.get('/products'),
@@ -53,18 +51,14 @@ export default function Production() {
       setProductionDashboard(dashboardResponse.data);
       setMovimentos(movimentosResponse.data || []);
     } catch (error) { showToast(error.response?.data?.msg || 'Não foi possível carregar a produção', 'error'); }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     const loadInitialData = async () => { await load(); };
     loadInitialData();
-  }, []);
+  }, [load]);
 
   const producibleProducts = products.filter((product) => product.tipo === 'venda' && (product.tipoProduto === 'producao' || (!product.tipoProduto && product.producaoPropria)));
-  const fichasFiltradas = recipes.filter((recipe) => {
-    const tipoOk = filtroFicha === 'todos' || (filtroFicha === 'coz' ? recipe.produtoId?.aFazer : recipe.produtoId?.producaoPropria && !recipe.produtoId?.aFazer);
-    return tipoOk && String(recipe.produtoId?.nome || recipe.nome).toLowerCase().includes(buscaFicha.toLowerCase());
-  });
   const alterarTab = (novaTab) => {
     setTab(novaTab === 'fichas' ? 'fichas-atual' : novaTab);
     setSearchParams(novaTab === 'fichas' ? { tab: 'fichas' } : {});
@@ -150,14 +144,6 @@ export default function Production() {
     setRecipeForm(emptyRecipe);
   };
 
-  const duplicateRecipe = (recipe) => {
-    setEditingRecipeId(null);
-    setRecipeForm({
-      nome: `${recipe.nome} (cópia)`, produtoId: '', rendimento: String(recipe.rendimento), unidadeRendimento: recipe.unidadeRendimento,
-      ingredientes: recipe.ingredientes.map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: String(item.quantidade), unidade: item.unidade })),
-    });
-    alterarTab('fichas');
-  };
 
   const produce = async (event) => {
     event.preventDefault();

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api.jsx';
-import { useToast } from '../components/Toast.jsx';
+import { useToast } from '../components/useToast.js';
 import AreaTabs from '../components/AreaTabs.jsx';
 
 // 🎯 Máscaras

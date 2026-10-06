@@ -17,17 +17,25 @@ Nenhum documento fiscal é emitido sem a configuração explícita de um provedo
 Em terminais separados:
 
 ```bash
-cd back-end && npm install && npm run dev
+cd back-end && npm install && npm start
 cd front-end && npm install && npm run dev
 ```
 
-Crie `back-end/.env` a partir de `.env.example` e informe a conexão MongoDB antes de iniciar a API.
+Crie `back-end/.env` a partir de `.env.example` e informe `MONGO_URI`. Se ainda não existir administrador no banco, configure `ADMIN_PASSWORD` com pelo menos 12 caracteres. Contas existentes são preservadas. `JWT_SECRET` configurado é mantido; quando ausente, uma chave aleatória é persistida no MongoDB. Sessões assinadas com a antiga chave pública precisarão de novo login.
 
 ## Deploy no Render
 
-O repositório inclui `render.yaml` para criar o front-end estático e a API Node.js pelo fluxo **New + Blueprint**. No Render, conecte este repositório e informe apenas a variável secreta `MONGO_URI` da instância MongoDB. As URLs configuradas são:
+O repositório inclui `render.yaml` para criar o front-end estático e a API Node.js pelo fluxo **New + Blueprint**. No Render, conecte este repositório e informe a variável secreta `MONGO_URI` da instância MongoDB. Para um banco novo, também configure `ADMIN_PASSWORD` com pelo menos 12 caracteres. As URLs configuradas são:
 
 - API: `https://pdv-cafe-api-willplacetech.onrender.com`
 - Front-end: `https://sabordabraco.onrender.com`
 
 Após salvar a `MONGO_URI`, o Render executa os dois deploys automaticamente. Não coloque essa URI no GitHub.
+
+## Validação das correções
+
+Execute `npm test`, `npm run test:frontend:unit`, `npm run lint` e `npm --prefix front-end run build`. Os testes de integração usam MongoDB isolado em memória, com checksum de download habilitado.
+
+Com o frontend local rodando, execute `npm run test:frontend -- --spec tests/e2e/regressao_segura.cy.js --config baseUrl=http://127.0.0.1:5173`. Essa especificação intercepta as chamadas de API e não altera o banco real. As outras especificações Cypress dependem do ambiente e dos usuários de teste.
+
+Veja [CORRECOES.md](CORRECOES.md) para os problemas corrigidos e os limites da validação.
