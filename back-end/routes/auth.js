@@ -6,7 +6,6 @@ const auth = require('../middleware/auth');
 const router = express.Router();
 const { PASSWORD_MESSAGE, validLoginPassword, validNewPassword, validUsername } = require('../utils/passwordPolicy');
 const sessions = require('../utils/authSessions');
-const { loginProtection } = require('../utils/sessionOrigins');
 const pdvRoles = ['admin', 'operador', 'cozinha', 'garcom'];
 const publicManagedUser = user => ({ id: user.id, username: user.username, role: user.role, ativo: user.ativo !== false });
 
@@ -18,12 +17,14 @@ const cookieOptions = {
   path: '/',
 };
 
+const { loginProtection } = require('../utils/sessionOrigins');
+
 // @route   POST api/auth/login
 // @desc    Login e retornar token
 // @access  Público
 router.post('/login', loginProtection, async (req, res, next) => {
   const { username, password } = req.body || {};
-  if (typeof username !== 'string' || !validUsername(username.trim()) || !validLoginPassword(password)) {
+  if (typeof username !== 'string' || !validUsername(username.trim()) || typeof password !== 'string' || !validLoginPassword(password)) {
     return res.status(400).json({ msg: 'Informe usuário e senha válidos' });
   }
   try {

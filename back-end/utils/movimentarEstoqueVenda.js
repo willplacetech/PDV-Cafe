@@ -24,12 +24,17 @@ async function ajustarEstoque(itens, operacao, session, { legadoPedido = false }
     const qtd = Number(item.quantidade);
     if (!Number.isFinite(qtd) || qtd <= 0) throw new Error('Quantidade inválida');
     const ficha = baixar ? produto.fichaTecnica : (item.insumosConsumidos?.length ? item.insumosConsumidos : produto.fichaTecnica);
+    const controlePersistido = item.controleEstoque || null;
     const controle = baixar
       ? (isCoz(produto) && ficha?.length ? (produto.permitirVendaSemInsumo ? 'nenhum' : 'insumos') : 'produto')
-      : (item.controleEstoque || (!legadoPedido && isCoz(produto) && ficha?.length ? (produto.permitirVendaSemInsumo ? 'nenhum' : 'insumos') : 'produto'));
+      : (controlePersistido || (!legadoPedido && isCoz(produto) && ficha?.length ? (produto.permitirVendaSemInsumo ? 'nenhum' : 'insumos') : 'produto'));
     if (baixar) {
       item.controleEstoque = controle;
       item.insumosConsumidos = controle === 'insumos' ? ficha.map(i => ({ produtoId: i.produtoId, quantidade: i.quantidade, unidade: i.unidade })) : [];
+    } else {
+      item.controleEstoque = controle;
+      if (controle === 'insumos') item.insumosConsumidos = ficha.map(i => ({ produtoId: i.produtoId, quantidade: i.quantidade, unidade: i.unidade }));
+      else if (controle !== 'nenhum') item.insumosConsumidos = [];
     }
     if (controle === 'nenhum') continue;
     if (controle === 'insumos') {
