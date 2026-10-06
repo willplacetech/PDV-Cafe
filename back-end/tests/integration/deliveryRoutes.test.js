@@ -103,6 +103,13 @@ test('plataforma cria comércio e usuário sem permitir acesso do tenant ao CRUD
   expect((await api('get', '/plataforma/tenants')).status).toBe(403);
 });
 
+test('cadastro duplicado de empresa retorna conflito explicando o slug', async () => {
+  const response = await api('post', '/plataforma/tenants', platformToken)
+    .send({ nome: 'Outro Café', slug: tenant.slug, telefone: '11955555555', endereco: 'Rua Três', adminEmail: 'outro@cafe.test', adminSenha: 'senha-segura-123' });
+  expect(response.status).toBe(409);
+  expect(response.body.msg).toBe('Já existe uma empresa cadastrada com esse slug.');
+});
+
 test('plataforma consulta e redefine credenciais do administrador do comércio', async () => {
   const lista = await api('get', '/plataforma/tenants', platformToken);
   expect(lista.body.find(item => item._id === String(tenant._id)).adminEmail).toBe('dono@cafe.test');
@@ -123,6 +130,60 @@ test('plataforma consulta e redefine credenciais do administrador do comércio',
     .send({ adminEmail: 'final@cafe.test' });
   expect(emailAtualizado.status).toBe(200);
   expect((await request(app).post('/api/delivery/login').send({ email: 'final@cafe.test', senha: 'nova-senha-segura-456' })).status).toBe(200);
+});
+
+test('comércio pode editar e excluir entregadores próprios sem atingir entregadores livres', async () => {
+  const criado = await api('post', '/tenant/entregadores').send({ nome: 'Ana', telefone: '11912345678', senha: 'senha-segura-123' });
+  expect(criado.status).toBe(201);
+  const loginAntigo = await request(app).post('/api/entregador/login').send({ telefone: '11912345678', senha: 'senha-segura-123' });
+  expect(loginAntigo.status).toBe(200);
+
+  const atualizado = await api('put', `/tenant/entregadores/${criado.body._id}`)
+    .send({ nome: 'Ana Silva', telefone: '11912345679', senha: 'nova-senha-segura-456' });
+  expect(atualizado.status).toBe(200);
+  expect(atualizado.body).toMatchObject({ nome: 'Ana Silva', telefone: '11912345679' });
+  expect((await api('get', '/entregador/pedidos', loginAntigo.body.token)).status).toBe(401);
+  expect((await request(app).post('/api/entregador/login').send({ telefone: '11912345679', senha: 'nova-senha-segura-456' })).status).toBe(200);
+
+  expect((await api('delete', `/tenant/entregadores/${criado.body._id}`)).status).toBe(204);
+  expect((await request(app).post('/api/entregador/login').send({ telefone: '11912345679', senha: 'nova-senha-segura-456' })).status).toBe(401);
+  expect((await api('get', '/tenant/entregadores')).body).toHaveLength(0);
+});
+
+test('plataforma gerencia entregadores e bloqueia exclusão quando há pedidos vinculados', async () => {
+  const criado = await api('post', '/plataforma/entregadores', platformToken)
+    .send({ nome: 'Livre', telefone: '11912345678', senha: 'senha-segura-123' });
+  expect(criado.status).toBe(201);
+  expect((await api('get', '/plataforma/entregadores', platformToken)).body).toHaveLength(1);
+  const atualizado = await api('put', `/plataforma/entregadores/${criado.body._id}`, platformToken)
+    .send({ nome: 'Livre Atualizado', telefone: '11912345679' });
+  expect(atualizado.status).toBe(200);
+  expect(atualizado.body).toMatchObject({ nome: 'Livre Atualizado', telefone: '11912345679' });
+
+  await Entregador.updateOne({ _id: criado.body._id }, { status: 'disponivel' });
+  const pedido = await criarPedido();
+  expect((await api('post', `/tenant/pedidos/${pedido._id}/despachar`).send({ entregadorId: criado.body._id })).status).toBe(200);
+  expect((await api('delete', `/plataforma/entregadores/${criado.body._id}`, platformToken)).status).toBe(409);
+  expect(await Entregador.exists({ _id: criado.body._id })).toBeTruthy();
+});
+
+test('plataforma exclui empresa sem pedidos e remove vínculos Delivery com segurança', async () => {
+  const pdvUser = await User.create({ username: 'pdv-vinculado', password: 'senha-segura-123', role: 'admin', tenantId: tenant._id });
+  const entregador = await Entregador.create({ nome: 'Ana', telefone: '11912345678', senhaAcesso: 'senha-segura-123', tenantId: tenant._id });
+
+  const response = await api('delete', `/plataforma/tenants/${tenant._id}`, platformToken);
+  expect(response.status).toBe(204);
+  expect(await Tenant.exists({ _id: tenant._id })).toBeFalsy();
+  expect(await User.exists({ email: 'dono@cafe.test' })).toBeFalsy();
+  expect((await User.findById(pdvUser._id)).tenantId).toBeUndefined();
+  expect(await Entregador.exists({ _id: entregador._id })).toBeFalsy();
+});
+
+test('plataforma não exclui empresa que tenha pedidos', async () => {
+  await criarPedido();
+  const response = await api('delete', `/plataforma/tenants/${tenant._id}`, platformToken);
+  expect(response.status).toBe(409);
+  expect(await Tenant.exists({ _id: tenant._id })).toBeTruthy();
 });
 
 test('paginação, coordenadas e entrada externa são validadas', async () => {

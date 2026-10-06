@@ -34,6 +34,7 @@ function PainelComercio() {
   const [pedidos, setPedidos] = useState([]);
   const [agora, setAgora] = useState(Date.now);
   const [entregadores, setEntregadores] = useState([]);
+  const [edicaoEntregador, setEdicaoEntregador] = useState(null);
   const [stats, setStats] = useState({});
   const [tenant, setTenant] = useState(null);
   const [erro, setErro] = useState('');
@@ -74,7 +75,26 @@ function PainelComercio() {
   };
   const salvarEntregador = event => {
     event.preventDefault(); const formElement = event.currentTarget; const form = new FormData(formElement);
-    void agir(async () => { await deliveryApi.post('/tenant/entregadores', Object.fromEntries(form)); formElement.reset(); setAviso('Entregador cadastrado. Compartilhe a senha temporária com ele.'); });
+    const body = Object.fromEntries(form);
+    if (!body.senha) delete body.senha;
+    void agir(async () => {
+      if (edicaoEntregador) {
+        await deliveryApi.put(`/tenant/entregadores/${edicaoEntregador._id}`, body);
+        setAviso('Entregador atualizado.');
+      } else {
+        await deliveryApi.post('/tenant/entregadores', body);
+        setAviso('Entregador cadastrado. Compartilhe a senha temporária com ele.');
+      }
+      setEdicaoEntregador(null);
+    });
+  };
+  const excluirEntregador = entregador => {
+    if (!window.confirm(`Excluir permanentemente ${entregador.nome}? Esta ação não pode ser desfeita.`)) return;
+    void agir(async () => {
+      await deliveryApi.delete(`/tenant/entregadores/${entregador._id}`);
+      if (edicaoEntregador?._id === entregador._id) setEdicaoEntregador(null);
+      setAviso('Entregador excluído.');
+    });
   };
   const configurar = event => {
     event.preventDefault(); const form = new FormData(event.currentTarget);
@@ -96,7 +116,7 @@ function PainelComercio() {
         <div className="delivery-actions"><a href={`/pedido/${pedido.tokenRastreamento}`} target="_blank" rel="noreferrer">Ver rastreio</a><button className="delivery-secondary" disabled={ocupado} onClick={() => agir(async () => { const { data } = await deliveryApi.post(`/tenant/pedidos/${pedido._id}/enviar-whatsapp`, {}); setWhatsapp(data); setAviso(data.enviado ? 'Mensagem enviada.' : 'Mensagem pronta para compartilhar.'); })}>WhatsApp</button>{!['entregue', 'cancelado'].includes(pedido.status) && <button className="delivery-danger" disabled={ocupado} onClick={() => cancelar(pedido)}>Cancelar</button>}</div>
       </article>;
     })}</div>{!pedidos.length && <div className="delivery-card delivery-empty">Nenhum pedido por aqui.</div>}{aba === 'historico' && <div className="delivery-actions"><button disabled={pagina <= 1} onClick={() => setPagina(p => p - 1)}>Anterior</button><span>Página {pagina} de {Math.max(1, paginas)}</span><button disabled={pagina >= paginas} onClick={() => setPagina(p => p + 1)}>Próxima</button></div>}</>}
-    {aba === 'entregadores' && <div className="delivery-grid"><form className="delivery-card" onSubmit={salvarEntregador}><h2>Cadastrar entregador</h2><label>Nome<input name="nome" required /></label><label>Telefone<input name="telefone" type="tel" required /></label><label>Senha temporária<input name="senha" type="password" minLength={12} maxLength={72} required autoComplete="new-password" /></label><button disabled={ocupado}>Cadastrar entregador</button></form><div className="delivery-card"><h2>Sua equipe</h2>{entregadores.map(e => <p key={e._id}><strong>{e.nome}</strong><br />{e.telefone} · {e.status === 'offline' ? 'Offline' : e.status === 'em_entrega' ? 'Em entrega' : 'Disponível'}{!e.tenantId && ' · Entregador livre'}</p>)}{!entregadores.length && <p>Nenhum entregador cadastrado.</p>}</div></div>}
+    {aba === 'entregadores' && <div className="delivery-grid"><form className="delivery-card" onSubmit={salvarEntregador} key={edicaoEntregador?._id || 'novo-entregador'}><h2>{edicaoEntregador ? `Editar ${edicaoEntregador.nome}` : 'Cadastrar entregador'}</h2><label>Nome<input name="nome" required defaultValue={edicaoEntregador?.nome} /></label><label>Telefone<input name="telefone" type="tel" required defaultValue={edicaoEntregador?.telefone} /></label><label>{edicaoEntregador ? 'Nova senha (opcional)' : 'Senha temporária'}<input name="senha" type="password" minLength={12} maxLength={72} required={!edicaoEntregador} autoComplete="new-password" /></label><div className="delivery-actions"><button disabled={ocupado}>{edicaoEntregador ? 'Salvar entregador' : 'Cadastrar entregador'}</button>{edicaoEntregador && <button type="button" className="delivery-secondary" onClick={() => setEdicaoEntregador(null)}>Cancelar edição</button>}</div></form><div className="delivery-card"><h2>Sua equipe</h2>{entregadores.filter(e => String(e.tenantId) === String(tenant?._id)).map(e => <article key={e._id} style={{ borderTop: '1px solid #dce4dc', padding: '12px 0' }}><strong>{e.nome}</strong><p className="delivery-muted">{e.telefone} · {e.ativo === false ? 'Desativado' : e.status === 'offline' ? 'Offline' : e.status === 'em_entrega' ? 'Em entrega' : 'Disponível'}</p><div className="delivery-actions"><button type="button" className="delivery-secondary" onClick={() => setEdicaoEntregador(e)}>Editar</button><button type="button" className="delivery-secondary" disabled={ocupado} onClick={() => void agir(async () => { await deliveryApi.put(`/tenant/entregadores/${e._id}`, { ativo: e.ativo === false }); setAviso(e.ativo === false ? 'Entregador ativado.' : 'Entregador desativado.'); })}>{e.ativo === false ? 'Ativar' : 'Desativar'}</button><button type="button" className="delivery-danger" disabled={ocupado} onClick={() => excluirEntregador(e)}>Excluir</button></div></article>)}{!entregadores.some(e => String(e.tenantId) === String(tenant?._id)) && <p>Nenhum entregador cadastrado por este comércio.</p>}</div></div>}
     {aba === 'configuracao' && tenant && <form className="delivery-card" onSubmit={configurar} key={tenant._id}><h2>Configurações de entrega</h2><label>Tempo estimado padrão (minutos)<input name="tempo" type="number" min="1" step="1" required defaultValue={tenant.configuracao.tempoEstimadoPadraoMin} /></label><label>Mensagem para o cliente<textarea name="mensagem" required maxLength={1000} defaultValue={tenant.configuracao.mensagemWhatsApp} /></label><p className="delivery-muted">Use {'{link}'} no ponto onde deve aparecer o rastreamento.</p><button disabled={ocupado}>Salvar configurações</button></form>}
   </>;
 }

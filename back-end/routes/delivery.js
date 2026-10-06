@@ -6,6 +6,7 @@ const User = require('../models/User');
 const Tenant = require('../models/Tenant');
 const Entregador = require('../models/Entregador');
 const PedidoEntrega = require('../models/PedidoEntrega');
+const AuthSession = require('../models/AuthSession');
 const { getJwtSecret } = require('../utils/authConfig');
 const { validatePassword, validEmail } = require('../utils/passwordPolicy');
 const { tenantAuth, courierAuth, platformAuth, integrationAuth } = require('../middleware/deliveryAuth');
@@ -18,7 +19,16 @@ const router = express.Router();
 const route = fn => async (req, res, next) => {
   try { await fn(req, res); }
   catch (error) {
-    if (error.code === 11000) return res.status(409).json({ msg: 'Cadastro já existente' });
+    if (error.code === 11000) {
+      const campo = Object.keys(error.keyPattern || {})[0];
+      const mensagens = {
+        slug: 'Já existe uma empresa cadastrada com esse slug.',
+        email: 'Já existe uma conta cadastrada com esse e-mail.',
+        username: 'Já existe uma conta cadastrada com esse usuário ou e-mail.',
+        telefone: 'Já existe um entregador cadastrado com esse telefone.',
+      };
+      return res.status(409).json({ msg: mensagens[campo] || 'Já existe um cadastro com um dos dados informados.' });
+    }
     if (['ValidationError', 'CastError'].includes(error.name)) return res.status(400).json({ msg: 'Dados inválidos. Confira os campos.' });
     next(error);
   }
@@ -114,11 +124,39 @@ router.post('/tenant/pedidos/:id/enviar-whatsapp', ...tenantAuth, route(async (r
   res.json(resultado);
 }));
 router.get('/tenant/entregadores', ...tenantAuth, route(async (req, res) => {
-  res.json(await Entregador.find({ tenantId: { $in: [null, req.tenantId] }, ativo: true }).select('nome telefone status tenantId').sort({ nome: 1 }).lean());
+  res.json(await Entregador.find({ $or: [{ tenantId: req.tenantId }, { tenantId: null, ativo: true }] }).select('nome telefone status tenantId ativo').sort({ nome: 1 }).lean());
 }));
 router.post('/tenant/entregadores', ...tenantAuth, route(async (req, res) => {
   const entregador = await Entregador.create({ nome: service.texto(req.body.nome, 'nome', true, 160), telefone: service.texto(req.body.telefone, 'telefone', true, 30), senhaAcesso: validatePassword(req.body.senha), tenantId: req.tenantId });
   res.status(201).json(entregador);
+}));
+router.put('/tenant/entregadores/:id', ...tenantAuth, route(async (req, res) => {
+  const id = service.validarId(req.params.id);
+  const entregador = await Entregador.findOne({ _id: id, tenantId: req.tenantId });
+  if (!entregador) throw service.erro('Entregador não encontrado', 404);
+  if (req.body.ativo !== undefined) {
+    if (typeof req.body.ativo !== 'boolean') throw service.erro('Estado do entregador inválido');
+    if (!req.body.ativo && await PedidoEntrega.exists({ entregadorId: id, status: { $in: statusAtivos } })) throw service.erro('O entregador possui pedido em andamento e não pode ser desativado.', 409);
+    entregador.ativo = req.body.ativo;
+    if (!req.body.ativo) entregador.status = 'offline';
+  }
+  if (req.body.nome !== undefined) entregador.nome = service.texto(req.body.nome, 'nome', true, 160);
+  if (req.body.telefone !== undefined) entregador.telefone = service.texto(req.body.telefone, 'telefone', true, 30);
+  if (req.body.senha !== undefined && req.body.senha !== '') {
+    entregador.senhaAcesso = validatePassword(req.body.senha);
+  }
+  await entregador.save();
+  if (req.body.senha) await AuthSession.deleteMany({ subjectId: entregador._id, kind: 'courier' });
+  res.json(entregador);
+}));
+router.delete('/tenant/entregadores/:id', ...tenantAuth, route(async (req, res) => {
+  const id = service.validarId(req.params.id);
+  const entregador = await Entregador.findOne({ _id: id, tenantId: req.tenantId });
+  if (!entregador) throw service.erro('Entregador não encontrado', 404);
+  if (await PedidoEntrega.exists({ entregadorId: id })) throw service.erro('Não é possível excluir um entregador associado a pedidos; desative o cadastro para preservar o histórico.', 409);
+  await AuthSession.deleteMany({ subjectId: entregador._id, kind: 'courier' });
+  await Entregador.deleteOne({ _id: entregador._id, tenantId: req.tenantId });
+  res.status(204).end();
 }));
 router.get('/tenant/estatisticas', ...tenantAuth, route(async (req, res) => {
   const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -236,9 +274,35 @@ router.put('/plataforma/tenants/:id', ...platformAuth, route(async (req, res) =>
   res.json(tenant);
 }));
 router.delete('/plataforma/tenants/:id', ...platformAuth, route(async (req, res) => {
-  const tenant = await Tenant.findByIdAndUpdate(service.validarId(req.params.id), { ativo: false }, { new: true });
+  const tenantId = service.validarId(req.params.id);
+  const tenant = await Tenant.findById(tenantId).lean();
   if (!tenant) throw service.erro('Comércio não encontrado', 404);
-  res.json(tenant);
+  if (await PedidoEntrega.exists({ tenantId })) throw service.erro('Não é possível excluir um comércio com pedidos; desative o cadastro para preservar o histórico.', 409);
+
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      const users = await User.find({ tenantId }).select('_id role').session(session).lean();
+      const userIds = users.map(user => user._id);
+      const admins = users.filter(user => user.role === 'tenant_admin').map(user => user._id);
+      const couriers = await Entregador.find({ tenantId }).select('_id').session(session).lean();
+      const courierIds = couriers.map(courier => courier._id);
+
+      if (userIds.length) await User.updateMany({ _id: { $in: userIds }, role: { $ne: 'tenant_admin' } }, { $unset: { tenantId: 1 } }, { session });
+      if (admins.length) {
+        await AuthSession.deleteMany({ subjectId: { $in: admins }, kind: 'user' }, { session });
+        await User.deleteMany({ _id: { $in: admins } }, { session });
+      }
+      if (courierIds.length) {
+        await AuthSession.deleteMany({ subjectId: { $in: courierIds }, kind: 'courier' }, { session });
+        await Entregador.deleteMany({ _id: { $in: courierIds } }, { session });
+      }
+      await Tenant.deleteOne({ _id: tenantId }, { session });
+    });
+  } finally {
+    await session.endSession();
+  }
+  res.status(204).end();
 }));
 router.post('/plataforma/tenants/:id/vincular-pdv', ...platformAuth, route(async (req, res) => {
   const tenantId = service.validarId(req.params.id);
@@ -248,9 +312,39 @@ router.post('/plataforma/tenants/:id/vincular-pdv', ...platformAuth, route(async
   if (!user) throw service.erro('Operador do PDV não encontrado', 404);
   res.json({ username: user.username, tenantId: user.tenantId });
 }));
+router.get('/plataforma/entregadores', ...platformAuth, route(async (req, res) => {
+  res.json(await Entregador.find().select('nome telefone status tenantId ativo').populate('tenantId', 'nome').sort({ nome: 1 }).lean());
+}));
 router.post('/plataforma/entregadores', ...platformAuth, route(async (req, res) => {
   const entregador = await Entregador.create({ nome: service.texto(req.body.nome, 'nome', true), telefone: service.texto(req.body.telefone, 'telefone', true, 30), senhaAcesso: validatePassword(req.body.senha), tenantId: null });
   res.status(201).json(entregador);
+}));
+router.put('/plataforma/entregadores/:id', ...platformAuth, route(async (req, res) => {
+  const entregador = await Entregador.findById(service.validarId(req.params.id));
+  if (!entregador) throw service.erro('Entregador não encontrado', 404);
+  if (req.body.ativo !== undefined) {
+    if (typeof req.body.ativo !== 'boolean') throw service.erro('Estado do entregador inválido');
+    if (!req.body.ativo && await PedidoEntrega.exists({ entregadorId: entregador._id, status: { $in: statusAtivos } })) throw service.erro('O entregador possui pedido em andamento e não pode ser desativado.', 409);
+    entregador.ativo = req.body.ativo;
+    if (!req.body.ativo) entregador.status = 'offline';
+  }
+  if (req.body.nome !== undefined) entregador.nome = service.texto(req.body.nome, 'nome', true, 160);
+  if (req.body.telefone !== undefined) entregador.telefone = service.texto(req.body.telefone, 'telefone', true, 30);
+  if (req.body.senha !== undefined && req.body.senha !== '') {
+    entregador.senhaAcesso = validatePassword(req.body.senha);
+  }
+  await entregador.save();
+  if (req.body.senha) await AuthSession.deleteMany({ subjectId: entregador._id, kind: 'courier' });
+  res.json(entregador);
+}));
+router.delete('/plataforma/entregadores/:id', ...platformAuth, route(async (req, res) => {
+  const id = service.validarId(req.params.id);
+  const entregador = await Entregador.findById(id);
+  if (!entregador) throw service.erro('Entregador não encontrado', 404);
+  if (await PedidoEntrega.exists({ entregadorId: id })) throw service.erro('Não é possível excluir um entregador associado a pedidos; desative o cadastro para preservar o histórico.', 409);
+  await AuthSession.deleteMany({ subjectId: entregador._id, kind: 'courier' });
+  await Entregador.deleteOne({ _id: entregador._id });
+  res.status(204).end();
 }));
 router.post('/plataforma/tenants/:id/token-integracao', ...platformAuth, route(async (req, res) => {
   const tenantId = service.validarId(req.params.id);
