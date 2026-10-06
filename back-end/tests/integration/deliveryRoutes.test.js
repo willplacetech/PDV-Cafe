@@ -103,6 +103,28 @@ test('plataforma cria comércio e usuário sem permitir acesso do tenant ao CRUD
   expect((await api('get', '/plataforma/tenants')).status).toBe(403);
 });
 
+test('plataforma consulta e redefine credenciais do administrador do comércio', async () => {
+  const lista = await api('get', '/plataforma/tenants', platformToken);
+  expect(lista.body.find(item => item._id === String(tenant._id)).adminEmail).toBe('dono@cafe.test');
+
+  const atualizado = await api('put', `/plataforma/tenants/${tenant._id}`, platformToken)
+    .send({ nome: 'Café Atualizado', adminEmail: 'novo@cafe.test', adminSenha: 'nova-senha-segura-456' });
+  expect(atualizado.status).toBe(200);
+  expect(atualizado.body.nome).toBe('Café Atualizado');
+  expect((await api('get', '/tenant/pedidos', token)).status).toBe(401);
+  expect((await request(app).post('/api/delivery/login').send({ email: 'dono@cafe.test', senha: 'senha-segura-123' })).status).toBe(401);
+
+  const loginNovoEmail = await request(app).post('/api/delivery/login')
+    .send({ email: 'novo@cafe.test', senha: 'nova-senha-segura-456' });
+  expect(loginNovoEmail.status).toBe(200);
+  expect((await api('get', '/plataforma/tenants', platformToken)).body.find(item => item._id === String(tenant._id)).adminEmail).toBe('novo@cafe.test');
+
+  const emailAtualizado = await api('put', `/plataforma/tenants/${tenant._id}`, platformToken)
+    .send({ adminEmail: 'final@cafe.test' });
+  expect(emailAtualizado.status).toBe(200);
+  expect((await request(app).post('/api/delivery/login').send({ email: 'final@cafe.test', senha: 'nova-senha-segura-456' })).status).toBe(200);
+});
+
 test('paginação, coordenadas e entrada externa são validadas', async () => {
   expect((await api('get', '/tenant/pedidos?data=2026-99-99')).status).toBe(400);
   expect((await api('post', '/tenant/pedidos').send({ ...dados(), valorTotal: -1 })).status).toBe(400);

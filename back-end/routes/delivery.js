@@ -162,7 +162,13 @@ router.post('/pedidos/integracao', ...integrationAuth, route(async (req, res) =>
   res.status(criado ? 201 : 200).json(pedido);
 }));
 
-router.get('/plataforma/tenants', ...platformAuth, route(async (req, res) => res.json(await Tenant.find().sort({ nome: 1 }).limit(500).lean())));
+router.get('/plataforma/tenants', ...platformAuth, route(async (req, res) => {
+  const tenants = await Tenant.find().sort({ nome: 1 }).limit(500).lean();
+  const tenantIds = tenants.map(tenant => tenant._id);
+  const admins = await User.find({ role: 'tenant_admin', tenantId: { $in: tenantIds } }).select('tenantId email').lean();
+  const emails = new Map(admins.map(admin => [String(admin.tenantId), admin.email]));
+  res.json(tenants.map(tenant => ({ ...tenant, adminEmail: emails.get(String(tenant._id)) || '' })));
+}));
 router.get('/plataforma/tenants/:id', ...platformAuth, route(async (req, res) => {
   const tenant = await Tenant.findById(service.validarId(req.params.id));
   if (!tenant) throw service.erro('Comércio não encontrado', 404);
@@ -187,8 +193,46 @@ router.post('/plataforma/tenants', ...platformAuth, route(async (req, res) => {
   res.status(201).json(tenant);
 }));
 router.put('/plataforma/tenants/:id', ...platformAuth, route(async (req, res) => {
-  const tenant = await Tenant.findByIdAndUpdate(service.validarId(req.params.id), { $set: tenantDados(req.body) }, { new: true, runValidators: true });
-  if (!tenant) throw service.erro('Comércio não encontrado', 404);
+  const tenantId = service.validarId(req.params.id);
+  const adminEmail = req.body.adminEmail === undefined
+    ? undefined
+    : service.texto(req.body.adminEmail, 'e-mail do administrador', true, 254).toLowerCase();
+  const adminSenha = req.body.adminSenha === undefined || req.body.adminSenha === ''
+    ? undefined
+    : validatePassword(req.body.adminSenha);
+  if (adminEmail !== undefined && !validEmail(adminEmail)) throw service.erro('E-mail inválido');
+
+  let tenant;
+  if (adminEmail !== undefined || adminSenha !== undefined) {
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        tenant = await Tenant.findById(tenantId).session(session);
+        if (!tenant) throw service.erro('Comércio não encontrado', 404);
+        let admin = await User.findOne({ role: 'tenant_admin', tenantId }).select('+password').session(session);
+        if (!admin) {
+          if (!adminEmail || !adminSenha) throw service.erro('Informe e-mail e senha para criar o acesso do administrador');
+          admin = new User({ username: adminEmail, email: adminEmail, password: adminSenha, role: 'tenant_admin', tenantId });
+        } else {
+          const credenciaisAlteradas = (adminEmail !== undefined && admin.email !== adminEmail) || adminSenha !== undefined;
+          if (adminEmail !== undefined) {
+            admin.username = adminEmail;
+            admin.email = adminEmail;
+          }
+          if (adminSenha !== undefined) admin.password = adminSenha;
+          if (credenciaisAlteradas) admin.tokenVersion = (admin.tokenVersion || 0) + 1;
+        }
+        await admin.save({ session });
+        tenant.set(tenantDados(req.body));
+        await tenant.save({ session });
+      });
+    } finally {
+      await session.endSession();
+    }
+  } else {
+    tenant = await Tenant.findByIdAndUpdate(tenantId, { $set: tenantDados(req.body) }, { new: true, runValidators: true });
+    if (!tenant) throw service.erro('Comércio não encontrado', 404);
+  }
   res.json(tenant);
 }));
 router.delete('/plataforma/tenants/:id', ...platformAuth, route(async (req, res) => {
