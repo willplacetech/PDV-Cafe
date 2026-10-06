@@ -453,7 +453,8 @@ export default function Layout({ children }) {
             top: 12px;
             right: 16px;
             z-index: 200;
-            width: min(400px, calc(100vw - 292px));
+            width: fit-content;
+            max-width: min(300px, calc(100vw - 292px));
           }
           #sidebar-desktop {
             display: flex !important;

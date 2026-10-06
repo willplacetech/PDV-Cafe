@@ -263,8 +263,8 @@ export default function Entregas() {
   };
 
   return <div className="delivery-app delivery-board">
-    <header className="delivery-board-heading">
-      <div><p className="delivery-eyebrow">OPERAÇÃO DO DIA</p><h1>Entregas</h1><p className="delivery-muted">Acompanhe e despache os pedidos do seu comércio.</p></div>
+    <header className="delivery-board-heading page-heading">
+      <div><span className="dashboard-eyebrow">OPERAÇÃO DO DIA</span><h1>Entregas</h1><p>Acompanhe e despache os pedidos do seu comércio.</p></div>
       <button type="button" className="delivery-secondary" onClick={() => void carregar(true)} disabled={atualizando}>{atualizando ? 'Atualizando…' : 'Atualizar'}</button>
     </header>
 
@@ -383,17 +383,5 @@ export default function Entregas() {
       <button type="button" className="delivery-secondary" disabled={pagina >= paginas || carregando} onClick={() => setPagina(value => value + 1)}>Próxima</button>
     </div>}
 
-    <style>{`
-      .delivery-board{min-height:unset;background:transparent;font-size:14px}
-      .delivery-board-heading,.delivery-order-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
-      .delivery-board-heading{margin-bottom:18px}
-      .delivery-board-heading h1{margin:4px 0 8px}
-      .delivery-order-heading h2{margin:10px 0 0}
-      .delivery-order p{overflow-wrap:anywhere}
-      .delivery-dispatch-label{flex:1;min-width:min(100%,220px)}
-      .delivery-board input[type="checkbox"]{width:auto;min-height:auto}
-      .delivery-order[aria-current="true"]{outline:3px solid #d8ac52;outline-offset:2px}
-      @media(max-width:600px){.delivery-board-heading{flex-direction:column}.delivery-board-heading>button{width:100%}.delivery-order-heading{flex-direction:column}}
-    `}</style>
   </div>;
 }
