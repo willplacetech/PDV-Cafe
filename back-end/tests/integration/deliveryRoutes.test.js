@@ -1,5 +1,6 @@
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const app = require('../../server');
 const User = require('../../models/User');
 const Tenant = require('../../models/Tenant');
@@ -41,7 +42,7 @@ test('comércio não pode criar, listar, cancelar ou despachar pedido de outro t
   expect(pedido.tenantId).toBe(String(tenant._id));
   const forjado = await api('post', '/tenant/pedidos').send({ ...dados(), tenantId: outro.id, status: 'entregue' });
   expect(forjado.body.tenantId).toBe(String(tenant._id));
-  expect(forjado.body.status).toBe('pendente');
+  expect(forjado.body.status).toBe('pronto');
   expect((await api('get', '/tenant/pedidos', tokenOutro)).body.pedidos).toHaveLength(0);
   expect((await api('post', `/tenant/pedidos/${pedido._id}/cancelar`, tokenOutro).send({ motivo: 'Teste' })).status).toBe(404);
 });
@@ -62,7 +63,7 @@ test('despacho e entrega exigem o entregador atribuído e transições válidas'
   expect((await api('post', `/entregador/pedido/${pedido._id}/status`, courierToken).send({ novoStatus: 'entregue' })).status).toBe(200);
   expect((await api('post', `/tenant/pedidos/${pedido._id}/cancelar`).send({ motivo: 'Tarde' })).status).toBe(409);
   const salvo = await PedidoEntrega.findById(pedido._id);
-  expect(salvo.statusHistorico.map(h => h.status)).toEqual(['pendente', 'despachado', 'a_caminho', 'entregue']);
+  expect(salvo.statusHistorico.map(h => h.status)).toEqual(['pronto', 'despachado', 'a_caminho', 'entregue']);
   expect(salvo.statusHistorico[3].por.tipo).toBe('entregador');
 });
 
@@ -70,7 +71,7 @@ test('rastreio público e WhatsApp não expõem informações privadas nem depen
   const pedido = await criarPedido();
   const rastreio = await request(app).get(`/api/rastreio/${pedido.tokenRastreamento}`);
   expect(rastreio.status).toBe(200);
-  expect(rastreio.body).toMatchObject({ status: 'pendente', nomeComercio: 'Café' });
+  expect(rastreio.body).toMatchObject({ status: 'pronto', nomeComercio: 'Café' });
   for (const campo of ['_id', 'tenantId', 'origem', 'entregadorId', 'valorTotal']) expect(rastreio.body[campo]).toBeUndefined();
   expect(rastreio.body.statusHistorico[0].por).toBeUndefined();
   expect((await request(app).get(`/api/rastreio/${pedido._id}`)).status).toBe(404);
@@ -94,6 +95,43 @@ test('integração PDV exige vínculo e não duplica pedido no reenvio', async (
   expect((await api('post', '/pedidos/integracao', pdvToken).send(payload)).body._id).toBe(primeira.body._id);
   expect((await api('post', '/pedidos/integracao', pdvToken).send({ ...payload, tenantSlug: 'mercado' })).status).toBe(403);
   expect(await PedidoEntrega.countDocuments({ tenantId: tenant._id })).toBe(1);
+});
+
+test('nova rota de integração registra a venda idempotente pronta quando não exige preparo', async () => {
+  const vendaId = new mongoose.Types.ObjectId();
+  const payload = { ...dados(), vendaId: String(vendaId), empresaId: String(tenant._id) };
+
+  const primeira = await api('post', '/entregas/pedidos/integracao', token).send(payload);
+  const repetida = await api('post', '/entregas/pedidos/integracao', token).send(payload);
+
+  expect(primeira.status).toBe(201);
+  expect(primeira.body).toMatchObject({
+    tenantId: String(tenant._id),
+    fonte: 'pdv',
+    vendaId: String(vendaId),
+    status: 'pronto',
+  });
+  expect(primeira.body._id).toBe(repetida.body._id);
+  expect(repetida.status).toBe(200);
+});
+
+test('integração do PDV mantém pedido pendente quando precisa de preparo', async () => {
+  const response = await api('post', '/entregas/pedidos/integracao', token)
+    .send({ ...dados(), vendaId: String(new mongoose.Types.ObjectId()), aguardaPreparo: true });
+
+  expect(response.status).toBe(201);
+  expect(response.body.status).toBe('pendente');
+  const pronto = await api('post', `/tenant/pedidos/${response.body._id}/pronto`);
+  expect(pronto.status).toBe(200);
+  expect(pronto.body.status).toBe('pronto');
+});
+
+test('integração não permite que o corpo escolha outro comércio', async () => {
+  const response = await api('post', '/entregas/pedidos/integracao', token)
+    .send({ ...dados(), vendaId: String(new mongoose.Types.ObjectId()), empresaId: String(outro._id) });
+
+  expect(response.status).toBe(403);
+  expect(await PedidoEntrega.countDocuments({ tenantId: outro._id })).toBe(0);
 });
 
 test('plataforma cria comércio e usuário sem permitir acesso do tenant ao CRUD global', async () => {
@@ -229,14 +267,37 @@ test('PDV persiste entrega na venda e processa idempotentemente sem bloquear em 
   const venda = await api('post', '/comandas', assinar(pdv)).send({ clienteNome: 'Maria', itens: [{ produtoId: produto.id, quantidade: 1 }], entrega });
   expect(venda.status).toBe(201);
   expect(venda.body.entrega.status).toBe('pendente');
+  await outbox.processar();
+  expect(await PedidoEntrega.countDocuments({ tenantId: tenant._id })).toBe(0);
+  await api('post', `/comandas/${venda.body._id}/fechar`, assinar(pdv)).send({ metodoPagamento: 'dinheiro' });
   await outbox.processar(); await outbox.processar();
   const comanda = await Comanda.findById(venda.body._id);
   expect(comanda.entrega.status).toBe('processado');
   expect(await PedidoEntrega.countDocuments({ referenciaIntegracao: `comanda:${comanda.id}` })).toBe(1);
+  const pedidoDelivery = await PedidoEntrega.findOne({ referenciaIntegracao: `comanda:${comanda.id}` });
+  expect(pedidoDelivery).toMatchObject({ status: 'pronto', vendaId: comanda._id });
   const invalida = await api('post', '/comandas', assinar(pdv)).send({ clienteNome: 'Maria', itens: [{ produtoId: produto.id, quantidade: 1 }], entrega: { telefone: '123' } });
   expect(invalida.status).toBe(201);
+  await api('post', `/comandas/${invalida.body._id}/fechar`, assinar(pdv)).send({ metodoPagamento: 'dinheiro' });
   await outbox.processar();
   expect((await Comanda.findById(invalida.body._id)).entrega.status).toBe('erro');
+});
+
+test('integração da comanda fechada aguarda preparo para produtos A Fazer', async () => {
+  const pdv = await User.create({ username: 'operador-kds-entrega', password: 'senha-segura-123', role: 'admin', tenantId: tenant._id });
+  const produto = await Product.create({ codigo: 'DEL-KDS-1', nome: 'Prato', tipo: 'venda', categoria: 'Salgados', preco: 12, estoque: 10, aFazer: true });
+  const venda = await api('post', '/comandas', assinar(pdv)).send({
+    clienteNome: 'Maria',
+    itens: [{ produtoId: produto.id, quantidade: 1 }],
+    entrega: { telefone: '11988888888', endereco: dados().origem.endereco, taxaEntrega: 4 },
+  });
+
+  await api('post', `/comandas/${venda.body._id}/fechar`, assinar(pdv)).send({ metodoPagamento: 'dinheiro' });
+  await outbox.processar();
+
+  const pedido = await PedidoEntrega.findOne({ vendaId: venda.body._id });
+  expect(pedido.status).toBe('pendente');
+  expect(pedido.statusHistorico.map(item => item.status)).toEqual(['pendente']);
 });
 
 test('duas confirmações simultâneas gravam uma única transição', async () => {
@@ -297,7 +358,7 @@ test('SSE publica estado sem dados privados e remove assinatura ao desconectar',
         }
       });
     });
-    expect((await inicial).status).toBe('pendente');
+    expect((await inicial).status).toBe('pronto');
     const cancelado = aguardar();
     await api('post', `/tenant/pedidos/${pedido._id}/cancelar`).send({ motivo: 'Cliente desistiu' });
     expect((await cancelado).status).toBe('cancelado');

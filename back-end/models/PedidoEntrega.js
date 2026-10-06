@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const { randomUUID } = require('node:crypto');
 
-const STATUS_ENTREGA = ['pendente', 'despachado', 'a_caminho', 'entregue', 'cancelado'];
+const STATUS_ENTREGA = ['pendente', 'pronto', 'despachado', 'a_caminho', 'entregue', 'cancelado'];
 
 const enderecoSchema = new mongoose.Schema({
   rua: { type: String, required: true, trim: true, maxlength: 200 },
@@ -58,6 +58,7 @@ const pedidoEntregaSchema = new mongoose.Schema({
     default: () => randomUUID(),
     match: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   },
+  vendaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Comanda', immutable: true },
   entregadorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Entregador', default: null },
   referenciaIntegracao: { type: String, maxlength: 128 },
   motivoCancelamento: { type: String, trim: true, maxlength: 500 },
@@ -68,6 +69,7 @@ const pedidoEntregaSchema = new mongoose.Schema({
 pedidoEntregaSchema.index({ tenantId: 1, status: 1, criadoEm: -1 });
 pedidoEntregaSchema.index({ tenantId: 1, criadoEm: -1 });
 pedidoEntregaSchema.index({ entregadorId: 1, status: 1, criadoEm: 1 });
+pedidoEntregaSchema.index({ tenantId: 1, vendaId: 1 }, { unique: true, partialFilterExpression: { vendaId: { $type: 'objectId' } } });
 
 pedidoEntregaSchema.index({ tenantId: 1, referenciaIntegracao: 1 }, { unique: true, partialFilterExpression: { referenciaIntegracao: { $type: 'string' } } });
 

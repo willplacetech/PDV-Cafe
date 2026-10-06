@@ -24,7 +24,7 @@ const numero = (valor, campo, padrao) => {
   return resultado;
 };
 
-const dadosPedido = (body, tenant, fonte = 'formulario', autor) => {
+const dadosPedido = (body, tenant, fonte = 'formulario', autor, statusInicial = 'pendente') => {
   const origem = body.origem || {};
   const endereco = body.enderecoEntrega || origem.endereco || {};
   if (body.itens !== undefined && (!Array.isArray(body.itens) || body.itens.length > 200)) throw erro('Lista de itens inválida');
@@ -38,21 +38,35 @@ const dadosPedido = (body, tenant, fonte = 'formulario', autor) => {
     itens: (body.itens || []).map(item => ({ descricao: texto(item.descricao, 'descrição', true), quantidade: numero(item.quantidade, 'quantidade'), precoUnitario: numero(item.precoUnitario, 'preço unitário') })),
     valorTotal: numero(body.valorTotal, 'valor total'), taxaEntrega: numero(body.taxaEntrega, 'taxa de entrega', 0),
     tempoEstimadoMinutos: tenant.configuracao.tempoEstimadoPadraoMin,
-    statusHistorico: [{ status: 'pendente', por: autor || { tipo: 'sistema' }, data: new Date() }],
+    status: statusInicial,
+    statusHistorico: [{ status: statusInicial, por: autor || { tipo: 'sistema' }, data: new Date() }],
   };
 };
 
-const criarPedido = async (body, tenant, fonte, autor, referencia) => {
-  const dados = dadosPedido(body, tenant, fonte, autor);
+const criarPedido = async (body, tenant, fonte, autor, referencia, opcoes = {}) => {
+  const dados = dadosPedido(body, tenant, fonte, autor, opcoes.statusInicial);
+  if (opcoes.vendaId) dados.vendaId = validarId(opcoes.vendaId);
   if (referencia) {
     dados.referenciaIntegracao = texto(referencia, 'referência da venda', true, 128);
-    const existente = await PedidoEntrega.findOne({ tenantId: tenant._id, referenciaIntegracao: dados.referenciaIntegracao });
+    const existente = await PedidoEntrega.findOne({
+      tenantId: tenant._id,
+      $or: [
+        { referenciaIntegracao: dados.referenciaIntegracao },
+        ...(dados.vendaId ? [{ vendaId: dados.vendaId }] : []),
+      ],
+    });
     if (existente) return { pedido: existente, criado: false };
   }
   try { return { pedido: await PedidoEntrega.create(dados), criado: true }; }
   catch (error) {
     if (error.code === 11000 && referencia) {
-      const pedido = await PedidoEntrega.findOne({ tenantId: tenant._id, referenciaIntegracao: referencia });
+      const pedido = await PedidoEntrega.findOne({
+        tenantId: tenant._id,
+        $or: [
+          { referenciaIntegracao: referencia },
+          ...(dados.vendaId ? [{ vendaId: dados.vendaId }] : []),
+        ],
+      });
       if (pedido) return { pedido, criado: false };
     }
     throw error;

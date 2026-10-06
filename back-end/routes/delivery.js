@@ -85,7 +85,7 @@ const periodo = data => {
 router.get('/tenant/pedidos', ...tenantAuth, route(async (req, res) => {
   const filtro = { tenantId: req.tenantId };
   if (req.query.status) {
-    if (!['pendente', ...statusAtivos, 'entregue', 'cancelado'].includes(req.query.status)) throw service.erro('Status inválido');
+    if (!['pendente', 'pronto', ...statusAtivos, 'entregue', 'cancelado'].includes(req.query.status)) throw service.erro('Status inválido');
     filtro.status = req.query.status;
   }
   if (req.query.data) filtro.criadoEm = periodo(req.query.data);
@@ -99,7 +99,7 @@ router.get('/tenant/pedidos', ...tenantAuth, route(async (req, res) => {
   res.json({ pedidos, total, pagina, paginas: Math.ceil(total / limite) });
 }));
 router.post('/tenant/pedidos', ...tenantAuth, route(async (req, res) => {
-  const { pedido } = await service.criarPedido(req.body, req.tenant, 'formulario', autorTenant(req));
+  const { pedido } = await service.criarPedido(req.body, req.tenant, 'formulario', autorTenant(req), undefined, { statusInicial: 'pronto' });
   res.status(201).json(pedido);
 }));
 router.post('/tenant/pedidos/:id/despachar', ...tenantAuth, route(async (req, res) => {
@@ -107,13 +107,18 @@ router.post('/tenant/pedidos/:id/despachar', ...tenantAuth, route(async (req, re
   if (!await PedidoEntrega.exists({ _id: req.params.id, tenantId: req.tenantId })) throw service.erro('Pedido não encontrado', 404);
   const entregador = await Entregador.findOne({ _id: req.body.entregadorId, ativo: true, tenantId: { $in: [null, req.tenantId] }, status: { $in: ['disponivel', 'em_entrega'] } });
   if (!entregador) throw service.erro('Entregador indisponível ou de outro comércio');
-  const pedido = await service.mudarStatus({ filtro: { _id: req.params.id, tenantId: req.tenantId }, permitido: ['pendente'], status: 'despachado', por: autorTenant(req), campos: { entregadorId: entregador._id, tempoEstimadoMinutos: req.tenant.configuracao.tempoEstimadoPadraoMin, whatsappPendente: true } });
+  const pedido = await service.mudarStatus({ filtro: { _id: req.params.id, tenantId: req.tenantId }, permitido: ['pronto'], status: 'despachado', por: autorTenant(req), campos: { entregadorId: entregador._id, tempoEstimadoMinutos: req.tenant.configuracao.tempoEstimadoPadraoMin, whatsappPendente: true } });
   res.json({ ...pedido.toObject(), whatsapp: service.mensagemWhatsApp(pedido, req.tenant) });
+}));
+router.post('/tenant/pedidos/:id/pronto', ...tenantAuth, route(async (req, res) => {
+  const id = service.validarId(req.params.id);
+  const pedido = await service.mudarStatus({ filtro: { _id: id, tenantId: req.tenantId }, permitido: ['pendente'], status: 'pronto', por: autorTenant(req) });
+  res.json(pedido);
 }));
 router.post('/tenant/pedidos/:id/cancelar', ...tenantAuth, route(async (req, res) => {
   const id = service.validarId(req.params.id);
   const motivo = service.texto(req.body.motivo, 'motivo do cancelamento', true, 500);
-  const pedido = await service.mudarStatus({ filtro: { _id: id, tenantId: req.tenantId }, permitido: ['pendente', ...statusAtivos], status: 'cancelado', por: autorTenant(req), campos: { motivoCancelamento: motivo, whatsappPendente: false } });
+  const pedido = await service.mudarStatus({ filtro: { _id: id, tenantId: req.tenantId }, permitido: ['pendente', 'pronto', ...statusAtivos], status: 'cancelado', por: autorTenant(req), campos: { motivoCancelamento: motivo, whatsappPendente: false } });
   res.json(pedido);
 }));
 router.post('/tenant/pedidos/:id/enviar-whatsapp', ...tenantAuth, route(async (req, res) => {
@@ -193,10 +198,18 @@ router.post('/entregador/disponibilidade', ...courierAuth, route(async (req, res
   res.json({ status: req.entregador.status });
 }));
 
-router.post('/pedidos/integracao', ...integrationAuth, route(async (req, res) => {
+router.post(['/pedidos/integracao', '/entregas/pedidos/integracao'], ...integrationAuth, route(async (req, res) => {
   if (req.body.tenantSlug !== undefined && req.body.tenantSlug !== req.tenant.slug) throw service.erro('Comércio não autorizado', 403);
-  const referencia = service.texto(req.body.idTemporario, 'referência da venda', true, 128);
-  const { pedido, criado } = await service.criarPedido(req.body, req.tenant, 'pdv', { tipo: 'sistema' }, referencia);
+  if (req.body.empresaId !== undefined && String(req.body.empresaId) !== String(req.tenant._id)) throw service.erro('Comércio não autorizado', 403);
+  if (req.body.aguardaPreparo !== undefined && typeof req.body.aguardaPreparo !== 'boolean') throw service.erro('Estado de preparo inválido');
+  const vendaId = req.body.vendaId === undefined ? undefined : service.validarId(req.body.vendaId);
+  const referencia = vendaId
+    ? `comanda:${vendaId}`
+    : service.texto(req.body.idTemporario, 'referência da venda', true, 128);
+  const { pedido, criado } = await service.criarPedido(req.body, req.tenant, 'pdv', { tipo: 'sistema' }, referencia, {
+    vendaId,
+    statusInicial: req.body.aguardaPreparo === true ? 'pendente' : 'pronto',
+  });
   res.status(criado ? 201 : 200).json(pedido);
 }));
 
