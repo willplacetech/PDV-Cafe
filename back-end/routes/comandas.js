@@ -88,6 +88,23 @@ router.get('/cozinha', auth, auth.allowRoles('admin', 'operador', 'cozinha'), as
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
+router.post('/:id/cozinha/pronto', auth, auth.allowRoles('admin', 'operador', 'cozinha'), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ msg: 'ID inválido' });
+    const comanda = await Comanda.findOne({ _id: req.params.id, status: 'aberta' });
+    if (!comanda?.entrega) return res.status(404).json({ msg: 'Entrega em preparo não encontrada' });
+    if (!req.user.tenantId || String(comanda.entrega.tenantId) !== String(req.user.tenantId)) {
+      return res.status(403).json({ msg: 'Entrega não pertence ao comércio deste usuário' });
+    }
+    if (!comanda.itens.some(item => item.aFazer)) return res.status(409).json({ msg: 'Esta entrega não possui itens de preparo pendentes' });
+    comanda.entrega.preparoPronto = true;
+    await comanda.save();
+    res.json(comanda);
+  } catch (error) {
+    res.status(400).json({ msg: error.message });
+  }
+});
+
 router.get('/a-receber', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const { clienteId, dataInicio, dataFim } = req.query;
@@ -442,6 +459,12 @@ router.patch('/:id/receber-parcial', auth, auth.allowRoles('admin', 'operador', 
     await comanda.save({ session });
     return comanda;
     } });
+    if (resultado.comanda?.entrega) {
+      setImmediate(() => {
+        require('../utils/deliveryOutbox').processar()
+          .catch(error => console.warn('[DeliveryLink] Não foi possível iniciar a integração da comanda fechada.', error.message));
+      });
+    }
     res.json(resultado);
   } catch (err) {
     res.status(err.status || 400).json({ msg: err.message });

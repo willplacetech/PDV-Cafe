@@ -37,6 +37,69 @@ test('login por email reutiliza User e não aceita login de PDV no portal', asyn
   expect((await request(app).post('/api/delivery/login').send({ email: { $ne: '' }, senha: 'x' })).status).toBe(400);
 });
 
+test('operador autenticado no PDV acessa somente o Delivery do comércio vinculado', async () => {
+  const operador = await User.create({
+    username: 'operador-entregas@cafe.test',
+    email: 'operador-entregas@cafe.test',
+    password: 'senha-segura-123',
+    role: 'admin',
+    tenantId: tenant._id,
+  });
+  const response = await api('get', '/entregas/pedidos', assinar(operador));
+
+  expect(response.status).toBe(200);
+  expect(response.body.pedidos).toEqual([]);
+});
+
+test('usuário do PDV gerencia entregadores e configuração pelo namespace integrado com isolamento', async () => {
+  const operador = await User.create({
+    username: 'operador-admin-entregas@cafe.test',
+    email: 'operador-admin-entregas@cafe.test',
+    password: 'senha-segura-123',
+    role: 'admin',
+    tenantId: tenant._id,
+  });
+  const operadorToken = assinar(operador);
+
+  const configuracao = await api('get', '/entregas/configuracao', operadorToken);
+  expect(configuracao.status).toBe(200);
+  expect(configuracao.body._id).toBe(String(tenant._id));
+
+  const salva = await api('put', '/entregas/configuracao', operadorToken).send({
+    tempoEstimadoPadraoMin: 45,
+    mensagemWhatsApp: 'Acompanhe: {link}',
+  });
+  expect(salva.status).toBe(200);
+  expect(salva.body.configuracao.tempoEstimadoPadraoMin).toBe(45);
+
+  const criado = await api('post', '/entregas/entregadores', operadorToken).send({
+    nome: 'João',
+    telefone: '11977770000',
+    senha: 'senha-segura-123',
+  });
+  expect(criado.status).toBe(201);
+  expect(criado.body.tenantId).toBe(String(tenant._id));
+  expect(criado.body.senhaAcesso).toBeUndefined();
+
+  const atualizado = await api('put', `/entregas/entregadores/${criado.body._id}`, operadorToken)
+    .send({ nome: 'João Silva' });
+  expect(atualizado.status).toBe(200);
+  expect(atualizado.body.nome).toBe('João Silva');
+  expect((await api('put', `/entregas/entregadores/${criado.body._id}`, tokenOutro).send({ nome: 'Invadido' })).status).toBe(404);
+  expect((await api('delete', `/entregas/entregadores/${criado.body._id}`, operadorToken)).status).toBe(204);
+});
+
+test('indicador do menu inclui pedidos prontos antigos ainda não despachados', async () => {
+  const pedido = await criarPedido();
+  await PedidoEntrega.updateOne({ _id: pedido._id }, { $set: { criadoEm: new Date(Date.now() - 48 * 60 * 60 * 1000) } });
+
+  const response = await api('get', '/entregas/estatisticas');
+
+  expect(response.status).toBe(200);
+  expect(response.body.prontos).toBe(1);
+  expect(response.body.despachados).toBe(0);
+});
+
 test('comércio não pode criar, listar, cancelar ou despachar pedido de outro tenant', async () => {
   const pedido = await criarPedido();
   expect(pedido.tenantId).toBe(String(tenant._id));
@@ -60,6 +123,7 @@ test('despacho e entrega exigem o entregador atribuído e transições válidas'
   expect((await api('post', `/tenant/pedidos/${pedido._id}/despachar`).send({ entregadorId: entregador._id })).status).toBe(409);
   expect((await api('post', `/entregador/pedido/${pedido._id}/status`, courierToken).send({ novoStatus: 'entregue' })).status).toBe(409);
   expect((await api('post', `/entregador/pedido/${pedido._id}/status`, courierToken).send({ novoStatus: 'a_caminho' })).status).toBe(200);
+  expect((await api('post', `/tenant/pedidos/${pedido._id}/cancelar`).send({ motivo: 'Cliente desistiu' })).status).toBe(409);
   expect((await api('post', `/entregador/pedido/${pedido._id}/status`, courierToken).send({ novoStatus: 'entregue' })).status).toBe(200);
   expect((await api('post', `/tenant/pedidos/${pedido._id}/cancelar`).send({ motivo: 'Tarde' })).status).toBe(409);
   const salvo = await PedidoEntrega.findById(pedido._id);
@@ -113,6 +177,24 @@ test('nova rota de integração registra a venda idempotente pronta quando não 
   });
   expect(primeira.body._id).toBe(repetida.body._id);
   expect(repetida.status).toBe(200);
+});
+
+test('comércio consulta a entrega vinculada à venda sem atravessar tenants', async () => {
+  const vendaId = new mongoose.Types.ObjectId();
+  const criado = await api('post', '/entregas/pedidos/integracao').send({
+    ...dados(),
+    vendaId: String(vendaId),
+    empresaId: String(tenant._id),
+  });
+
+  const consulta = await api('get', `/entregas/venda/${vendaId}`);
+  expect(consulta.status).toBe(200);
+  expect(consulta.body.pedido._id).toBe(criado.body._id);
+  expect(consulta.body.pedido.vendaId).toBe(String(vendaId));
+
+  const outroComercio = await api('get', `/entregas/venda/${vendaId}`, tokenOutro);
+  expect(outroComercio.status).toBe(200);
+  expect(outroComercio.body.pedido).toBeNull();
 });
 
 test('integração do PDV mantém pedido pendente quando precisa de preparo', async () => {
@@ -300,6 +382,31 @@ test('integração da comanda fechada aguarda preparo para produtos A Fazer', as
   expect(pedido.statusHistorico.map(item => item.status)).toEqual(['pendente']);
 });
 
+test('KDS pode marcar entrega em preparo como pronta antes de fechar a venda', async () => {
+  const cozinha = await User.create({ username: 'cozinha-entrega', password: 'senha-segura-123', role: 'cozinha', tenantId: tenant._id });
+  const operador = await User.create({ username: 'operador-cozinha-entrega', password: 'senha-segura-123', role: 'admin', tenantId: tenant._id });
+  const produto = await Product.create({ codigo: 'DEL-KDS-PRONTO', nome: 'Prato pronto', tipo: 'venda', categoria: 'Salgados', preco: 12, estoque: 10, aFazer: true });
+  const venda = await api('post', '/comandas', assinar(operador)).send({
+    clienteNome: 'Maria',
+    itens: [{ produtoId: produto.id, quantidade: 1 }],
+    entrega: { telefone: '11988888888', endereco: dados().origem.endereco, taxaEntrega: 4 },
+  });
+
+  const cozinhaOutro = await User.create({ username: 'cozinha-outro-comercio', password: 'senha-segura-123', role: 'cozinha', tenantId: outro._id });
+  expect((await api('post', `/comandas/${venda.body._id}/cozinha/pronto`, assinar(cozinhaOutro))).status).toBe(403);
+
+  const preparo = await api('post', `/comandas/${venda.body._id}/cozinha/pronto`, assinar(cozinha));
+  expect(preparo.status).toBe(200);
+  expect(preparo.body.entrega.preparoPronto).toBe(true);
+
+  await api('post', `/comandas/${venda.body._id}/fechar`, assinar(operador)).send({ metodoPagamento: 'dinheiro' });
+  await outbox.processar();
+
+  const pedido = await PedidoEntrega.findOne({ vendaId: venda.body._id });
+  expect(pedido.status).toBe('pronto');
+  expect(pedido.statusHistorico.map(item => item.status)).toEqual(['pronto']);
+});
+
 test('duas confirmações simultâneas gravam uma única transição', async () => {
   const entregador = await criarEntregador();
   await Entregador.updateOne({ _id: entregador._id }, { status: 'disponivel' });
@@ -320,6 +427,7 @@ test('entregador diferente não altera pedido e GPS desaparece após finalizar',
   const outroEntregador = await Entregador.create({ nome: 'Outro', telefone: '11944444444', senhaAcesso: 'senha-segura-123' });
   const outroToken = jwt.sign({ role: 'entregador', entregadorId: outroEntregador._id }, process.env.JWT_SECRET);
   expect((await api('post', `/entregador/pedido/${pedido._id}/status`, outroToken).send({ novoStatus: 'a_caminho' })).status).toBe(404);
+  expect((await api('post', '/entregador/posicao', courierToken).send({ lat: -23.5, lng: -46.6 })).status).toBe(409);
   await api('post', `/entregador/pedido/${pedido._id}/status`, courierToken).send({ novoStatus: 'a_caminho' });
   expect((await api('post', '/entregador/posicao', courierToken).send({ lat: 91, lng: 0 })).status).toBe(400);
   await api('post', '/entregador/posicao', courierToken).send({ lat: -23.5, lng: -46.6 });

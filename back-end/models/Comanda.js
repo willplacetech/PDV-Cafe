@@ -75,6 +75,7 @@ const comandaSchema = new mongoose.Schema({
       telefone: String,
       endereco: mongoose.Schema.Types.Mixed,
       taxaEntrega: Number,
+      preparoPronto: { type: Boolean, default: false },
       pedidoEntregaId: { type: mongoose.Schema.Types.ObjectId, ref: 'PedidoEntrega' },
       status: { type: String, enum: ['pendente', 'processado', 'erro'], default: 'pendente' },
       tentativas: { type: Number, default: 0 },

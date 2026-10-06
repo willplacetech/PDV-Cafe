@@ -1,5 +1,6 @@
 import { criarOperacoesFinanceiras } from '../utils/operacaoFinanceira';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/useToast.js';
@@ -33,6 +34,7 @@ async function enviarWhatsApp(pedido, comanda, telefone) {
 // ─── componente principal ─────────────────────────────────────────────────────
 
 export default function Comandas() {
+  const navigate = useNavigate();
   const [comandas, setComandas] = useState([]);
   const [products, setProducts] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -76,6 +78,57 @@ export default function Comandas() {
   const [nfceLoading, setNfceLoading] = useState(false);
 
   const { showToast } = useToast();
+  const comandaDelivery = modalSucesso?.comanda?.entrega ? modalSucesso.comanda : null;
+
+  useEffect(() => {
+    if (!comandaDelivery) return undefined;
+    const comanda = comandaDelivery;
+    let ativo = true;
+    let temporizador;
+    let tentativas = 0;
+
+    const atualizarEstadoEntrega = atualizacao => {
+      setModalSucesso(atual => atual?.comanda?._id === comanda._id
+        ? { ...atual, entregaDelivery: { ...atual.entregaDelivery, ...atualizacao } }
+        : atual);
+    };
+
+    const carregarEntregadores = async () => {
+      try {
+        const { data } = await api.get('/entregas/entregadores');
+        if (ativo) atualizarEstadoEntrega({ entregadores: data });
+      } catch (error) {
+        if (ativo) atualizarEstadoEntrega({ erro: error.response?.data?.msg || 'Não foi possível carregar os entregadores.' });
+      }
+    };
+
+    const localizarEntrega = async () => {
+      try {
+        const { data } = await api.get(`/entregas/venda/${comanda._id}`);
+        if (!ativo) return;
+        if (data.pedido) {
+          atualizarEstadoEntrega({ pedido: data.pedido, carregando: false, erro: '' });
+          return;
+        }
+        tentativas += 1;
+        if (tentativas < 15) {
+          temporizador = window.setTimeout(localizarEntrega, 1000);
+        } else {
+          atualizarEstadoEntrega({ carregando: false, erro: 'A venda foi concluída; a entrega ainda está sendo integrada. Confira a fila em Entregas.' });
+        }
+      } catch (error) {
+        if (ativo) atualizarEstadoEntrega({ carregando: false, erro: error.response?.data?.msg || 'Não foi possível consultar a entrega vinculada.' });
+      }
+    };
+
+    atualizarEstadoEntrega({ carregando: true, erro: '' });
+    void carregarEntregadores();
+    void localizarEntrega();
+    return () => {
+      ativo = false;
+      window.clearTimeout(temporizador);
+    };
+  }, [comandaDelivery]);
 
   const opcoesImpressao = (config) => ({
     ...config,
@@ -334,12 +387,54 @@ export default function Comandas() {
       });
       setModalFechamento(false);
       setDiscount('0'); setPaymentMethod(''); setUtilizacaoInterna(false); setPaymentError(false);
-      setModalSucesso({ pedido: data.pedido, comanda: comandaFechada, telefone: telefoneModal, nome: nomeModal });
+      setModalSucesso({
+        pedido: data.pedido,
+        comanda: comandaFechada,
+        telefone: telefoneModal,
+        nome: nomeModal,
+        entregaDelivery: comandaFechada.entrega ? {
+          pedido: null,
+          entregadores: [],
+          entregadorId: '',
+          carregando: true,
+          despachando: false,
+          erro: '',
+          whatsapp: null,
+        } : null,
+      });
       showToast(`Comanda #${comandaFechada.numero} fechada → Pedido #${data.pedido.numero}`, 'success');
       void imprimirVendaAutomaticamente(data.pedido, comandaFechada);
       load();
     } catch (error) { showToast(error.response?.data?.msg || error.message || 'Erro ao registrar pagamento', 'error'); }
     finally { fechandoRef.current = false; setFechando(false); }
+  };
+
+  const despacharEntregaInline = async () => {
+    const entrega = modalSucesso?.entregaDelivery;
+    if (!entrega?.pedido?._id || !entrega.entregadorId || entrega.despachando) return;
+    setModalSucesso(atual => atual ? ({ ...atual, entregaDelivery: { ...atual.entregaDelivery, despachando: true, erro: '' } }) : atual);
+    try {
+      const { data } = await api.post(`/entregas/pedidos/${entrega.pedido._id}/despachar`, { entregadorId: entrega.entregadorId });
+      setModalSucesso(atual => atual ? ({
+        ...atual,
+        entregaDelivery: { ...atual.entregaDelivery, pedido: data, despachando: false, whatsapp: data.whatsapp || null, erro: '' },
+      }) : atual);
+    } catch (error) {
+      setModalSucesso(atual => atual ? ({
+        ...atual,
+        entregaDelivery: { ...atual.entregaDelivery, despachando: false, erro: error.response?.data?.msg || 'Não foi possível despachar. A venda continua concluída.' },
+      }) : atual);
+    }
+  };
+
+  const verEntregaNoPainel = () => {
+    const id = modalSucesso?.entregaDelivery?.pedido?._id;
+    if (!id) {
+      navigate('/entregas');
+      return;
+    }
+    setModalSucesso(null);
+    navigate(`/entregas?pedido=${encodeURIComponent(id)}`);
   };
 
   const enviarComprovante = async () => {
@@ -694,6 +789,56 @@ export default function Comandas() {
               {modalSucesso.pedido.nfce?.mensagemSeErro && <small style={{ display: 'block', marginTop: 5, color: 'var(--text-secondary)' }}>{modalSucesso.pedido.nfce.mensagemSeErro}</small>}
               {modalSucesso.pedido.nfce?.chaveAcesso && <small style={{ display: 'block', marginTop: 5, wordBreak: 'break-all', color: 'var(--text-secondary)' }}>Chave: {modalSucesso.pedido.nfce.chaveAcesso}</small>}
             </div>
+
+            {modalSucesso.comanda.entrega && <section aria-label="Venda Delivery vinculada" style={{ marginBottom: 18, padding: 14, border: '1px solid var(--border-color)', borderRadius: 12, background: 'var(--bg-tertiary)', textAlign: 'left' }}>
+              <strong>Venda Delivery vinculada</strong>
+              {modalSucesso.entregaDelivery?.carregando && <p role="status" style={{ margin: '8px 0', color: 'var(--text-secondary)' }}>Localizando a entrega para despacho…</p>}
+              {modalSucesso.entregaDelivery?.erro && <p role="alert" style={{ margin: '8px 0', color: 'var(--error-bg)' }}>{modalSucesso.entregaDelivery.erro}</p>}
+              {modalSucesso.entregaDelivery?.pedido && <>
+                <p style={{ margin: '8px 0', color: 'var(--text-secondary)' }}>
+                  Status: <strong>{modalSucesso.entregaDelivery.pedido.status === 'pronto' ? 'Pronto para despachar' : modalSucesso.entregaDelivery.pedido.status === 'pendente' ? 'Aguardando preparo da cozinha' : modalSucesso.entregaDelivery.pedido.status}</strong>
+                </p>
+                {modalSucesso.entregaDelivery.pedido.status === 'pronto' && <>
+                  <label style={{ display: 'grid', gap: 6, margin: '10px 0', fontSize: 13, fontWeight: 700 }}>
+                    Entregador disponível
+                    <select
+                      aria-label="Entregador para despacho"
+                      className="comandas-field"
+                      value={modalSucesso.entregaDelivery.entregadorId}
+                      onChange={event => setModalSucesso(atual => ({
+                        ...atual,
+                        entregaDelivery: { ...atual.entregaDelivery, entregadorId: event.target.value },
+                      }))}
+                    >
+                      <option value="">Selecione…</option>
+                      {(modalSucesso.entregaDelivery.entregadores || []).filter(entregador => entregador.ativo !== false && ['disponivel', 'em_entrega'].includes(entregador.status)).map(entregador =>
+                        <option key={entregador._id} value={entregador._id}>{entregador.nome}</option>
+                      )}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    disabled={!modalSucesso.entregaDelivery.entregadorId || modalSucesso.entregaDelivery.despachando}
+                    onClick={() => void despacharEntregaInline()}
+                    style={{ width: '100%', minHeight: 48, border: 0, borderRadius: 10, background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    {modalSucesso.entregaDelivery.despachando ? 'Despachando…' : 'Despachar agora'}
+                  </button>
+                </>}
+                {modalSucesso.entregaDelivery.pedido.status === 'despachado' && <p role="status" style={{ color: 'var(--success-bg)' }}>Entregador atribuído; aguardando retirada.</p>}
+                {modalSucesso.entregaDelivery.pedido.status === 'a_caminho' && <p role="status" style={{ color: 'var(--success-bg)' }}>Pedido a caminho do cliente.</p>}
+                {modalSucesso.entregaDelivery.whatsapp?.mensagemPronta && <div style={{ marginTop: 10 }}>
+                  <textarea aria-label="Mensagem de rastreamento da entrega" readOnly value={modalSucesso.entregaDelivery.whatsapp.mensagemPronta} style={{ width: '100%', minHeight: 72 }} />
+                  {modalSucesso.entregaDelivery.whatsapp.whatsappUrl && <a href={modalSucesso.entregaDelivery.whatsapp.whatsappUrl} target="_blank" rel="noreferrer">Enviar rastreio pelo WhatsApp</a>}
+                </div>}
+                <button type="button" onClick={verEntregaNoPainel} style={{ width: '100%', minHeight: 44, marginTop: 10, border: '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer' }}>
+                  Ver detalhes da entrega
+                </button>
+              </>}
+              {!modalSucesso.entregaDelivery?.pedido && <button type="button" onClick={verEntregaNoPainel} style={{ width: '100%', minHeight: 44, marginTop: 10, border: '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer' }}>
+                Abrir painel de Entregas
+              </button>}
+            </section>}
 
             {/* campo de telefone no modal de sucesso (se não preencheu antes) */}
             {!modalSucesso.telefone && (

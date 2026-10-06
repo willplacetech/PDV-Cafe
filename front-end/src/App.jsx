@@ -24,6 +24,7 @@ const ImpressoraManager = lazy(() => import('./components/Impressao/ImpressoraMa
 
 
 const DeliveryAdmin = lazy(() => import('./pages/DeliveryAdmin.jsx'));
+const DeliveryEntry = lazy(() => import('./pages/DeliveryEntry.jsx'));
 const DeliveryPlataforma = lazy(() => import('./pages/DeliveryPlataforma.jsx'));
 const DeliveryEntregador = lazy(() => import('./pages/DeliveryEntregador.jsx'));
 const RastreioEntrega = lazy(() => import('./pages/RastreioEntrega.jsx'));
@@ -37,6 +38,7 @@ export default function App() {
             <Suspense fallback={<p role="status" style={{ padding: 24 }}>Carregando…</p>}>
             <Routes>
               <Route path="/DeliveryAdmin" element={<Navigate to="/admin" replace />} />
+              <Route path="/entregas" element={<DeliveryEntry />} />
               <Route path="/admin" element={<DeliveryAdmin />} />
               <Route path="/plataforma" element={<DeliveryPlataforma />} />
               <Route path="/entregador" element={<DeliveryEntregador />} />

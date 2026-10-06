@@ -1,0 +1,380 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import api from '../services/api.jsx';
+import '../styles/delivery.css';
+
+const STATUS_NOMES = {
+  pendente: 'Aguardando preparo',
+  pronto: 'Pronto para despachar',
+  despachado: 'Aguardando retirada',
+  a_caminho: 'A caminho',
+  entregue: 'Entregue',
+  cancelado: 'Cancelado',
+};
+const moeda = valor => Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const enderecoTexto = endereco => [endereco?.rua, endereco?.numero, endereco?.bairro, endereco?.complemento].filter(Boolean).join(', ');
+const idadeMinutos = (data, referencia = Date.now()) => Math.max(0, Math.floor((referencia - new Date(data).getTime()) / 60000));
+
+function faixaAtraso(criadoEm, agora) {
+  const minutos = idadeMinutos(criadoEm, agora);
+  return minutos < 10 ? '' : minutos < 20 ? 'amarelo' : 'vermelho';
+}
+
+function FormularioPedidoManual({ onSubmit, ocupado }) {
+  return <form className="delivery-card" onSubmit={onSubmit}>
+    <h2>Novo pedido de entrega</h2>
+    <div className="delivery-form-grid">
+      <label>Nome do cliente<input name="nomeCliente" required maxLength={160} /></label>
+      <label>Telefone do cliente<input name="telefone" type="tel" required maxLength={30} /></label>
+      <label>Rua<input name="rua" required maxLength={200} /></label>
+      <label>Número<input name="numero" required maxLength={30} /></label>
+      <label>Bairro<input name="bairro" required maxLength={120} /></label>
+      <label>Complemento<input name="complemento" maxLength={200} /></label>
+      <label>Referência<input name="referencia" maxLength={300} /></label>
+      <label>Valor do pedido (R$)<input name="valorTotal" type="number" step="0.01" min="0" required /></label>
+      <label>Taxa de entrega (R$)<input name="taxaEntrega" type="number" step="0.01" min="0" defaultValue="0" required /></label>
+    </div>
+    <div className="delivery-actions"><button disabled={ocupado}>{ocupado ? 'Salvando…' : 'Criar pedido'}</button></div>
+  </form>;
+}
+
+export default function Entregas() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const pedidoDestacado = searchParams.get('pedido');
+  const [pedidos, setPedidos] = useState([]);
+  const [entregadores, setEntregadores] = useState([]);
+  const [estatisticas, setEstatisticas] = useState({});
+  const [comercio, setComercio] = useState(null);
+  const [selecao, setSelecao] = useState({});
+  const [aba, setAba] = useState('fila');
+  const [filaAba, setFilaAba] = useState('prontos');
+  const [filtroStatus, setFiltroStatus] = useState('');
+  const [filtroData, setFiltroData] = useState('');
+  const [pagina, setPagina] = useState(1);
+  const [paginas, setPaginas] = useState(0);
+  const [entregadorEdicao, setEntregadorEdicao] = useState(null);
+  const [whatsapp, setWhatsapp] = useState(null);
+  const [erro, setErro] = useState('');
+  const [aviso, setAviso] = useState('');
+  const [carregando, setCarregando] = useState(true);
+  const [atualizando, setAtualizando] = useState(false);
+  const [agora, setAgora] = useState(Date.now());
+  const [ocupado, setOcupado] = useState(false);
+  const [despachando, setDespachando] = useState('');
+
+  const carregar = useCallback(async (silencioso = false) => {
+    if (silencioso) setAtualizando(true);
+    else setCarregando(true);
+    try {
+      const query = new URLSearchParams({ pagina: String(aba === 'historico' ? pagina : 1), limite: aba === 'historico' ? '30' : '100' });
+      if (aba === 'historico') {
+        if (filtroStatus) query.set('status', filtroStatus);
+        if (filtroData) query.set('data', filtroData);
+      }
+      const [pedidosResponse, entregadoresResponse, estatisticasResponse, comercioResponse] = await Promise.all([
+        api.get(`/entregas/pedidos?${query}`),
+        api.get('/entregas/entregadores'),
+        api.get('/entregas/estatisticas'),
+        api.get('/entregas/configuracao'),
+      ]);
+      setPedidos(pedidosResponse.data.pedidos || []);
+      setPaginas(pedidosResponse.data.paginas || 0);
+      setEntregadores(entregadoresResponse.data || []);
+      setEstatisticas(estatisticasResponse.data || {});
+      setComercio(comercioResponse.data || null);
+      setAgora(Date.now());
+      setErro('');
+    } catch (error) {
+      setErro(error.response?.data?.msg || 'Não foi possível carregar as entregas.');
+    } finally {
+      setCarregando(false);
+      setAtualizando(false);
+    }
+  }, [aba, filtroData, filtroStatus, pagina]);
+
+  useEffect(() => {
+    const iniciar = window.setTimeout(() => { void carregar(); }, 0);
+    const polling = window.setInterval(() => { void carregar(true); }, 15000);
+    const relogio = window.setInterval(() => setAgora(Date.now()), 60000);
+    return () => {
+      window.clearTimeout(iniciar);
+      window.clearInterval(polling);
+      window.clearInterval(relogio);
+    };
+  }, [carregar]);
+
+  useEffect(() => {
+    if (!pedidoDestacado) return undefined;
+    const pedido = pedidos.find(item => item._id === pedidoDestacado);
+    if (!pedido) return undefined;
+    setAba('fila');
+    setFilaAba(pedido.status === 'pronto' ? 'prontos' : pedido.status === 'pendente' ? 'preparo' : 'em-entrega');
+    const quadro = window.requestAnimationFrame(() => {
+      document.getElementById(`pedido-${pedido._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return () => window.cancelAnimationFrame(quadro);
+  }, [pedidoDestacado, pedidos]);
+
+  const prontos = useMemo(() => pedidos.filter(pedido => pedido.status === 'pronto'), [pedidos]);
+  const emEntrega = useMemo(() => pedidos.filter(pedido => ['despachado', 'a_caminho'].includes(pedido.status)), [pedidos]);
+  const aguardandoPreparo = useMemo(() => pedidos.filter(pedido => pedido.status === 'pendente'), [pedidos]);
+  const pedidosDaFila = filaAba === 'prontos' ? prontos : filaAba === 'em-entrega' ? emEntrega : aguardandoPreparo;
+
+  const executar = async (acao, sucesso) => {
+    if (ocupado) return false;
+    setOcupado(true);
+    setErro('');
+    setAviso('');
+    try {
+      await acao();
+      if (sucesso) setAviso(sucesso);
+      await carregar(true);
+      return true;
+    } catch (error) {
+      setErro(error.response?.data?.msg || 'Não foi possível concluir a operação.');
+      return false;
+    } finally {
+      setOcupado(false);
+      setDespachando('');
+    }
+  };
+
+  const criarPedidoManual = async event => {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const endereco = Object.fromEntries(['rua', 'numero', 'complemento', 'bairro', 'referencia'].map(campo => [campo, form.get(campo) || '']));
+    const criado = await executar(
+      () => api.post('/entregas/pedidos', {
+        origem: { nomeCliente: form.get('nomeCliente'), telefone: form.get('telefone'), endereco },
+        valorTotal: Number(form.get('valorTotal')),
+        taxaEntrega: Number(form.get('taxaEntrega')),
+      }),
+      'Pedido criado e pronto para despacho.'
+    );
+    if (criado) {
+      formElement.reset();
+      setAba('fila');
+      setFilaAba('prontos');
+    }
+  };
+
+  const despachar = async pedido => {
+    const entregadorId = selecao[pedido._id];
+    if (!entregadorId) {
+      setErro('Selecione um entregador disponível antes de despachar.');
+      return;
+    }
+    setDespachando(pedido._id);
+    await executar(async () => {
+      const { data } = await api.post(`/entregas/pedidos/${pedido._id}/despachar`, { entregadorId });
+      setWhatsapp(data.whatsapp || null);
+      setSelecao(atual => {
+        const proxima = { ...atual };
+        delete proxima[pedido._id];
+        return proxima;
+      });
+    }, `Pedido de ${pedido.origem.nomeCliente} despachado.`);
+  };
+
+  const enviarWhatsApp = async pedido => {
+    await executar(async () => {
+      const { data } = await api.post(`/entregas/pedidos/${pedido._id}/enviar-whatsapp`, {});
+      setWhatsapp(data);
+    }, 'Mensagem de rastreamento pronta para compartilhar.');
+  };
+
+  const cancelar = pedido => {
+    const motivo = window.prompt('Qual o motivo do cancelamento?');
+    if (!motivo?.trim()) return;
+    void executar(() => api.post(`/entregas/pedidos/${pedido._id}/cancelar`, { motivo }), 'Pedido cancelado.');
+  };
+
+  const marcarPronto = pedido => {
+    void executar(() => api.post(`/entregas/pedidos/${pedido._id}/pronto`, {}), 'Pedido marcado como pronto.');
+  };
+
+  const salvarEntregador = event => {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const body = {
+      nome: form.get('nome'),
+      telefone: form.get('telefone'),
+      ativo: form.get('ativo') === 'on',
+    };
+    if (form.get('senha')) body.senha = form.get('senha');
+    void executar(async () => {
+      if (entregadorEdicao) {
+        await api.put(`/entregas/entregadores/${entregadorEdicao._id}`, body);
+        setAviso('Entregador atualizado.');
+      } else {
+        body.senha = form.get('senha');
+        await api.post('/entregas/entregadores', body);
+        setAviso('Entregador cadastrado. Compartilhe a senha temporária com ele.');
+      }
+      setEntregadorEdicao(null);
+      formElement.reset();
+    });
+  };
+
+  const excluirEntregador = entregador => {
+    if (!window.confirm(`Excluir ${entregador.nome}? Se houver pedidos associados, o cadastro deverá ser desativado.`)) return;
+    void executar(() => api.delete(`/entregas/entregadores/${entregador._id}`), 'Entregador excluído.');
+  };
+
+  const salvarConfiguracao = event => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    void executar(
+      () => api.put('/entregas/configuracao', {
+        tempoEstimadoPadraoMin: Number(form.get('tempo')),
+        mensagemWhatsApp: form.get('mensagem'),
+      }),
+      'Configurações salvas.'
+    );
+  };
+
+  const copiarMensagem = async () => {
+    if (!whatsapp?.mensagemPronta) return;
+    try {
+      await navigator.clipboard.writeText(whatsapp.mensagemPronta);
+      setAviso('Mensagem copiada.');
+    } catch {
+      setAviso('Selecione a mensagem para copiar.');
+    }
+  };
+
+  return <div className="delivery-app delivery-board">
+    <header className="delivery-board-heading">
+      <div><p className="delivery-eyebrow">OPERAÇÃO DO DIA</p><h1>Entregas</h1><p className="delivery-muted">Acompanhe e despache os pedidos do seu comércio.</p></div>
+      <button type="button" className="delivery-secondary" onClick={() => void carregar(true)} disabled={atualizando}>{atualizando ? 'Atualizando…' : 'Atualizar'}</button>
+    </header>
+
+    <section className="delivery-stats" aria-label="Resumo das entregas">
+      {[['Pendentes', estatisticas.pendentes || 0], ['Prontos', estatisticas.prontos || 0], ['Em entrega', estatisticas.emEntrega || 0], ['Entregues hoje', estatisticas.entregues || 0], ['Tempo médio', `${estatisticas.tempoMedioMin || 0} min`]].map(([label, value]) =>
+        <article className="delivery-card delivery-stat" key={label}><span>{label}</span><strong>{value}</strong></article>
+      )}
+    </section>
+
+    {erro && <p role="alert" className="delivery-error">{erro}</p>}
+    {aviso && <p role="status" className="delivery-success">{aviso}</p>}
+
+    {whatsapp && <section className="delivery-card" aria-label="Mensagem de rastreamento">
+      <h2>Link para o cliente</h2>
+      <p className="delivery-muted">{whatsapp.enviado ? 'Mensagem enviada pelo WhatsApp configurado.' : 'Abra o WhatsApp ou copie a mensagem para enviar ao cliente.'}</p>
+      <textarea aria-label="Mensagem de rastreamento" readOnly value={whatsapp.mensagemPronta || ''} />
+      <div className="delivery-actions">
+        {whatsapp.whatsappUrl && <a className="delivery-button" href={whatsapp.whatsappUrl} target="_blank" rel="noreferrer">Abrir WhatsApp</a>}
+        <button type="button" className="delivery-secondary" onClick={() => void copiarMensagem()}>Copiar mensagem</button>
+        <button type="button" className="delivery-secondary" onClick={() => setWhatsapp(null)}>Fechar</button>
+      </div>
+    </section>}
+
+    <nav className="delivery-tabs" aria-label="Gestão de entregas">
+      {[['fila', 'Fila de entregas'], ['novo', 'Novo pedido'], ['historico', 'Histórico'], ['entregadores', 'Entregadores'], ['configuracao', 'Configurações']].map(([id, label]) =>
+        <button key={id} type="button" aria-selected={aba === id} onClick={() => { setAba(id); setPagina(1); }}>{label}</button>
+      )}
+    </nav>
+
+    {aba === 'novo' && <FormularioPedidoManual onSubmit={criarPedidoManual} ocupado={ocupado} />}
+
+    {aba === 'fila' && <nav className="delivery-tabs" aria-label="Status da fila">
+      <button type="button" aria-selected={filaAba === 'prontos'} onClick={() => setFilaAba('prontos')}>Prontos para despachar ({prontos.length})</button>
+      <button type="button" aria-selected={filaAba === 'em-entrega'} onClick={() => setFilaAba('em-entrega')}>Em entrega ({emEntrega.length})</button>
+      <button type="button" aria-selected={filaAba === 'preparo'} onClick={() => setFilaAba('preparo')}>Aguardando preparo ({aguardandoPreparo.length})</button>
+    </nav>}
+
+    {aba === 'historico' && <div className="delivery-form-grid">
+      <label>Status
+        <select value={filtroStatus} onChange={event => { setFiltroStatus(event.target.value); setPagina(1); }}>
+          <option value="">Todos</option>{Object.entries(STATUS_NOMES).map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+        </select>
+      </label>
+      <label>Data<input type="date" value={filtroData} onChange={event => { setFiltroData(event.target.value); setPagina(1); }} /></label>
+    </div>}
+
+    {aba === 'entregadores' && <section className="delivery-grid">
+      <form className="delivery-card" onSubmit={salvarEntregador} key={entregadorEdicao?._id || 'novo-entregador'}>
+        <h2>{entregadorEdicao ? 'Editar entregador' : 'Cadastrar entregador'}</h2>
+        <label>Nome<input name="nome" required maxLength={160} defaultValue={entregadorEdicao?.nome || ''} /></label>
+        <label>Telefone<input name="telefone" type="tel" required maxLength={30} defaultValue={entregadorEdicao?.telefone || ''} /></label>
+        <label>Senha temporária<input name="senha" type="password" autoComplete="new-password" required={!entregadorEdicao} minLength={8} /></label>
+        <label><span>Ativo</span><input name="ativo" type="checkbox" defaultChecked={entregadorEdicao?.ativo !== false} /></label>
+        <div className="delivery-actions"><button disabled={ocupado}>{entregadorEdicao ? 'Salvar alterações' : 'Cadastrar entregador'}</button>{entregadorEdicao && <button type="button" className="delivery-secondary" onClick={() => setEntregadorEdicao(null)}>Cancelar edição</button>}</div>
+      </form>
+      <div className="delivery-grid">
+        {entregadores.map(entregador => {
+          const pertenceAoComercio = String(entregador.tenantId) === String(comercio?._id);
+          return <article className="delivery-card" key={entregador._id}>
+          <span className="delivery-badge">{!pertenceAoComercio ? 'Livre · compartilhado' : entregador.ativo === false ? 'Desativado' : entregador.status}</span>
+          <h2>{entregador.nome}</h2><p><a href={`tel:${entregador.telefone}`}>{entregador.telefone}</a></p>
+          {pertenceAoComercio && <div className="delivery-actions"><button type="button" className="delivery-secondary" onClick={() => setEntregadorEdicao(entregador)}>Editar</button><button type="button" className="delivery-danger" disabled={ocupado} onClick={() => excluirEntregador(entregador)}>Excluir</button></div>}
+        </article>;
+        })}
+        {!entregadores.length && <p className="delivery-empty">Nenhum entregador cadastrado.</p>}
+      </div>
+    </section>}
+
+    {aba === 'configuracao' && comercio && <form className="delivery-card" onSubmit={salvarConfiguracao} key={comercio._id}>
+      <h2>Configurações de entrega</h2>
+      <label>Tempo estimado padrão (minutos)<input name="tempo" type="number" min="1" step="1" required defaultValue={comercio.configuracao.tempoEstimadoPadraoMin} /></label>
+      <label>Mensagem para o cliente<textarea name="mensagem" required maxLength={1000} defaultValue={comercio.configuracao.mensagemWhatsApp} /></label>
+      <p className="delivery-muted">Use {'{link}'} no ponto onde deve aparecer o rastreamento.</p>
+      <button disabled={ocupado}>{ocupado ? 'Salvando…' : 'Salvar configurações'}</button>
+    </form>}
+
+    {['fila', 'historico'].includes(aba) && (carregando ? <p role="status" className="delivery-empty">Carregando pedidos…</p> : (
+      <section className="delivery-grid">
+        {(aba === 'historico' ? pedidos : pedidosDaFila).map(pedido => {
+          const entregador = typeof pedido.entregadorId === 'object' ? pedido.entregadorId : null;
+          const endereco = enderecoTexto(pedido.origem.endereco);
+          const podeCancelar = ['pendente', 'pronto', 'despachado'].includes(pedido.status);
+          return <article className={`delivery-card delivery-order ${aba === 'fila' && pedido.status === 'pronto' ? faixaAtraso(pedido.criadoEm, agora) : ''}`} key={pedido._id} id={`pedido-${pedido._id}`} aria-current={pedido._id === pedidoDestacado ? 'true' : undefined}>
+            <div className="delivery-order-heading"><div><span className="delivery-badge">{STATUS_NOMES[pedido.status]}</span><h2>{pedido.origem.nomeCliente}</h2></div><span>{idadeMinutos(pedido.criadoEm, agora)} min</span></div>
+            <p><strong>Endereço:</strong> {endereco}</p>
+            <p><strong>Telefone:</strong> <a href={`tel:${pedido.origem.telefone}`}>{pedido.origem.telefone}</a></p>
+            <p><strong>Valor:</strong> {moeda(Number(pedido.valorTotal || 0) + Number(pedido.taxaEntrega || 0))}</p>
+            {entregador && <p><strong>Entregador:</strong> {entregador.nome}</p>}
+            {pedido.status === 'pronto' && <div className="delivery-actions">
+              <label className="delivery-dispatch-label">Entregador disponível
+                <select value={selecao[pedido._id] || ''} onChange={event => setSelecao(atual => ({ ...atual, [pedido._id]: event.target.value }))}>
+                  <option value="">Selecione…</option>
+                  {entregadores.filter(item => item.ativo !== false && ['disponivel', 'em_entrega'].includes(item.status)).map(item => <option key={item._id} value={item._id}>{item.nome}{item.status === 'em_entrega' ? ' · em entrega' : ''}</option>)}
+                </select>
+              </label>
+              <button type="button" disabled={despachando === pedido._id || !selecao[pedido._id]} onClick={() => void despachar(pedido)}>{despachando === pedido._id ? 'Despachando…' : 'Despachar'}</button>
+            </div>}
+            {pedido.status === 'pendente' && <button type="button" disabled={ocupado} onClick={() => marcarPronto(pedido)}>Marcar como pronto</button>}
+            <div className="delivery-actions">
+              {pedido.tokenRastreamento && <button type="button" className="delivery-secondary" onClick={() => navigate(`/pedido/${pedido.tokenRastreamento}`)}>Ver rastreio</button>}
+              <button type="button" className="delivery-secondary" disabled={ocupado} onClick={() => void enviarWhatsApp(pedido)}>WhatsApp</button>
+              {podeCancelar && <button type="button" className="delivery-danger" disabled={ocupado} onClick={() => cancelar(pedido)}>Cancelar</button>}
+            </div>
+          </article>;
+        })}
+        {(aba === 'historico' ? pedidos : pedidosDaFila).length === 0 && <p className="delivery-empty">{aba === 'historico' ? 'Nenhum pedido encontrado para este filtro.' : 'Não há pedidos nesta etapa.'}</p>}
+      </section>
+    ))}
+
+    {aba === 'historico' && paginas > 1 && <div className="delivery-actions" aria-label="Paginação do histórico">
+      <button type="button" className="delivery-secondary" disabled={pagina <= 1 || carregando} onClick={() => setPagina(value => value - 1)}>Anterior</button>
+      <span>Página {pagina} de {paginas}</span>
+      <button type="button" className="delivery-secondary" disabled={pagina >= paginas || carregando} onClick={() => setPagina(value => value + 1)}>Próxima</button>
+    </div>}
+
+    <style>{`
+      .delivery-board{min-height:unset;background:transparent;font-size:14px}
+      .delivery-board-heading,.delivery-order-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+      .delivery-board-heading{margin-bottom:18px}
+      .delivery-board-heading h1{margin:4px 0 8px}
+      .delivery-order-heading h2{margin:10px 0 0}
+      .delivery-order p{overflow-wrap:anywhere}
+      .delivery-dispatch-label{flex:1;min-width:min(100%,220px)}
+      .delivery-board input[type="checkbox"]{width:auto;min-height:auto}
+      .delivery-order[aria-current="true"]{outline:3px solid #d8ac52;outline-offset:2px}
+      @media(max-width:600px){.delivery-board-heading{flex-direction:column}.delivery-board-heading>button{width:100%}.delivery-order-heading{flex-direction:column}}
+    `}</style>
+  </div>;
+}

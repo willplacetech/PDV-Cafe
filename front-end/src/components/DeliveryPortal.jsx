@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { lerSessao, salvarSessao, restaurarSessao, sairSessao, deliveryApi, courierApi, erroDelivery } from '../services/deliveryApi.js';
 import '../styles/delivery.css';
 import { runSessionLogin } from '../services/accessSession.js';
 
 export default function DeliveryPortal({ courier = false, plataforma = false, children }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [sessao, setSessao] = useState(() => lerSessao(courier));
   const [erro, setErro] = useState('');
   const [ocupado, setOcupado] = useState(false);
@@ -32,7 +33,7 @@ export default function DeliveryPortal({ courier = false, plataforma = false, ch
     try {
       const { data } = await runSessionLogin(courier ? 'courier' : 'delivery', () => (courier ? courierApi : deliveryApi).post(courier ? '/entregador/login' : '/delivery/login', courier ? { telefone: form.get('identificacao'), senha: form.get('senha') } : { email: form.get('identificacao'), senha: form.get('senha') }));
       setSessao(salvarSessao(data, courier));
-      if (!courier) navigate(data.user.role === 'admin_plataforma' ? '/plataforma' : '/admin', { replace: true });
+      if (!courier) navigate(data.user.role === 'admin_plataforma' ? '/plataforma' : location.pathname === '/entregas' ? '/entregas' : '/admin', { replace: true });
     } catch (error) { setErro(erroDelivery(error)); }
     finally { setOcupado(false); }
   };

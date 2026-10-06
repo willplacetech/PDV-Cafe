@@ -68,8 +68,8 @@ for (const [path, scope, roles] of [['/delivery/logout', 'delivery', ['tenant_ad
   }));
 }
 
-router.get('/tenant/configuracao', ...tenantAuth, route(async (req, res) => res.json(req.tenant)));
-router.put('/tenant/configuracao', ...tenantAuth, route(async (req, res) => {
+router.get(['/tenant/configuracao', '/entregas/configuracao'], ...tenantAuth, route(async (req, res) => res.json(req.tenant)));
+router.put(['/tenant/configuracao', '/entregas/configuracao'], ...tenantAuth, route(async (req, res) => {
   const tempo = service.numero(req.body.tempoEstimadoPadraoMin, 'tempo estimado');
   const mensagem = service.texto(req.body.mensagemWhatsApp, 'mensagem', true, 1000);
   const tenant = await Tenant.findByIdAndUpdate(req.tenantId, { configuracao: { tempoEstimadoPadraoMin: tempo, mensagemWhatsApp: mensagem } }, { new: true, runValidators: true });
@@ -82,7 +82,7 @@ const periodo = data => {
   if (!Number.isFinite(inicio.getTime()) || new Date(inicio.getTime() - 3 * 3600_000).toISOString().slice(0, 10) !== data) throw service.erro('Data inválida');
   return { $gte: inicio, $lt: new Date(inicio.getTime() + 24 * 3600_000) };
 };
-router.get('/tenant/pedidos', ...tenantAuth, route(async (req, res) => {
+router.get(['/tenant/pedidos', '/entregas/pedidos'], ...tenantAuth, route(async (req, res) => {
   const filtro = { tenantId: req.tenantId };
   if (req.query.status) {
     if (!['pendente', 'pronto', ...statusAtivos, 'entregue', 'cancelado'].includes(req.query.status)) throw service.erro('Status inválido');
@@ -98,11 +98,18 @@ router.get('/tenant/pedidos', ...tenantAuth, route(async (req, res) => {
   ]);
   res.json({ pedidos, total, pagina, paginas: Math.ceil(total / limite) });
 }));
-router.post('/tenant/pedidos', ...tenantAuth, route(async (req, res) => {
+router.get('/entregas/venda/:vendaId', ...tenantAuth, route(async (req, res) => {
+  const vendaId = service.validarId(req.params.vendaId);
+  const pedido = await PedidoEntrega.findOne({ tenantId: req.tenantId, vendaId })
+    .populate('entregadorId', 'nome telefone')
+    .lean();
+  res.json({ pedido });
+}));
+router.post(['/tenant/pedidos', '/entregas/pedidos'], ...tenantAuth, route(async (req, res) => {
   const { pedido } = await service.criarPedido(req.body, req.tenant, 'formulario', autorTenant(req), undefined, { statusInicial: 'pronto' });
   res.status(201).json(pedido);
 }));
-router.post('/tenant/pedidos/:id/despachar', ...tenantAuth, route(async (req, res) => {
+router.post(['/tenant/pedidos/:id/despachar', '/entregas/pedidos/:id/despachar'], ...tenantAuth, route(async (req, res) => {
   service.validarId(req.params.id); service.validarId(req.body.entregadorId);
   if (!await PedidoEntrega.exists({ _id: req.params.id, tenantId: req.tenantId })) throw service.erro('Pedido não encontrado', 404);
   const entregador = await Entregador.findOne({ _id: req.body.entregadorId, ativo: true, tenantId: { $in: [null, req.tenantId] }, status: { $in: ['disponivel', 'em_entrega'] } });
@@ -110,32 +117,32 @@ router.post('/tenant/pedidos/:id/despachar', ...tenantAuth, route(async (req, re
   const pedido = await service.mudarStatus({ filtro: { _id: req.params.id, tenantId: req.tenantId }, permitido: ['pronto'], status: 'despachado', por: autorTenant(req), campos: { entregadorId: entregador._id, tempoEstimadoMinutos: req.tenant.configuracao.tempoEstimadoPadraoMin, whatsappPendente: true } });
   res.json({ ...pedido.toObject(), whatsapp: service.mensagemWhatsApp(pedido, req.tenant) });
 }));
-router.post('/tenant/pedidos/:id/pronto', ...tenantAuth, route(async (req, res) => {
+router.post(['/tenant/pedidos/:id/pronto', '/entregas/pedidos/:id/pronto'], ...tenantAuth, route(async (req, res) => {
   const id = service.validarId(req.params.id);
   const pedido = await service.mudarStatus({ filtro: { _id: id, tenantId: req.tenantId }, permitido: ['pendente'], status: 'pronto', por: autorTenant(req) });
   res.json(pedido);
 }));
-router.post('/tenant/pedidos/:id/cancelar', ...tenantAuth, route(async (req, res) => {
+router.post(['/tenant/pedidos/:id/cancelar', '/entregas/pedidos/:id/cancelar'], ...tenantAuth, route(async (req, res) => {
   const id = service.validarId(req.params.id);
   const motivo = service.texto(req.body.motivo, 'motivo do cancelamento', true, 500);
-  const pedido = await service.mudarStatus({ filtro: { _id: id, tenantId: req.tenantId }, permitido: ['pendente', 'pronto', ...statusAtivos], status: 'cancelado', por: autorTenant(req), campos: { motivoCancelamento: motivo, whatsappPendente: false } });
+  const pedido = await service.mudarStatus({ filtro: { _id: id, tenantId: req.tenantId }, permitido: ['pendente', 'pronto', 'despachado'], status: 'cancelado', por: autorTenant(req), campos: { motivoCancelamento: motivo, whatsappPendente: false } });
   res.json(pedido);
 }));
-router.post('/tenant/pedidos/:id/enviar-whatsapp', ...tenantAuth, route(async (req, res) => {
+router.post(['/tenant/pedidos/:id/enviar-whatsapp', '/entregas/pedidos/:id/enviar-whatsapp'], ...tenantAuth, route(async (req, res) => {
   const pedido = await PedidoEntrega.findOne({ _id: service.validarId(req.params.id), tenantId: req.tenantId });
   if (!pedido) throw service.erro('Pedido não encontrado', 404);
   const resultado = await service.enviarWhatsApp(pedido, req.tenant);
   if (resultado.enviado) await PedidoEntrega.updateOne({ _id: pedido._id }, { whatsappPendente: false });
   res.json(resultado);
 }));
-router.get('/tenant/entregadores', ...tenantAuth, route(async (req, res) => {
+router.get(['/tenant/entregadores', '/entregas/entregadores'], ...tenantAuth, route(async (req, res) => {
   res.json(await Entregador.find({ $or: [{ tenantId: req.tenantId }, { tenantId: null, ativo: true }] }).select('nome telefone status tenantId ativo').sort({ nome: 1 }).lean());
 }));
-router.post('/tenant/entregadores', ...tenantAuth, route(async (req, res) => {
+router.post(['/tenant/entregadores', '/entregas/entregadores'], ...tenantAuth, route(async (req, res) => {
   const entregador = await Entregador.create({ nome: service.texto(req.body.nome, 'nome', true, 160), telefone: service.texto(req.body.telefone, 'telefone', true, 30), senhaAcesso: validatePassword(req.body.senha), tenantId: req.tenantId });
   res.status(201).json(entregador);
 }));
-router.put('/tenant/entregadores/:id', ...tenantAuth, route(async (req, res) => {
+router.put(['/tenant/entregadores/:id', '/entregas/entregadores/:id'], ...tenantAuth, route(async (req, res) => {
   const id = service.validarId(req.params.id);
   const entregador = await Entregador.findOne({ _id: id, tenantId: req.tenantId });
   if (!entregador) throw service.erro('Entregador não encontrado', 404);
@@ -154,7 +161,7 @@ router.put('/tenant/entregadores/:id', ...tenantAuth, route(async (req, res) => 
   if (req.body.senha) await AuthSession.deleteMany({ subjectId: entregador._id, kind: 'courier' });
   res.json(entregador);
 }));
-router.delete('/tenant/entregadores/:id', ...tenantAuth, route(async (req, res) => {
+router.delete(['/tenant/entregadores/:id', '/entregas/entregadores/:id'], ...tenantAuth, route(async (req, res) => {
   const id = service.validarId(req.params.id);
   const entregador = await Entregador.findOne({ _id: id, tenantId: req.tenantId });
   if (!entregador) throw service.erro('Entregador não encontrado', 404);
@@ -163,12 +170,25 @@ router.delete('/tenant/entregadores/:id', ...tenantAuth, route(async (req, res) 
   await Entregador.deleteOne({ _id: entregador._id, tenantId: req.tenantId });
   res.status(204).end();
 }));
-router.get('/tenant/estatisticas', ...tenantAuth, route(async (req, res) => {
+router.get(['/tenant/estatisticas', '/entregas/estatisticas'], ...tenantAuth, route(async (req, res) => {
   const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  const pedidos = await PedidoEntrega.find({ tenantId: req.tenantId, criadoEm: periodo(hoje) }).select('status statusHistorico criadoEm').lean();
+  const [pedidos, prontos, despachados] = await Promise.all([
+    PedidoEntrega.find({ tenantId: req.tenantId, criadoEm: periodo(hoje) }).select('status statusHistorico criadoEm').lean(),
+    PedidoEntrega.countDocuments({ tenantId: req.tenantId, status: 'pronto' }),
+    PedidoEntrega.countDocuments({ tenantId: req.tenantId, status: 'despachado' }),
+  ]);
   const entregues = pedidos.filter(p => p.status === 'entregue');
   const tempos = entregues.map(p => (new Date(p.statusHistorico.find(h => h.status === 'entregue')?.data || p.criadoEm) - new Date(p.criadoEm)) / 60000);
-  res.json({ totalHoje: pedidos.length, entregues: entregues.length, cancelados: pedidos.filter(p => p.status === 'cancelado').length, tempoMedioMin: tempos.length ? Math.round(tempos.reduce((a, b) => a + b, 0) / tempos.length) : 0 });
+  res.json({
+    totalHoje: pedidos.length,
+    entregues: entregues.length,
+    cancelados: pedidos.filter(p => p.status === 'cancelado').length,
+    pendentes: pedidos.filter(p => p.status === 'pendente').length,
+    prontos,
+    despachados,
+    emEntrega: pedidos.filter(p => p.status === 'a_caminho').length,
+    tempoMedioMin: tempos.length ? Math.round(tempos.reduce((a, b) => a + b, 0) / tempos.length) : 0,
+  });
 }));
 
 router.get('/entregador/pedidos', ...courierAuth, route(async (req, res) => {
@@ -184,9 +204,10 @@ router.post('/entregador/pedido/:id/status', ...courierAuth, route(async (req, r
 router.post('/entregador/posicao', ...courierAuth, route(async (req, res) => {
   const { lat, lng } = req.body;
   if (typeof lat !== 'number' || typeof lng !== 'number' || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw service.erro('Coordenadas inválidas');
+  const pedidos = await PedidoEntrega.find({ entregadorId: req.entregador._id, status: 'a_caminho' }).select('tokenRastreamento').lean();
+  if (!pedidos.length) throw service.erro('A posição só pode ser atualizada durante uma entrega a caminho.', 409);
   req.entregador.posicaoAtual = { lat, lng, atualizadoEm: new Date() };
   await req.entregador.save();
-  const pedidos = await PedidoEntrega.find({ entregadorId: req.entregador._id, status: 'a_caminho' }).select('tokenRastreamento').lean();
   pedidos.forEach(p => service.eventos.emit(p.tokenRastreamento));
   res.json({ ok: true });
 }));

@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { deliveryApi, erroDelivery } from '../services/deliveryApi.js';
 import '../styles/delivery.css';
 
-const etapas = [['pendente', 'Pedido recebido'], ['despachado', 'Despachado'], ['a_caminho', 'A caminho'], ['entregue', 'Entregue']];
+const etapas = [['pendente', 'Pedido recebido'], ['pronto', 'Pronto'], ['despachado', 'Despachado'], ['a_caminho', 'A caminho'], ['entregue', 'Entregue']];
 
 export default function RastreioEntrega() {
   const { token } = useParams();

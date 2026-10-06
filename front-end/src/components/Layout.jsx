@@ -1,8 +1,9 @@
-import { useContext, useState } from 'react';
+import { useCallback, useContext, useEffect, useState } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { ThemeContext } from '../context/ThemeContextDefinition.js';
 import StatusConexao from './StatusConexao.jsx';
+import api from '../services/api.jsx';
 
 const gruposMenu = [
   {
@@ -10,6 +11,7 @@ const gruposMenu = [
     label: '🏪 ATENDIMENTO',
     items: [
       { label: 'Novo Pedido', icon: '🛒', to: '/pdv' },
+      { label: 'Entregas', icon: '🛵', to: '/entregas', roles: ['admin', 'operador'], badge: true },
       { label: 'Mesas / Comandas', icon: '🪑', to: '/atendimento/mesas' },
       { label: 'A Receber', icon: '💰', to: '/contas-receber', admin: true },
     ],
@@ -68,6 +70,7 @@ const gruposMenu = [
 
 const pageIcons = {
   '/pdv': { icon: '🛒', title: 'Atendimento' },
+  '/entregas': { icon: '🛵', title: 'Entregas' },
   '/produtos': { icon: '📦', title: 'Produtos' },
   '/clientes': { icon: '👤', title: 'Clientes' },
   '/comandas': { icon: '📋', title: 'Comandas' },
@@ -82,7 +85,7 @@ const pageIcons = {
   '/ajustes/impressoras': { icon: '🖨️', title: 'Impressoras' },
 };
 
-export default function Layout() {
+export default function Layout({ children }) {
   const { user, logout } = useContext(AuthContext);
   const { isDark, toggleTheme } = useContext(ThemeContext);
   const navigate = useNavigate();
@@ -90,6 +93,26 @@ export default function Layout() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [gruposAbertos, setGruposAbertos] = useState({ atendimento: true });
+  const [entregasPendentes, setEntregasPendentes] = useState(0);
+
+  const carregarBadgeEntregas = useCallback(async () => {
+    if (!user?.tenantId || !['admin', 'operador'].includes(user.role)) {
+      setEntregasPendentes(0);
+      return;
+    }
+    try {
+      const { data } = await api.get('/entregas/estatisticas');
+      setEntregasPendentes(Number(data.prontos || 0) + Number(data.despachados || 0));
+    } catch (error) {
+      console.warn('[Entregas] Não foi possível atualizar o indicador do menu.', error.response?.status || error.code || error.message);
+    }
+  }, [user?.role, user?.tenantId]);
+
+  useEffect(() => {
+    const inicio = window.setTimeout(() => { void carregarBadgeEntregas(); }, 0);
+    const polling = window.setInterval(() => { void carregarBadgeEntregas(); }, 15000);
+    return () => { window.clearTimeout(inicio); window.clearInterval(polling); };
+  }, [carregarBadgeEntregas]);
 
   const sair = () => { logout(); navigate('/login'); };
 
@@ -172,6 +195,7 @@ export default function Layout() {
               >
                 <span className="nav-link-icon">{item.icon}</span>
                 <span className="nav-link-text">{item.label}</span>
+                {item.badge && entregasPendentes > 0 && <span className="nav-link-badge" aria-label={`${entregasPendentes} entregas pendentes`}>{entregasPendentes}</span>}
               </Link>
             ))}
           </div>
@@ -363,7 +387,7 @@ export default function Layout() {
             CONTEUDO PRINCIPAL
             ========================================== */}
       <main id="main-content">
-        <Outlet />
+        {children || <Outlet />}
       </main>
 
 
@@ -599,6 +623,21 @@ export default function Layout() {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+        }
+        .nav-link-badge {
+          margin-left: auto;
+          min-width: 22px;
+          height: 22px;
+          padding: 0 6px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          background: var(--error-bg);
+          color: var(--error-text);
+          font-size: 11px;
+          font-weight: 800;
+          line-height: 1;
         }
         .nav-link.active {
           background: var(--accent-light);

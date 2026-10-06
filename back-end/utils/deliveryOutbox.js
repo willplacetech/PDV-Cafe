@@ -22,7 +22,7 @@ const processar = () => {
         const aguardaPreparo = comanda.itens.some(item => item.aFazer);
         const { pedido } = await service.criarPedido(body, tenant, 'pdv', { tipo: 'sistema' }, `comanda:${comanda.id}`, {
           vendaId: String(comanda._id),
-          statusInicial: aguardaPreparo ? 'pendente' : 'pronto',
+          statusInicial: aguardaPreparo && !comanda.entrega.preparoPronto ? 'pendente' : 'pronto',
         });
         await Comanda.updateOne({ _id: comanda._id }, { $set: { 'entrega.status': 'processado', 'entrega.pedidoEntregaId': pedido._id, 'entrega.ultimoErro': '' } });
       } catch {
