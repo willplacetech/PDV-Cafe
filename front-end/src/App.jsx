@@ -36,6 +36,7 @@ export default function App() {
           <Router>
             <Suspense fallback={<p role="status" style={{ padding: 24 }}>Carregando…</p>}>
             <Routes>
+              <Route path="/DeliveryAdmin" element={<Navigate to="/admin" replace />} />
               <Route path="/admin" element={<DeliveryAdmin />} />
               <Route path="/plataforma" element={<DeliveryPlataforma />} />
               <Route path="/entregador" element={<DeliveryEntregador />} />
