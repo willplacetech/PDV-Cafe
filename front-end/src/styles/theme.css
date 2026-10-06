@@ -182,6 +182,13 @@ select:focus {
   box-shadow: 0 0 0 3px var(--accent-light);
 }
 
+input:required:user-invalid,
+textarea:required:user-invalid,
+select:required:user-invalid {
+  border-color: var(--error-bg, #dc2626);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+}
+
 /* Botões */
 button {
   transition: all 0.2s ease;
