@@ -3,9 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/useToast.js';
-import { compartilharNotaWhatsApp, textoSeguro } from '../utils/notaVenda.js';
+import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 import useFilaOffline from '../hooks/useFilaOffline.js';
 import DeliveryPDV from '../components/DeliveryPDV.jsx';
+import {
+  carregarConfiguracaoImpressao,
+  carregarPreferenciaImpressora,
+  imprimirCupomVenda,
+  imprimirPedidoCozinha,
+} from '../services/impressaoService.js';
 
 
 const corCategoria = {
@@ -175,6 +181,7 @@ export default function PDV() {
       const pricing = precoComDesconto(prod, incremento);
       const novoItem = {
         produtoId: prod._id, codigo: prod.codigo, nome: prod.nome,
+        categoria: prod.categoria,
         precoUnitario: pricing.precoUnitario, precoUnitarioOriginal: pricing.precoNormal, economiaQuantidade: pricing.economiaTotal, faixaDescontoQuantidade: pricing.faixaAplicada?.quantidadeMinima, quantidade: incremento, unidadeVenda: prod.unidadeVenda || 'un', pesoPorUnidade: prod.pesoPorUnidade, unidadePeso: prod.unidadePeso, vendidoFracionado: permiteFracionar(prod), modificadores: modificadoresItem
       };
       setCarrinho(recalcularPrecosCarrinho([...carrinho, novoItem]));
@@ -258,6 +265,35 @@ export default function PDV() {
       setEntregaPDV(null);
     };
 
+    const imprimirVendaOffline = async (vendaLocal) => {
+      try {
+        const config = carregarConfiguracaoImpressao();
+        if (!carregarPreferenciaImpressora()) return;
+        const options = {
+          ...config,
+          empresa: config.empresa,
+          categoriasPorProduto: Object.fromEntries(produtos.map((product) => [String(product._id), product.categoria])),
+          onFallback: (message) => showToast(message, 'warning'),
+        };
+        if (config.imprimirCupomAutomaticamente) {
+          try {
+            await imprimirCupomVenda(vendaLocal, options);
+          } catch (error) {
+            showToast('Venda salva offline e concluída localmente; impressão pendente. Reimprima quando a impressora estiver disponível. ' + (error.message || ''), 'warning');
+          }
+        }
+        if (config.imprimirCozinhaAutomaticamente) {
+          try {
+            await imprimirPedidoCozinha(vendaLocal, options);
+          } catch (error) {
+            showToast('Venda salva offline; pedido da cozinha pendente para reimpressão. ' + (error.message || ''), 'warning');
+          }
+        }
+      } catch (error) {
+        showToast(`Venda salva offline, mas a impressão não foi iniciada: ${error.message}`, 'warning');
+      }
+    };
+
     const salvarOffline = async () => {
       const resultado = await enfileirar('/comandas', payload, idTemporario);
       if (!resultado.ok) {
@@ -266,8 +302,29 @@ export default function PDV() {
         else showToast('Conecte à internet para sincronizar. A venda não foi removida do carrinho.', 'warning');
         return false;
       }
+      const vendaLocal = {
+        numero: idTemporario,
+        createdAt: new Date().toISOString(),
+        clienteNome: payload.clienteNome,
+        tipoAtendimento: entregaPDV ? 'delivery' : 'balcao',
+        entrega: entregaPDV,
+        itens: carrinho.map((item) => ({
+          produtoId: item.produtoId,
+          nome: item.nome,
+          categoria: item.categoria,
+          codigo: item.codigo,
+          quantidade: Number(item.quantidade),
+          precoUnitario: Number(item.precoUnitario),
+          modificadores: item.modificadores || [],
+        })),
+        subtotal,
+        desconto: 0,
+        taxaEntrega: Number(entregaPDV?.taxaEntrega || 0),
+        total,
+      };
       limparCarrinho();
       showToast('✅ Sem internet — venda salva! Envia automaticamente quando voltar.', 'success');
+      void imprimirVendaOffline(vendaLocal);
       return true;
     };
 
@@ -299,82 +356,14 @@ export default function PDV() {
   // ==========================================
   // 🖨️ IMPRIMIR CUPOM
   // ==========================================
-  const imprimirCupom = (pedido) => {
+  const imprimirCupom = async (pedido) => {
     if (!pedido) return;
-    
-    const data = new Date(pedido.createdAt).toLocaleString('pt-BR');
-    const itensHtml = pedido.itens.map(item => `
-      <div style="display:flex; justify-content:space-between; border-bottom: 1px dashed #000; padding: 4px 0;">
-        <div style="flex:1; margin-right:8px;">
-          <div style="font-weight:bold;">${textoSeguro(item.nome)}</div>
-          <div style="font-size:10px;">Cod: ${textoSeguro(item.codigo)} | Qtd: ${item.quantidade} x R$ ${item.precoUnitario.toFixed(2).replace('.',',')}</div>
-        </div>
-        <div style="font-weight:bold; white-space:nowrap;">R$ ${(item.quantidade * item.precoUnitario).toFixed(2).replace('.',',')}</div>
-      </div>
-    `).join('');
-    const cupom = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Cupom #${textoSeguro(pedido.numero)}</title>
-        <style>
-          * { font-family: 'Courier New', monospace; font-size: 12px; }
-          body { width: 76mm; margin: 0; padding: 4mm; }
-          .center { text-align: center; }
-          .bold { font-weight: bold; }
-          .total { font-size: 14px; font-weight: bold; border-top: 2px solid #000; padding-top: 8px; margin-top: 8px; }
-          .linha-dupla { border-top: 2px dashed #000; margin: 8px 0; }
-          @media print {
-            @page { margin: 0; size: 80mm auto; }
-            body { margin: 4mm; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="center"><img src="${window.location.origin}/Abraco1.png" alt="Sabor de Abraço" style="width:52px;height:52px;object-fit:contain;"></div>
-        <div class="center bold" style="font-size:14px;">SABOR DE ABRAÇO</div>
-        <div class="center" style="font-size:10px;">Cupom Não Fiscal</div>
-        <div class="linha-dupla"></div>
-        
-        <div><span class="bold">Pedido:</span> #${textoSeguro(pedido.numero)}</div>
-        <div><span class="bold">Data:</span> ${data}</div>
-        <div><span class="bold">Atendente:</span> ${textoSeguro(pedido.atendente)}</div>
-        <div><span class="bold">Cliente:</span> ${textoSeguro(pedido.clienteNome)}</div>
-        
-        <div class="linha-dupla"></div>
-        <div class="bold" style="text-align:center;">=== ITENS DO PEDIDO ===</div>
-        
-        ${itensHtml}
-        
-        <div class="linha-dupla"></div>
-        <div style="display:flex; justify-content:space-between;">
-          <span>Subtotal:</span>
-          <span>R$ ${pedido.subtotal.toFixed(2).replace('.',',')}</span>
-        </div>
-        ${pedido.desconto > 0 ? `
-        <div style="display:flex; justify-content:space-between; color:#16a34a;">
-          <span>Desconto:</span>
-          <span>-R$ ${pedido.desconto.toFixed(2).replace('.',',')}</span>
-        </div>
-        ` : ''}
-        <div class="total" style="display:flex; justify-content:space-between;">
-          <span>TOTAL:</span>
-          <span>R$ ${pedido.total.toFixed(2).replace('.',',')}</span>
-        </div>
-        
-        <div class="linha-dupla"></div>
-        <div class="center" style="font-size:10px;">
-          Obrigado pela preferência!<br>
-          Volte sempre!
-        </div>
-        
-        <script>window.onload = function() { window.print(); setTimeout(() => window.close(), 500); }</script>
-      </body>
-      </html>
-    `;
-    const janela = window.open('', '_blank', 'width=350,height=600');
-    janela.document.write(cupom);
-    janela.document.close();
+    try {
+      await imprimirCupomVenda(pedido, carregarConfiguracaoImpressao());
+      showToast('Cupom enviado para impressão.', 'success');
+    } catch (error) {
+      showToast(error.message || 'Impressão pendente. Tente reimprimir pelo histórico.', 'warning');
+    }
   };
 
 

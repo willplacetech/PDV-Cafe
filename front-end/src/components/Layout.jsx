@@ -57,6 +57,13 @@ const gruposMenu = [
       { label: 'Usuários', icon: '👥', to: '/usuarios', admin: true },
     ],
   },
+  {
+    chave: 'configuracoes',
+    label: '⚙️ CONFIGURAÇÕES',
+    items: [
+      { label: 'Impressoras', icon: '🖨️', to: '/ajustes/impressoras', admin: true },
+    ],
+  },
 ];
 
 const pageIcons = {
@@ -72,6 +79,7 @@ const pageIcons = {
   '/producao': { icon: '🧪', title: 'Produção' },
   '/compras': { icon: '🧾', title: 'Compras' },
   '/financeiro': { icon: '💵', title: 'Financeiro' },
+  '/ajustes/impressoras': { icon: '🖨️', title: 'Impressoras' },
 };
 
 export default function Layout() {

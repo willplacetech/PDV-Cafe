@@ -3,13 +3,14 @@ import { Navigate } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/useToast.js';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
-import { buildNotaVendaHtml, compartilharNotaWhatsApp, textoSeguro } from '../utils/notaVenda.js';
+import { compartilharNotaWhatsApp, textoSeguro } from '../utils/notaVenda.js';
 import DashboardInsights from '../components/DashboardInsights.jsx';
 import DashboardTabs from '../components/DashboardTabs.jsx';
 import ProductSalesHistory from '../components/ProductSalesHistory.jsx';
 import DateInput from '../components/DateInput.jsx';
 import AreaTabs from '../components/AreaTabs.jsx';
 import { rotuloPagamento } from '../utils/formasPagamento.jsx';
+import { carregarConfiguracaoImpressao, imprimirCupomVenda } from '../services/impressaoService.js';
 
 const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const quantidadeComDuasCasas = (value) => Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -178,10 +179,20 @@ export default function Dashboard() {
     total: (comandaSelecionada.itens || []).reduce((total, item) => total + Number(item.precoUnitario || 0) * Number(item.quantidade || 0), 0) - Number(comandaSelecionada.desconto || 0),
     pagamentos: [],
   } : null;
-  const imprimirComanda = () => {
-    const janela = window.open('', '_blank', 'width=420,height=700');
-    janela.document.write(buildNotaVendaHtml(pedidoDaComanda, { comandaNumero: comandaSelecionada.numero, titulo: 'VISUALIZAÇÃO DA COMANDA' }));
-    janela.document.close();
+  const imprimirComanda = async () => {
+    if (!pedidoDaComanda) return;
+    try {
+      const config = carregarConfiguracaoImpressao();
+      await imprimirCupomVenda({ ...pedidoDaComanda, comandaNumero: comandaSelecionada.numero }, {
+        ...config,
+        empresa: config.empresa,
+        categoriasPorProduto: Object.fromEntries(produtos.map((product) => [String(product._id), product.categoria])),
+        onFallback: (message) => showToast(message, 'warning'),
+      });
+      showToast('Comprovante da comanda enviado para impressão.', 'success');
+    } catch (error) {
+      showToast(error.message || 'Impressão pendente. Tente novamente pelo histórico.', 'warning');
+    }
   };
   const enviarComandaWhatsApp = async () => {
     if (!telefoneComanda.trim()) return showToast('Informe o telefone para enviar pelo WhatsApp', 'warning');

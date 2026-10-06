@@ -20,6 +20,7 @@ const Purchases = lazy(() => import('./pages/Purchases.jsx'));
 const Kitchen = lazy(() => import('./pages/Kitchen.jsx'));
 const Financeiro = lazy(() => import('./pages/Financeiro.jsx'));
 const Caixa = lazy(() => import('./pages/Caixa.jsx'));
+const ImpressoraManager = lazy(() => import('./components/Impressao/ImpressoraManager.jsx'));
 
 
 const DeliveryAdmin = lazy(() => import('./pages/DeliveryAdmin.jsx'));
@@ -60,6 +61,7 @@ export default function App() {
                     <Route path="/compras" element={<Purchases />} />
                     <Route path="/financeiro" element={<Financeiro />} />
                     <Route path="/caixa" element={<Caixa />} />
+                    <Route path="/ajustes/impressoras" element={<ImpressoraManager />} />
                   </Route>
                   <Route element={<RoleRoute roles={['admin', 'cozinha']} />}>
                     <Route path="/producao/fichas" element={<Navigate to="/producao?tab=fichas" replace />} />

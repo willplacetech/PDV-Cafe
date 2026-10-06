@@ -12,6 +12,14 @@ Base independente do PDV, adaptada para operação de cafeteria.
 
 Nenhum documento fiscal é emitido sem a configuração explícita de um provedor. Defina as variáveis do arquivo `back-end/.env.example` após escolher o emissor e instalar o respectivo adaptador. As credenciais devem permanecer somente no servidor.
 
+## Impressão térmica local
+
+A tela **Configurações → Impressoras** (`/ajustes/impressoras`) configura a impressora e as opções de impressão no próprio navegador. Preferência, dados do estabelecimento, setores e trabalhos pendentes ficam no `localStorage` do dispositivo; o serviço de impressão não envia os documentos ao backend. Vendas concluídas tentam imprimir o cupom e, conforme as opções locais, os pedidos de cozinha separados por setor. Falhas não desfazem nem bloqueiam a venda; os trabalhos ficam disponíveis para reimpressão nesse mesmo dispositivo.
+
+A ordem de tentativa é Bluetooth BLE, USB/Serial e impressão do sistema. Use Chrome em contexto seguro (HTTPS ou localhost) para as APIs de dispositivo. Web Bluetooth não oferece suporte a Bluetooth Clássico SPP. Web Serial acessa portas seriais/USB-serial autorizadas, mas não garante acesso a impressoras USB nativas de classe printer; confirme o modelo e a compatibilidade antes da instalação. A impressão do sistema depende do diálogo e das impressoras configuradas no Android/desktop. Para NFC-e, o DANFE reduzido usa os dados fiscais disponíveis; se o provedor disponibilizar um PDF, ele é aberto pela impressão do sistema.
+
+Para validar o código do módulo, execute `npm --prefix front-end run test:unit` e `npm --prefix front-end run build`. A validação de hardware requer uma impressora compatível: teste conexão e cupom, desconexão durante uma venda, tickets para dois setores, observações de cozinha e impressão local com a aplicação offline.
+
 ## Execução local
 
 Em terminais separados:

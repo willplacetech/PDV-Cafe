@@ -3,8 +3,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/api.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/useToast.js';
-import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda.js';
+import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 import { FORMAS_PAGAMENTO, dataBR, normalizarPagamentos, rotuloPagamento, saldoDevedor, statusPagamentoInfo, totalPago } from '../utils/formasPagamento.jsx';
+import {
+  carregarConfiguracaoImpressao,
+  carregarPreferenciaImpressora,
+  imprimirCupomVenda,
+  imprimirNFCeDanfe,
+  imprimirPedidoCozinha,
+} from '../services/impressaoService.js';
 
 const formatMoney = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const formatQuantity = (item) => {
@@ -17,19 +24,6 @@ const formatQuantity = (item) => {
   return `${quantidade} ${item.unidadeVenda || 'un'}`;
 };
 const produtoPorPeso = (product) => Number(product?.pesoPorUnidade) > 0 && product?.unidadeVenda === 'kg';
-
-// ─── helpers de cupom / whatsapp ─────────────────────────────────────────────
-
-function buildCupomHtml(pedido, comanda) {
-  return buildNotaVendaHtml(pedido, { comandaNumero: comanda?.numero });
-}
-
-function imprimirCupom(pedido, comanda) {
-  if (!pedido) return;
-  const janela = window.open('', '_blank', 'width=350,height=600');
-  janela.document.write(buildCupomHtml(pedido, comanda));
-  janela.document.close();
-}
 
 async function enviarWhatsApp(pedido, comanda, telefone) {
   if (!pedido) return;
@@ -82,6 +76,56 @@ export default function Comandas() {
   const [nfceLoading, setNfceLoading] = useState(false);
 
   const { showToast } = useToast();
+
+  const opcoesImpressao = (config) => ({
+    ...config,
+    empresa: config.empresa,
+    categoriasPorProduto: Object.fromEntries(products.map((product) => [String(product._id), product.categoria])),
+    onFallback: (message) => showToast(message, 'warning'),
+  });
+
+  const imprimirCupom = async (pedido, comanda) => {
+    if (!pedido) return;
+    try {
+      const config = carregarConfiguracaoImpressao();
+      await imprimirCupomVenda({ ...pedido, comandaNumero: comanda?.numero }, opcoesImpressao(config));
+      showToast('Cupom enviado para impressão.', 'success');
+    } catch (error) {
+      showToast(error.message || 'Impressão pendente. A venda foi concluída; tente reimprimir.', 'warning');
+    }
+  };
+
+  const imprimirVendaAutomaticamente = async (pedido, comanda) => {
+    let config;
+    try {
+      config = carregarConfiguracaoImpressao();
+      if (!carregarPreferenciaImpressora()) return;
+    } catch (error) {
+      showToast(`Venda concluída, mas as configurações da impressora não foram lidas: ${error.message}`, 'warning');
+      return;
+    }
+    const options = opcoesImpressao(config);
+    if (config.imprimirCupomAutomaticamente) {
+      try {
+        await imprimirCupomVenda({ ...pedido, comandaNumero: comanda?.numero }, options);
+      } catch (error) {
+        showToast('Impressora offline — venda concluída, reimprima no menu. ' + (error.message || ''), 'warning');
+      }
+    }
+    if (config.imprimirCozinhaAutomaticamente) {
+      try {
+        const kitchenOrder = {
+          ...pedido,
+          tipoAtendimento: comanda?.tipoAtendimento,
+          mesa: comanda?.mesa,
+          numero: comanda?.numero || pedido.numero,
+        };
+        await imprimirPedidoCozinha(kitchenOrder, options);
+      } catch (error) {
+        showToast('Impressora offline — venda concluída, pedido da cozinha pendente para reimpressão. ' + (error.message || ''), 'warning');
+      }
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -292,6 +336,7 @@ export default function Comandas() {
       setDiscount('0'); setPaymentMethod(''); setUtilizacaoInterna(false); setPaymentError(false);
       setModalSucesso({ pedido: data.pedido, comanda: comandaFechada, telefone: telefoneModal, nome: nomeModal });
       showToast(`Comanda #${comandaFechada.numero} fechada → Pedido #${data.pedido.numero}`, 'success');
+      void imprimirVendaAutomaticamente(data.pedido, comandaFechada);
       load();
     } catch (error) { showToast(error.response?.data?.msg || error.message || 'Erro ao registrar pagamento', 'error'); }
     finally { fechandoRef.current = false; setFechando(false); }
@@ -327,6 +372,36 @@ export default function Comandas() {
   const abrirDanfe = () => {
     const pdf = modalSucesso?.pedido?.nfce?.danfePdf;
     if (pdf) window.open(`data:application/pdf;base64,${pdf}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const imprimirDanfe = async () => {
+    const nfce = modalSucesso?.pedido?.nfce;
+    if (!nfce) return;
+    try {
+      await imprimirNFCeDanfe({
+        nfce,
+        pdf: nfce.danfePdf ? `data:application/pdf;base64,${nfce.danfePdf}` : undefined,
+      }, opcoesImpressao(carregarConfiguracaoImpressao()));
+      showToast('DANFE enviado para impressão.', 'success');
+    } catch (error) {
+      showToast(error.message || 'Não foi possível imprimir o DANFE.', 'warning');
+    }
+  };
+
+  const reimprimirCozinha = async () => {
+    if (!modalSucesso?.pedido) return;
+    try {
+      const comanda = modalSucesso.comanda;
+      await imprimirPedidoCozinha({
+        ...modalSucesso.pedido,
+        tipoAtendimento: comanda?.tipoAtendimento,
+        mesa: comanda?.mesa,
+        numero: comanda?.numero || modalSucesso.pedido.numero,
+      }, opcoesImpressao(carregarConfiguracaoImpressao()));
+      showToast('Pedido de cozinha enviado para impressão.', 'success');
+    } catch (error) {
+      showToast(error.message || 'Pedido de cozinha pendente para reimpressão.', 'warning');
+    }
   };
 
   return (
@@ -657,9 +732,14 @@ export default function Comandas() {
                 {nfceLoading ? '⏳ Emitindo NFC-e...' : modalSucesso.pedido.nfce?.status === 'autorizada' ? '✅ NFC-e autorizada' : '🧾 Emitir NFC-e'}
               </button>
               {modalSucesso.pedido.nfce?.danfePdf && <button type="button" onClick={abrirDanfe} style={{ width: '100%', padding: '13px', background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 50 }}>📄 Abrir DANFE PDF</button>}
+              {modalSucesso.pedido.nfce?.status === 'autorizada' && <button type="button" onClick={() => void imprimirDanfe()} style={{ width: '100%', padding: '13px', background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 50 }}>🧾 Imprimir DANFE NFC-e</button>}
               <button onClick={() => imprimirCupom(modalSucesso.pedido, modalSucesso.comanda)}
                 style={{ width: '100%', padding: '13px', background: 'var(--brand-brown, #7c4b1e)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
                 🖨️ Imprimir Cupom
+              </button>
+              <button type="button" onClick={() => void reimprimirCozinha()}
+                style={{ width: '100%', padding: '13px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 50 }}>
+                🍳 Reimprimir pedido de cozinha
               </button>
               <button onClick={enviarComprovante}
                 style={{ width: '100%', padding: '13px', background: '#25d366', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
