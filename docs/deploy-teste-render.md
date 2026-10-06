@@ -26,7 +26,7 @@ O banco começa sem dados de negócio, mas a primeira inicialização cria cole�
 
 ## URLs públicas e acessos
 
-O Blueprint usa `fromService` com `envVarKey: RENDER_EXTERNAL_URL` para obter as URLs HTTPS públicas atribuídas pelo Render. `FRONTEND_URL` libera a origem de teste no CORS e `DELIVERY_PUBLIC_URL` monta links de rastreamento. O frontend recebe `API_PUBLIC_URL`; o build acrescenta `/api` e passa o resultado a `VITE_API_URL`. `property: host` aponta para a rede privada e não serve ao navegador. Render não interpola valores dentro do YAML. Consulte a [referência oficial do Blueprint](https://render.com/docs/blueprint-spec) e as [variáveis padrão do Render](https://render.com/docs/environment-variables).
+O Blueprint configura a API pública como `https://pdv-completo-z6ly.onrender.com` e o frontend como `https://pdv-delivery-9j0a.onrender.com`. `FRONTEND_URL` libera a origem do frontend no CORS e `DELIVERY_PUBLIC_URL` monta links de rastreamento. O build do frontend acrescenta `/api` à variável `API_PUBLIC_URL` e passa o resultado a `VITE_API_URL`, incorporando o endereço da API no bundle. Se alterar essas URLs ou variáveis no Render, sincronize o Blueprint e faça um novo deploy do backend e um novo build/deploy do frontend. Consulte a [referência oficial do Blueprint](https://render.com/docs/blueprint-spec) e as [variáveis padrão do Render](https://render.com/docs/environment-variables).
 
 Confira as URLs efetivas nas páginas dos serviços. Se mudar nomes ou domínios, sincronize o Blueprint e refaça o build do frontend, porque a API fica incorporada ao bundle. Para domínio personalizado do frontend, configure a origem e a URL de rastreamento correspondentes no backend.
 

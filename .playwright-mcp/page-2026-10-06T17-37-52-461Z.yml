@@ -1,0 +1,1 @@
+- generic [active] [ref=e1]: "{\"msg\":\"API PDV MERN funcionando!\",\"version\":\"1.0.0\",\"endpoints\":{\"auth\":\"/api/auth\",\"products\":\"/api/products\",\"production\":\"/api/production\",\"customers\":\"/api/customers\",\"orders\":\"/api/orders\",\"comandas\":\"/api/comandas\",\"fiscal\":\"/api/fiscal\"}}"

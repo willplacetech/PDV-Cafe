@@ -1,4 +1,4 @@
-const renderOrigins = ['https://sabordabraco.onrender.com', 'https://saborabraco.onrender.com', 'https://pdv-cafe-web-willplacetech.onrender.com', 'https://pdv-mern-1.onrender.com', 'https://sabordabraco-95pc.onrender.com'];
+const renderOrigins = ['https://sabordabraco.onrender.com', 'https://saborabraco.onrender.com', 'https://pdv-cafe-web-willplacetech.onrender.com', 'https://pdv-mern-1.onrender.com', 'https://sabordabraco-95pc.onrender.com', 'https://pdv-delivery-9j0a.onrender.com'];
 const allowedOrigins = () => {
   const configured = (process.env.FRONTEND_URL || '').split(',').map(value => value.trim().replace(/\/$/, '')).filter(Boolean);
   const extras = [...renderOrigins, ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000'])];
