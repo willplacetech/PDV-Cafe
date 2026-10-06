@@ -431,9 +431,36 @@ test('entregador diferente não altera pedido e GPS desaparece após finalizar',
   await api('post', `/entregador/pedido/${pedido._id}/status`, courierToken).send({ novoStatus: 'a_caminho' });
   expect((await api('post', '/entregador/posicao', courierToken).send({ lat: 91, lng: 0 })).status).toBe(400);
   await api('post', '/entregador/posicao', courierToken).send({ lat: -23.5, lng: -46.6 });
+  expect((await api('post', '/entregador/posicao', courierToken).send({ lat: -23.6, lng: -46.7 })).status).toBe(429);
   expect((await request(app).get(`/api/rastreio/${pedido.tokenRastreamento}`)).body.posicaoEntregador).toEqual({ lat: -23.5, lng: -46.6 });
   await api('post', `/entregador/pedido/${pedido._id}/status`, courierToken).send({ novoStatus: 'entregue' });
   expect((await request(app).get(`/api/rastreio/${pedido.tokenRastreamento}`)).body.posicaoEntregador).toBeUndefined();
+});
+
+test('WhatsApp automático só envia quando a entrega sai a caminho', async () => {
+  const entregador = await criarEntregador();
+  await Entregador.updateOne({ _id: entregador._id }, { status: 'disponivel' });
+  const pedido = await criarPedido();
+  const urlAnterior = process.env.WHATSAPP_API_URL;
+  const tokenAnterior = process.env.WHATSAPP_ACCESS_TOKEN;
+  process.env.WHATSAPP_API_URL = 'https://graph.facebook.com/test/messages';
+  process.env.WHATSAPP_ACCESS_TOKEN = 'test-only-token';
+  const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true });
+  const courierToken = jwt.sign({ role: 'entregador', entregadorId: entregador._id }, process.env.JWT_SECRET);
+  try {
+    await api('post', `/tenant/pedidos/${pedido._id}/despachar`).send({ entregadorId: entregador._id });
+    await outbox.processar();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await api('post', `/entregador/pedido/${pedido._id}/status`, courierToken).send({ novoStatus: 'a_caminho' });
+    await outbox.processar();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((await PedidoEntrega.findById(pedido._id)).whatsappPendente).toBe(false);
+  } finally {
+    fetchMock.mockRestore();
+    if (urlAnterior === undefined) delete process.env.WHATSAPP_API_URL; else process.env.WHATSAPP_API_URL = urlAnterior;
+    if (tokenAnterior === undefined) delete process.env.WHATSAPP_ACCESS_TOKEN; else process.env.WHATSAPP_ACCESS_TOKEN = tokenAnterior;
+  }
 });
 
 test('SSE publica estado sem dados privados e remove assinatura ao desconectar', async () => {

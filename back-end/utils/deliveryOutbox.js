@@ -33,7 +33,7 @@ const processar = () => {
       }
     }
     if (process.env.WHATSAPP_API_URL && process.env.WHATSAPP_ACCESS_TOKEN) {
-      const pedidos = await PedidoEntrega.find({ whatsappPendente: true, status: { $in: ['despachado', 'a_caminho'] } }).limit(20);
+      const pedidos = await PedidoEntrega.find({ whatsappPendente: true, status: 'a_caminho' }).limit(20);
       for (const pedido of pedidos) {
         const tenant = await Tenant.findById(pedido.tenantId);
         if (tenant && (await service.enviarWhatsApp(pedido, tenant)).enviado) await PedidoEntrega.updateOne({ _id: pedido._id }, { whatsappPendente: false });

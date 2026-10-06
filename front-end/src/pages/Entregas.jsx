@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
+import { imprimirEntrega } from '../utils/imprimirEntrega.js';
 import '../styles/delivery.css';
 
 const STATUS_NOMES = {
@@ -21,7 +22,11 @@ function faixaAtraso(criadoEm, agora) {
 }
 
 function FormularioPedidoManual({ onSubmit, ocupado }) {
-  return <form className="delivery-card" onSubmit={onSubmit}>
+  const [itens, setItens] = useState([]);
+  const alterarItem = (indice, campo, valor) => {
+    setItens(atuais => atuais.map((item, posicao) => posicao === indice ? { ...item, [campo]: valor } : item));
+  };
+  return <form className="delivery-card" onSubmit={event => onSubmit(event, itens)}>
     <h2>Novo pedido de entrega</h2>
     <div className="delivery-form-grid">
       <label>Nome do cliente<input name="nomeCliente" required maxLength={160} /></label>
@@ -34,6 +39,16 @@ function FormularioPedidoManual({ onSubmit, ocupado }) {
       <label>Valor do pedido (R$)<input name="valorTotal" type="number" step="0.01" min="0" required /></label>
       <label>Taxa de entrega (R$)<input name="taxaEntrega" type="number" step="0.01" min="0" defaultValue="0" required /></label>
     </div>
+    <details>
+      <summary>Itens do pedido (opcional)</summary>
+      {itens.map((item, indice) => <div className="delivery-form-grid" key={indice}>
+        <label>Descrição<input name="descricao" value={item.descricao} onChange={event => alterarItem(indice, 'descricao', event.target.value)} required /></label>
+        <label>Quantidade<input name="quantidade" type="number" min="0.001" step="0.001" value={item.quantidade} onChange={event => alterarItem(indice, 'quantidade', event.target.value)} required /></label>
+        <label>Preço unitário<input name="precoUnitario" type="number" min="0" step="0.01" value={item.precoUnitario} onChange={event => alterarItem(indice, 'precoUnitario', event.target.value)} required /></label>
+        <button type="button" className="delivery-danger" onClick={() => setItens(atuais => atuais.filter((_, posicao) => posicao !== indice))}>Remover item</button>
+      </div>)}
+      <button type="button" className="delivery-secondary" onClick={() => setItens(atuais => [...atuais, { descricao: '', quantidade: '1', precoUnitario: '0' }])}>Adicionar item</button>
+    </details>
     <div className="delivery-actions"><button disabled={ocupado}>{ocupado ? 'Salvando…' : 'Criar pedido'}</button></div>
   </form>;
 }
@@ -140,7 +155,7 @@ export default function Entregas() {
     }
   };
 
-  const criarPedidoManual = async event => {
+  const criarPedidoManual = async (event, itens) => {
     event.preventDefault();
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
@@ -150,6 +165,7 @@ export default function Entregas() {
         origem: { nomeCliente: form.get('nomeCliente'), telefone: form.get('telefone'), endereco },
         valorTotal: Number(form.get('valorTotal')),
         taxaEntrega: Number(form.get('taxaEntrega')),
+        itens: itens.map(item => ({ ...item, quantidade: Number(item.quantidade), precoUnitario: Number(item.precoUnitario) })),
       }),
       'Pedido criado e pronto para despacho.'
     );
@@ -349,6 +365,9 @@ export default function Entregas() {
             {pedido.status === 'pendente' && <button type="button" disabled={ocupado} onClick={() => marcarPronto(pedido)}>Marcar como pronto</button>}
             <div className="delivery-actions">
               {pedido.tokenRastreamento && <button type="button" className="delivery-secondary" onClick={() => navigate(`/pedido/${pedido.tokenRastreamento}`)}>Ver rastreio</button>}
+              {aba === 'historico' && <button type="button" className="delivery-secondary" onClick={() => {
+                if (!imprimirEntrega(pedido, comercio?.nome)) setErro('Permita janelas pop-up para imprimir o pedido.');
+              }}>Reimprimir</button>}
               <button type="button" className="delivery-secondary" disabled={ocupado} onClick={() => void enviarWhatsApp(pedido)}>WhatsApp</button>
               {podeCancelar && <button type="button" className="delivery-danger" disabled={ocupado} onClick={() => cancelar(pedido)}>Cancelar</button>}
             </div>

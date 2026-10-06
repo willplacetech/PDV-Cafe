@@ -82,8 +82,15 @@ describe('DeliveryLink', () => {
     } });
     cy.contains('button', 'Novo pedido').click();
     for (const [name, value] of Object.entries({ nomeCliente: 'Maria', telefone: '11988888888', rua: 'Rua Um', numero: '12', bairro: 'Centro', valorTotal: '16' })) cy.get(`[name="${name}"]`).type(value);
+    cy.contains('button', 'Adicionar item').click();
+    cy.get('[name="descricao"]').type('Café');
+    cy.get('[name="quantidade"]').clear().type('2');
+    cy.get('[name="precoUnitario"]').clear().type('8');
     cy.contains('button', 'Criar pedido').click();
-    cy.wait('@criarPedidoManual').its('request.body.origem.endereco.bairro').should('eq', 'Centro');
+    cy.wait('@criarPedidoManual').then(({ request }) => {
+      expect(request.body.origem.endereco.bairro).to.eq('Centro');
+      expect(request.body.itens).to.deep.equal([{ descricao: 'Café', quantidade: 2, precoUnitario: 8 }]);
+    });
   });
 
   it('permite despachar a entrega na confirmação da comanda e navegar aos detalhes', () => {
