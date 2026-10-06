@@ -1,5 +1,6 @@
 const produtos = [
   { _id: 'unidade', nome: 'Produto por unidade', unidadeVenda: 'un', vendidoFracionado: true },
+  { _id: 'compra-unidade', nome: 'Compra por unidade e venda por peso', unidadeCompra: 'un', unidadeVenda: 'kg', vendidoFracionado: true },
   { _id: 'peso', nome: 'Produto por peso', unidadeVenda: 'kg', vendidoFracionado: false },
   { _id: 'inteiro', nome: 'Bolo inteiro', unidadeVenda: 'kg', pesoPorUnidade: 2, vendidoFracionado: true },
 ].map((produto, index) => ({ ...produto, codigo: String(index + 1), categoria: 'Outros', tipo: 'venda', preco: 10, estoque: 20, ativo: true }));
@@ -39,8 +40,14 @@ describe('Quantidade em novos pedidos', () => {
     cy.get('input[type="number"]').should('have.attr', 'step', '0.001');
     cy.get('input[type="number"]').parent().contains('button', '+').click();
     cy.get('input[type="number"]').should('have.value', '1.001');
+    cy.contains('.product-card', 'Compra por unidade e venda por peso').click();
+    cy.get('input[type="number"]').eq(1).should('have.attr', 'step', '1').and('have.attr', 'min', '1');
+    cy.get('input[type="number"]').eq(1).parent().contains('button', '+').click();
+    cy.get('input[type="number"]').eq(1).should('have.value', '2');
+    cy.get('input[type="number"]').eq(1).parent().contains('button', '−').click();
+    cy.get('input[type="number"]').eq(1).should('have.value', '1');
     cy.contains('.product-card', 'Bolo inteiro').click();
-    cy.get('input[type="number"]').eq(1).should('have.attr', 'step', '1');
+    cy.get('input[type="number"]').eq(2).should('have.attr', 'step', '1');
   });
 
   it('adiciona produtos pelo seletor do carrinho no celular', () => {
