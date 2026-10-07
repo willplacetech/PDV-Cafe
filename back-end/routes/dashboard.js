@@ -47,7 +47,7 @@ const valorLiquidoPedido = (comandasPorId, pedido) => Math.round((Math.max(0, Nu
 const comandasPorIdDe = async (pedidos) => {
   const ids = [...new Set(pedidos.map((pedido) => pedido.comandaId).filter(Boolean).map(String))];
   if (!ids.length) return new Map();
-  return indexarComandasPorId(await Comanda.find({ _id: { $in: ids } }).select('historicoPagamentos valorTotal').lean());
+  return indexarComandasPorId(await Comanda.find({ _id: { $in: ids } }).select('historicoPagamentos valorTotal tipoAtendimento entrega').lean());
 };
 
 const pagamentosDe = (comandasPorId, pedido) => normalizarPagamentos(pagamentosDoPedido(pedido, pedido?.comandaId ? comandasPorId.get(String(pedido.comandaId)) : null));
@@ -227,10 +227,13 @@ router.get('/', async (req, res) => {
     const vendasHojePendente = vendasHoje.reduce((total, pedido) => total + pedidoEmAReceberComComanda(comandasPorId, pedido), 0);
     const vendasMes = pedidosMes.filter((pedido) => pedido.status !== 'cancelado' && !pedido.utilizacaoInterna);
     const vendasPorTipo = vendasMes.reduce((tipos, pedido) => {
-      const tipo = pedido.tipoAtendimento === 'balcao' ? 'balcao' : 'mesa';
+      const comanda = pedido.comandaId ? comandasPorId.get(String(pedido.comandaId)) : null;
+      const tipo = pedido.tipoAtendimento === 'delivery' || comanda?.entrega
+        ? 'delivery'
+        : pedido.tipoAtendimento === 'balcao' ? 'balcao' : 'mesa';
       tipos[tipo] = (tipos[tipo] || 0) + Number(pedido.total || 0);
       return tipos;
-    }, { mesa: 0, balcao: 0 });
+    }, { mesa: 0, balcao: 0, delivery: 0 });
     const pagamentosMes = new Map();
     const produtosMes = new Map();
     const clientesMes = new Set();

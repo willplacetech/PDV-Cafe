@@ -86,7 +86,8 @@ export function buildNotaVendaTexto(pedido, opcoes = {}) {
 
 export function compartilharNotaWhatsApp(pedido, opcoes = {}, telefone = '') {
   if (!pedido) return;
-  const texto = buildNotaVendaTexto(pedido, opcoes);
+  const textoNota = buildNotaVendaTexto(pedido, opcoes);
+  const texto = [textoNota, opcoes.mensagemAdicional].filter(Boolean).join('\n\n');
   const fone = telefone ? telefone.replace(/\D/g, '') : (pedido.clienteTelefone || '').replace(/\D/g, '');
   const encodedText = encodeURIComponent(texto);
   const appUrl = fone

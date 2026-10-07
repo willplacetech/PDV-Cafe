@@ -77,7 +77,16 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
       if (inicio) filter.createdAt.$gte = inicio;
       if (fim) filter.createdAt.$lte = fim;
     }
-    res.json(await Comanda.find(filter).sort({ createdAt: -1 }));
+    const comandas = await Comanda.find(filter).sort({ createdAt: -1 }).populate('clienteId', 'nome telefone');
+    res.json(comandas.map((comanda) => {
+      const dados = comanda.toObject();
+      if (dados.clienteId && typeof dados.clienteId === 'object') {
+        dados.clienteTelefone = dados.clienteTelefone || dados.clienteId.telefone || '';
+        if (!dados.clienteNome || dados.clienteNome === 'Cliente não identificado') dados.clienteNome = dados.clienteId.nome || dados.clienteNome;
+        dados.clienteId = dados.clienteId._id;
+      }
+      return dados;
+    }));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
@@ -224,13 +233,15 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
       }
     });
     await ajustarEstoque(itens, 'baixar', session);
-    const tipoAtendimento = req.body.tipoAtendimento === 'balcao' ? 'balcao' : 'mesa';
+    const temEntrega = req.body.entrega && typeof req.body.entrega === 'object' && !Array.isArray(req.body.entrega);
+    const tipoAtendimento = temEntrega ? 'delivery' : req.body.tipoAtendimento === 'balcao' ? 'balcao' : 'mesa';
     const taxaEntrega = req.body.entrega && typeof req.body.entrega.taxaEntrega === 'number' && Number.isFinite(req.body.entrega.taxaEntrega) && req.body.entrega.taxaEntrega >= 0 ? money(req.body.entrega.taxaEntrega) : 0;
     const valorTotal = money(calcularSubtotalComanda(itens) + taxaEntrega);
-    const usuarioDelivery = req.body.entrega && mongoose.isValidObjectId(req.user.id) ? await User.findById(req.user.id).select('tenantId').session(session).catch(() => null) : null;
+    const usuarioDelivery = temEntrega && mongoose.isValidObjectId(req.user.id) ? await User.findById(req.user.id).select('tenantId').session(session).catch(() => null) : null;
     // O comércio é capturado na venda; a entrega é processada depois, sem bloquear o PDV.
-    const entrega = req.body.entrega && typeof req.body.entrega === 'object' && !Array.isArray(req.body.entrega) ? { usuarioId: req.user.id, tenantId: usuarioDelivery?.tenantId, telefone: typeof req.body.entrega.telefone === 'string' ? req.body.entrega.telefone.slice(0, 30) : '', endereco: Object.fromEntries(['rua', 'numero', 'bairro', 'complemento', 'referencia'].map(campo => [campo, typeof req.body.entrega.endereco?.[campo] === 'string' ? req.body.entrega.endereco[campo].slice(0, 300) : ''])), taxaEntrega } : undefined;
-    const [comanda] = await Comanda.create([{ entrega, taxaEntrega, idTemporario: idTemporario || undefined, idempotencyKey: idempotencyKey || undefined, idempotencyHash: idempotencyKey ? idempotencyHash : undefined, clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, mesa: req.body.mesa, tipoAtendimento, statusBalcao: tipoAtendimento === 'balcao' ? 'aguardando' : undefined, itens, valorTotal, saldoDevedor: valorTotal, statusPagamento: 'pendente', estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
+    const entrega = temEntrega ? { usuarioId: req.user.id, tenantId: usuarioDelivery?.tenantId, telefone: typeof req.body.entrega.telefone === 'string' ? req.body.entrega.telefone.slice(0, 30) : '', endereco: Object.fromEntries(['rua', 'numero', 'bairro', 'complemento', 'referencia'].map(campo => [campo, typeof req.body.entrega.endereco?.[campo] === 'string' ? req.body.entrega.endereco[campo].slice(0, campo === 'rua' ? 300 : campo === 'bairro' ? 120 : campo === 'numero' ? 30 : 200) : ''])), preservarEnderecoCadastrado: Boolean(req.body.entrega.preservarEnderecoCadastrado), taxaEntrega } : undefined;
+    const clienteTelefone = normalizarTelefoneCliente(req.body.clienteTelefone || (temEntrega ? req.body.entrega.telefone : '')).slice(0, 30);
+    const [comanda] = await Comanda.create([{ entrega, taxaEntrega, idTemporario: idTemporario || undefined, idempotencyKey: idempotencyKey || undefined, idempotencyHash: idempotencyKey ? idempotencyHash : undefined, clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', clienteTelefone, observacao: req.body.observacao, mesa: req.body.mesa, tipoAtendimento, statusBalcao: tipoAtendimento === 'balcao' ? 'aguardando' : undefined, itens, valorTotal, saldoDevedor: valorTotal, statusPagamento: 'pendente', estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
     if (origemOffline !== undefined) {
       // Revalidar depois do trabalho assincromo e antes do commit: inclusive um
       // mesmo operador reassociado a outro comercio enquanto a venda processa.
@@ -478,6 +489,7 @@ router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador', 'garcom'
     const comanda = await Comanda.findById(req.params.id).session(session);
     const telefone = normalizarTelefoneCliente(req.body.telefone);
     const nome = String(req.body.nome || '').trim();
+    const enderecoEntrega = comanda.entrega?.preservarEnderecoCadastrado ? undefined : req.body.enderecoEntrega;
     if (!comanda || !telefone) throw new Error('Dados do cliente inválidos');
 
     let customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
@@ -486,14 +498,16 @@ router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador', 'garcom'
       if (nome) customer.nome = nome;
       else if (comanda.clienteNome && comanda.clienteNome !== 'Cliente não identificado') customer.nome = comanda.clienteNome;
       customer.telefone = telefone;
+      if (enderecoEntrega && typeof enderecoEntrega === 'object' && !Array.isArray(enderecoEntrega)) customer.enderecoEntrega = enderecoEntrega;
       await customer.save({ session });
     } else {
-      customer = new Customer({ nome: nome || comanda.clienteNome || 'Cliente não identificado', telefone, createdBy: req.user.id });
+      customer = new Customer({ nome: nome || comanda.clienteNome || 'Cliente não identificado', telefone, enderecoEntrega, createdBy: req.user.id });
       await customer.save({ session });
     }
 
     comanda.clienteId = customer.id;
     if (nome) comanda.clienteNome = nome;
+    comanda.clienteTelefone = telefone;
     await comanda.save({ session });
     const order = comanda.pedidoId ? await Order.findByIdAndUpdate(comanda.pedidoId, { clienteId: customer.id, clienteNome: customer.nome, clienteTelefone: telefone }, { new: true, session }) : null;
     await session.commitTransaction();
@@ -544,6 +558,9 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
 
     const telefone = normalizarTelefoneCliente(req.body.telefone);
     const nome = String(req.body.nome || '').trim();
+    const enderecoEntrega = !comanda.entrega?.preservarEnderecoCadastrado && req.body.enderecoEntrega && typeof req.body.enderecoEntrega === 'object' && !Array.isArray(req.body.enderecoEntrega)
+      ? Object.fromEntries(['rua', 'numero', 'bairro', 'complemento', 'referencia'].map(campo => [campo, typeof req.body.enderecoEntrega[campo] === 'string' ? req.body.enderecoEntrega[campo].slice(0, campo === 'rua' ? 300 : campo === 'bairro' ? 120 : campo === 'numero' ? 30 : 200).trim() : '']))
+      : undefined;
     let customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
     if (telefone) {
       customer = customer || await Customer.findOne({ telefone }).session(session);
@@ -551,11 +568,16 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
         if (nome) customer.nome = nome;
         else if (comanda.clienteNome && comanda.clienteNome !== 'Cliente não identificado') customer.nome = comanda.clienteNome;
         customer.telefone = telefone;
+        if (enderecoEntrega) customer.enderecoEntrega = enderecoEntrega;
         await customer.save({ session });
       } else {
-        customer = new Customer({ nome: nome || comanda.clienteNome || 'Cliente não identificado', telefone, createdBy: req.user.id });
+        customer = new Customer({ nome: nome || comanda.clienteNome || 'Cliente não identificado', telefone, enderecoEntrega, createdBy: req.user.id });
         await customer.save({ session });
       }
+    } else if (customer && (nome || enderecoEntrega)) {
+      if (nome) customer.nome = nome;
+      if (enderecoEntrega) customer.enderecoEntrega = enderecoEntrega;
+      await customer.save({ session });
     }
     const order = new Order({
       itens: comanda.itens,
@@ -577,6 +599,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     if (customer && !utilizacaoInterna) {
       await Customer.findByIdAndUpdate(customer.id, { $inc: { cafesFidelidade: 1 } }, { session });
       comanda.clienteId = customer.id;
+      comanda.clienteTelefone = customer.telefone || telefone;
       if (nome) comanda.clienteNome = nome;
     }
     comanda.status = 'fechada';

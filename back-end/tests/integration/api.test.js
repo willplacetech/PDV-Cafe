@@ -290,9 +290,16 @@ describe('API Endpoints', () => {
     const res = await request(app)
       .post('/api/customers')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ nome: 'João Silva', telefone: '11999999999', cpf: '12345678901', aniversario: '15061990' });
+      .send({
+        nome: 'João Silva',
+        telefone: '11999999999',
+        cpf: '12345678901',
+        aniversario: '15061990',
+        enderecoEntrega: { rua: 'Rua das Flores', numero: '25', bairro: 'Centro', complemento: 'Casa 2', referencia: 'Ao lado da praça' },
+      });
     expect(res.statusCode).toBe(201);
     expect(res.body.nome).toBe('João Silva');
+    expect(res.body.enderecoEntrega).toMatchObject({ rua: 'Rua das Flores', numero: '25', bairro: 'Centro' });
   });
 
   test('POST /api/customers → 409 telefone duplicado', async () => {
@@ -399,6 +406,47 @@ describe('API Endpoints', () => {
     expect(segundaResposta.body._id).toBe(primeiraResposta.body._id);
     expect(await Comanda.countDocuments({ idTemporario: payload.idTemporario })).toBe(1);
     expect((await Product.findById(produtoVenda._id)).estoque).toBe(99);
+  });
+
+  test('vendas delivery são classificadas como Delivery no dashboard, inclusive comandas antigas vinculadas', async () => {
+    const venda = await request(app)
+      .post('/api/comandas')
+      .set('Authorization', `******
+      .send({
+        clienteNome: 'Pedido Delivery',
+        itens: [{ produtoId: produtoVenda._id, quantidade: 1 }],
+        entrega: { telefone: '11999999999', endereco: { rua: 'Rua Um', numero: '10' }, taxaEntrega: 0 },
+      });
+
+    expect(venda.statusCode).toBe(201);
+    expect(venda.body.tipoAtendimento).toBe('delivery');
+    expect(venda.body.clienteTelefone).toBe('11999999999');
+
+    await Order.create([
+      {
+        itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, precoUnitario: 8.5, quantidade: 1 }],
+        subtotal: 8.5,
+        total: 8.5,
+        status: 'pago',
+        atendente: 'admin',
+        comandaId: venda.body._id,
+      },
+      {
+        itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, precoUnitario: 12, quantidade: 1 }],
+        subtotal: 12,
+        total: 12,
+        status: 'pago',
+        atendente: 'admin',
+        tipoAtendimento: 'delivery',
+      },
+    ]);
+
+    const dashboard = await request(app)
+      .get('/api/dashboard')
+      .set('Authorization', `******;
+
+    expect(dashboard.statusCode).toBe(200);
+    expect(dashboard.body.vendasPorTipo).toEqual({ mesa: 0, balcao: 0, delivery: 20.5 });
   });
 
   test('POST /api/comandas preserva conflito de idempotencia ao reenviar venda offline alterada', async () => {

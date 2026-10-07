@@ -1,5 +1,13 @@
 const mongoose = require('mongoose');
 
+const enderecoEntregaSchema = new mongoose.Schema({
+  rua: { type: String, trim: true, maxlength: 300 },
+  numero: { type: String, trim: true, maxlength: 30 },
+  bairro: { type: String, trim: true, maxlength: 120 },
+  complemento: { type: String, trim: true, maxlength: 200 },
+  referencia: { type: String, trim: true, maxlength: 200 },
+}, { _id: false });
+
 const CustomerSchema = new mongoose.Schema({
   nome: {
     type: String,
@@ -14,6 +22,7 @@ const CustomerSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  enderecoEntrega: { type: enderecoEntregaSchema, default: undefined },
   aniversario: {
     type: String,
     trim: true,

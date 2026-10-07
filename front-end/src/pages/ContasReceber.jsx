@@ -654,7 +654,7 @@ export default function ContasReceber() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
                     <div style={{ minWidth: 0 }}>
                       <strong>
-                        {comanda.tipoAtendimento === 'balcao' ? '📦' : '🪑'} Comanda #{comanda.numero}
+                        {comanda.tipoAtendimento === 'delivery' ? '🛵 Delivery · ' : comanda.tipoAtendimento === 'balcao' ? '📦 Balcão · ' : '🪑 Mesa · '}Comanda #{comanda.numero}
                       </strong>
                       <span style={{ marginLeft: 8, ...(() => ({ background: info.bg, color: info.txt }))(), padding: '1px 8px', borderRadius: 999, fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>{info.label}</span>
                       <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>

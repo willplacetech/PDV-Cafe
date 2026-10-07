@@ -6,6 +6,18 @@ const Customer = require('../models/Customer');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
 const normalizarTelefone = (telefone) => String(telefone || '').replace(/\D/g, '');
+const normalizarEnderecoEntrega = (endereco) => {
+  if (endereco === undefined) return undefined;
+  if (!endereco || typeof endereco !== 'object' || Array.isArray(endereco)) return null;
+  const limites = { rua: 300, numero: 30, bairro: 120, complemento: 200, referencia: 200 };
+  const resultado = {};
+  for (const [campo, limite] of Object.entries(limites)) {
+    const valor = endereco[campo] ?? '';
+    if (typeof valor !== 'string' || valor.length > limite) return null;
+    resultado[campo] = valor.trim();
+  }
+  return resultado;
+};
 
 // @route   GET api/customers
 // @desc    Listar clientes com busca
@@ -60,6 +72,8 @@ router.post(
 
     try {
       const { nome, telefone, endereco, cpf, aniversario } = req.body;
+      const enderecoEntrega = normalizarEnderecoEntrega(req.body.enderecoEntrega);
+      if (enderecoEntrega === null) return res.status(400).json({ msg: 'Endereço de entrega inválido' });
       const telefoneNormalizado = normalizarTelefone(telefone);
       if (telefoneNormalizado && await Customer.exists({ telefone: telefoneNormalizado })) {
         return res.status(409).json({ msg: 'Telefone já cadastrado' });
@@ -69,6 +83,7 @@ router.post(
         nome: nome.trim(),
         telefone: telefoneNormalizado,
         endereco: endereco ? endereco.trim() : '',
+        enderecoEntrega,
         aniversario: aniversario ? aniversario.trim() : '',
         cpf: cpf ? cpf.trim() : '',
         createdBy: req.user.id,
@@ -90,6 +105,8 @@ router.post(
 router.put('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
     const { nome, telefone, endereco, cpf, aniversario } = req.body;
+    const enderecoEntrega = normalizarEnderecoEntrega(req.body.enderecoEntrega);
+    if (enderecoEntrega === null) return res.status(400).json({ msg: 'Endereço de entrega inválido' });
     const telefoneNormalizado = telefone !== undefined ? normalizarTelefone(telefone) : undefined;
     if (telefoneNormalizado && await Customer.exists({ telefone: telefoneNormalizado, _id: { $ne: req.params.id } })) {
       return res.status(409).json({ msg: 'Telefone já cadastrado' });
@@ -99,6 +116,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
     if (nome) updateFields.nome = nome.trim();
     if (telefone !== undefined) updateFields.telefone = telefoneNormalizado;
     if (endereco !== undefined) updateFields.endereco = endereco.trim();
+    if (enderecoEntrega !== undefined) updateFields.enderecoEntrega = enderecoEntrega;
     if (aniversario !== undefined) updateFields.aniversario = aniversario.trim();
     if (cpf !== undefined) updateFields.cpf = cpf.trim();
 

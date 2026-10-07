@@ -26,11 +26,6 @@ const formatQuantity = (item) => {
 };
 const produtoPorPeso = (product) => Number(product?.pesoPorUnidade) > 0 && product?.unidadeVenda === 'kg';
 
-async function enviarWhatsApp(pedido, comanda, telefone) {
-  if (!pedido) return;
-  await compartilharNotaWhatsApp(pedido, { comandaNumero: comanda?.numero }, telefone);
-}
-
 // ─── componente principal ─────────────────────────────────────────────────────
 
 export default function Comandas() {
@@ -180,13 +175,13 @@ export default function Comandas() {
     }
   };
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preferredId) => {
     try {
       const [commands, catalog, tables] = await Promise.all([api.get('/comandas?status=aberta'), api.get('/products'), api.get('/mesas')]);
       setConfiguracaoMesas(tables.data);
       setComandas(commands.data);
       setProducts(catalog.data);
-      setSelected((current) => commands.data.find((c) => c._id === current?._id) || commands.data[0] || null);
+      setSelected((current) => commands.data.find((c) => c._id === preferredId) || commands.data.find((c) => c._id === current?._id) || commands.data[0] || null);
     } catch { showToast('Não foi possível carregar as comandas', 'error'); }
   }, [showToast]);
   useEffect(() => {
@@ -203,7 +198,7 @@ export default function Comandas() {
     event.preventDefault();
     try {
       const { data } = await api.post('/comandas', { ...newCommand, tipoAtendimento: 'mesa' });
-      setNewCommand({ clienteNome: '', observacao: '' }); setSelected(data); setMobileView('detail'); showToast('Comanda aberta', 'success'); load();
+      setNewCommand({ clienteNome: '', observacao: '' }); setMobileView('detail'); showToast('Comanda aberta', 'success'); await load(data._id);
     } catch (error) { showToast(error.response?.data?.msg || 'Erro ao abrir comanda', 'error'); }
   };
 
@@ -211,10 +206,9 @@ export default function Comandas() {
     try {
       const { data } = await api.post('/comandas', { tipoAtendimento: 'balcao', clienteNome: newCommand.clienteNome || undefined, observacao: newCommand.observacao || undefined });
       setNewCommand({ clienteNome: '', observacao: '' });
-      setSelected(data);
       setMobileView('detail');
       showToast(`Pedido de balcão #${data.numero} criado`, 'success');
-      load();
+      await load(data._id);
     } catch (error) { showToast(error.response?.data?.msg || 'Erro ao abrir pedido de balcão', 'error'); }
   };
 
@@ -223,7 +217,7 @@ export default function Comandas() {
     if (existente) { setSelected(existente); setMobileView('detail'); return; }
     try {
       const { data } = await api.post('/comandas', { tipoAtendimento: 'mesa', mesa, clienteNome: 'Mesa ' + mesa });
-      setSelected(data); setMobileView('detail'); showToast(`Mesa ${mesa} aberta`, 'success'); load();
+      setMobileView('detail'); showToast(`Mesa ${mesa} aberta`, 'success'); await load(data._id);
     } catch (error) { showToast(error.response?.data?.msg || 'Erro ao abrir mesa', 'error'); }
   };
 
@@ -365,7 +359,7 @@ export default function Comandas() {
     setPaymentMethod('');
     setUtilizacaoInterna(false);
     setPaymentError(false);
-    setTelefoneModal('');
+    setTelefoneModal(selected.entrega?.telefone || selected.clienteTelefone || '');
     setNomeModal(selected.clienteNome || '');
     setModalFechamento(true);
   };
@@ -384,6 +378,7 @@ export default function Comandas() {
         utilizacaoInterna,
         telefone: telefoneModal,
         nome: nomeModal,
+        enderecoEntrega: comandaFechada.entrega?.endereco,
       });
       setModalFechamento(false);
       setDiscount('0'); setPaymentMethod(''); setUtilizacaoInterna(false); setPaymentError(false);
@@ -438,12 +433,28 @@ export default function Comandas() {
   };
 
   const enviarComprovante = async () => {
+    const pedidoEntrega = modalSucesso?.entregaDelivery?.pedido;
+    const linkRastreamento = modalSucesso?.entregaDelivery?.whatsapp?.link
+      || (pedidoEntrega?.tokenRastreamento ? `${window.location.origin}/pedido/${pedidoEntrega.tokenRastreamento}` : '');
+    if (modalSucesso?.comanda?.entrega && !linkRastreamento) {
+      showToast('O link de rastreamento ainda está sendo gerado. Aguarde alguns instantes e tente novamente.', 'warning');
+      return;
+    }
     if (modalSucesso?.telefone) {
       try {
-        await api.patch(`/comandas/${modalSucesso.comanda._id}/cliente`, { telefone: modalSucesso.telefone, nome: modalSucesso.nome });
-      } catch { /* mantém o envio do comprovante mesmo se o cadastro falhar */ }
+        await api.patch(`/comandas/${modalSucesso.comanda._id}/cliente`, {
+          telefone: modalSucesso.telefone,
+          nome: modalSucesso.nome,
+          enderecoEntrega: modalSucesso.comanda.entrega?.endereco,
+        });
+      } catch (error) {
+        showToast(error.response?.data?.msg || 'Não foi possível atualizar o cadastro do cliente.', 'warning');
+      }
     }
-    await enviarWhatsApp(modalSucesso.pedido, modalSucesso.comanda, modalSucesso.telefone);
+    await compartilharNotaWhatsApp(modalSucesso?.pedido, {
+      comandaNumero: modalSucesso?.comanda?.numero,
+      mensagemAdicional: linkRastreamento ? `Acompanhe sua entrega: ${linkRastreamento}` : '',
+    }, modalSucesso?.telefone);
   };
 
   const emitirNfce = async () => {
@@ -501,8 +512,8 @@ export default function Comandas() {
 
   return (
     <div className="comandas-page">
-      <div className="page-heading"><div><h1>🪑 Mesas / Comandas</h1><p>Abra comandas, lance consumos e feche no caixa.</p></div></div>
-      <section className="service-mode-panel"><div className="service-mode-heading"><h2>🪑 Mesas ({mesasAtivas.length})</h2><span>Escolha a mesa ou prossiga em balcão quando todas estiverem ocupadas</span></div><div className="table-shortcuts">{mesasAtivas.map((configuracaoMesa) => { const mesa = configuracaoMesa.numero; const aberta = comandas.find((comanda) => comanda.tipoAtendimento !== 'balcao' && String(comanda.mesa || '') === String(mesa)); return <button type="button" key={mesa} className={aberta ? 'table-shortcut occupied' : 'table-shortcut'} onClick={() => createMesa(mesa)}><strong>{configuracaoMesa.nome || mesa}</strong><span>{aberta ? '🟡 Ocupada' : '🟢 Livre'}</span></button>; })}</div><div className="counter-service"><div><strong>📦 Pague e leve — Balcão</strong><span>{comandas.filter((comanda) => comanda.tipoAtendimento === 'balcao').length} pedidos em andamento</span></div>{todasMesasOcupadas && configuracaoMesas.oferecerBalcao && <div style={{ fontSize: 12, color: 'var(--warning-bg)', fontWeight: 700, marginTop: 6 }}>⚠️ Todas as mesas estão em uso. Prosseguir em balcão.</div>}<button type="button" className="comandas-primary-button" onClick={createBalcao}>➕ Novo Pedido</button></div></section>
+      <div className="page-heading"><div><h1>🪑 Mesas / Comandas</h1><p>Abra comandas, lance consumos e feche no caixa.</p></div><button type="button" className="comandas-primary-button" onClick={() => void createBalcao()}>➕ Novo Pedido</button></div>
+      <section className="service-mode-panel"><div className="service-mode-heading"><h2>🪑 Mesas ({mesasAtivas.length})</h2><span>Escolha a mesa ou prossiga em balcão quando todas estiverem ocupadas</span></div><div className="table-shortcuts">{mesasAtivas.map((configuracaoMesa) => { const mesa = configuracaoMesa.numero; const aberta = comandas.find((comanda) => comanda.tipoAtendimento !== 'balcao' && String(comanda.mesa || '') === String(mesa)); return <button type="button" key={mesa} className={aberta ? 'table-shortcut occupied' : 'table-shortcut'} onClick={() => createMesa(mesa)}><strong>{configuracaoMesa.nome || mesa}</strong><span>{aberta ? '🟡 Ocupada' : '🟢 Livre'}</span></button>; })}</div><div className="counter-service"><div><strong>📦 Pague e leve — Balcão</strong><span>{comandas.filter((comanda) => comanda.tipoAtendimento === 'balcao').length} pedidos em andamento</span></div>{todasMesasOcupadas && configuracaoMesas.oferecerBalcao && <div style={{ fontSize: 12, color: 'var(--warning-bg)', fontWeight: 700, marginTop: 6 }}>⚠️ Todas as mesas estão em uso. Prosseguir em balcão.</div>}</div></section>
       <form onSubmit={create} className="comandas-open-form">
         <input className="comandas-field" placeholder="Nome do cliente" value={newCommand.clienteNome} onChange={(e) => setNewCommand({ ...newCommand, clienteNome: e.target.value })} />
         <input className="comandas-field" placeholder="Observação" value={newCommand.observacao} onChange={(e) => setNewCommand({ ...newCommand, observacao: e.target.value })} />
@@ -518,10 +529,10 @@ export default function Comandas() {
             const saldo = saldoDevedor(command.valorTotal, command.historicoPagamentos);
             return (
               <button className="comanda-select-button" key={command._id} onClick={() => { setSelected(command); setMobileView('detail'); }} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
-                <b>{command.tipoAtendimento === 'balcao' ? '📦' : '🪑'} #{command.numero}</b>
+                <b>{command.tipoAtendimento === 'delivery' ? '🛵' : command.tipoAtendimento === 'balcao' ? '📦' : '🪑'} #{command.numero}</b>
                 {command.statusPagamento === 'parcial' && <span className="comanda-status-pill" style={{ background: info.bg, color: info.txt }}>{info.label}</span>}
                 <br />
-                <small>{command.tipoAtendimento === 'balcao' ? `Balcão · ${command.statusBalcao || 'aguardando'}` : 'Mesa'} · {command.clienteNome} · {command.itens.length} itens</small>
+                <small>{command.tipoAtendimento === 'delivery' ? 'Delivery' : command.tipoAtendimento === 'balcao' ? `Balcão · ${command.statusBalcao || 'aguardando'}` : 'Mesa'} · {command.clienteNome} · {command.itens.length} itens</small>
                 {saldo > 0 && <small style={{ display: 'block', marginTop: 4, fontWeight: 700 }}>A receber: {formatMoney(saldo)}</small>}
               </button>
             );
@@ -531,7 +542,7 @@ export default function Comandas() {
         <section className={`comandas-card comandas-detail-card ${mobileView === 'list' ? 'mobile-hidden' : ''}`}>
           {!selected ? <p>Selecione ou abra uma comanda.</p> : <>
             <button type="button" className="comandas-mobile-back" onClick={() => setMobileView('list')}>← Voltar para comandas</button>
-            <h2 style={{ marginTop: 0 }}>{selected.tipoAtendimento === 'balcao' ? '📦 Balcão' : '🪑 Mesa'} #{selected.numero} <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}>— {selected.clienteNome}</small></h2>
+            <h2 style={{ marginTop: 0 }}>{selected.tipoAtendimento === 'delivery' ? '🛵 Delivery' : selected.tipoAtendimento === 'balcao' ? '📦 Balcão' : '🪑 Mesa'} #{selected.numero} <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}>— {selected.clienteNome}</small></h2>
             {selected.tipoAtendimento === 'balcao' && <div className="balcao-status-bar"><span>Status: <strong>{selected.statusBalcao || 'aguardando'}</strong></span><div>{['aguardando', 'preparando', 'pronto', 'pago', 'entregue'].map((status) => <button type="button" key={status} className={selected.statusBalcao === status ? 'active' : ''} onClick={() => updateBalcaoStatus(status)}>{status}</button>)}</div></div>}
             <form onSubmit={addItem} className="comandas-add-form">
               <select className="comandas-field" required disabled={adicionandoItem} value={productId} onChange={(e) => { setProductId(e.target.value); setTipoVenda('inteiro'); setPesoVendidoKg(''); }}><option value="">Adicionar produto…</option>{products.filter((product) => product.categoria !== 'Insumos').map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}{produtoPorPeso(product) ? '/kg' : ''}</option>)}</select>
@@ -840,39 +851,7 @@ export default function Comandas() {
               </button>}
             </section>}
 
-            {/* campo de telefone no modal de sucesso (se não preencheu antes) */}
-            {!modalSucesso.telefone && (
-              <div style={{ marginBottom: 16, textAlign: 'left' }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
-                  👤 Nome do cliente
-                </label>
-                <input type="text" placeholder="Nome do cliente"
-                  value={modalSucesso.nome || ''}
-                  onChange={e => setModalSucesso(prev => ({ ...prev, nome: e.target.value }))}
-                  className="comandas-field" style={{ width: '100%', boxSizing: 'border-box', marginBottom: 8 }} />
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
-                  📱 WhatsApp para enviar comprovante
-                </label>
-                <input type="tel" placeholder="(00) 00000-0000"
-                  value={modalSucesso.telefone || ''}
-                  onChange={e => setModalSucesso(prev => ({ ...prev, telefone: e.target.value }))}
-                  className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
-              </div>
-            )}
-
-            {modalSucesso.telefone && !modalSucesso.nome && (
-              <div style={{ marginBottom: 16, textAlign: 'left' }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
-                  👤 Nome do cliente (opcional)
-                </label>
-                <input type="text" placeholder="Nome do cliente"
-                  value={modalSucesso.nome || ''}
-                  onChange={e => setModalSucesso(prev => ({ ...prev, nome: e.target.value }))}
-                  className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
-              </div>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--border-light)', paddingTop: 18 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, borderTop: '1px solid var(--border-light)', paddingTop: 18 }}>
               <button type="button" onClick={emitirNfce} disabled={nfceLoading} style={{ width: '100%', padding: '13px', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: nfceLoading ? 'wait' : 'pointer', minHeight: 50 }}>
                 {nfceLoading ? '⏳ Emitindo NFC-e...' : modalSucesso.pedido.nfce?.status === 'autorizada' ? '✅ NFC-e autorizada' : '🧾 Emitir NFC-e'}
               </button>
@@ -888,10 +867,10 @@ export default function Comandas() {
               </button>
               <button onClick={enviarComprovante}
                 style={{ width: '100%', padding: '13px', background: '#25d366', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-                💬 Enviar pelo WhatsApp
+                {modalSucesso.comanda.entrega ? '💬 Enviar comprovante e rastreio pelo WhatsApp' : '💬 Enviar pelo WhatsApp'}
               </button>
               <button onClick={() => setModalSucesso(null)}
-                style={{ width: '100%', padding: '11px', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', minHeight: 42 }}>
+                style={{ gridColumn: '1 / -1', width: '100%', padding: '11px', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', minHeight: 42 }}>
                 Fechar
               </button>
             </div>

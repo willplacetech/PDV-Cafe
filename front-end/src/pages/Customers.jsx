@@ -33,7 +33,7 @@ const aplicarMascaraData = (valor) => {
 
 export default function Customers() {
   const [clientes, setClientes] = useState([]);
-  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', cpf: '', aniversario: '' });
+  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '' }, cpf: '', aniversario: '' });
   const [editing, setEditing] = useState(null);
   const { showToast } = useToast();
 
@@ -84,6 +84,7 @@ export default function Customers() {
     const dadosParaEnviar = {
       nome: form.nome.trim(),
       telefone: telefoneLimpo,
+      enderecoEntrega: form.enderecoEntrega,
       cpf: cpfLimpo,
       aniversario: form.aniversario.replace(/\D/g, '').length === 8 ? form.aniversario : '',
     };
@@ -94,7 +95,7 @@ export default function Customers() {
         : await api.post('/customers', dadosParaEnviar);
       
       showToast(editing ? '✅ Cliente atualizado!' : '✅ Cliente cadastrado!', 'success');
-               setForm({ nome: '', telefone: '', endereco: '', cpf: '', aniversario: '' }); 
+      setForm({ nome: '', telefone: '', endereco: '', enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '' }, cpf: '', aniversario: '' });
       setEditing(null);
       carregar();
     } catch {
@@ -109,6 +110,7 @@ export default function Customers() {
       nome: c.nome, 
       telefone: aplicarMascaraTelefone(c.telefone || ''), 
       endereco: c.endereco || '',
+      enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '', ...(c.enderecoEntrega || {}) },
       aniversario: aplicarMascaraData(c.aniversario || ''),
       cpf: aplicarMascaraCPF(c.cpf || '') 
     });
@@ -206,6 +208,28 @@ export default function Customers() {
               />
             </div>
           </div>
+          <fieldset style={{ marginTop: 14, padding: 12, border: '1px solid var(--border-color)', borderRadius: 10 }}>
+            <legend style={{ padding: '0 6px', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Endereço de entrega cadastrado</legend>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+              {[
+                ['rua', 'Rua / Avenida'],
+                ['numero', 'Número'],
+                ['bairro', 'Bairro'],
+                ['complemento', 'Complemento'],
+                ['referencia', 'Ponto de referência'],
+              ].map(([campo, label]) => (
+                <label key={campo} style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  {label}
+                  <input
+                    value={form.enderecoEntrega[campo]}
+                    onChange={event => setForm(atual => ({ ...atual, enderecoEntrega: { ...atual.enderecoEntrega, [campo]: event.target.value } }))}
+                    maxLength={campo === 'rua' ? 300 : campo === 'numero' ? 30 : campo === 'bairro' ? 120 : 200}
+                    style={{ ...inputStyle, display: 'block', marginTop: 5 }}
+                  />
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
             <button type="submit" style={{
               flex: 1, padding: '12px', background: 'var(--accent-primary)', color: '#fff',
@@ -214,7 +238,7 @@ export default function Customers() {
             }}>{editing ? 'Atualizar' : 'Cadastrar'}</button>
             {editing && <button type="button" onClick={() => { 
               setEditing(null); 
-      setForm({ nome: '', telefone: '', endereco: '', cpf: '', aniversario: '' });
+      setForm({ nome: '', telefone: '', endereco: '', enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '' }, cpf: '', aniversario: '' });
             }} style={{
               padding: '12px 20px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)',
               border: '1.5px solid var(--border-color)', borderRadius: 10,

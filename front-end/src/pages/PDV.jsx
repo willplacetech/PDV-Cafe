@@ -13,6 +13,7 @@ import {
   imprimirPedidoCozinha,
 } from '../services/impressaoService.js';
 
+const ENDERECO_VAZIO = { rua: '', numero: '', bairro: '', complemento: '', referencia: '' };
 
 const corCategoria = {
   'Bebidas Quentes': { bg: 'var(--category-hot-bg)', txt: 'var(--category-hot-text)', border: 'var(--category-hot-border)' },
@@ -227,19 +228,35 @@ export default function PDV() {
   const descontoQuantidadeTotal = carrinho.reduce((acumulado, item) => acumulado + Number(item.economiaQuantidade || 0), 0);
   const totalItens = carrinho.reduce((ac, i) => ac + i.quantidade, 0);
   const clienteSelecionado = clientes.find(c => c._id === clienteId);
+  const clienteTemEnderecoCadastrado = ['rua', 'numero', 'bairro'].every(campo => clienteSelecionado?.enderecoEntrega?.[campo]?.trim());
+  const selecionarCliente = (id) => {
+    const cliente = clientes.find(c => c._id === id);
+    setClienteId(id);
+    if (!entregaPDV) return;
+    const enderecoCadastrado = cliente?.enderecoEntrega || {};
+    const temEnderecoCadastrado = ['rua', 'numero', 'bairro'].every(campo => enderecoCadastrado[campo]?.trim());
+    setEntregaPDV(atual => atual ? {
+      ...atual,
+      telefone: cliente?.telefone || '',
+      endereco: temEnderecoCadastrado ? { ...enderecoCadastrado } : { ...ENDERECO_VAZIO },
+      enderecoAlternativo: { ...ENDERECO_VAZIO },
+      usarEnderecoCadastrado: temEnderecoCadastrado,
+    } : atual);
+  };
 
 
   const finalizar = async () => {
     if (envioRef.current) return;
     if (!carrinho.length) return showToast('Carrinho vazio!', 'warning');
-    if (entregaPDV && (!String(clienteSelecionado?.nome || clienteNome || '').trim() || !entregaPDV.telefone.trim() || !['rua', 'numero', 'bairro'].every(campo => entregaPDV.endereco[campo]?.trim()) || !Number.isFinite(Number(entregaPDV.taxaEntrega)) || Number(entregaPDV.taxaEntrega) < 0)) return showToast('Informe nome, telefone e endereco completo para entrega.', 'warning');
+    const enderecoEntrega = entregaPDV?.usarEnderecoCadastrado ? clienteSelecionado?.enderecoEntrega : entregaPDV?.endereco;
+    if (entregaPDV && (!String(clienteSelecionado?.nome || clienteNome || '').trim() || !entregaPDV.telefone.trim() || !['rua', 'numero', 'bairro'].every(campo => enderecoEntrega?.[campo]?.trim()) || !Number.isFinite(Number(entregaPDV.taxaEntrega)) || Number(entregaPDV.taxaEntrega) < 0)) return showToast('Informe nome, telefone e endereco completo para entrega.', 'warning');
     envioRef.current = true;
     setEnviando(true);
 
     const payload = {
       clienteId: clienteId || undefined,
       clienteNome: clienteSelecionado?.nome || clienteNome.trim() || 'Cliente não identificado',
-      clienteTelefone: clienteSelecionado?.telefone || '',
+      clienteTelefone: entregaPDV?.telefone || clienteSelecionado?.telefone || '',
       itens: carrinho.map((item) => ({
         produtoId: item.produtoId,
         quantidade: Number(item.quantidade),
@@ -247,7 +264,12 @@ export default function PDV() {
       })),
     };
 
-    if (entregaPDV) payload.entrega = { ...entregaPDV, taxaEntrega: Number(entregaPDV.taxaEntrega) };
+    if (entregaPDV) payload.entrega = {
+      ...entregaPDV,
+      endereco: enderecoEntrega,
+      preservarEnderecoCadastrado: Boolean(clienteTemEnderecoCadastrado && entregaPDV.usarEnderecoCadastrado === false),
+      taxaEntrega: Number(entregaPDV.taxaEntrega),
+    };
 
     const assinatura = JSON.stringify(payload);
     if (idempotenciaRef.current?.assinatura !== assinatura) {
@@ -437,7 +459,7 @@ export default function PDV() {
                 <select
                   ref={selectClienteRef}
                   value={clienteId}
-                  onChange={e => setClienteId(e.target.value)}
+                  onChange={e => selecionarCliente(e.target.value)}
                   style={{
                     width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)',
                     borderRadius: 10, fontSize: 16, boxSizing: 'border-box',
@@ -457,7 +479,7 @@ export default function PDV() {
             background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
             borderRadius: 16, padding: 16
           }}>
-            <DeliveryPDV value={entregaPDV} onChange={setEntregaPDV} />
+            <DeliveryPDV value={entregaPDV} onChange={setEntregaPDV} customer={clienteSelecionado} />
             <div style={{ marginBottom: 18 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
                 <div>

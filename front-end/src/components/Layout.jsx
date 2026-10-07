@@ -10,7 +10,7 @@ const gruposMenu = [
     chave: 'atendimento',
     label: '🏪 ATENDIMENTO',
     items: [
-      { label: 'Novo Pedido', icon: '🛒', to: '/pdv' },
+      { label: 'PDV · Nova venda', icon: '🛒', to: '/pdv' },
       { label: 'Entregas', icon: '🛵', to: '/entregas', roles: ['admin', 'operador'], badge: true },
       { label: 'Mesas / Comandas', icon: '🪑', to: '/atendimento/mesas' },
       { label: 'A Receber', icon: '💰', to: '/contas-receber', admin: true },
