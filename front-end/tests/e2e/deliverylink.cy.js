@@ -180,4 +180,23 @@ describe('DeliveryLink', () => {
       expect(fila[0].payload.entrega.endereco.rua).to.equal('Rua Um');
     });
   });
+
+  it('PDV abre o pagamento na mesma tela ao finalizar a venda', () => {
+    cy.viewport(1280, 900);
+    const produto = { _id: 'produto-pagamento', codigo: 'PG', nome: 'Café para pagamento', tipo: 'venda', categoria: 'Bebidas Quentes', preco: 8, estoque: 10, unidadeVenda: 'un' };
+    cy.intercept('GET', '**/api/products/pdv', [produto]);
+    cy.intercept('GET', '**/api/customers', []);
+    cy.intercept('GET', '**/api/products/mais-vendidos*', []);
+    cy.intercept('GET', '**/api/comandas?status=aberta', []);
+    cy.visit('/pdv', { onBeforeLoad(win) {
+      win.localStorage.setItem('pdv_token', 'fake');
+      win.localStorage.setItem('pdv_user', JSON.stringify({ username: 'teste', role: 'admin' }));
+    } });
+
+    cy.contains('.product-card', produto.nome).click();
+    cy.window().then(win => cy.stub(win, 'open').as('abrirJanela'));
+    cy.contains('.pdv-cart-panel button', 'Finalizar venda').click();
+    cy.get('[role="dialog"]').should('be.visible').and('contain', 'Forma de pagamento');
+    cy.get('@abrirJanela').should('not.have.been.called');
+  });
 });

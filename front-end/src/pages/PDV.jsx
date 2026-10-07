@@ -439,11 +439,7 @@ export default function PDV() {
     if (envioRef.current) return null;
     envioRef.current = true;
     try {
-      const enderecoEntrega = entregaPDV?.usarEnderecoCadastrado ? clienteSelecionado?.enderecoEntrega : entregaPDV?.endereco;
-      if (entregaPDV && (!String(clienteSelecionado?.nome || clienteNome || '').trim() || !entregaPDV.telefone.trim() || !['rua', 'numero', 'bairro'].every(campo => enderecoEntrega?.[campo]?.trim()) || !Number.isFinite(Number(entregaPDV.taxaEntrega)) || Number(entregaPDV.taxaEntrega) < 0)) {
-        showToast('Informe nome, telefone e endereço completo para entrega.', 'warning');
-        return null;
-      }
+      if (!validarDadosEntrega()) return null;
       setEnviando(true);
       const comanda = await salvarComandaAberta(dadosComandaParaSalvar());
       showToast(`Comanda #${comanda.numero} salva em aberto`, 'success');
@@ -457,19 +453,31 @@ export default function PDV() {
     }
   };
 
-  const abrirPagamento = async () => {
+  const validarDadosEntrega = () => {
+    if (!entregaPDV) return true;
+    const enderecoEntrega = entregaPDV.usarEnderecoCadastrado ? clienteSelecionado?.enderecoEntrega : entregaPDV.endereco;
+    const dadosValidos = Boolean(
+      String(clienteSelecionado?.nome || clienteNome || '').trim()
+      && entregaPDV.telefone.trim()
+      && ['rua', 'numero', 'bairro'].every(campo => enderecoEntrega?.[campo]?.trim())
+      && Number.isFinite(Number(entregaPDV.taxaEntrega))
+      && Number(entregaPDV.taxaEntrega) >= 0
+    );
+    if (!dadosValidos) showToast('Informe nome, telefone e endereço completo para entrega.', 'warning');
+    return dadosValidos;
+  };
+
+  const abrirPagamento = () => {
     if (!carrinho.length) return showToast('Adicione itens à comanda antes de fechar a venda.', 'warning');
-    const comanda = await salvarComandaAtual();
-    if (comanda) {
-      setComandaPagamento(comanda);
-      setPaymentOpen(true);
-    }
+    if (!validarDadosEntrega()) return;
+    setComandaPagamento({ ...dadosComandaParaSalvar(), valorTotal: total });
+    setPaymentOpen(true);
   };
 
   const confirmarPagamento = async () => {
     try {
       setEnviando(true);
-      const comandaParaFechar = comandaPagamento || comandaAtual;
+      const comandaParaFechar = await salvarComandaAberta(comandaPagamento || dadosComandaParaSalvar());
       const telefone = comandaParaFechar.clienteTelefone || comandaParaFechar.entrega?.telefone || '';
       if (telefone.trim()) {
         await api.patch(`/comandas/${comandaParaFechar._id}/cliente`, {
