@@ -338,7 +338,7 @@ export default function Products() {
   });
 
   return (
-    <div>
+    <div className="products-page">
       <div className="page-heading">
         <div>
           <h1>📦 Cadastro de Produtos</h1>
@@ -346,8 +346,8 @@ export default function Products() {
         </div>
       </div>
 
-      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 16, marginBottom: 16 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 14px', color: 'var(--text-primary)' }}>{editing ? '✏️ Editar Produto' : '➕ Novo Produto'}</h3>
+      <section className="product-form-card">
+        <h2 className="product-form-heading">{editing ? '✏️ Editar Produto' : '➕ Novo Produto'}</h2>
         <form onSubmit={submit}>
             <div className="product-form-grid product-essential-grid">
               <fieldset className="product-type-field product-field-full">
@@ -549,18 +549,18 @@ export default function Products() {
             </>
           )}
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-            <button type="submit" style={{ flex: 1, minHeight: 46, borderRadius: 10, background: 'var(--accent-primary)', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}>
+          <div className="product-form-actions">
+            <button type="submit" className="product-submit-button">
               {editing ? 'Atualizar' : 'Cadastrar'}
             </button>
             {editing && (
-              <button type="button" onClick={cancelar} style={{ minHeight: 46, borderRadius: 10, padding: '0 18px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer' }}>
+              <button type="button" className="product-cancel-button" onClick={cancelar}>
                 Cancelar
               </button>
             )}
           </div>
         </form>
-      </div>
+      </section>
 
       <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 16 }}>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 10 }}>
@@ -571,20 +571,20 @@ export default function Products() {
           ))}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '14px 0 10px' }}>
+        <div className="product-list-controls">
           <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Produtos</h3>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="product-list-filters">
 
-              <select className="product-filter-select" value={filtroFicha} onChange={(event) => setFiltroFicha(event.target.value)} aria-label="Selecionar ficha técnica" style={{ minHeight: 40, borderRadius: 10, border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '8px 10px' }}>
+              <select className="product-filter-select" value={filtroFicha} onChange={(event) => setFiltroFicha(event.target.value)} aria-label="Selecionar ficha técnica">
               <option value="Todos">Por Ficha técnica</option>
               {fichas.map((ficha) => <option key={ficha._id} value={ficha._id}>{ficha.produtoId?.nome || ficha.nome}</option>)}
               </select>
 
-              <select className="product-filter-select" value={filtroCategoria} onChange={(event) => setFiltroCategoria(event.target.value)} style={{ minHeight: 40, borderRadius: 10, border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '8px 10px' }}>
+              <select className="product-filter-select" value={filtroCategoria} onChange={(event) => setFiltroCategoria(event.target.value)}>
               <option value="Todos">Todas as categorias</option>
               {categoriasVenda.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}
             </select>
-            <input value={filtroTexto} onChange={(event) => setFiltroTexto(event.target.value)} placeholder="Filtrar..." style={{ minHeight: 40, borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '8px 10px', minWidth: 180 }} />
+            <input className="product-filter-input" value={filtroTexto} onChange={(event) => setFiltroTexto(event.target.value)} placeholder="Filtrar..." />
           </div>
         </div>
 
@@ -646,8 +646,8 @@ export default function Products() {
                     })()}
                   </div>
                   <div className="product-card-actions">
-                    <button type="button" onClick={() => editarProduto(produto)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}>Editar</button>
-                    <button type="button" onClick={() => remover(produto._id)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.1)', color: 'var(--error-bg)', cursor: 'pointer' }}>Excluir</button>
+                    <button type="button" className="product-card-edit" onClick={() => editarProduto(produto)}>Editar</button>
+                    <button type="button" className="product-card-delete" onClick={() => remover(produto._id)}>Excluir</button>
                   </div>
                 </div>
               </article>
@@ -657,6 +657,41 @@ export default function Products() {
       </div>
 
       <style>{`
+        .products-page { min-width: 0; }
+        .product-form-card { margin-bottom: 16px; padding: 18px; border: 1px solid var(--border-color); border-radius: 16px; background: var(--bg-secondary); box-shadow: var(--shadow-sm); }
+        .product-form-heading { margin: 0 0 16px; color: var(--text-primary); font-size: 16px; font-weight: 800; }
+        .product-essential-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+        .product-field-full { grid-column: 1 / -1; }
+        .product-essential-grid > label { display: flex; min-width: 0; flex-direction: column; align-self: start; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
+        .product-essential-grid > label > small { color: var(--text-tertiary); font-size: 11px; font-weight: 500; }
+        .product-essential-grid input:not([type="radio"]):not([type="checkbox"]),
+        .product-essential-grid select { width: 100%; min-width: 0; height: 42px; min-height: 42px; box-sizing: border-box; margin: 0; padding: 9px 11px; border: 1px solid var(--input-border); border-radius: 8px; background: var(--input-bg); color: var(--input-text); font: inherit; }
+        .product-essential-grid input:focus, .product-essential-grid select:focus,
+        .product-form-section input:focus, .product-form-section select:focus { outline: none; border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-light); }
+        .product-type-field { min-width: 0; margin: 0; padding: 10px 12px; border: 1px solid var(--border-light); border-radius: 10px; background: var(--bg-tertiary); }
+        .product-type-label { padding: 0 4px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
+        .product-type-field .product-radio-group { gap: 8px 18px; }
+        .product-cost-summary { display: grid; gap: 10px; margin-top: 14px; padding: 14px; border: 1px solid var(--border-light); border-radius: 10px; background: var(--bg-tertiary); }
+        .product-cost-summary > small { color: var(--text-secondary); font-size: 11px; }
+        .product-cost-summary .product-summary-grid > div { min-width: 0; padding: 10px; background: var(--bg-secondary); }
+        .product-cost-summary .product-summary-grid small { color: var(--text-secondary); font-size: 11px; }
+        .product-cost-summary .product-summary-grid strong { overflow-wrap: anywhere; color: var(--text-primary); font-size: 14px; }
+        .product-form-actions { display: flex; gap: 10px; margin-top: 16px; }
+        .product-submit-button, .product-cancel-button { min-height: 44px; border-radius: 9px; font: inherit; font-weight: 800; cursor: pointer; }
+        .product-submit-button { flex: 1; padding: 10px 16px; border: 1px solid var(--accent-primary); background: var(--accent-primary); color: var(--bg-secondary); }
+        .product-submit-button:hover { border-color: var(--accent-primary); background: var(--accent-primary); filter: brightness(.92); }
+        .product-cancel-button { padding: 0 18px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-primary); }
+        .product-cancel-button:hover { background: var(--bg-hover); }
+        .product-type-field .product-radio-option { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; color: var(--text-primary); font-weight: 600; cursor: pointer; }
+        .product-type-field .product-radio { width: 16px; height: 16px; min-width: 16px; min-height: 16px; margin: 0; accent-color: var(--accent-primary); }
+        .product-list-controls { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 14px 0 10px; }
+        .product-list-filters { display: flex; min-width: 0; gap: 8px; flex-wrap: wrap; }
+        .products-page .product-filter-select, .products-page .product-filter-input { min-width: 0; min-height: 40px; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 9px; background: var(--bg-tertiary); color: var(--text-primary); font: inherit; }
+        .products-page .product-filter-input { min-width: 180px; }
+        .product-card-edit, .product-card-delete { min-height: 38px; padding: 8px 12px; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+        .product-card-edit { border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); }
+        .product-card-delete { border: 1px solid rgba(239, 68, 68, .25); background: rgba(239, 68, 68, .1); color: var(--error-bg); }
+        .product-card-delete:hover { border-color: var(--error-bg); background: rgba(239, 68, 68, .16); }
         .product-form-section { display: grid; gap: 14px; margin-top: 14px; padding: 16px; border: 1px solid var(--border-light); border-radius: 12px; background: var(--bg-tertiary); }
         .product-form-collapsible { display: block; }
         .product-form-collapsible > summary { list-style: none; cursor: pointer; }
@@ -755,7 +790,42 @@ export default function Products() {
         .coz-recipe-summary { display: flex; flex-wrap: wrap; gap: 12px; padding-top: 10px; border-top: 1px solid var(--border-light); color: var(--text-secondary); font-size: 12px; }
         .coz-recipe-summary strong { color: var(--text-primary); }
         .coz-warning { color: var(--error-bg); font-weight: 700; }
-        @media (max-width: 640px) { .product-form-grid, .product-summary-grid, .product-discount-group-grid { grid-template-columns: 1fr; } .coz-recipe-heading { align-items: flex-start; flex-direction: column; } .coz-ingredient-row, .quantity-discount-row { grid-template-columns: 1fr; } .coz-ingredient-row .danger, .product-discount-remove { width: 100%; } .product-form-section { padding: 12px; } .product-discount-heading { padding: 10px 12px; } .product-discount-actions { align-items: stretch; flex-direction: column; } .product-discount-actions button { width: 100%; } }
+        @media (max-width: 640px) {
+          .product-form-card { padding: 14px; border-radius: 12px; }
+          .product-essential-grid, .product-form-grid, .product-discount-group-grid { grid-template-columns: minmax(0, 1fr); }
+          .product-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .product-type-field { grid-column: 1 / -1; }
+          .product-type-field .product-radio-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+          .product-type-field .product-radio-option { min-width: 0; align-items: flex-start; padding: 7px 6px; border: 1px solid var(--border-light); border-radius: 8px; background: var(--bg-secondary); font-size: 11px; line-height: 1.35; }
+          .product-type-field .product-radio { flex: 0 0 auto; margin-top: 1px; }
+          .product-field-full { grid-column: 1 / -1; }
+          .product-form-actions { flex-direction: column; }
+          .product-submit-button, .product-cancel-button { width: 100%; min-height: 46px; }
+          .product-list-controls { align-items: stretch; flex-direction: column; }
+          .product-list-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+          .products-page .product-filter-select, .products-page .product-filter-input { width: 100%; min-width: 0; }
+          .products-page .product-filter-input { grid-column: 1 / -1; }
+          .product-form-section { padding: 12px; }
+          .product-section-title { align-items: flex-start; }
+          .product-section-title div { min-width: 0; }
+          .product-section-title small { line-height: 1.4; }
+          .product-discount-heading { padding: 10px 12px; }
+          .product-discount-toggle { font-size: 0; }
+          .product-discount-toggle::before { font-size: 10px; }
+          .product-discount-actions { align-items: stretch; flex-direction: column; }
+          .product-discount-actions button { width: 100%; min-height: 42px; }
+          .quantity-discount-row { grid-template-columns: minmax(0, 1fr); }
+          .product-discount-remove { width: 100%; min-height: 42px; }
+          .product-input-with-unit { grid-template-columns: minmax(0, 1fr) 82px; }
+          .coz-recipe-heading { align-items: flex-start; flex-direction: column; }
+          .coz-ingredient-row { grid-template-columns: minmax(0, 1fr); }
+          .coz-ingredient-row .danger { width: 100%; }
+          .product-admin-grid { grid-template-columns: minmax(0, 1fr); }
+        }
+        @media (max-width: 360px) {
+          .product-summary-grid, .product-type-field .product-radio-group { grid-template-columns: minmax(0, 1fr); }
+          .product-discount-heading { gap: 6px; }
+        }
       `}</style>
     </div>
   );
