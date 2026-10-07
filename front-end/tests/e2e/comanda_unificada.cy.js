@@ -146,7 +146,7 @@ describe('Comanda unificada sem serviços externos', () => {
     cy.intercept('GET', '**/api/dashboard/comparar-vendas*', { periodoA: { ...metric, rotulo: 'Atual' }, periodoB: { ...metric, rotulo: 'Anterior' } });
     cy.intercept('GET', '**/api/dashboard/delivery*', { totalPedidos: 0, receitaTotal: 0, freteTotal: 0, porcentagemFaturamento: 0, ticketMedio: 0, ticketMedioPresencial: 0, porEntregador: [], tempoMedioMinutos: null });
     cy.intercept('GET', '**/api/production/dashboard', { receitasPossiveis: [], baixoEstoque: [], producoesRecentes: [] });
-    cy.get('#sidebar-desktop .nav-group-container').first().find('a').first().should('contain', 'Dashboard');
+    cy.get('#sidebar-desktop .nav-group-container').contains('.nav-group-label', 'FINANCEIRO').parent().parent().find('a').first().should('contain', 'Dashboard');
     cy.get('#sidebar-desktop').contains('a', 'Dashboard').click();
     cy.location('pathname').should('equal', '/dashboard');
     cy.get('.dashboard-channel-summary').should('be.visible');

@@ -10,11 +10,8 @@ export default function StatusConexao({ compacto = false }) {
     try { await resolverOrigem(id, reason, true); }
     catch (error) { window.alert(error.message); }
   };
-  const cor = armazenamentoCheio
-    ? 'var(--error-bg)'
-    : online && pendentes === 0
-      ? 'var(--success-bg)'
-      : 'var(--warning-bg)';
+  const cor = online ? 'var(--success-bg)' : 'var(--error-bg)';
+  const statusTexto = online ? 'Conectado' : 'Desconectado';
 
   return (
     <div
@@ -33,8 +30,21 @@ export default function StatusConexao({ compacto = false }) {
         overflowWrap: 'anywhere',
       }}
     >
-      <strong style={{ color: cor }}>
-        {online ? '✅ Conectado' : '⚠️ Sem conexão'}
+      <strong style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span
+          role="img"
+          aria-label={statusTexto}
+          title={statusTexto}
+          style={{
+            display: 'inline-block',
+            width: 10,
+            height: 10,
+            flex: '0 0 10px',
+            borderRadius: '50%',
+            background: cor,
+            boxShadow: `0 0 0 2px color-mix(in srgb, ${cor} 22%, transparent)`,
+          }}
+        />
         {pendentes > 0 && ` · ⚠️ ${pendentes} venda(s) pendente(s)`}
       </strong>
       {armazenamentoCheio && <span style={{ color: 'var(--error-bg)', fontWeight: 700 }}>Conecte à internet para sincronizar</span>}

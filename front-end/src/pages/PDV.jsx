@@ -736,10 +736,10 @@ export default function PDV() {
         </div>
         <button type="button" className="pdv-mesas-trigger" onClick={() => setMesasDrawerOpen(true)}>🪑 Mesas · {comandasAbertasCount} abertas</button>
       </div>
-      <button type="button" className="pdv-mobile-cart-trigger" onClick={() => setMobileCartOpen((open) => !open)} aria-expanded={mobileCartOpen}>
-        <span>{mobileCartOpen ? '− Minimizar comanda' : '📝 Comanda'}</span>
+      {!mobileCartOpen && <button type="button" className="pdv-mobile-cart-trigger" onClick={() => setMobileCartOpen(true)} aria-expanded={false}>
+        <span>📝 Comanda</span>
         <strong>{totalItens} {totalItens === 1 ? 'item' : 'itens'} · R$ {total.toFixed(2).replace('.', ',')}</strong>
-      </button>
+      </button>}
       {!mobileCartOpen && <button type="button" className="pdv-mobile-mesas-trigger" onClick={() => setMesasDrawerOpen(true)}>🪑 Mesas · {comandasAbertasCount}</button>}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }} className="pdv-grid">
         {/* COLUNA PRODUTOS */}
@@ -876,6 +876,7 @@ export default function PDV() {
           </div>
         </div>
         {/* COLUNA CARRINHO */}
+        {mobileCartOpen && <div className="pdv-mobile-cart-backdrop" onClick={() => setMobileCartOpen(false)} aria-hidden="true" />}
         <div className={`pdv-cart-panel ${mobileCartOpen ? 'mobile-open' : ''}`}>
           {comandaPagamento?.metodoPagamento && !paymentOpen && <p role="status">Pagamento aguardando confirmação. <button type="button" onClick={abrirPagamento}>Retomar pagamento</button></p>}
           <div inert={Boolean(comandaPagamento?.metodoPagamento)} style={{
@@ -892,7 +893,6 @@ export default function PDV() {
                   }}>{totalItens}</span>
                 )}
               </h3>
-              <button type="button" className="pdv-mobile-cart-close" onClick={() => setMobileCartOpen(false)}>− Minimizar</button>
             </div>
             <div className="pdv-command-type-tabs" aria-label="Tipo da comanda">
               <button type="button" className={comandaAtual.tipo === 'balcao' ? 'active' : ''} onClick={() => selecionarComandaPainel({ tipoAtendimento: 'balcao' })}>Balcão</button>
@@ -1116,6 +1116,7 @@ export default function PDV() {
         @media (max-width: 767px) {
           .pdv-header-desktop { display: none !important; }
           .pdv-mobile-cart-trigger { position:fixed;z-index:20;left:12px;right:12px;bottom:12px;width:calc(100% - 24px);display:flex !important;box-sizing:border-box; }
+          .pdv-mobile-cart-backdrop { position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.35); }
           .pdv-mobile-mesas-trigger{position:fixed;z-index:20;right:12px;bottom:72px;display:block;padding:9px 13px;border:1px solid var(--accent-border);border-radius:999px;background:var(--bg-secondary);color:var(--accent-primary);font:inherit;font-size:12px;font-weight:800;box-shadow:var(--shadow-sm)}
           .pdv-grid{padding-bottom:70px}
           .pdv-grid { gap: 10px !important; min-width: 0; }
@@ -1124,7 +1125,6 @@ export default function PDV() {
           .pdv-cart-panel.mobile-open { display: block; position:fixed;z-index:1000;left:0;right:0;bottom:0;max-height:88vh;overflow:auto;order:initial;padding:10px 10px 24px;background:var(--bg-primary);border-radius:18px 18px 0 0;box-shadow:0 -12px 36px rgba(0,0,0,.22);animation:pdv-sheet-in .2s ease-out; }
           .pdv-cart-panel.mobile-open > div { min-height: 0; border-radius: 14px !important; }
           .pdv-cart-panel.mobile-open .pdv-cart-items { max-height: none !important; overflow: visible !important; }
-          .pdv-mobile-cart-close { display: inline-flex !important; width: auto; min-width: 44px; height: 38px; padding: 0 10px; font-size: 12px; font-weight: 700; }
           .pdv-cart-panel.mobile-open .pdv-mobile-product-select { display: grid; gap: 6px; margin: 0 0 14px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
           .pdv-mobile-product-select select { width: 100%; min-height: 48px; padding: 10px 12px; border: 1.5px solid var(--border-color); border-radius: 10px; background: var(--input-bg); color: var(--input-text); font-size: 16px; }
           .pdv-grid > div > div { padding: 12px !important; border-radius: 12px !important; margin-bottom: 10px !important; }
@@ -1135,11 +1135,10 @@ export default function PDV() {
         .pdv-command-type-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}.pdv-command-type-tabs button,.pdv-command-current button,.pdv-command-actions button{min-height:44px;border:1px solid var(--accent-border);border-radius:10px;padding:8px;background:var(--bg-tertiary);color:var(--accent-primary);font:inherit;font-weight:700;cursor:pointer}.pdv-command-type-tabs button.active{background:var(--accent-primary);color:#fff}.pdv-command-current{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:12px;color:var(--text-secondary)}.pdv-command-name{display:grid;gap:6px;margin-bottom:12px;font-size:12px;font-weight:700;color:var(--text-secondary)}.pdv-command-name input,.pdv-command-name textarea{width:100%;box-sizing:border-box;min-height:40px;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--input-bg);color:var(--input-text);font:inherit}.pdv-command-name textarea{resize:vertical}
         .product-card:active { transform: scale(0.97); }
         .product-card-added { animation: item-added .35s ease; border-color: var(--accent-primary) !important; }
-        .pdv-mobile-cart-trigger, .pdv-mobile-cart-close,.pdv-mobile-mesas-trigger { display: none; }
+        .pdv-mobile-cart-trigger, .pdv-mobile-mesas-trigger, .pdv-mobile-cart-backdrop { display: none; }
         .pdv-mobile-product-select { display: none; }
         .pdv-mobile-cart-trigger { width: 100%; min-height: 50px; margin-bottom: 10px; padding: 10px 14px; align-items: center; justify-content: space-between; gap: 12px; border: 0; border-radius: 12px; background: var(--accent-primary); color: #fff; font: inherit; font-size: 14px; cursor: pointer; box-shadow: var(--shadow-sm); }
         .pdv-mobile-cart-trigger strong { font-size: 13px; white-space: nowrap; }
-        .pdv-mobile-cart-close { align-items: center; justify-content: center; width: 38px; height: 38px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 24px; cursor: pointer; }
         .pdv-mesas-trigger,.pdv-command-pill{min-height:42px;padding:9px 14px;border:1px solid var(--accent-border);border-radius:999px;background:var(--accent-light);color:var(--accent-primary);font:inherit;font-weight:700;cursor:pointer}
         .pdv-command-selector{position:relative;margin-left:auto}
         .pdv-command-popover{position:absolute;top:calc(100% + 8px);right:0;z-index:20;width:220px;padding:7px;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-secondary);box-shadow:var(--shadow-lg)}

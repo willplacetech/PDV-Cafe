@@ -138,7 +138,7 @@ describe('Vendas offline', () => {
       verificarFila((fila) => {
         expect(fila).to.have.length(indice + 1);
       });
-      cy.contains('.pdv-mobile-cart-close', 'Minimizar').click();
+      cy.get('.pdv-mobile-cart-backdrop').click({ force: true });
     }
 
     cy.reload();

@@ -10,7 +10,6 @@ const gruposMenu = [
     chave: 'atendimento',
     label: '🏪 ATENDIMENTO',
     items: [
-      { label: 'Dashboard', icon: '📊', to: '/dashboard', admin: true },
       { label: 'PDV · Nova venda', icon: '🛒', to: '/pdv' },
       { label: 'Entregas', icon: '🛵', to: '/entregas', roles: ['admin', 'operador'], badge: true },
       { label: 'Mesas / Comandas', icon: '🪑', to: '/atendimento/mesas', badge: 'comandas' },
@@ -47,6 +46,7 @@ const gruposMenu = [
     chave: 'financeiro',
     label: '💰 FINANCEIRO',
     items: [
+      { label: 'Dashboard', icon: '📊', to: '/dashboard', admin: true },
       { label: 'Fechamento de Caixa', icon: '💵', to: '/caixa', admin: true },
       { label: 'DRE / Demonstrativo', icon: '📈', to: '/financeiro', admin: true },
     ],
