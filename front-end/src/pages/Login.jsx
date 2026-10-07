@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { ThemeContext } from '../context/ThemeContextDefinition.js';
 import { useToast } from '../components/useToast.js';
@@ -174,6 +174,17 @@ export default function Login() {
               {loading ? 'Entrando...' : 'Entrar no Sistema'}
             </button>
           </form>
+
+          <Link to="/entregador" style={{
+            width: '100%', marginTop: 14, padding: '13px 14px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
+            border: '1px solid var(--border-color)', borderRadius: 12,
+            fontSize: 14, fontWeight: 700, textDecoration: 'none',
+            minHeight: 50, boxSizing: 'border-box',
+          }}>
+            Acesso do entregador
+          </Link>
 
           {showInstallButton && (
             <button type="button" onClick={handleInstallClick} style={{
