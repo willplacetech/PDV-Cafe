@@ -402,8 +402,8 @@ export default function Products() {
           </section>
 
           {form.tipo === 'venda' ? (
-            <section className="product-form-section">
-              <div className="product-section-title"><span>💰</span><div><strong>VENDA</strong><small>Dados do produto pronto</small></div></div>
+            <details className="product-form-section product-form-collapsible" open>
+              <summary className="product-section-title"><span>💰</span><div><strong>VENDA</strong><small>Dados do produto pronto</small></div></summary>
               <div className="product-form-grid">
                 <label>Preço de venda (R$) * <input type="number" step="0.01" min={0} value={form.preco} required onChange={(event) => setForm({ ...form, preco: event.target.value })} /></label>
                 <div className="product-cost-summary" style={{ gridColumn: '1 / -1', border: '1px solid var(--border-light)', borderRadius: 10, padding: 14, background: 'var(--bg-secondary)' }}>
@@ -445,38 +445,47 @@ export default function Products() {
                     <select value={form.unidade} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</select>
                   </label>
                 </>}
-                <div style={{ gridColumn: '1 / -1', marginTop: 4, padding: 14, border: '1px solid var(--border-light)', borderRadius: 10, background: 'var(--bg-tertiary)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <strong>🏷️ Desconto por Quantidade <small>(opcional)</small></strong>
-                    <button type="button" onClick={() => setForm({ ...form, descontosPorQuantidade: [...(form.descontosPorQuantidade || []), { quantidadeMinima: '', precoUnitario: '', ativo: true }] })} style={{ border: '1px solid var(--accent-border)', borderRadius: 8, padding: '7px 10px', background: 'var(--accent-light)', color: 'var(--accent-primary)', fontWeight: 700, cursor: 'pointer' }}>+ Adicionar faixa</button>
-                  </div>
-                  {(form.descontosPorQuantidade || []).map((faixa, indice) => (
-                    <div className="quantity-discount-row" key={`desconto-${indice}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'end', marginTop: 8 }}>
-                      <label>A partir de <input type="number" min={1} step={1} value={faixa.quantidadeMinima} onChange={(event) => setForm({ ...form, descontosPorQuantidade: form.descontosPorQuantidade.map((item, itemIndex) => itemIndex === indice ? { ...item, quantidadeMinima: event.target.value } : item) })} /></label>
-                      <label>Preço unitário (R$) <input type="number" min={0} step="0.01" value={faixa.precoUnitario} onChange={(event) => setForm({ ...form, descontosPorQuantidade: form.descontosPorQuantidade.map((item, itemIndex) => itemIndex === indice ? { ...item, precoUnitario: event.target.value } : item) })} /></label>
-                      <button type="button" onClick={() => setForm({ ...form, descontosPorQuantidade: form.descontosPorQuantidade.filter((_, itemIndex) => itemIndex !== indice) })} style={{ minHeight: 38, border: '1px solid rgba(220,38,38,.2)', borderRadius: 8, background: 'rgba(220,38,38,.08)', color: 'var(--error-bg)', cursor: 'pointer' }}>Remover</button>
+                <details className="product-discount-panel">
+                  <summary className="product-discount-heading">
+                    <span><strong>🏷️ Desconto por Quantidade</strong><small>Opcional · {form.descontosPorQuantidade?.length || 0} faixas cadastradas</small></span>
+                    <span className="product-discount-toggle" />
+                  </summary>
+                  <div className="product-discount-content">
+                    <div className="product-discount-actions">
+                      <small>Defina um preço unitário especial a partir de determinada quantidade.</small>
+                      <button type="button" onClick={() => setForm({ ...form, descontosPorQuantidade: [...(form.descontosPorQuantidade || []), { quantidadeMinima: '', precoUnitario: '', ativo: true }] })}>+ Adicionar faixa</button>
                     </div>
-                  ))}
-                  {!form.descontosPorQuantidade?.length && <small style={{ color: 'var(--text-secondary)' }}>Nenhuma faixa promocional cadastrada.</small>}
-                </div>
-                <div style={{ gridColumn: '1 / -1', marginTop: 4, padding: 14, border: '1px solid var(--border-light)', borderRadius: 10, background: 'var(--bg-tertiary)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <strong>🎯 Desconto por Grupo (Categoria) <small>(opcional)</small></strong>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-secondary)' }}>
+                    {(form.descontosPorQuantidade || []).map((faixa, indice) => (
+                      <div className="quantity-discount-row" key={`desconto-${indice}`}>
+                        <label>A partir de <input type="number" min={1} step={1} value={faixa.quantidadeMinima} onChange={(event) => setForm({ ...form, descontosPorQuantidade: form.descontosPorQuantidade.map((item, itemIndex) => itemIndex === indice ? { ...item, quantidadeMinima: event.target.value } : item) })} /></label>
+                        <label>Preço unitário (R$) <input type="number" min={0} step="0.01" value={faixa.precoUnitario} onChange={(event) => setForm({ ...form, descontosPorQuantidade: form.descontosPorQuantidade.map((item, itemIndex) => itemIndex === indice ? { ...item, precoUnitario: event.target.value } : item) })} /></label>
+                        <button type="button" className="product-discount-remove" onClick={() => setForm({ ...form, descontosPorQuantidade: form.descontosPorQuantidade.filter((_, itemIndex) => itemIndex !== indice) })}>Remover</button>
+                      </div>
+                    ))}
+                    {!form.descontosPorQuantidade?.length && <small className="product-discount-empty">Nenhuma faixa promocional cadastrada.</small>}
+                  </div>
+                </details>
+                <details className="product-discount-panel">
+                  <summary className="product-discount-heading">
+                    <span><strong>🎯 Desconto por Grupo (Categoria)</strong><small>Opcional · agrupa produtos da mesma categoria</small></span>
+                    <span className="product-discount-toggle" />
+                  </summary>
+                  <div className="product-discount-content">
+                    <p className="product-discount-description">
+                      Produtos com o <strong>mesmo nome de grupo</strong> e <strong>mesma categoria</strong> somam as quantidades. Ao atingir o mínimo, todos recebem o preço promocional.
+                    </p>
+                    <label className="product-discount-active">
                       <input type="checkbox" checked={Boolean(form.grupoDesconto?.ativo)} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', quantidadeMinima: '', precoPromocional: '', ativo: false }), ativo: e.target.checked } })} />
-                      Ativo
+                      Ativar este desconto
                     </label>
+                    <div className="product-discount-group-grid">
+                      <label>Nome do grupo <input type="text" placeholder="Ex.: Cookies" value={form.grupoDesconto?.nome || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { quantidadeMinima: '', precoPromocional: '', ativo: false }), nome: e.target.value } })} /></label>
+                      <label>Quantidade mínima <input type="number" min={1} step={1} value={form.grupoDesconto?.quantidadeMinima || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', precoPromocional: '', ativo: false }), quantidadeMinima: e.target.value } })} /></label>
+                      <label>Preço promocional (R$) <input type="number" min={0} step="0.01" value={form.grupoDesconto?.precoPromocional || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', quantidadeMinima: '', ativo: false }), precoPromocional: e.target.value } })} /></label>
+                    </div>
+                    {form.grupoDesconto?.nome && <small className="product-discount-hint">✓ Produtos do grupo "{form.grupoDesconto.nome}" participarão deste desconto.</small>}
                   </div>
-                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 8px', lineHeight: 1.4 }}>
-                    Produtos com o <strong>mesmo nome de grupo</strong> e <strong>mesma categoria</strong> somam as quantidades. Quando o total atingir a quantidade mínima, todos ganham o preço promocional.
-                  </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                    <label>Nome do grupo <input type="text" placeholder="ex: Cookies" value={form.grupoDesconto?.nome || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { quantidadeMinima: '', precoPromocional: '', ativo: false }), nome: e.target.value } })} /></label>
-                    <label>Quantidade mínima <input type="number" min={1} step={1} value={form.grupoDesconto?.quantidadeMinima || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', precoPromocional: '', ativo: false }), quantidadeMinima: e.target.value } })} /></label>
-                    <label>Preço promocional (R$) <input type="number" min={0} step="0.01" value={form.grupoDesconto?.precoPromocional || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', quantidadeMinima: '', ativo: false }), precoPromocional: e.target.value } })} /></label>
-                  </div>
-                  {form.grupoDesconto?.nome && <small style={{ color: 'var(--success-bg)', fontSize: 11, marginTop: 6, display: 'block' }}>✓ Produtos com grupo "{form.grupoDesconto.nome}" vão somar para este desconto.</small>}
-                </div>
+                </details>
                 {form.tipoProduto === 'producao' && <label>Rendimento por ficha técnica *<input required type="number" min="0.001" step="0.001" value={form.rendimentoPorReceita || 1} onChange={(event) => setForm({ ...form, rendimentoPorReceita: event.target.value })} /><small>Quantas unidades saem de uma fornada.</small></label>}
                 {form.tipoProduto !== 'coz' ? <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label> : <div className="coz-stock-notice"><strong>⚠️ Coz não possui estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
                 {form.usavelEmReceita && <label>Estoque de insumos <small>Para uso em receitas</small><input type="number" step="0.001" min={0} value={form.estoqueInsumos} onChange={(event) => setForm({ ...form, estoqueInsumos: event.target.value })} /></label>}
@@ -501,7 +510,7 @@ export default function Products() {
                 {form.tipoProduto === 'coz' && <div className="coz-recipe-panel"><strong>📋 Ficha técnica vinculada</strong>{fichaProduto ? <><span>Custo/unidade: <b>{`R$ ${Number(fichaProduto.custoPorUnidade || 0).toFixed(2).replace('.', ',')}`}</b></span><span>Disponível: <b>{Number(fichaProduto.disponibilidade?.quantidade || 0)} {fichaProduto.unidadeRendimento}</b></span><small>Ingrediente limitante: {fichaProduto.disponibilidade?.limitante || 'nenhum'}</small></> : <span>Este produto ainda não tem ficha técnica. Crie-a em Produção para liberar a disponibilidade.</span>}<Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>{fichaProduto ? 'Editar ficha técnica →' : 'Criar ficha técnica →'}</Link></div>}
                 {form.tipoProduto === 'producao' && <div className="coz-recipe-panel"><strong>📋 Ficha técnica vinculada</strong><span>Este produto é produzido internamente e usa uma ficha técnica para controlar o custo e o rendimento.</span><Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>Gerenciar ficha técnica →</Link></div>}
               </div>
-            </section>
+            </details>
           ) : (
             <>
             <section className="product-form-section">
@@ -646,6 +655,12 @@ export default function Products() {
 
       <style>{`
         .product-form-section { display: grid; gap: 14px; margin-top: 14px; padding: 16px; border: 1px solid var(--border-light); border-radius: 12px; background: var(--bg-tertiary); }
+        .product-form-collapsible { display: block; }
+        .product-form-collapsible > summary { list-style: none; cursor: pointer; }
+        .product-form-collapsible > summary::-webkit-details-marker, .product-discount-panel > summary::-webkit-details-marker { display: none; }
+        .product-form-collapsible > summary::after, .product-discount-toggle::after { content: '＋'; margin-left: auto; color: var(--accent-primary); font-size: 18px; font-weight: 700; }
+        .product-form-collapsible[open] > summary::after, .product-discount-panel[open] .product-discount-toggle::after { content: '−'; }
+        .product-form-collapsible > .product-form-grid { margin-top: 14px; }
         .product-filter-select { background-color: var(--bg-tertiary) !important; color: var(--text-primary) !important; color-scheme: normal; }
         .product-filter-select option { background: var(--bg-secondary); color: var(--text-primary); }
         .product-section-title { display: flex; align-items: center; gap: 9px; padding-bottom: 10px; border-bottom: 1px solid var(--border-light); }
@@ -653,7 +668,7 @@ export default function Products() {
         .product-section-title div { display: grid; gap: 3px; }
         .product-section-title strong { color: var(--text-primary); font-size: 11px; letter-spacing: .06em; }
         .product-section-title small { color: var(--text-secondary); font-size: 11px; }
-        .product-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+        .product-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
         .product-form-section label {
           display: flex;
           flex-direction: column;
@@ -662,7 +677,7 @@ export default function Products() {
           color: var(--text-secondary);
           font-size: 12px;
           font-weight: 700;
-          min-height: 100%;
+          min-width: 0;
         }
         .product-form-section input, .product-form-section select {
           width: 100%;
@@ -678,6 +693,27 @@ export default function Products() {
           line-height: 1.2;
           margin: 0;
         }
+        .product-form-grid > label { align-self: start; }
+        .product-discount-panel { grid-column: 1 / -1; min-width: 0; overflow: hidden; border: 1px solid var(--border-light); border-radius: 12px; background: var(--bg-secondary); }
+        .product-discount-panel[open] { border-color: var(--accent-border); }
+        .product-discount-heading { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 12px 14px; list-style: none; cursor: pointer; }
+        .product-discount-heading > span:first-child { display: grid; gap: 4px; }
+        .product-discount-heading strong { color: var(--text-primary); font-size: 13px; }
+        .product-discount-heading small, .product-discount-empty { color: var(--text-secondary); font-size: 11px; }
+        .product-discount-toggle { display: flex; align-items: center; gap: 7px; margin-left: auto; color: var(--accent-primary); font-size: 11px; font-weight: 800; white-space: nowrap; }
+        .product-discount-toggle::before { content: 'Expandir'; }
+        .product-discount-panel[open] .product-discount-toggle::before { content: 'Recolher'; }
+        .product-discount-content { display: grid; gap: 12px; padding: 14px; border-top: 1px solid var(--border-light); background: var(--bg-tertiary); }
+        .product-discount-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .product-discount-actions > small, .product-discount-description { margin: 0; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+        .product-discount-actions button { flex: 0 0 auto; min-height: 38px; padding: 7px 11px; border: 1px solid var(--accent-border); border-radius: 8px; background: var(--accent-light); color: var(--accent-primary); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+        .product-discount-content label { min-height: 0; }
+        .quantity-discount-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; padding: 12px; border: 1px solid var(--border-light); border-radius: 9px; background: var(--bg-secondary); }
+        .product-discount-remove { min-height: 42px; padding: 0 12px; border: 1px solid rgba(220,38,38,.2); border-radius: 8px; background: rgba(220,38,38,.08); color: var(--error-bg); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+        .product-discount-active { display: flex !important; flex-direction: row !important; align-items: center !important; gap: 8px !important; width: fit-content; color: var(--text-primary) !important; }
+        .product-discount-active input { width: 18px !important; height: 18px !important; min-height: 18px !important; accent-color: var(--accent-primary); }
+        .product-discount-group-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
+        .product-discount-hint { color: var(--success-bg); font-size: 11px; }
         .product-input-with-unit { display: grid; grid-template-columns: minmax(0, 1fr) 76px; gap: 8px; align-items: stretch; }
         .product-input-with-unit input, .product-input-with-unit select { height: 42px; }
         .product-summary-section { background: var(--bg-secondary); }
@@ -716,7 +752,7 @@ export default function Products() {
         .coz-recipe-summary { display: flex; flex-wrap: wrap; gap: 12px; padding-top: 10px; border-top: 1px solid var(--border-light); color: var(--text-secondary); font-size: 12px; }
         .coz-recipe-summary strong { color: var(--text-primary); }
         .coz-warning { color: var(--error-bg); font-weight: 700; }
-        @media (max-width: 640px) { .product-form-grid, .product-summary-grid { grid-template-columns: 1fr; } .coz-recipe-heading { align-items: flex-start; flex-direction: column; } .coz-ingredient-row { grid-template-columns: 1fr; } .coz-ingredient-row .danger { width: 100%; } }
+        @media (max-width: 640px) { .product-form-grid, .product-summary-grid, .product-discount-group-grid { grid-template-columns: 1fr; } .coz-recipe-heading { align-items: flex-start; flex-direction: column; } .coz-ingredient-row, .quantity-discount-row { grid-template-columns: 1fr; } .coz-ingredient-row .danger, .product-discount-remove { width: 100%; } .product-form-section { padding: 12px; } .product-discount-heading { padding: 10px 12px; } .product-discount-actions { align-items: stretch; flex-direction: column; } .product-discount-actions button { width: 100%; } }
       `}</style>
     </div>
   );

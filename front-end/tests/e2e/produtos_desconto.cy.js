@@ -6,6 +6,9 @@ describe('Produtos e Grupo de Desconto', () => {
   it('Cadastro de produto com grupo de desconto', () => {
     cy.visit('/produtos');
     cy.contains('Novo Produto').click();
+    cy.get('.product-form-collapsible > summary').should('contain', 'VENDA');
+    cy.contains('.product-discount-panel summary', 'Desconto por Grupo').click();
+    cy.get('.product-discount-panel').last().should('have.attr', 'open');
     cy.get('input[name="nome"], input[placeholder*="nome"]').type('Bolinho de Carne');
     cy.get('input[name="preco"], input[placeholder*="preço"]').type('16');
     cy.get('input[name="categoria"], select[name="categoria"]').then(($el) => {
