@@ -7,7 +7,7 @@ function PainelEntregador() {
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
   const [ocupado, setOcupado] = useState(false);
-  const [agora, setAgora] = useState(Date.now());
+  const [agora, setAgora] = useState(() => Date.now());
   const podeAtualizarPosicao = dados.pedidos.some(pedido => pedido.status === 'a_caminho');
   const segundosParaAtualizar = dados.posicaoAtual
     ? Math.max(0, Math.ceil((new Date(dados.posicaoAtual.atualizadoEm).getTime() + 60000 - agora) / 1000))

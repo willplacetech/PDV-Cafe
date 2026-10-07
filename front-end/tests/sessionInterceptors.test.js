@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import axios from 'axios';
 import { attachSessionInterceptors } from '../src/services/sessionInterceptors.js';
+import { attachRequestTracker } from '../src/services/requestTracker.js';
 import { setAccessSession, getAccessToken } from '../src/services/accessSession.js';
 globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 const denied = config => Promise.reject(Object.assign(new Error('expired'), { config, response: { status: 401, config } }));
@@ -18,6 +19,30 @@ test('401 refreshes once and replays payment with the exact idempotency key', as
   await api.post('/pagamento', { total: 23 }, { headers: { 'Idempotency-Key': 'persisted-payment-key' } });
   assert.equal(refreshes, 1);
   assert.deepEqual(attempts, [{ token: 'Bearer expired', key: 'persisted-payment-key' }, { token: 'Bearer fresh', key: 'persisted-payment-key' }]);
+});
+test('401 replay emits one request end for the pending-request indicator', async () => {
+  setAccessSession('pdv', { token: 'expired', user: { id: 'one', role: 'admin' } });
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ token: 'fresh', user: { id: 'one', role: 'admin' } }) });
+  const previousWindow = globalThis.window;
+  const events = [];
+  globalThis.window = { dispatchEvent: event => {
+    if (event.type.startsWith('pdv:')) events.push(event.type);
+  } };
+  let attempts = 0;
+  try {
+    const api = axios.create({ baseURL: 'https://example.test/api', adapter: config => {
+      attempts++;
+      return attempts === 1 ? denied(config) : Promise.resolve({ status: 200, data: {}, config });
+    } });
+    attachSessionInterceptors(api);
+    attachRequestTracker(api);
+    await api.get('/products');
+    assert.equal(attempts, 2);
+    assert.deepEqual(events, ['pdv:request-start', 'pdv:request-end']);
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
 });
 test('401 from a previous login cannot clear or refresh a newer session', async () => {
   setAccessSession('pdv', { token: 'old', user: { id: 'old', role: 'admin' } });
