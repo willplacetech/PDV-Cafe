@@ -417,6 +417,7 @@ export default function Products() {
           </div>}
 
           {form.tipo === 'venda' ? (
+            <>
             <details className="product-form-section product-form-collapsible">
               <summary className="product-section-title"><span>💰</span><div><strong>COMPRA E FICHA TÉCNICA</strong><small>Custos de aquisição e informações de produção</small></div></summary>
               <div className="product-form-grid">
@@ -512,6 +513,7 @@ export default function Products() {
                 {form.tipoProduto === 'producao' && <div className="coz-recipe-panel"><strong>📋 Ficha técnica vinculada</strong><span>Este produto é produzido internamente e usa uma ficha técnica para controlar o custo e o rendimento.</span><Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>Gerenciar ficha técnica →</Link></div>}
               </div>
             </details>
+            </>
           ) : (
             <>
             <section className="product-form-section">
