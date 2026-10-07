@@ -349,11 +349,9 @@ export default function Products() {
       <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 16, marginBottom: 16 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 14px', color: 'var(--text-primary)' }}>{editing ? '✏️ Editar Produto' : '➕ Novo Produto'}</h3>
         <form onSubmit={submit}>
-          <section className="product-form-section">
-            <div className="product-section-title"><span>📋</span><div><strong>TIPO DE PRODUTO</strong><small>Escolha o grupo do estoque</small></div></div>
-            <div className="product-form-grid">
-              <div className="product-type-field">
-                <span className="product-type-label">Tipo *</span>
+            <div className="product-form-grid product-essential-grid">
+              <fieldset className="product-type-field product-field-full">
+                <legend className="product-type-label">Tipo de produto *</legend>
                 <div className="product-radio-group">
                   <label className="product-radio-option">
                     <input className="product-radio" type="radio" name="tipoProduto" value="revenda" checked={form.tipo === 'venda' && form.tipoProduto === 'revenda'} onChange={() => setForm({ ...form, tipo: 'venda', tipoProduto: 'revenda', categoria: 'Bebidas Quentes', aFazer: false, producaoPropria: false })} />
@@ -372,51 +370,56 @@ export default function Products() {
                       Insumo / Matéria-prima
                   </label>
                 </div>
-              </div>
+              </fieldset>
               <label>Código {editing && <small>(bloqueado)</small>}
                 <input value={form.codigo} readOnly={Boolean(editing)} onChange={(event) => { if (!editing) setForm({ ...form, codigo: event.target.value }); }} style={{ background: editing ? 'var(--bg-tertiary)' : 'var(--input-bg)', cursor: editing ? 'not-allowed' : 'text' }} />
               </label>
               <label>Nome *
                 <input value={form.nome} required onChange={(event) => setForm({ ...form, nome: event.target.value })} />
               </label>
-              {form.tipo === 'venda' && <label>NCM <small>(opcional, padrão 21069090)</small>
-                <input inputMode="numeric" maxLength={8} value={form.ncm} onChange={(event) => setForm({ ...form, ncm: event.target.value.replace(/\D/g, '').slice(0, 8) })} />
-              </label>}
               {form.tipo === 'insumo' && <label>Marca/Referência <small>(opcional)</small>
                 <input value={form.marcaReferencia} onChange={(event) => setForm({ ...form, marcaReferencia: event.target.value })} />
               </label>}
-              {form.tipo === 'venda' ? (
-                <label>Categoria
-                  <select value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value })}>
-                    {categoriasVenda.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}
+              <label>Categoria
+                <select value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value })}>
+                  {(form.tipo === 'venda' ? categoriasVenda : ['Insumos', ...categoriasVenda]).map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}
+                </select>
+              </label>
+              {form.tipo === 'venda' && <>
+                <label>Preço de venda (R$) * <input type="number" step="0.01" min={0} value={form.preco} required onChange={(event) => setForm({ ...form, preco: event.target.value })} /></label>
+                {form.tipoProduto !== 'coz' ? <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label> : <div className="coz-stock-notice product-field-full"><strong>⚠️ Coz não possui estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
+                <label>Unidade de compra
+                  <select value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>
+                    {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </select>
                 </label>
-              ) : (
-                <label>Categoria
-                  <select value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value })}>
-                    {['Insumos', ...categoriasVenda].map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}
+                <label>Unidade de venda
+                  <select value={form.unidadeVenda} onChange={(event) => setForm({ ...form, unidadeVenda: event.target.value })}>
+                    {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </select>
                 </label>
-              )}
+                {form.tipoProduto === 'producao' && <label>Rendimento por ficha técnica *
+                  <input required type="number" min="0.001" step="0.001" value={form.rendimentoPorReceita || 1} onChange={(event) => setForm({ ...form, rendimentoPorReceita: event.target.value })} />
+                  <small>Quantas unidades saem de uma fornada.</small>
+                </label>}
+              </>}
             </div>
-          </section>
+          {form.tipo === 'venda' && <div className="product-cost-summary">
+            <div className="product-summary-grid">
+              <div><small>Custo unitário base</small><strong>{custoDisponivel ? dinheiro(custoExibido) : 'Indisponível'}</strong></div>
+              <div><small>Preço de venda</small><strong>{precoVendaDisponivel ? dinheiro(form.preco) : 'Indisponível'}</strong></div>
+              <div><small>Lucro (R$)</small><strong className={lucroDisponivel && lucro < 0 ? 'product-loss' : ''}>{lucroDisponivel ? dinheiro(lucro) : 'Indisponível'}</strong></div>
+              <div><small>Margem</small><strong className={lucroDisponivel && lucro < 0 ? 'product-loss' : ''}>{lucroDisponivel ? `${margem.toFixed(1)}%` : 'Indisponível'}</strong></div>
+            </div>
+            {!custoDisponivel && <small>{calculoDireto && conteudoAtual <= 0 ? 'Quantidade por embalagem deve ser maior que zero.' : calculoDireto ? 'Sem preço de compra.' : 'Sem ficha técnica ou custo calculado.'}</small>}
+            {custoAtualizadoEm && <small>Custo atualizado em {custoAtualizadoEm}</small>}
+            {lucroDisponivel && lucro < 0 && <strong className="product-loss">⚠️ Lucro negativo! Revise o preço ou o custo.</strong>}
+          </div>}
 
           {form.tipo === 'venda' ? (
-            <details className="product-form-section product-form-collapsible" open>
-              <summary className="product-section-title"><span>💰</span><div><strong>VENDA</strong><small>Dados do produto pronto</small></div></summary>
+            <details className="product-form-section product-form-collapsible">
+              <summary className="product-section-title"><span>💰</span><div><strong>COMPRA E FICHA TÉCNICA</strong><small>Custos de aquisição e informações de produção</small></div></summary>
               <div className="product-form-grid">
-                <label>Preço de venda (R$) * <input type="number" step="0.01" min={0} value={form.preco} required onChange={(event) => setForm({ ...form, preco: event.target.value })} /></label>
-                <div className="product-cost-summary" style={{ gridColumn: '1 / -1', border: '1px solid var(--border-light)', borderRadius: 10, padding: 14, background: 'var(--bg-secondary)' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
-                    <div><small>Custo Unitário Base</small><strong style={{ display: 'block', color: custoDisponivel ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{custoDisponivel ? dinheiro(custoExibido) : 'Indisponível'}</strong></div>
-                    <div><small>Preço Venda</small><strong style={{ display: 'block' }}>{precoVendaDisponivel ? dinheiro(form.preco) : 'Indisponível'}</strong></div>
-                    <div><small>Lucro R$</small><strong style={{ display: 'block', color: lucroDisponivel && lucro < 0 ? 'var(--error-bg)' : 'var(--text-primary)' }}>{lucroDisponivel ? dinheiro(lucro) : 'Indisponível'}</strong></div>
-                    <div><small>Lucro %</small><strong style={{ display: 'block', color: lucroDisponivel && lucro < 0 ? 'var(--error-bg)' : 'var(--text-primary)' }}>{lucroDisponivel ? `${margem.toFixed(1)}%` : 'Indisponível'}</strong></div>
-                  </div>
-                  {!custoDisponivel && <small style={{ display: 'block', marginTop: 10, color: 'var(--text-secondary)' }}>{calculoDireto && conteudoAtual <= 0 ? 'Quantidade por embalagem deve ser maior que zero.' : calculoDireto ? 'Sem preço de compra.' : 'Sem ficha técnica ou custo calculado.'}</small>}
-                  {custoAtualizadoEm && <small style={{ display: 'block', marginTop: 6, color: 'var(--text-secondary)' }}>Custo atualizado em {custoAtualizadoEm}</small>}
-                  {lucroDisponivel && lucro < 0 && <strong style={{ display: 'block', marginTop: 8, color: 'var(--error-bg)' }}>⚠️ Lucro negativo! Revisar preço ou custo.</strong>}
-                </div>
                 {fichaProduto?.ingredientes?.length > 0 && (
                   <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border-light)', paddingTop: 10 }}>
                     <strong>Ficha técnica e custos</strong>
@@ -445,6 +448,11 @@ export default function Products() {
                     <select value={form.unidade} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</select>
                   </label>
                 </>}
+              </div>
+            </details>
+            <section className="product-form-section">
+              <div className="product-section-title"><span>🏷️</span><div><strong>DESCONTOS E PROMOÇÕES</strong><small>Configure preços promocionais por quantidade ou grupo</small></div></div>
+              <div className="product-form-grid">
                 <details className="product-discount-panel">
                   <summary className="product-discount-heading">
                     <span><strong>🏷️ Desconto por Quantidade</strong><small>Opcional · {form.descontosPorQuantidade?.length || 0} faixas cadastradas</small></span>
@@ -486,19 +494,12 @@ export default function Products() {
                     {form.grupoDesconto?.nome && <small className="product-discount-hint">✓ Produtos do grupo "{form.grupoDesconto.nome}" participarão deste desconto.</small>}
                   </div>
                 </details>
-                {form.tipoProduto === 'producao' && <label>Rendimento por ficha técnica *<input required type="number" min="0.001" step="0.001" value={form.rendimentoPorReceita || 1} onChange={(event) => setForm({ ...form, rendimentoPorReceita: event.target.value })} /><small>Quantas unidades saem de uma fornada.</small></label>}
-                {form.tipoProduto !== 'coz' ? <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label> : <div className="coz-stock-notice"><strong>⚠️ Coz não possui estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
+              </div>
+            </section>
+            <details className="product-form-section product-form-collapsible">
+              <summary className="product-section-title"><span>⚙️</span><div><strong>CONFIGURAÇÕES AVANÇADAS</strong><small>Estoque de insumos e opções de venda</small></div></summary>
+              <div className="product-form-grid">
                 {form.usavelEmReceita && <label>Estoque de insumos <small>Para uso em receitas</small><input type="number" step="0.001" min={0} value={form.estoqueInsumos} onChange={(event) => setForm({ ...form, estoqueInsumos: event.target.value })} /></label>}
-                <label>Unidade de compra
-                  <select value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>
-                    {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
-                  </select>
-                </label>
-                <label>Unidade de venda
-                  <select value={form.unidadeVenda} onChange={(event) => setForm({ ...form, unidadeVenda: event.target.value })}>
-                    {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
-                  </select>
-                </label>
                 <label className="product-checkbox-label">
                   <input className="product-checkbox" type="checkbox" checked={form.vendidoFracionado} onChange={(event) => setForm({ ...form, vendidoFracionado: event.target.checked })} />
                   Permitir venda fracionada
