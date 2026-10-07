@@ -5,6 +5,7 @@ const app = require('../../server');
 const User = require('../../models/User');
 const Tenant = require('../../models/Tenant');
 const Entregador = require('../../models/Entregador');
+const AuthSession = require('../../models/AuthSession');
 
 const password = 'senha-de-teste-123';
 const assinar = (user, claims = {}) => jwt.sign({ id: user.id, username: user.username, role: user.role, ...claims }, process.env.JWT_SECRET, { algorithm: 'HS256' });
@@ -93,6 +94,30 @@ test('admin lista usuários PDV sem expor hashes de senha', async () => {
   expect(response.body.find(user => user.id === operador.id)).toEqual({ id: operador.id, username: operador.username, role: 'operador', ativo: true });
   expect(response.body.every(user => user.password === undefined)).toBe(true);
   expect((await api('get', '/auth/users', token)).status).toBe(403);
+});
+
+test('admin exclui usuário PDV e remove suas sessões', async () => {
+  await AuthSession.create({
+    subjectId: operador._id,
+    kind: 'user',
+    scope: 'pdv',
+    tokenHash: 'token-hash-de-teste',
+    expiresAt: new Date(Date.now() + 60_000),
+  });
+  const response = await api('delete', `/auth/users/${operador.id}`, adminToken);
+  expect(response.status).toBe(204);
+  expect(await User.findById(operador.id)).toBeNull();
+  expect(await AuthSession.countDocuments({ subjectId: operador._id, kind: 'user', scope: 'pdv' })).toBe(0);
+  expect((await api('get', '/auth/me', token)).status).toBe(401);
+});
+
+test('admin não pode excluir a própria conta nem contas fora do gerenciamento PDV', async () => {
+  expect((await api('delete', `/auth/users/${admin.id}`, adminToken)).status).toBe(409);
+  expect((await api('delete', `/auth/users/${admin.id.toUpperCase()}`, adminToken)).status).toBe(409);
+  const delivery = await User.create({ username: 'delivery-exclusao', password, role: 'tenant_admin' });
+  expect((await api('delete', `/auth/users/${delivery.id}`, adminToken)).status).toBe(404);
+  expect(await User.findById(admin.id)).not.toBeNull();
+  expect(await User.findById(delivery.id)).not.toBeNull();
 });
 
 test('admin bloqueia e reativa usuário mantendo tokens antigos revogados', async () => {

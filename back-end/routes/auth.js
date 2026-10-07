@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const AuthSession = require('../models/AuthSession');
 const auth = require('../middleware/auth');
 const router = express.Router();
 const { PASSWORD_MESSAGE, validLoginPassword, validNewPassword, validUsername } = require('../utils/passwordPolicy');
@@ -94,6 +95,21 @@ router.patch('/users/:id', auth, auth.allowRoles('admin'), async (req, res, next
     );
     if (!user) return res.status(404).json({ msg: 'Usuário não encontrado' });
     res.json(publicManagedUser(user));
+  } catch (error) { next(error); }
+});
+
+router.delete('/users/:id', auth, auth.allowRoles('admin'), async (req, res, next) => {
+  if (!mongoose.isObjectIdOrHexString(req.params.id)) {
+    return res.status(400).json({ msg: 'Informe um usuário válido' });
+  }
+  if (String(req.user.id).toLowerCase() === req.params.id.toLowerCase()) {
+    return res.status(409).json({ msg: 'Não é possível excluir o usuário conectado' });
+  }
+  try {
+    const user = await User.findOneAndDelete({ _id: req.params.id, role: { $in: pdvRoles } });
+    if (!user) return res.status(404).json({ msg: 'Usuário não encontrado' });
+    await AuthSession.deleteMany({ subjectId: user._id, kind: 'user', scope: 'pdv' });
+    res.status(204).end();
   } catch (error) { next(error); }
 });
 

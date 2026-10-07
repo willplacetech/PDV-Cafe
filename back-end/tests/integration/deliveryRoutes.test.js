@@ -418,7 +418,7 @@ test('duas confirmações simultâneas gravam uma única transição', async () 
   expect((await PedidoEntrega.findById(pedido._id)).statusHistorico.filter(h => h.status === 'a_caminho')).toHaveLength(1);
 });
 
-test('entregador diferente não altera pedido e GPS desaparece após finalizar', async () => {
+test('GPS atualiza mesmo sem pedido ativo e desaparece do rastreio após finalizar', async () => {
   const entregador = await criarEntregador();
   await Entregador.updateOne({ _id: entregador._id }, { status: 'disponivel' });
   const pedido = await criarPedido();
@@ -427,12 +427,17 @@ test('entregador diferente não altera pedido e GPS desaparece após finalizar',
   const outroEntregador = await Entregador.create({ nome: 'Outro', telefone: '11944444444', senhaAcesso: 'senha-segura-123' });
   const outroToken = jwt.sign({ role: 'entregador', entregadorId: outroEntregador._id }, process.env.JWT_SECRET);
   expect((await api('post', `/entregador/pedido/${pedido._id}/status`, outroToken).send({ novoStatus: 'a_caminho' })).status).toBe(404);
-  expect((await api('post', '/entregador/posicao', courierToken).send({ lat: -23.5, lng: -46.6 })).status).toBe(409);
+  const posicaoSemPedido = await api('post', '/entregador/posicao', outroToken).send({ lat: -23.5, lng: -46.6 });
+  expect(posicaoSemPedido.status).toBe(200);
+  expect((await Entregador.findById(outroEntregador._id)).posicaoAtual.lat).toBe(-23.5);
   await api('post', `/entregador/pedido/${pedido._id}/status`, courierToken).send({ novoStatus: 'a_caminho' });
   expect((await api('post', '/entregador/posicao', courierToken).send({ lat: 91, lng: 0 })).status).toBe(400);
   await api('post', '/entregador/posicao', courierToken).send({ lat: -23.5, lng: -46.6 });
+  await Entregador.updateOne({ _id: entregador._id }, { $set: { 'posicaoAtual.atualizadoEm': new Date(Date.now() - 29000) } });
   expect((await api('post', '/entregador/posicao', courierToken).send({ lat: -23.6, lng: -46.7 })).status).toBe(429);
-  expect((await request(app).get(`/api/rastreio/${pedido.tokenRastreamento}`)).body.posicaoEntregador).toEqual({ lat: -23.5, lng: -46.6 });
+  await Entregador.updateOne({ _id: entregador._id }, { $set: { 'posicaoAtual.atualizadoEm': new Date(Date.now() - 31000) } });
+  expect((await api('post', '/entregador/posicao', courierToken).send({ lat: -23.6, lng: -46.7 })).status).toBe(200);
+  expect((await request(app).get(`/api/rastreio/${pedido.tokenRastreamento}`)).body.posicaoEntregador).toEqual({ lat: -23.6, lng: -46.7 });
   await api('post', `/entregador/pedido/${pedido._id}/status`, courierToken).send({ novoStatus: 'entregue' });
   expect((await request(app).get(`/api/rastreio/${pedido.tokenRastreamento}`)).body.posicaoEntregador).toBeUndefined();
 });

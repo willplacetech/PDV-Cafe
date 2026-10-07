@@ -205,9 +205,8 @@ router.post('/entregador/posicao', ...courierAuth, route(async (req, res) => {
   const { lat, lng } = req.body;
   if (typeof lat !== 'number' || typeof lng !== 'number' || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw service.erro('Coordenadas inválidas');
   const pedidos = await PedidoEntrega.find({ entregadorId: req.entregador._id, status: 'a_caminho' }).select('tokenRastreamento').lean();
-  if (!pedidos.length) throw service.erro('A posição só pode ser atualizada durante uma entrega a caminho.', 409);
   const atualizadoEm = new Date();
-  const limiteAtualizacao = new Date(atualizadoEm.getTime() - 60_000);
+  const limiteAtualizacao = new Date(atualizadoEm.getTime() - 30_000);
   const entregador = await Entregador.findOneAndUpdate({
     _id: req.entregador._id,
     ativo: true,
@@ -216,7 +215,7 @@ router.post('/entregador/posicao', ...courierAuth, route(async (req, res) => {
       { 'posicaoAtual.atualizadoEm': { $lt: limiteAtualizacao } },
     ],
   }, { $set: { posicaoAtual: { lat, lng, atualizadoEm } } }, { new: true });
-  if (!entregador) throw service.erro('Aguarde 60 segundos entre atualizações de posição.', 429);
+  if (!entregador) throw service.erro('Aguarde 30 segundos entre atualizações de posição.', 429);
   pedidos.forEach(p => service.eventos.emit(p.tokenRastreamento));
   res.json({ ok: true, atualizadoEm });
 }));
