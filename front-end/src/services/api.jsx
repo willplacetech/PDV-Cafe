@@ -8,8 +8,9 @@ const api = axios.create({
   timeout: 30000,
 });
 
-attachSessionInterceptors(api);
+// Axios executes request interceptors in reverse: authenticate before tracking.
 attachRequestTracker(api);
+attachSessionInterceptors(api);
 
 api.interceptors.response.use(undefined, err => {
   console.error('[API]', {

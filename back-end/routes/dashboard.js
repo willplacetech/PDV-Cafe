@@ -8,6 +8,7 @@ const PaymentSettings = require('../models/PaymentSettings');
 const PedidoEntrega = require('../models/PedidoEntrega');
 const Entregador = require('../models/Entregador');
 const auth = require('../middleware/auth');
+const User = require('../models/User');
 const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
 
 const router = express.Router();
@@ -224,37 +225,40 @@ router.get('/delivery', auth, auth.allowRoles('admin'), async (req, res) => {
 
     const inicio = inicioPeriodoDelivery(periodo);
     const agora = new Date();
-    const entregas = await PedidoEntrega.find({
-      tenantId: req.user.tenantId,
-      criadoEm: { $gte: inicio, $lte: agora },
-      status: 'entregue',
-    }).populate('entregadorId', 'nome').lean();
+    // A completed sale is counted at payment time, even while its delivery is pending.
+    const usuarios = await User.find({ tenantId: req.user.tenantId }).select('username').lean();
+    const pedidosPeriodo = await Order.find({
+      atendente: { $in: usuarios.map(usuario => usuario.username) },
+      createdAt: { $gte: inicio, $lte: agora },
+      status: 'pago',
+      utilizacaoInterna: { $ne: true },
+    }).select('_id total taxaEntrega tipoAtendimento comandaId').lean();
+    const pedidos = pedidosPeriodo.filter(pedido => pedido.tipoAtendimento === 'delivery');
     const comandas = await Comanda.find({
-      _id: { $in: entregas.map(entrega => entrega.vendaId).filter(Boolean) },
-      status: 'fechada',
-      tipoAtendimento: 'delivery',
+      _id: { $in: pedidos.map(pedido => pedido.comandaId).filter(Boolean) },
+      status: 'fechada', tipoAtendimento: 'delivery', 'entrega.tenantId': req.user.tenantId,
     }).select('_id pedidoId').lean();
     const comandasPorId = new Map(comandas.map(comanda => [String(comanda._id), comanda]));
-    const pedidos = await Order.find({
-      _id: { $in: comandas.map(comanda => comanda.pedidoId).filter(Boolean) },
-      status: { $in: ['pago', 'parcial'] },
-    }).select('_id total').lean();
     const pedidosPorId = new Map(pedidos.map(pedido => [String(pedido._id), pedido]));
-    const entregasConcluidas = entregas.filter(entrega => {
-      const comanda = comandasPorId.get(String(entrega.vendaId));
-      return comanda && pedidosPorId.has(String(comanda.pedidoId));
-    });
+    const entregas = await PedidoEntrega.find({
+      tenantId: req.user.tenantId,
+      vendaId: { $in: comandas.map(comanda => comanda._id) },
+      status: { $ne: 'cancelado' },
+    }).populate('entregadorId', 'nome').lean();
+    const entregasPorVenda = new Map(entregas.map(entrega => [String(entrega.vendaId), entrega]));
+    const entregasConcluidas = pedidos.map(pedido => entregasPorVenda.get(String(pedido.comandaId)) || {
+      vendaId: pedido.comandaId, entregadorId: null, statusHistorico: [],
+    }).filter(entrega => comandasPorId.has(String(entrega.vendaId)));
     const faturamentoEntrega = entregasConcluidas.reduce((soma, entrega) => {
       const comanda = comandasPorId.get(String(entrega.vendaId));
-      return soma + Number(pedidosPorId.get(String(comanda.pedidoId)).total || 0);
+      return soma + Number(pedidosPorId.get(String(comanda.pedidoId))?.total || 0);
     }, 0);
-    const freteTotal = entregasConcluidas.reduce((soma, entrega) => soma + Number(entrega.taxaEntrega || 0), 0);
-    const pedidosPeriodo = await Order.find({
-      createdAt: { $gte: inicio, $lte: agora },
-      status: { $in: ['pago', 'parcial'] },
-    }).select('total tipoAtendimento').lean();
+    const freteTotal = entregasConcluidas.reduce((soma, entrega) => {
+      const comanda = comandasPorId.get(String(entrega.vendaId));
+      return soma + Number(pedidosPorId.get(String(comanda.pedidoId))?.taxaEntrega || 0);
+    }, 0);
     const totalFaturamento = pedidosPeriodo.reduce((soma, pedido) => soma + Number(pedido.total || 0), 0);
-    const pedidosPresenciais = pedidosPeriodo.filter(pedido => pedido.tipoAtendimento !== 'delivery');
+    const pedidosPresenciais = pedidosPeriodo.filter(pedido => ['mesa', 'balcao'].includes(pedido.tipoAtendimento));
     const receitaPresencial = pedidosPresenciais.reduce((soma, pedido) => soma + Number(pedido.total || 0), 0);
     const porEntregador = new Map();
     const entregadores = await Entregador.find({
@@ -274,7 +278,7 @@ router.get('/delivery', auth, auth.allowRoles('admin'), async (req, res) => {
       const duracao = duracaoEntregaMinutos(entrega.statusHistorico);
       registro.pedidos += 1;
       registro.receita += receita;
-      registro.frete += Number(entrega.taxaEntrega || 0);
+      registro.frete += Number(pedidosPorId.get(String(comanda.pedidoId))?.taxaEntrega || 0);
       if (duracao !== null) {
         registro.duracoes.push(duracao);
         duracoes.push(duracao);

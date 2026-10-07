@@ -3,30 +3,34 @@ import api from '../../services/api.jsx';
 
 const formatMoney = value => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function MesasDrawer({ open, onClose, onSelect }) {
+export default function MesasDrawer({ open, onClose, onSelect, embedded = false }) {
   const [mesas, setMesas] = useState([]);
   const [comandas, setComandas] = useState([]);
   const [erro, setErro] = useState('');
-  const [carregando, setCarregando] = useState(false);
+  const [carregando, setCarregando] = useState(true);
+  const [agora, setAgora] = useState(() => Date.now());
 
   useEffect(() => {
     if (!open) return undefined;
     let ativo = true;
-    setCarregando(true);
-    Promise.all([api.get('/mesas'), api.get('/comandas?status=aberta')])
+    const loadingTimer = window.setTimeout(() => setCarregando(true), 0);
+    const carregar = (silencioso = false) => Promise.all([api.get('/mesas', { pdvSilenciosa: silencioso }), api.get('/comandas?status=aberta', { pdvSilenciosa: silencioso })])
       .then(([mesasResponse, comandasResponse]) => {
         if (!ativo) return;
         const dadosMesas = Array.isArray(mesasResponse.data) ? mesasResponse.data : mesasResponse.data.mesas || [];
         setMesas(dadosMesas.filter(mesa => mesa.ativa !== false));
         setComandas(comandasResponse.data || []);
         setErro('');
+        setAgora(Date.now());
       })
       .catch(error => {
         if (ativo) setErro(error.response?.data?.msg || 'Não foi possível carregar as mesas e comandas.');
       })
-      .finally(() => { if (ativo) setCarregando(false); });
-    return () => { ativo = false; };
-  }, [open]);
+      .finally(() => { window.clearTimeout(loadingTimer); if (ativo) setCarregando(false); });
+    void carregar();
+    const intervalo = embedded ? window.setInterval(() => { void carregar(true); }, 30000) : null;
+    return () => { ativo = false; window.clearTimeout(loadingTimer); window.clearInterval(intervalo); };
+  }, [open, embedded]);
 
   if (!open) return null;
   const comandaDaMesa = mesa => comandas.find(comanda => String(comanda.mesa) === String(mesa.numero) && comanda.tipoAtendimento === 'mesa');
@@ -34,11 +38,11 @@ export default function MesasDrawer({ open, onClose, onSelect }) {
   const selecionarTipo = tipoAtendimento => onSelect({ tipoAtendimento });
 
   return (
-    <div className="mesas-drawer-overlay" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-      <aside className="mesas-drawer" role="dialog" aria-modal="true" aria-labelledby="mesas-drawer-title">
+    <div className={`mesas-drawer-overlay ${embedded ? 'mesas-overview' : ''}`}  onMouseDown={event => { if (event.target === event.currentTarget) onClose?.(); }}>
+      <aside className="mesas-drawer" role={embedded ? undefined : 'dialog'} aria-modal={embedded ? undefined : true} aria-labelledby="mesas-drawer-title">
         <header className="mesas-drawer-header">
-          <div><span className="mesas-drawer-eyebrow">ATENDIMENTO</span><h2 id="mesas-drawer-title">Mesas e comandas</h2></div>
-          <button type="button" onClick={onClose} aria-label="Fechar mesas e comandas">×</button>
+          <div><span className="mesas-drawer-eyebrow">ATENDIMENTO</span><h2 id="mesas-drawer-title">Mesas e comandas</h2>{embedded && <p>Consulte totais e tempos. Selecione uma mesa ou comanda para atender no PDV.</p>}</div>
+          {!embedded && <button type="button" onClick={onClose} aria-label="Fechar mesas e comandas">×</button>}
         </header>
         <div className="mesas-drawer-content">
           {erro && <p role="alert" className="mesas-drawer-error">{erro}</p>}
@@ -53,7 +57,7 @@ export default function MesasDrawer({ open, onClose, onSelect }) {
               {mesas.map(mesa => {
                 const comanda = comandaDaMesa(mesa);
                 const quantidadeItens = comanda?.itens?.reduce((soma, item) => soma + Number(item.quantidade || 0), 0) || 0;
-                const minutosAberta = comanda?.createdAt ? Math.max(0, Math.floor((Date.now() - new Date(comanda.createdAt).getTime()) / 60000)) : null;
+                const minutosAberta = comanda?.createdAt ? Math.max(0, Math.floor((agora - new Date(comanda.createdAt).getTime()) / 60000)) : null;
                 return <button key={mesa.id} type="button" className={`mesas-drawer-table ${comanda ? 'occupied' : 'free'}`} onClick={() => selecionarMesa(mesa)}>
                   <strong>{mesa.nome || `Mesa ${mesa.numero}`}</strong>
                   <span>{comanda ? 'Ocupada' : 'Livre'} · {formatMoney(comanda?.valorTotal)}</span>
@@ -85,6 +89,7 @@ export default function MesasDrawer({ open, onClose, onSelect }) {
         .mesas-drawer-table span,.mesas-drawer-table small,.mesas-drawer-orders small{color:var(--text-secondary);font-size:11px}
         .mesas-drawer-orders{display:grid;gap:8px}.mesas-drawer-orders button{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left}
         .mesas-drawer-orders p,.mesas-drawer-content>p{color:var(--text-secondary);font-size:13px}.mesas-drawer-error{color:var(--danger-bg)}
+        .mesas-overview{position:static;display:block;background:transparent;z-index:auto}.mesas-overview .mesas-drawer{width:100%;height:auto;overflow:visible;animation:none;border:1px solid var(--border-color);border-radius:16px;box-shadow:var(--shadow-sm)}.mesas-overview .mesas-drawer-header{position:static;border-radius:16px 16px 0 0}.mesas-overview .mesas-drawer-header p{font-size:13px;color:var(--text-secondary)}.mesas-overview .mesas-drawer-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
         @keyframes mesas-drawer-in{from{transform:translateX(100%)}to{transform:translateX(0)}}
         @media(max-width:600px){.mesas-drawer{width:100%}}
       `}</style>

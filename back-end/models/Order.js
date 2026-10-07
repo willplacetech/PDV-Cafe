@@ -13,6 +13,7 @@ const itemSchema = new mongoose.Schema({
     default: undefined,
   },
   precoUnitarioOriginal: { type: Number, min: 0 },
+  precoUnitarioManual: { type: Number, min: 0, validate: Number.isFinite },
   descontoQuantidade: { type: Number, min: 0, default: 0 },
   economiaQuantidade: { type: Number, min: 0, default: 0 },
   faixaDescontoQuantidade: { type: Number, min: 1 },

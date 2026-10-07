@@ -23,6 +23,21 @@ const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boole
 const normalizarTelefoneCliente = (valor = '') => String(valor || '').replace(/\D/g, '');
 const calcularSubtotalComanda = (itens = []) => money((Array.isArray(itens) ? itens : []).reduce((soma, item) => soma + Number(item?.precoUnitario || 0) * Number(item?.quantidade || 0), 0));
 const calcularStatusPagamentoComanda = (comanda) => calcularStatusPagamento(comanda);
+const precoManual = (valor) => {
+  if (valor === undefined) return undefined;
+  if (typeof valor !== 'number' || !Number.isFinite(valor) || valor < 0) throw new Error('Preço unitário inválido');
+  return money(valor);
+};
+const aplicarPrecoManual = (item, valor) => {
+  if (valor === undefined) return;
+  item.precoUnitarioManual = precoManual(valor);
+  item.precoUnitario = item.precoUnitarioManual;
+  item.descontoQuantidade = 0;
+  item.economiaQuantidade = 0;
+  item.faixaDescontoQuantidade = undefined;
+  item.grupoDescontoAtivo = false;
+};
+
 
 async function recalcularPrecosComanda(comanda, session) {
   const ids = [...new Set(comanda.itens.map((item) => String(item.produtoId)))];
@@ -33,6 +48,10 @@ async function recalcularPrecosComanda(comanda, session) {
   const cartItens = comanda.itens.map((item) => ({ produto: porId.get(String(item.produtoId)), quantidade: Number(item.quantidade || 0) }));
   comanda.itens.forEach((item) => {
     const produto = porId.get(String(item.produtoId));
+    if (item.precoUnitarioManual !== undefined) {
+      aplicarPrecoManual(item, item.precoUnitarioManual);
+      return;
+    }
     if (!produto || item.tipoVenda === 'peso') return;
     const precoBase = precoPorUnidade(produto);
     const pricing = calcularPrecoComDesconto(produto, quantidades.get(String(item.produtoId)), precoBase);
@@ -234,6 +253,7 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
         item.faltamParaGrupo = grupoPricing.faltamParaGrupo;
       }
     });
+    itens.forEach((item, index) => aplicarPrecoManual(item, requestItens[index].precoUnitarioManual));
     const rascunho = req.body.rascunho === true;
     if (!rascunho) await ajustarEstoque(itens, 'baixar', session);
     const temEntrega = req.body.entrega && typeof req.body.entrega === 'object' && !Array.isArray(req.body.entrega);
@@ -294,6 +314,7 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
       ? req.body.modificadores.filter((item) => typeof item === 'string').slice(0, 10)
       : [];
     comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product), quantidade, quantidadePecas: vendaPorPeso ? 0 : quantidade, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
+    aplicarPrecoManual(comanda.itens[comanda.itens.length - 1], req.body.precoUnitarioManual);
     if (comanda.estoqueBaixado) await ajustarEstoque([comanda.itens[comanda.itens.length - 1]], 'baixar', session);
     await recalcularPrecosComanda(comanda, session);
     comanda.valorTotal = money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
@@ -330,6 +351,7 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'g
       item.pesoVendidoKg = pesoNovo;
       item.precoUnitario = money(pesoNovo * Number(product.preco || 0) / quantidade);
     }
+    aplicarPrecoManual(item, req.body.precoUnitarioManual);
     if (estoqueBaixado) await ajustarEstoque([item], 'baixar', session);
     await recalcularPrecosComanda(comanda, session);
     comanda.valorTotal = money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));

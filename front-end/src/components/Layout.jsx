@@ -10,9 +10,10 @@ const gruposMenu = [
     chave: 'atendimento',
     label: '🏪 ATENDIMENTO',
     items: [
+      { label: 'Dashboard', icon: '📊', to: '/dashboard', admin: true },
       { label: 'PDV · Nova venda', icon: '🛒', to: '/pdv' },
       { label: 'Entregas', icon: '🛵', to: '/entregas', roles: ['admin', 'operador'], badge: true },
-      { label: 'Mesas / Comandas', icon: '🪑', to: '/pdv?mesas=abrir', badge: 'comandas' },
+      { label: 'Mesas / Comandas', icon: '🪑', to: '/atendimento/mesas', badge: 'comandas' },
       { label: 'A Receber', icon: '💰', to: '/contas-receber', admin: true },
     ],
   },
@@ -47,7 +48,6 @@ const gruposMenu = [
     label: '💰 FINANCEIRO',
     items: [
       { label: 'Fechamento de Caixa', icon: '💵', to: '/caixa', admin: true },
-      { label: 'Dashboard', icon: '📊', to: '/dashboard', admin: true },
       { label: 'DRE / Demonstrativo', icon: '📈', to: '/financeiro', admin: true },
     ],
   },
@@ -98,18 +98,21 @@ export default function Layout({ children }) {
   const [entregasPendentes, setEntregasPendentes] = useState(0);
   const [comandasAbertas, setComandasAbertas] = useState(0);
 
+  const userRole = user?.role;
+  const userTenantId = user?.tenantId;
+
   const carregarBadgeEntregas = useCallback(async () => {
-    if (!user?.tenantId || !['admin', 'operador'].includes(user.role)) {
+    if (!userTenantId || !['admin', 'operador'].includes(userRole)) {
       setEntregasPendentes(0);
       return;
     }
     try {
-      const { data } = await api.get('/entregas/estatisticas');
+      const { data } = await api.get('/entregas/estatisticas', { pdvSilenciosa: true });
       setEntregasPendentes(Number(data.prontos || 0) + Number(data.despachados || 0));
     } catch (error) {
       console.warn('[Entregas] Não foi possível atualizar o indicador do menu.', error.response?.status || error.code || error.message);
     }
-  }, [user?.role, user?.tenantId]);
+  }, [userRole, userTenantId]);
 
   useEffect(() => {
     const inicio = window.setTimeout(() => { void carregarBadgeEntregas(); }, 0);
@@ -119,13 +122,13 @@ export default function Layout({ children }) {
 
   useEffect(() => {
     if (!user?.tenantId) {
-      setComandasAbertas(0);
-      return undefined;
+      const timer = window.setTimeout(() => setComandasAbertas(0), 0);
+      return () => window.clearTimeout(timer);
     }
     let ativo = true;
     const carregarComandasAbertas = async () => {
       try {
-        const { data } = await api.get('/comandas?status=aberta');
+        const { data } = await api.get('/comandas?status=aberta', { pdvSilenciosa: true });
         if (ativo) setComandasAbertas(Array.isArray(data) ? data.length : 0);
       } catch (error) {
         console.warn('[Comandas] Não foi possível atualizar o indicador do menu.', error.response?.status || error.code || error.message);
@@ -304,13 +307,13 @@ export default function Layout({ children }) {
             SIDEBAR DESKTOP - 260px
             ========================================== */}
       <aside id="sidebar-desktop">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40 }}>
+        <Link to={user?.role === 'admin' ? '/dashboard' : '/pdv'} aria-label="Página inicial" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40, textDecoration: 'none' }}>
           <img src="/Abraco1.png" alt="Sabor de Abraço" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--brand-gold)' }} />
           <div>
             <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 17, color: 'var(--brand-brown)' }}>Sabor de Abraço</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Cafeteria e confeitaria</div>
           </div>
-        </div>
+        </Link>
         <button onClick={toggleTheme} style={{
           width: '100%', padding: '10px',
           background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
@@ -361,13 +364,13 @@ export default function Layout({ children }) {
         <div className="mobile-menu-backdrop" onClick={() => toggleMobileMenu(false)}>
           <div className="mobile-menu-panel" onClick={(e) => e.stopPropagation()}>
             <div className="mobile-menu-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Link to={user?.role === 'admin' ? '/dashboard' : '/pdv'} onClick={() => toggleMobileMenu(false)} aria-label="Página inicial" style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
                 <img src="/Abraco1.png" alt="Sabor de Abraço" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--brand-gold)' }} />
                 <div>
                   <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, color: 'var(--brand-brown)' }}>Sabor de Abraço</div>
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Cafeteria e confeitaria</div>
                 </div>
-              </div>
+              </Link>
               <button
                 type="button"
                 className="mobile-menu-close"

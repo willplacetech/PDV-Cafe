@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import api from '../services/api.jsx';
+import { criarOperacoesFinanceiras } from '../utils/operacaoFinanceira.js';
 
 const ComandaContext = createContext(null);
 
@@ -36,6 +37,7 @@ const normalizarComanda = comanda => ({
 
 export function ComandaProvider({ children }) {
   const [comandaAtual, setComandaAtual] = useState(novaComanda);
+  const [operacoesFinanceiras] = useState(() => criarOperacoesFinanceiras(api));
 
   const adicionarItem = useCallback(item => {
     setComandaAtual(atual => {
@@ -89,8 +91,9 @@ export function ComandaProvider({ children }) {
       const { data } = await api.post('/comandas', {
         ...body,
         idTemporario: atual.idTemporario,
-        rascunho: true,
+        rascunho: false,
         itens: atual.itens.map(item => ({
+          precoUnitarioManual: item.precoUnitarioManual,
           produtoId: item.produtoId,
           quantidade: Number(item.quantidade),
           tipoVenda: item.tipoVenda,
@@ -110,13 +113,14 @@ export function ComandaProvider({ children }) {
       const atualItem = atuaisPorId.get(String(item._id));
       if (!atualItem) {
         await api.delete(`/comandas/${atual._id}/itens/${item._id}`);
-      } else if (Number(atualItem.quantidade) !== Number(item.quantidade)) {
-        await api.patch(`/comandas/${atual._id}/itens/${item._id}`, { quantidade: atualItem.quantidade });
+      } else if (Number(atualItem.quantidade) !== Number(item.quantidade) || atualItem.precoUnitarioManual !== item.precoUnitarioManual) {
+        await api.patch(`/comandas/${atual._id}/itens/${item._id}`, { quantidade: atualItem.quantidade, precoUnitarioManual: atualItem.precoUnitarioManual });
       }
     }
     const idsOriginais = new Set(originais.map(item => String(item._id)));
     for (const item of atual.itens.filter(linha => !linha._id || !idsOriginais.has(String(linha._id)))) {
       await api.post(`/comandas/${atual._id}/itens`, {
+        precoUnitarioManual: item.precoUnitarioManual,
         produtoId: item.produtoId,
         quantidade: Number(item.quantidade),
         tipoVenda: item.tipoVenda,
@@ -141,10 +145,10 @@ export function ComandaProvider({ children }) {
 
   const fecharComanda = useCallback(async (pagamento, comandaSalva = comandaAtual) => {
     const comanda = comandaSalva._id ? comandaSalva : await salvarComandaAberta(comandaSalva);
-    const { data } = await api.post(`/comandas/${comanda._id}/fechar`, pagamento);
+    const { data } = await operacoesFinanceiras.enviar('post', `/comandas/${comanda._id}/fechar`, pagamento);
     setComandaAtual(novaComanda());
     return { comanda: comanda.registroOriginal || comanda, ...data };
-  }, [comandaAtual, salvarComandaAberta]);
+  }, [comandaAtual, salvarComandaAberta, operacoesFinanceiras]);
 
   const limparComanda = useCallback(() => setComandaAtual(novaComanda()), []);
   const value = useMemo(() => ({
@@ -164,6 +168,7 @@ export function ComandaProvider({ children }) {
   return <ComandaContext.Provider value={value}>{children}</ComandaContext.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- Preserve the provider's existing public hook API.
 export function useComanda() {
   const context = useContext(ComandaContext);
   if (!context) throw new Error('useComanda precisa estar dentro de ComandaProvider');

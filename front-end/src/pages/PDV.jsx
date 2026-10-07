@@ -2,6 +2,7 @@ import { useCallback, useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
+import { estoqueDisponivelComanda } from '../utils/estoqueComanda.js';
 import { useToast } from '../components/useToast.js';
 import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 import useFilaOffline from '../hooks/useFilaOffline.js';
@@ -76,17 +77,30 @@ export default function PDV() {
   const [produtos, setProdutos] = useState([]);
   const [maisVendidos, setMaisVendidos] = useState([]);
   const [quantidadesRascunho, setQuantidadesRascunho] = useState({});
+  const [precosRascunho, setPrecosRascunho] = useState({});
+  const [transferindoMesa, setTransferindoMesa] = useState(false);
   const [busca, setBusca] = useState('');
   const [clientes, setClientes] = useState([]);
-  const [clienteId, setClienteId] = useState('');
-  const [clienteNome, setClienteNome] = useState('');
+  const [clienteId, setClienteId] = useState(() => String(comandaAtual.clienteId || ''));
+  const [clienteNome, setClienteNome] = useState(() => comandaAtual.clienteNome || '');
   const [grupoAtivo, setGrupoAtivo] = useState('Todos');
   const [feedbackProduto, setFeedbackProduto] = useState(null);
   const [modalSucesso, setModalSucesso] = useState(null);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const { showToast } = useToast();
   const { enfileirar } = useFilaOffline();
-  const [entregaPDV, setEntregaPDV] = useState(null);
+  const [entregaPDV, atualizarEntregaPDV] = useState(() => comandaAtual.entrega ? {
+    ...comandaAtual.entrega,
+    enderecoAlternativo: comandaAtual.entrega.endereco || { ...ENDERECO_VAZIO },
+    usarEnderecoCadastrado: false,
+    taxaEntrega: Number(comandaAtual.taxaEntrega || comandaAtual.entrega.taxaEntrega || 0),
+  } : comandaAtual.tipo === 'delivery' ? { telefone: '', endereco: { ...ENDERECO_VAZIO }, enderecoAlternativo: { ...ENDERECO_VAZIO }, usarEnderecoCadastrado: false, taxaEntrega: 0 } : null);
+  const setEntregaPDV = (value) => {
+    const entrega = typeof value === 'function' ? value(entregaPDV) : value;
+    atualizarEntregaPDV(entrega);
+    setComandaAtual(atual => ({ ...atual, entrega, taxaEntrega: Number(entrega?.taxaEntrega || 0), status: 'rascunho' }));
+  };
+
   const navigate = useNavigate();
   const selectClienteRef = useRef(null);
   const envioRef = useRef(false);
@@ -94,25 +108,29 @@ export default function PDV() {
   const [enviando, setEnviando] = useState(false);
   const [mesasDrawerOpen, setMesasDrawerOpen] = useState(false);
   const [comandasAbertasCount, setComandasAbertasCount] = useState(0);
-  const [seletorComandaAberto, setSeletorComandaAberto] = useState(false);
+
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [metodoPagamento, setMetodoPagamento] = useState('dinheiro');
-  const [comandaPagamento, setComandaPagamento] = useState(null);
+  const [comandaPagamento, setComandaPagamento] = useState(() => comandaAtual.pagamentoPendente ? { ...comandaAtual, valorTotal: comandaAtual.registroOriginal?.valorTotal, metodoPagamento: comandaAtual.pagamentoPendente.metodoPagamento } : null);
+  const pagamentoPreparadoRef = useRef(comandaAtual.pagamentoPendente ? { ...comandaAtual, metodoPagamento: comandaAtual.pagamentoPendente.metodoPagamento } : null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     if (searchParams.get('mesas') !== 'abrir') return;
-    setMesasDrawerOpen(true);
-    const parametros = new URLSearchParams(searchParams);
-    parametros.delete('mesas');
-    setSearchParams(parametros, { replace: true });
+    const timer = window.setTimeout(() => {
+      setMesasDrawerOpen(true);
+      const parametros = new URLSearchParams(searchParams);
+      parametros.delete('mesas');
+      setSearchParams(parametros, { replace: true });
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     let ativo = true;
     const carregarContagem = async () => {
       try {
-        const { data } = await api.get('/comandas?status=aberta');
+        const { data } = await api.get('/comandas?status=aberta', { pdvSilenciosa: true });
         if (ativo) setComandasAbertasCount(Array.isArray(data) ? data.length : 0);
       } catch (error) {
         console.warn('[Comandas] Não foi possível atualizar o total de comandas abertas.', error.response?.status || error.code || error.message);
@@ -175,6 +193,10 @@ export default function PDV() {
     return itens.map((item) => {
       const produto = produtos.find((registro) => registro._id === item.produtoId);
       if (!produto) return item;
+      if (item.precoUnitarioManual !== undefined) return {
+        ...item, precoUnitario: item.precoUnitarioManual, economiaQuantidade: 0,
+        faixaDescontoQuantidade: null, grupoDescontoAtivo: false, faltamParaGrupo: 0,
+      };
       const quantidadeTotal = itens.filter((linha) => linha.produtoId === item.produtoId).reduce((total, linha) => total + Number(linha.quantidade || 0), 0);
       const pricing = precoComDesconto(produto, quantidadeTotal, item.precoUnitarioOriginal || precoPorUnidade(produto));
       const grupoPricing = precoComDescontoGrupo(produto, quantidadeTotal, cartItens, pricing.precoUnitario);
@@ -192,18 +214,18 @@ export default function PDV() {
         totalGrupo: grupoPricing?.totalGrupo || 0,
         faltamParaGrupo: grupoPricing?.faltamParaGrupo || 0,
       };
-
-      const setCarrinho = (atualizar) => setComandaAtual(atual => ({
-        ...atual,
-        itens: recalcularPrecosCarrinho(typeof atualizar === 'function' ? atualizar(atual.itens) : atualizar),
-        status: 'rascunho',
-      }));
     });
   };
 
+  const setCarrinho = (atualizar) => setComandaAtual(atual => ({
+    ...atual,
+    itens: recalcularPrecosCarrinho(typeof atualizar === 'function' ? atualizar(atual.itens) : atualizar),
+    status: 'rascunho',
+  }));
+
   const adicionarItem = (prod, opcoes = {}) => {
     if (prod.tipo !== 'venda') return showToast('Este item não pode entrar no PDV', 'warning');
-    const estoqueDisponivel = prod.aFazer ? Number(prod.cozDisponibilidade?.disponivel || 0) : Number(prod.estoque || 0);
+    const estoqueDisponivel = estoqueDisponivelComanda(prod, comandaAtual);
     if (prod.aFazer && estoqueDisponivel <= 0 && !prod.permitirVendaSemInsumo) {
       const faltantes = prod.cozDisponibilidade?.faltantes?.join(', ') || 'ingrediente da ficha técnica';
       return showToast(`${prod.nome} indisponível. Faltam: ${faltantes}`, 'error');
@@ -227,12 +249,14 @@ export default function PDV() {
       };
       setCarrinho(recalcularPrecosCarrinho([...carrinho, novoItem]));
     }
+    setMobileCartOpen(true);
     setFeedbackProduto(prod._id);
     tocarFeedback();
     window.setTimeout(() => setFeedbackProduto(null), 350);
   };
 
   const selecionarProduto = (prod) => {
+    if (comandaPagamento?.metodoPagamento) return showToast('Retome o pagamento pendente antes de adicionar produtos.', 'warning');
     adicionarItem(prod);
   };
 
@@ -249,7 +273,7 @@ export default function PDV() {
     const prod = produtos.find(p => p._id === novos[idx].produtoId);
     if (!permiteFracionar(prod) && !Number.isInteger(quantidade)) return showToast('Este produto é vendido por unidade', 'warning');
     const quantidadeOutrasLinhas = carrinho.reduce((total, item, itemIndex) => itemIndex !== idx && item.produtoId === novos[idx].produtoId ? total + item.quantidade : total, 0);
-    const estoqueDisponivel = prod.aFazer ? Number(prod.cozDisponibilidade?.disponivel || 0) : Number(prod.estoque || 0);
+    const estoqueDisponivel = estoqueDisponivelComanda(prod, comandaAtual);
     if (!prod.permitirVendaSemInsumo && quantidadeOutrasLinhas + quantidade > estoqueDisponivel) return showToast(`Máximo: ${estoqueDisponivel}`, 'warning');
     novos[idx].quantidade = quantidade;
     setCarrinho(recalcularPrecosCarrinho(novos));
@@ -257,9 +281,23 @@ export default function PDV() {
   };
 
 
+  const alterarPreco = (idx, valor) => {
+    if (precosRascunho[idx] === undefined) return;
+    const preco = Number(String(valor).replace(',', '.'));
+    setPrecosRascunho({});
+    if (String(valor).trim() === '' || !Number.isFinite(preco) || preco < 0) {
+      showToast('Informe um preço unitário válido.', 'warning');
+      return;
+    }
+    setCarrinho(itens => itens.map((item, index) => index === idx ? {
+      ...item, precoUnitario: Math.round(preco * 100) / 100, precoUnitarioManual: Math.round(preco * 100) / 100,
+    } : item));
+  };
+
   const removerItem = (idx) => {
     setCarrinho((atuais) => recalcularPrecosCarrinho(atuais.filter((_, i) => i !== idx)));
     setQuantidadesRascunho({});
+    setPrecosRascunho({});
   };
 
 
@@ -270,9 +308,10 @@ export default function PDV() {
   const clienteSelecionado = clientes.find(c => c._id === clienteId);
   const clienteTemEnderecoCadastrado = ['rua', 'numero', 'bairro'].every(campo => clienteSelecionado?.enderecoEntrega?.[campo]?.trim());
   const selecionarCliente = (id) => {
+    if (comandaPagamento?.metodoPagamento) return;
     const cliente = clientes.find(c => c._id === id);
     setClienteId(id);
-    setComandaAtual(atual => ({ ...atual, clienteId: id || undefined, clienteNome: cliente?.nome || atual.clienteNome }));
+    setComandaAtual(atual => ({ ...atual, clienteId: id || undefined, clienteNome: cliente?.nome || atual.clienteNome, status: 'rascunho' }));
     if (!entregaPDV) return;
     const enderecoCadastrado = cliente?.enderecoEntrega || {};
     const temEnderecoCadastrado = ['rua', 'numero', 'bairro'].every(campo => enderecoCadastrado[campo]?.trim());
@@ -299,6 +338,7 @@ export default function PDV() {
       clienteNome: clienteSelecionado?.nome || clienteNome.trim() || 'Cliente não identificado',
       clienteTelefone: entregaPDV?.telefone || clienteSelecionado?.telefone || '',
       itens: carrinho.map((item) => ({
+        precoUnitarioManual: item.precoUnitarioManual,
         produtoId: item.produtoId,
         quantidade: Number(item.quantidade),
         modificadores: item.modificadores || [],
@@ -314,7 +354,7 @@ export default function PDV() {
 
     const assinatura = JSON.stringify(payload);
     if (idempotenciaRef.current?.assinatura !== assinatura) {
-      const chave = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const chave = globalThis.crypto.randomUUID();
       idempotenciaRef.current = { assinatura, chave };
     }
     const idTemporario = idempotenciaRef.current.chave;
@@ -322,7 +362,9 @@ export default function PDV() {
 
     const limparCarrinho = () => {
       idempotenciaRef.current = null;
-      setCarrinho([]);
+      limparComanda();
+      setQuantidadesRascunho({});
+      setPrecosRascunho({});
       setClienteId('');
       setClienteNome('');
       setEntregaPDV(null);
@@ -418,7 +460,7 @@ export default function PDV() {
   const dadosComandaParaSalvar = () => {
     const enderecoEntrega = entregaPDV?.usarEnderecoCadastrado ? clienteSelecionado?.enderecoEntrega : entregaPDV?.endereco;
     if (!comandaAtual._id && !idempotenciaRef.current?.chave) {
-      idempotenciaRef.current = { assinatura: '', chave: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}` };
+      idempotenciaRef.current = { assinatura: '', chave: globalThis.crypto.randomUUID() };
     }
     return {
       ...comandaAtual,
@@ -442,6 +484,7 @@ export default function PDV() {
       if (!validarDadosEntrega()) return null;
       setEnviando(true);
       const comanda = await salvarComandaAberta(dadosComandaParaSalvar());
+      await carregarDados();
       showToast(`Comanda #${comanda.numero} salva em aberto`, 'success');
       return comanda;
     } catch (error) {
@@ -470,40 +513,83 @@ export default function PDV() {
   const abrirPagamento = () => {
     if (!carrinho.length) return showToast('Adicione itens à comanda antes de fechar a venda.', 'warning');
     if (!validarDadosEntrega()) return;
+    if (pagamentoPreparadoRef.current) {
+      setPaymentOpen(true);
+      return;
+    }
     setComandaPagamento({ ...dadosComandaParaSalvar(), valorTotal: total });
     setPaymentOpen(true);
   };
 
   const confirmarPagamento = async () => {
+    if (envioRef.current) return;
+    envioRef.current = true;
     try {
       setEnviando(true);
-      const comandaParaFechar = await salvarComandaAberta(comandaPagamento || dadosComandaParaSalvar());
+      const comandaParaFechar = pagamentoPreparadoRef.current || await salvarComandaAberta(comandaPagamento || dadosComandaParaSalvar());
       const telefone = comandaParaFechar.clienteTelefone || comandaParaFechar.entrega?.telefone || '';
-      if (telefone.trim()) {
+      if (!pagamentoPreparadoRef.current && telefone.trim()) {
         await api.patch(`/comandas/${comandaParaFechar._id}/cliente`, {
           nome: comandaParaFechar.clienteNome,
           telefone,
           enderecoEntrega: comandaParaFechar.entrega?.endereco,
         });
       }
-      await fecharComanda({ metodoPagamento }, comandaParaFechar);
+      pagamentoPreparadoRef.current = { ...comandaParaFechar, metodoPagamento: comandaParaFechar.metodoPagamento || metodoPagamento };
+      const metodoConfirmado = pagamentoPreparadoRef.current.metodoPagamento;
+      setComandaPagamento(atual => ({ ...atual, metodoPagamento: metodoConfirmado }));
+      setComandaAtual(atual => ({ ...atual, pagamentoPendente: { metodoPagamento: metodoConfirmado } }));
+      const resultado = await fecharComanda({ metodoPagamento: pagamentoPreparadoRef.current.metodoPagamento }, comandaParaFechar);
+      setModalSucesso(resultado.pedido);
+      idempotenciaRef.current = null;
+      setQuantidadesRascunho({});
       setPaymentOpen(false);
+      pagamentoPreparadoRef.current = null;
       setComandaPagamento(null);
       setClienteId('');
       setClienteNome('');
       setEntregaPDV(null);
+      void carregarDados();
       showToast('Comanda fechada e pagamento registrado.', 'success');
     } catch (error) {
+      const status = error.response?.status;
+      if (status && status < 500 && status !== 408) {
+        pagamentoPreparadoRef.current = null;
+        setComandaPagamento(atual => ({ ...atual, metodoPagamento: undefined }));
+        setComandaAtual(atual => ({ ...atual, pagamentoPendente: undefined }));
+      }
       showToast(error.response?.data?.msg || error.message || 'Não foi possível fechar a comanda.', 'error');
     } finally {
+      envioRef.current = false;
       setEnviando(false);
     }
   };
 
   const selecionarComandaPainel = async selecao => {
+    if (comandaPagamento?.metodoPagamento) {
+      setMesasDrawerOpen(false);
+      setPaymentOpen(true);
+      showToast('Retome o pagamento pendente antes de trocar de comanda.', 'warning');
+      return;
+    }
     setMesasDrawerOpen(false);
-    setSeletorComandaAberto(false);
     try {
+      if (transferindoMesa) {
+        if (!selecao.mesa) { showToast('Selecione uma mesa livre.', 'warning'); return; }
+        if (selecao.comanda && selecao.comanda._id !== comandaAtual._id) {
+          showToast('Esta mesa já está ocupada. Escolha uma mesa livre.', 'warning');
+          return;
+        }
+        const dados = { ...dadosComandaParaSalvar(), tipo: 'mesa', mesaId: selecao.mesa.id, mesaNumero: selecao.mesa.numero };
+        const salva = await salvarComandaAberta(dados);
+        setMesa(selecao.mesa.id, selecao.mesa.numero);
+        setTransferindoMesa(false);
+        showToast(`Comanda #${salva.numero} transferida para Mesa ${selecao.mesa.numero}.`, 'success');
+        return;
+      }
+      setMobileCartOpen(true);
+      setQuantidadesRascunho({});
+      setPrecosRascunho({});
       if (selecao.comanda) {
         if (comandaAtual._id !== selecao.comanda._id && carrinho.length) {
           const salva = await salvarComandaAtual();
@@ -521,7 +607,7 @@ export default function PDV() {
           telefone: entrega?.telefone || carregada.clienteTelefone || '',
           endereco: entrega?.endereco || { ...ENDERECO_VAZIO },
           enderecoAlternativo: entrega?.endereco || { ...ENDERECO_VAZIO },
-          usarEnderecoCadastrado: !entrega?.preservarEnderecoCadastrado,
+          usarEnderecoCadastrado: false,
           taxaEntrega: Number(carregada.taxaEntrega || 0),
         } : null);
         return;
@@ -573,6 +659,26 @@ export default function PDV() {
   // ==========================================
   // 🖨️ IMPRIMIR CUPOM
   // ==========================================
+  const iniciarNovaComanda = async () => {
+    if (envioRef.current) return;
+    if (carrinho.length && !await salvarComandaAtual()) return;
+    pagamentoPreparadoRef.current = null;
+    setComandaPagamento(null);
+    limparComanda();
+    idempotenciaRef.current = null;
+    setClienteId('');
+    setClienteNome('');
+    setEntregaPDV(null);
+    setQuantidadesRascunho({});
+    setPrecosRascunho({});
+    setMobileCartOpen(false);
+  };
+
+  const imprimirComandaAtual = async () => {
+    const salva = await salvarComandaAtual();
+    if (salva) await imprimirCupom({ ...salva.registroOriginal, comandaNumero: salva.numero, total: salva.registroOriginal.valorTotal });
+  };
+
   const imprimirCupom = async (pedido) => {
     if (!pedido) return;
     try {
@@ -631,7 +737,7 @@ export default function PDV() {
         <button type="button" className="pdv-mesas-trigger" onClick={() => setMesasDrawerOpen(true)}>🪑 Mesas · {comandasAbertasCount} abertas</button>
       </div>
       <button type="button" className="pdv-mobile-cart-trigger" onClick={() => setMobileCartOpen((open) => !open)} aria-expanded={mobileCartOpen}>
-        <span>{mobileCartOpen ? '− Minimizar carrinho' : '🛒 Carrinho'}</span>
+        <span>{mobileCartOpen ? '− Minimizar comanda' : '📝 Comanda'}</span>
         <strong>{totalItens} {totalItens === 1 ? 'item' : 'itens'} · R$ {total.toFixed(2).replace('.', ',')}</strong>
       </button>
       {!mobileCartOpen && <button type="button" className="pdv-mobile-mesas-trigger" onClick={() => setMesasDrawerOpen(true)}>🪑 Mesas · {comandasAbertasCount}</button>}
@@ -673,7 +779,7 @@ export default function PDV() {
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Nome no atendimento</label>
-                <input placeholder="Digite o nome (opcional)" value={clienteNome} onChange={e => { setClienteNome(e.target.value); setComandaAtual(atual => ({ ...atual, clienteNome: e.target.value })); }} style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)', borderRadius: 10, fontSize: 16, boxSizing: 'border-box', outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48 }} />
+                <input disabled={Boolean(comandaPagamento?.metodoPagamento)} placeholder="Digite o nome (opcional)" value={clienteNome} onChange={e => { setClienteNome(e.target.value); setComandaAtual(atual => ({ ...atual, clienteNome: e.target.value, status: 'rascunho' })); }} style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)', borderRadius: 10, fontSize: 16, boxSizing: 'border-box', outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48 }} />
               </div>
             </div>
           </div>
@@ -681,7 +787,6 @@ export default function PDV() {
             background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
             borderRadius: 16, padding: 16
           }}>
-            {comandaAtual.tipo === 'delivery' && <DeliveryPDV value={entregaPDV} onChange={setEntregaPDV} customer={clienteSelecionado} showToggle={false} />}
             <div style={{ marginBottom: 18 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
                 <div>
@@ -772,7 +877,8 @@ export default function PDV() {
         </div>
         {/* COLUNA CARRINHO */}
         <div className={`pdv-cart-panel ${mobileCartOpen ? 'mobile-open' : ''}`}>
-          <div style={{
+          {comandaPagamento?.metodoPagamento && !paymentOpen && <p role="status">Pagamento aguardando confirmação. <button type="button" onClick={abrirPagamento}>Retomar pagamento</button></p>}
+          <div inert={Boolean(comandaPagamento?.metodoPagamento)} style={{
             background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
             borderRadius: 16, padding: 16, position: 'sticky', top: 16
           }}>
@@ -786,19 +892,17 @@ export default function PDV() {
                   }}>{totalItens}</span>
                 )}
               </h3>
-              <div className="pdv-command-selector">
-                <button type="button" className="pdv-command-pill" onClick={() => setSeletorComandaAberto(open => !open)} aria-expanded={seletorComandaAberto}>
-                  {rotuloComandaAtual} <span aria-hidden="true">⌄</span>
-                </button>
-                {seletorComandaAberto && <div className="pdv-command-popover">
-                  <button type="button" onClick={() => selecionarComandaPainel({ tipoAtendimento: 'balcao' })}>Balcão</button>
-                  <button type="button" onClick={() => selecionarComandaPainel({ tipoAtendimento: 'retirada' })}>Retirada</button>
-                  <button type="button" onClick={() => selecionarComandaPainel({ tipoAtendimento: 'delivery' })}>Delivery</button>
-                  <button type="button" onClick={() => { setSeletorComandaAberto(false); setMesasDrawerOpen(true); }}>Mesas e comandas abertas</button>
-                </div>}
-              </div>
               <button type="button" className="pdv-mobile-cart-close" onClick={() => setMobileCartOpen(false)}>− Minimizar</button>
             </div>
+            <div className="pdv-command-type-tabs" aria-label="Tipo da comanda">
+              <button type="button" className={comandaAtual.tipo === 'balcao' ? 'active' : ''} onClick={() => selecionarComandaPainel({ tipoAtendimento: 'balcao' })}>Balcão</button>
+              <button type="button" className={comandaAtual.tipo === 'mesa' ? 'active' : ''} onClick={() => { setTransferindoMesa(false); setMesasDrawerOpen(true); }}>🪑 Mesa</button>
+              <button type="button" className={comandaAtual.tipo === 'delivery' ? 'active' : ''} onClick={() => selecionarComandaPainel({ tipoAtendimento: 'delivery' })}>🛵 Delivery</button>
+            </div>
+            <div className="pdv-command-current"><span>{comandaAtual._id ? `Adicionando à ${rotuloComandaAtual} · #${comandaAtual.numero}` : rotuloComandaAtual}</span><button type="button" onClick={iniciarNovaComanda} disabled={enviando}>+ Novo pedido</button></div>
+            <label className="pdv-command-name">Nome (opcional)<input value={clienteNome} onChange={event => { setClienteNome(event.target.value); setComandaAtual(atual => ({ ...atual, clienteNome: event.target.value, status: 'rascunho' })); }} maxLength={160} /></label>
+            {comandaAtual.tipo === 'delivery' && <DeliveryPDV value={entregaPDV} onChange={setEntregaPDV} customer={clienteSelecionado} showToggle={false} />}
+            <label className="pdv-command-name">Observação<textarea value={comandaAtual.observacao || ''} maxLength={500} onChange={event => setComandaAtual(atual => ({ ...atual, observacao: event.target.value, status: 'rascunho' }))} /></label>
             <label className="pdv-mobile-product-select">
               <span>Adicionar produto</span>
               <select
@@ -819,7 +923,7 @@ export default function PDV() {
             {carrinho.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)', fontSize: 14 }}>
                 <div style={{ fontSize: 40, marginBottom: 8 }}>🛒</div>
-                Carrinho vazio<br />
+                Comanda sem itens<br />
                 <span style={{ fontSize: 12 }}>Adicione produtos pelo seletor acima ou pelo catálogo</span>
               </div>
             ) : (
@@ -871,7 +975,7 @@ export default function PDV() {
                           </div>
                           <div style={{ flex: 1, textAlign: 'right' }}>
                             <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Unitário</div>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: item.faixaDescontoQuantidade ? 'var(--success-bg)' : 'var(--accent-primary)', textAlign: 'right', padding: '8px 10px', border: '1px solid var(--border-color)', borderRadius: 8, minHeight: 38 }}>{formatMoney(item.precoUnitario)}</div>
+                            <input type="number" min="0" step="0.01" aria-label={`Preço unitário de ${item.nome}`} value={precosRascunho[i] ?? item.precoUnitario} onChange={event => setPrecosRascunho(atuais => ({ ...atuais, [i]: event.target.value }))} onBlur={event => alterarPreco(i, event.target.value)} style={{ width: '100%', maxWidth: 110, fontSize: 15, fontWeight: 700, background: 'var(--input-bg)', color: 'var(--input-text)', textAlign: 'right', padding: '8px 10px', border: '1px solid var(--border-color)', borderRadius: 8, minHeight: 38 }} />
                           </div>
                         </div>
                         {item.faixaDescontoQuantidade && <div style={{ marginTop: 6, color: 'var(--success-bg)', fontSize: 11, fontWeight: 700 }}>🏷️ PROMOÇÃO · Economia: {formatMoney(item.economiaQuantidade)}</div>}
@@ -905,16 +1009,18 @@ export default function PDV() {
                   </div>
                   
                   <div className="pdv-command-actions">
-                  {comandaAtual.tipo === 'mesa' && <button type="button" onClick={salvarComandaAtual} disabled={enviando} style={{
+                  <button type="button" onClick={salvarComandaAtual} disabled={enviando} style={{
                     width: '100%', padding: '13px', background: 'var(--bg-tertiary)', color: 'var(--accent-primary)',
                     border: '1px solid var(--accent-border)', borderRadius: 12, fontSize: 14, fontWeight: 700,
                     cursor: 'pointer', minHeight: 48
-                  }}>Salvar em aberto</button>}
+                  }}>Salvar em aberto</button>
                   <button type="button" onClick={abrirPagamento} disabled={enviando} style={{
                     width: '100%', padding: '14px', background: 'var(--accent-primary)', color: '#fff',
                     border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
                     cursor: 'pointer', minHeight: 52
-                  }}>{comandaAtual.tipo === 'mesa' ? 'Fechar venda → pagamento' : 'Finalizar venda'}</button>
+                  }}>Fechar venda → pagamento</button>
+                  <button type="button" onClick={imprimirComandaAtual} disabled={enviando}>🖨️ Imprimir comanda</button>
+                  {comandaAtual.tipo === 'mesa' && <button type="button" onClick={() => { setTransferindoMesa(true); setMesasDrawerOpen(true); }} disabled={enviando}>Transferir mesa</button>}
                   {!navigator.onLine && <button type="button" onClick={finalizar} disabled={enviando} className="pdv-offline-save">Salvar fila offline</button>}
                   </div>
                   
@@ -982,13 +1088,13 @@ export default function PDV() {
         </div>
       )}
 
-      <MesasDrawer open={mesasDrawerOpen} onClose={() => setMesasDrawerOpen(false)} onSelect={selecionarComandaPainel} />
+      <MesasDrawer open={mesasDrawerOpen} onClose={() => { setMesasDrawerOpen(false); setTransferindoMesa(false); }} onSelect={selecionarComandaPainel} />
       {paymentOpen && <div className="pdv-payment-overlay" onMouseDown={event => { if (event.target === event.currentTarget) setPaymentOpen(false); }}>
         <section className="pdv-payment-dialog" role="dialog" aria-modal="true" aria-labelledby="pdv-payment-title">
           <h2 id="pdv-payment-title">Fechar comanda</h2>
           <p>Total a receber: <strong>{formatMoney(comandaPagamento?.valorTotal || total)}</strong></p>
           <label>Forma de pagamento
-            <select value={metodoPagamento} onChange={event => setMetodoPagamento(event.target.value)}>
+            <select disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={comandaPagamento?.metodoPagamento || metodoPagamento} onChange={event => setMetodoPagamento(event.target.value)}>
               {FORMAS_PAGAMENTO.map(forma => <option value={forma.value} key={forma.value}>{forma.label.replace(/^[^ ]+ /, '')}</option>)}
             </select>
           </label>
@@ -1026,6 +1132,7 @@ export default function PDV() {
           .pdv-grid [style*="max-height: 420px"] { max-height: 280px !important; }
           .pdv-grid [style*="position: sticky"] { position: static !important; }
         }
+        .pdv-command-type-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}.pdv-command-type-tabs button,.pdv-command-current button,.pdv-command-actions button{min-height:44px;border:1px solid var(--accent-border);border-radius:10px;padding:8px;background:var(--bg-tertiary);color:var(--accent-primary);font:inherit;font-weight:700;cursor:pointer}.pdv-command-type-tabs button.active{background:var(--accent-primary);color:#fff}.pdv-command-current{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:12px;color:var(--text-secondary)}.pdv-command-name{display:grid;gap:6px;margin-bottom:12px;font-size:12px;font-weight:700;color:var(--text-secondary)}.pdv-command-name input,.pdv-command-name textarea{width:100%;box-sizing:border-box;min-height:40px;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--input-bg);color:var(--input-text);font:inherit}.pdv-command-name textarea{resize:vertical}
         .product-card:active { transform: scale(0.97); }
         .product-card-added { animation: item-added .35s ease; border-color: var(--accent-primary) !important; }
         .pdv-mobile-cart-trigger, .pdv-mobile-cart-close,.pdv-mobile-mesas-trigger { display: none; }
