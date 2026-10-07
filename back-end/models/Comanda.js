@@ -45,7 +45,7 @@ const comandaSchema = new mongoose.Schema({
   clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
   clienteTelefone: { type: String, trim: true },
   observacao: { type: String, trim: true },
-  tipoAtendimento: { type: String, enum: ['mesa', 'balcao', 'delivery'], default: 'mesa', index: true },
+  tipoAtendimento: { type: String, enum: ['mesa', 'balcao', 'retirada', 'delivery'], default: 'mesa', index: true },
   statusBalcao: { type: String, enum: ['aguardando', 'preparando', 'pronto', 'pago', 'entregue'], default: 'aguardando' },
   mesa: { type: String, trim: true },
   itens: { type: [itemSchema], default: [] },
@@ -67,7 +67,7 @@ const comandaSchema = new mongoose.Schema({
   }],
   utilizacaoInterna: { type: Boolean, default: false },
   estoqueBaixado: { type: Boolean, default: false },
-  status: { type: String, enum: ['aberta', 'fechada', 'cancelada'], default: 'aberta', index: true },
+  status: { type: String, enum: ['rascunho', 'aberta', 'fechada', 'cancelada'], default: 'aberta', index: true },
   atendente: { type: String, required: true },
   entrega: {
     type: new mongoose.Schema({

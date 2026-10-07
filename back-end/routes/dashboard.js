@@ -5,6 +5,8 @@ const { indexarComandasPorId, normalizarPagamentos, pagamentosDoPedido, carregar
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
 const PaymentSettings = require('../models/PaymentSettings');
+const PedidoEntrega = require('../models/PedidoEntrega');
+const Entregador = require('../models/Entregador');
 const auth = require('../middleware/auth');
 const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
 
@@ -191,6 +193,144 @@ router.get('/historico-produtos', async (req, res) => {
     const resumo = historico.reduce((total, ponto) => ({ quantidade: total.quantidade + ponto.quantidade, total: total.total + ponto.total, pedidos: total.pedidos + ponto.pedidos }), { quantidade: 0, total: 0, pedidos: 0 });
     res.json({ periodo: 'semana', produtoId: produtoId || null, inicio, fim, resumo, pontos: historico });
   } catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
+const inicioPeriodoDelivery = (periodo) => {
+  const hoje = dataSaoPaulo();
+  if (periodo === 'hoje') return new Date(`${hoje}T00:00:00-03:00`);
+  const [ano, mes, dia] = hoje.split('-').map(Number);
+  const inicio = new Date(Date.UTC(ano, mes - 1, dia));
+  if (periodo === 'semana') {
+    const diaSemana = inicio.getUTCDay();
+    inicio.setUTCDate(inicio.getUTCDate() - (diaSemana === 0 ? 6 : diaSemana - 1));
+    return new Date(`${inicio.toISOString().slice(0, 10)}T00:00:00-03:00`);
+  }
+  return new Date(`${hoje.slice(0, 7)}-01T00:00:00-03:00`);
+};
+
+const duracaoEntregaMinutos = (historico = []) => {
+  const inicio = historico.find(item => item.status === 'despachado')?.data;
+  const fim = [...historico].reverse().find(item => item.status === 'entregue')?.data;
+  if (!inicio || !fim) return null;
+  const minutos = (new Date(fim).getTime() - new Date(inicio).getTime()) / 60000;
+  return Number.isFinite(minutos) && minutos >= 0 ? minutos : null;
+};
+
+router.get('/delivery', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const periodo = String(req.query.periodo || 'hoje');
+    if (!['hoje', 'semana', 'mes'].includes(periodo)) return res.status(400).json({ msg: 'Período inválido' });
+    if (!req.user.tenantId) return res.status(403).json({ msg: 'Comércio não identificado para este usuário' });
+
+    const inicio = inicioPeriodoDelivery(periodo);
+    const agora = new Date();
+    const entregas = await PedidoEntrega.find({
+      tenantId: req.user.tenantId,
+      criadoEm: { $gte: inicio, $lte: agora },
+      status: 'entregue',
+    }).populate('entregadorId', 'nome').lean();
+    const comandas = await Comanda.find({
+      _id: { $in: entregas.map(entrega => entrega.vendaId).filter(Boolean) },
+      status: 'fechada',
+      tipoAtendimento: 'delivery',
+    }).select('_id pedidoId').lean();
+    const comandasPorId = new Map(comandas.map(comanda => [String(comanda._id), comanda]));
+    const pedidos = await Order.find({
+      _id: { $in: comandas.map(comanda => comanda.pedidoId).filter(Boolean) },
+      status: { $in: ['pago', 'parcial'] },
+    }).select('_id total').lean();
+    const pedidosPorId = new Map(pedidos.map(pedido => [String(pedido._id), pedido]));
+    const entregasConcluidas = entregas.filter(entrega => {
+      const comanda = comandasPorId.get(String(entrega.vendaId));
+      return comanda && pedidosPorId.has(String(comanda.pedidoId));
+    });
+    const faturamentoEntrega = entregasConcluidas.reduce((soma, entrega) => {
+      const comanda = comandasPorId.get(String(entrega.vendaId));
+      return soma + Number(pedidosPorId.get(String(comanda.pedidoId)).total || 0);
+    }, 0);
+    const freteTotal = entregasConcluidas.reduce((soma, entrega) => soma + Number(entrega.taxaEntrega || 0), 0);
+    const pedidosPeriodo = await Order.find({
+      createdAt: { $gte: inicio, $lte: agora },
+      status: { $in: ['pago', 'parcial'] },
+    }).select('total tipoAtendimento').lean();
+    const totalFaturamento = pedidosPeriodo.reduce((soma, pedido) => soma + Number(pedido.total || 0), 0);
+    const pedidosPresenciais = pedidosPeriodo.filter(pedido => pedido.tipoAtendimento !== 'delivery');
+    const receitaPresencial = pedidosPresenciais.reduce((soma, pedido) => soma + Number(pedido.total || 0), 0);
+    const porEntregador = new Map();
+    const entregadores = await Entregador.find({
+      ativo: true,
+      $or: [{ tenantId: req.user.tenantId }, { tenantId: null }],
+    }).select('_id nome').lean();
+    entregadores.forEach(entregador => porEntregador.set(String(entregador._id), {
+      nome: entregador.nome, pedidos: 0, receita: 0, frete: 0, duracoes: [],
+    }));
+    const duracoes = [];
+    entregasConcluidas.forEach(entrega => {
+      const entregadorId = entrega.entregadorId?._id ? String(entrega.entregadorId._id) : 'sem-entregador';
+      const nome = entrega.entregadorId?.nome || 'Sem entregador atribuído';
+      const registro = porEntregador.get(entregadorId) || { nome, pedidos: 0, receita: 0, frete: 0, duracoes: [] };
+      const comanda = comandasPorId.get(String(entrega.vendaId));
+      const receita = Number(pedidosPorId.get(String(comanda.pedidoId)).total || 0);
+      const duracao = duracaoEntregaMinutos(entrega.statusHistorico);
+      registro.pedidos += 1;
+      registro.receita += receita;
+      registro.frete += Number(entrega.taxaEntrega || 0);
+      if (duracao !== null) {
+        registro.duracoes.push(duracao);
+        duracoes.push(duracao);
+      }
+      porEntregador.set(entregadorId, registro);
+    });
+    const resumirDuracao = valores => valores.length ? Number((valores.reduce((soma, valor) => soma + valor, 0) / valores.length).toFixed(1)) : null;
+    const porEntregadorResposta = [...porEntregador.values()].map(({ duracoes: tempos, ...entregador }) => ({
+      ...entregador,
+      receita: Number(entregador.receita.toFixed(2)),
+      frete: Number(entregador.frete.toFixed(2)),
+      tempoMedioMinutos: resumirDuracao(tempos),
+    })).sort((a, b) => a.nome === 'Sem entregador atribuído' ? 1 : b.nome === 'Sem entregador atribuído' ? -1 : a.nome.localeCompare(b.nome, 'pt-BR'));
+    res.json({
+      totalPedidos: entregasConcluidas.length,
+      receitaTotal: Number(faturamentoEntrega.toFixed(2)),
+      freteTotal: Number(freteTotal.toFixed(2)),
+      ticketMedio: entregasConcluidas.length ? Number((faturamentoEntrega / entregasConcluidas.length).toFixed(2)) : 0,
+      ticketMedioPresencial: pedidosPresenciais.length ? Number((receitaPresencial / pedidosPresenciais.length).toFixed(2)) : 0,
+      porcentagemFaturamento: totalFaturamento ? Number((faturamentoEntrega / totalFaturamento * 100).toFixed(1)) : 0,
+      porEntregador: porEntregadorResposta,
+      tempoMedioMinutos: resumirDuracao(duracoes),
+    });
+  } catch (error) {
+    res.status(500).json({ msg: error.message });
+  }
+});
+
+router.get('/receita-7-dias', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const [ano, mes, dia] = dataSaoPaulo().split('-').map(Number);
+    const hoje = new Date(Date.UTC(ano, mes - 1, dia));
+    const datas = Array.from({ length: 7 }, (_, indice) => {
+      const data = new Date(hoje);
+      data.setUTCDate(data.getUTCDate() - (6 - indice));
+      return data.toISOString().slice(0, 10);
+    });
+    const inicio = new Date(`${datas[0]}T00:00:00-03:00`);
+    const vendas = await Order.aggregate([
+      { $match: { createdAt: { $gte: inicio, $lte: new Date() }, status: { $in: ['pago', 'parcial'] } } },
+      { $group: {
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: TIME_ZONE } },
+        total: { $sum: '$total' },
+        pedidos: { $sum: 1 },
+      } },
+    ]);
+    const vendasPorData = new Map(vendas.map(venda => [venda._id, venda]));
+    res.json(datas.map(data => {
+      const venda = vendasPorData.get(data);
+      const total = Number(venda?.total || 0);
+      const pedidos = Number(venda?.pedidos || 0);
+      return { data, dia: data.slice(5).split('-').reverse().join('/'), total, pedidos, ticketMedio: pedidos ? Number((total / pedidos).toFixed(2)) : 0 };
+    }));
+  } catch (error) {
+    res.status(500).json({ msg: error.message });
+  }
 });
 
 router.get('/', async (req, res) => {

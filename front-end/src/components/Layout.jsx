@@ -12,7 +12,7 @@ const gruposMenu = [
     items: [
       { label: 'PDV · Nova venda', icon: '🛒', to: '/pdv' },
       { label: 'Entregas', icon: '🛵', to: '/entregas', roles: ['admin', 'operador'], badge: true },
-      { label: 'Mesas / Comandas', icon: '🪑', to: '/atendimento/mesas' },
+      { label: 'Mesas / Comandas', icon: '🪑', to: '/pdv?mesas=abrir', badge: 'comandas' },
       { label: 'A Receber', icon: '💰', to: '/contas-receber', admin: true },
     ],
   },
@@ -64,6 +64,7 @@ const gruposMenu = [
     label: '⚙️ CONFIGURAÇÕES',
     items: [
       { label: 'Impressoras', icon: '🖨️', to: '/ajustes/impressoras', admin: true },
+      { label: 'Pagamentos', icon: '💳', to: '/configuracoes/pagamentos', admin: true },
     ],
   },
 ];
@@ -83,6 +84,7 @@ const pageIcons = {
   '/compras': { icon: '🧾', title: 'Compras' },
   '/financeiro': { icon: '💵', title: 'Financeiro' },
   '/ajustes/impressoras': { icon: '🖨️', title: 'Impressoras' },
+  '/configuracoes/pagamentos': { icon: '💳', title: 'Pagamentos' },
 };
 
 export default function Layout({ children }) {
@@ -94,6 +96,7 @@ export default function Layout({ children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [gruposAbertos, setGruposAbertos] = useState({ atendimento: true });
   const [entregasPendentes, setEntregasPendentes] = useState(0);
+  const [comandasAbertas, setComandasAbertas] = useState(0);
 
   const carregarBadgeEntregas = useCallback(async () => {
     if (!user?.tenantId || !['admin', 'operador'].includes(user.role)) {
@@ -113,6 +116,25 @@ export default function Layout({ children }) {
     const polling = window.setInterval(() => { void carregarBadgeEntregas(); }, 15000);
     return () => { window.clearTimeout(inicio); window.clearInterval(polling); };
   }, [carregarBadgeEntregas]);
+
+  useEffect(() => {
+    if (!user?.tenantId) {
+      setComandasAbertas(0);
+      return undefined;
+    }
+    let ativo = true;
+    const carregarComandasAbertas = async () => {
+      try {
+        const { data } = await api.get('/comandas?status=aberta');
+        if (ativo) setComandasAbertas(Array.isArray(data) ? data.length : 0);
+      } catch (error) {
+        console.warn('[Comandas] Não foi possível atualizar o indicador do menu.', error.response?.status || error.code || error.message);
+      }
+    };
+    void carregarComandasAbertas();
+    const polling = window.setInterval(() => { void carregarComandasAbertas(); }, 30000);
+    return () => { ativo = false; window.clearInterval(polling); };
+  }, [user?.tenantId]);
 
   const sair = () => { logout(); navigate('/login'); };
 
@@ -187,7 +209,7 @@ export default function Layout({ children }) {
               <Link
                 key={item.to}
                 to={item.to}
-                className={pathAtivo.startsWith(item.to) ? 'nav-link active' : 'nav-link'}
+                className={pathAtivo.startsWith(item.to.split('?')[0]) ? 'nav-link active' : 'nav-link'}
                 onClick={() => {
                   if (isMobile) toggleMobileMenu(false);
                   toggleGrupo(grupo.chave);
@@ -195,7 +217,8 @@ export default function Layout({ children }) {
               >
                 <span className="nav-link-icon">{item.icon}</span>
                 <span className="nav-link-text">{item.label}</span>
-                {item.badge && entregasPendentes > 0 && <span className="nav-link-badge" aria-label={`${entregasPendentes} entregas pendentes`}>{entregasPendentes}</span>}
+                {item.badge === true && entregasPendentes > 0 && <span className="nav-link-badge" aria-label={`${entregasPendentes} entregas pendentes`}>{entregasPendentes}</span>}
+                {item.badge === 'comandas' && comandasAbertas > 0 && <span className="nav-link-badge" aria-label={`${comandasAbertas} comandas abertas`}>{comandasAbertas}</span>}
               </Link>
             ))}
           </div>

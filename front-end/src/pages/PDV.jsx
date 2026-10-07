@@ -1,11 +1,14 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/useToast.js';
 import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 import useFilaOffline from '../hooks/useFilaOffline.js';
 import DeliveryPDV from '../components/DeliveryPDV.jsx';
+import MesasDrawer from '../components/atendimento/MesasDrawer.jsx';
+import { useComanda } from '../context/ComandaContext.jsx';
+import { FORMAS_PAGAMENTO } from '../utils/formasPagamento.jsx';
 import {
   carregarConfiguracaoImpressao,
   carregarPreferenciaImpressora,
@@ -68,9 +71,10 @@ const precoComDescontoGrupo = (produto, quantidade, cartItens, precoBase) => {
 
 
 export default function PDV() {
+  const { comandaAtual, setComandaAtual, setTipo, setMesa, salvarComandaAberta, fecharComanda, carregarComanda, limparComanda } = useComanda();
+  const carrinho = comandaAtual.itens;
   const [produtos, setProdutos] = useState([]);
   const [maisVendidos, setMaisVendidos] = useState([]);
-  const [carrinho, setCarrinho] = useState([]);
   const [quantidadesRascunho, setQuantidadesRascunho] = useState({});
   const [busca, setBusca] = useState('');
   const [clientes, setClientes] = useState([]);
@@ -88,6 +92,36 @@ export default function PDV() {
   const envioRef = useRef(false);
   const idempotenciaRef = useRef(null);
   const [enviando, setEnviando] = useState(false);
+  const [mesasDrawerOpen, setMesasDrawerOpen] = useState(false);
+  const [comandasAbertasCount, setComandasAbertasCount] = useState(0);
+  const [seletorComandaAberto, setSeletorComandaAberto] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [metodoPagamento, setMetodoPagamento] = useState('dinheiro');
+  const [comandaPagamento, setComandaPagamento] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('mesas') !== 'abrir') return;
+    setMesasDrawerOpen(true);
+    const parametros = new URLSearchParams(searchParams);
+    parametros.delete('mesas');
+    setSearchParams(parametros, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    let ativo = true;
+    const carregarContagem = async () => {
+      try {
+        const { data } = await api.get('/comandas?status=aberta');
+        if (ativo) setComandasAbertasCount(Array.isArray(data) ? data.length : 0);
+      } catch (error) {
+        console.warn('[Comandas] Não foi possível atualizar o total de comandas abertas.', error.response?.status || error.code || error.message);
+      }
+    };
+    void carregarContagem();
+    const intervalo = window.setInterval(() => { void carregarContagem(); }, 30000);
+    return () => { ativo = false; window.clearInterval(intervalo); };
+  }, []);
 
 
   const carregarDados = useCallback(async () => {
@@ -158,6 +192,12 @@ export default function PDV() {
         totalGrupo: grupoPricing?.totalGrupo || 0,
         faltamParaGrupo: grupoPricing?.faltamParaGrupo || 0,
       };
+
+      const setCarrinho = (atualizar) => setComandaAtual(atual => ({
+        ...atual,
+        itens: recalcularPrecosCarrinho(typeof atualizar === 'function' ? atualizar(atual.itens) : atualizar),
+        status: 'rascunho',
+      }));
     });
   };
 
@@ -232,6 +272,7 @@ export default function PDV() {
   const selecionarCliente = (id) => {
     const cliente = clientes.find(c => c._id === id);
     setClienteId(id);
+    setComandaAtual(atual => ({ ...atual, clienteId: id || undefined, clienteNome: cliente?.nome || atual.clienteNome }));
     if (!entregaPDV) return;
     const enderecoCadastrado = cliente?.enderecoEntrega || {};
     const temEnderecoCadastrado = ['rua', 'numero', 'bairro'].every(campo => enderecoCadastrado[campo]?.trim());
@@ -374,6 +415,152 @@ export default function PDV() {
     }
   };
 
+  const dadosComandaParaSalvar = () => {
+    const enderecoEntrega = entregaPDV?.usarEnderecoCadastrado ? clienteSelecionado?.enderecoEntrega : entregaPDV?.endereco;
+    if (!comandaAtual._id && !idempotenciaRef.current?.chave) {
+      idempotenciaRef.current = { assinatura: '', chave: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}` };
+    }
+    return {
+      ...comandaAtual,
+      idTemporario: comandaAtual.idTemporario || idempotenciaRef.current?.chave,
+      clienteId: clienteId || undefined,
+      clienteNome: clienteSelecionado?.nome || clienteNome.trim() || comandaAtual.clienteNome || 'Cliente não identificado',
+      clienteTelefone: entregaPDV?.telefone || clienteSelecionado?.telefone || comandaAtual.clienteTelefone || '',
+      entrega: entregaPDV ? {
+        ...entregaPDV,
+        endereco: enderecoEntrega || ENDERECO_VAZIO,
+        preservarEnderecoCadastrado: Boolean(clienteTemEnderecoCadastrado && entregaPDV.usarEnderecoCadastrado === false),
+        taxaEntrega: Number(entregaPDV.taxaEntrega || 0),
+      } : undefined,
+    };
+  };
+
+  const salvarComandaAtual = async () => {
+    if (envioRef.current) return null;
+    envioRef.current = true;
+    try {
+      const enderecoEntrega = entregaPDV?.usarEnderecoCadastrado ? clienteSelecionado?.enderecoEntrega : entregaPDV?.endereco;
+      if (entregaPDV && (!String(clienteSelecionado?.nome || clienteNome || '').trim() || !entregaPDV.telefone.trim() || !['rua', 'numero', 'bairro'].every(campo => enderecoEntrega?.[campo]?.trim()) || !Number.isFinite(Number(entregaPDV.taxaEntrega)) || Number(entregaPDV.taxaEntrega) < 0)) {
+        showToast('Informe nome, telefone e endereço completo para entrega.', 'warning');
+        return null;
+      }
+      setEnviando(true);
+      const comanda = await salvarComandaAberta(dadosComandaParaSalvar());
+      showToast(`Comanda #${comanda.numero} salva em aberto`, 'success');
+      return comanda;
+    } catch (error) {
+      showToast(error.response?.data?.msg || error.message || 'Não foi possível salvar a comanda.', 'error');
+      return null;
+    } finally {
+      envioRef.current = false;
+      setEnviando(false);
+    }
+  };
+
+  const abrirPagamento = async () => {
+    if (!carrinho.length) return showToast('Adicione itens à comanda antes de fechar a venda.', 'warning');
+    const comanda = await salvarComandaAtual();
+    if (comanda) {
+      setComandaPagamento(comanda);
+      setPaymentOpen(true);
+    }
+  };
+
+  const confirmarPagamento = async () => {
+    try {
+      setEnviando(true);
+      const comandaParaFechar = comandaPagamento || comandaAtual;
+      const telefone = comandaParaFechar.clienteTelefone || comandaParaFechar.entrega?.telefone || '';
+      if (telefone.trim()) {
+        await api.patch(`/comandas/${comandaParaFechar._id}/cliente`, {
+          nome: comandaParaFechar.clienteNome,
+          telefone,
+          enderecoEntrega: comandaParaFechar.entrega?.endereco,
+        });
+      }
+      await fecharComanda({ metodoPagamento }, comandaParaFechar);
+      setPaymentOpen(false);
+      setComandaPagamento(null);
+      setClienteId('');
+      setClienteNome('');
+      setEntregaPDV(null);
+      showToast('Comanda fechada e pagamento registrado.', 'success');
+    } catch (error) {
+      showToast(error.response?.data?.msg || error.message || 'Não foi possível fechar a comanda.', 'error');
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const selecionarComandaPainel = async selecao => {
+    setMesasDrawerOpen(false);
+    setSeletorComandaAberto(false);
+    try {
+      if (selecao.comanda) {
+        if (comandaAtual._id !== selecao.comanda._id && carrinho.length) {
+          const salva = await salvarComandaAtual();
+          if (!salva) return;
+        } else if (comandaAtual._id === selecao.comanda._id && comandaAtual.status === 'rascunho') {
+          const salva = await salvarComandaAtual();
+          if (!salva) return;
+          return;
+        }
+        const carregada = await carregarComanda(selecao.comanda._id);
+        setClienteId(String(carregada.clienteId || ''));
+        setClienteNome(carregada.clienteNome || '');
+        const entrega = carregada.registroOriginal?.entrega;
+        setEntregaPDV(carregada.tipo === 'delivery' ? {
+          telefone: entrega?.telefone || carregada.clienteTelefone || '',
+          endereco: entrega?.endereco || { ...ENDERECO_VAZIO },
+          enderecoAlternativo: entrega?.endereco || { ...ENDERECO_VAZIO },
+          usarEnderecoCadastrado: !entrega?.preservarEnderecoCadastrado,
+          taxaEntrega: Number(carregada.taxaEntrega || 0),
+        } : null);
+        return;
+      }
+
+      if (selecao.mesa) {
+        const mesaAtual = String(comandaAtual.mesaNumero || '') === String(selecao.mesa.numero);
+        if (comandaAtual._id && !mesaAtual) {
+          const salva = carrinho.length ? await salvarComandaAtual() : true;
+          if (!salva) return;
+          limparComanda();
+          setClienteId('');
+          setClienteNome('');
+          setEntregaPDV(null);
+        } else if (carrinho.length && !mesaAtual && !window.confirm(`Adicionar os itens atuais à Mesa ${selecao.mesa.numero}?`)) {
+          return;
+        }
+        setMesa(selecao.mesa.id, selecao.mesa.numero);
+        return;
+      }
+
+      if (selecao.tipoAtendimento) {
+        if (selecao.tipoAtendimento === comandaAtual.tipo) return;
+        if (comandaAtual._id) {
+          const salva = carrinho.length ? await salvarComandaAtual() : true;
+          if (!salva) return;
+          limparComanda();
+          setClienteId('');
+          setClienteNome('');
+          setEntregaPDV(null);
+        } else if (carrinho.length && !window.confirm('Manter os itens no novo tipo de atendimento?')) {
+          return;
+        }
+        setTipo(selecao.tipoAtendimento);
+        setEntregaPDV(selecao.tipoAtendimento === 'delivery' ? {
+          telefone: clienteSelecionado?.telefone || '',
+          endereco: clienteSelecionado?.enderecoEntrega || { ...ENDERECO_VAZIO },
+          enderecoAlternativo: { ...ENDERECO_VAZIO },
+          usarEnderecoCadastrado: Boolean(clienteTemEnderecoCadastrado),
+          taxaEntrega: 0,
+        } : null);
+      }
+    } catch (error) {
+      showToast(error.response?.data?.msg || error.message || 'Não foi possível trocar de comanda.', 'error');
+    }
+  };
+
 
   // ==========================================
   // 🖨️ IMPRIMIR CUPOM
@@ -418,6 +605,11 @@ export default function PDV() {
     if (grupoAtivo === 'Favoritos') return idsMaisVendidos.has(String(produto._id));
     return produto.categoria === grupoAtivo;
   });
+  const rotuloComandaAtual = comandaAtual.tipo === 'mesa'
+    ? `Mesa ${comandaAtual.mesaNumero || '—'}`
+    : comandaAtual.tipo === 'delivery'
+      ? `Delivery ${clienteSelecionado?.nome || clienteNome || comandaAtual.clienteNome || ''}`.trim()
+      : comandaAtual.tipo === 'retirada' ? 'Retirada' : 'Balcão';
 
 
   return (
@@ -426,13 +618,15 @@ export default function PDV() {
       <div className="pdv-header-desktop page-heading">
         <div>
           <h1>☕ Atendimento</h1>
-          <p>Monte o pedido e abra uma comanda.</p>
+          <p>Monte o pedido diretamente na comanda selecionada.</p>
         </div>
+        <button type="button" className="pdv-mesas-trigger" onClick={() => setMesasDrawerOpen(true)}>🪑 Mesas · {comandasAbertasCount} abertas</button>
       </div>
       <button type="button" className="pdv-mobile-cart-trigger" onClick={() => setMobileCartOpen((open) => !open)} aria-expanded={mobileCartOpen}>
         <span>{mobileCartOpen ? '− Minimizar carrinho' : '🛒 Carrinho'}</span>
         <strong>{totalItens} {totalItens === 1 ? 'item' : 'itens'} · R$ {total.toFixed(2).replace('.', ',')}</strong>
       </button>
+      {!mobileCartOpen && <button type="button" className="pdv-mobile-mesas-trigger" onClick={() => setMesasDrawerOpen(true)}>🪑 Mesas · {comandasAbertasCount}</button>}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }} className="pdv-grid">
         {/* COLUNA PRODUTOS */}
         <div className="pdv-products-column">
@@ -471,7 +665,7 @@ export default function PDV() {
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Nome no atendimento</label>
-                <input placeholder="Digite o nome (opcional)" value={clienteNome} onChange={e => setClienteNome(e.target.value)} style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)', borderRadius: 10, fontSize: 16, boxSizing: 'border-box', outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48 }} />
+                <input placeholder="Digite o nome (opcional)" value={clienteNome} onChange={e => { setClienteNome(e.target.value); setComandaAtual(atual => ({ ...atual, clienteNome: e.target.value })); }} style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)', borderRadius: 10, fontSize: 16, boxSizing: 'border-box', outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48 }} />
               </div>
             </div>
           </div>
@@ -479,7 +673,7 @@ export default function PDV() {
             background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
             borderRadius: 16, padding: 16
           }}>
-            <DeliveryPDV value={entregaPDV} onChange={setEntregaPDV} customer={clienteSelecionado} />
+            {comandaAtual.tipo === 'delivery' && <DeliveryPDV value={entregaPDV} onChange={setEntregaPDV} customer={clienteSelecionado} showToggle={false} />}
             <div style={{ marginBottom: 18 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
                 <div>
@@ -570,9 +764,9 @@ export default function PDV() {
             background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
             borderRadius: 16, padding: 16, position: 'sticky', top: 16
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 16 }}>
               <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                📝 Carrinho
+                📝 Comanda atual
                 {totalItens > 0 && (
                   <span style={{
                     background: 'var(--accent-primary)', color: '#fff',
@@ -580,6 +774,17 @@ export default function PDV() {
                   }}>{totalItens}</span>
                 )}
               </h3>
+              <div className="pdv-command-selector">
+                <button type="button" className="pdv-command-pill" onClick={() => setSeletorComandaAberto(open => !open)} aria-expanded={seletorComandaAberto}>
+                  {rotuloComandaAtual} <span aria-hidden="true">⌄</span>
+                </button>
+                {seletorComandaAberto && <div className="pdv-command-popover">
+                  <button type="button" onClick={() => selecionarComandaPainel({ tipoAtendimento: 'balcao' })}>Balcão</button>
+                  <button type="button" onClick={() => selecionarComandaPainel({ tipoAtendimento: 'retirada' })}>Retirada</button>
+                  <button type="button" onClick={() => selecionarComandaPainel({ tipoAtendimento: 'delivery' })}>Delivery</button>
+                  <button type="button" onClick={() => { setSeletorComandaAberto(false); setMesasDrawerOpen(true); }}>Mesas e comandas abertas</button>
+                </div>}
+              </div>
               <button type="button" className="pdv-mobile-cart-close" onClick={() => setMobileCartOpen(false)}>− Minimizar</button>
             </div>
             <label className="pdv-mobile-product-select">
@@ -687,11 +892,19 @@ export default function PDV() {
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>R$ {total.toFixed(2).replace('.', ',')}</span>
                   </div>
                   
-                  <button onClick={finalizar} disabled={enviando} style={{
+                  <div className="pdv-command-actions">
+                  <button type="button" onClick={salvarComandaAtual} disabled={enviando} style={{
+                    width: '100%', padding: '13px', background: 'var(--bg-tertiary)', color: 'var(--accent-primary)',
+                    border: '1px solid var(--accent-border)', borderRadius: 12, fontSize: 14, fontWeight: 700,
+                    cursor: 'pointer', minHeight: 48
+                  }}>Salvar em aberto</button>
+                  <button type="button" onClick={abrirPagamento} disabled={enviando} style={{
                     width: '100%', padding: '14px', background: 'var(--accent-primary)', color: '#fff',
                     border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
                     cursor: 'pointer', minHeight: 52
-                  }}>☕ Abrir Comanda</button>
+                  }}>Fechar venda → pagamento</button>
+                  {!navigator.onLine && <button type="button" onClick={finalizar} disabled={enviando} className="pdv-offline-save">Salvar fila offline</button>}
+                  </div>
                   
                 </div>
               </>
@@ -757,6 +970,22 @@ export default function PDV() {
         </div>
       )}
 
+      <MesasDrawer open={mesasDrawerOpen} onClose={() => setMesasDrawerOpen(false)} onSelect={selecionarComandaPainel} />
+      {paymentOpen && <div className="pdv-payment-overlay" onMouseDown={event => { if (event.target === event.currentTarget) setPaymentOpen(false); }}>
+        <section className="pdv-payment-dialog" role="dialog" aria-modal="true" aria-labelledby="pdv-payment-title">
+          <h2 id="pdv-payment-title">Fechar comanda</h2>
+          <p>Total a receber: <strong>{formatMoney(comandaPagamento?.valorTotal || total)}</strong></p>
+          <label>Forma de pagamento
+            <select value={metodoPagamento} onChange={event => setMetodoPagamento(event.target.value)}>
+              {FORMAS_PAGAMENTO.map(forma => <option value={forma.value} key={forma.value}>{forma.label.replace(/^[^ ]+ /, '')}</option>)}
+            </select>
+          </label>
+          <div className="pdv-payment-actions">
+            <button type="button" onClick={() => setPaymentOpen(false)} disabled={enviando}>Voltar</button>
+            <button type="button" onClick={confirmarPagamento} disabled={enviando}>{enviando ? 'Registrando...' : 'Confirmar pagamento'}</button>
+          </div>
+        </section>
+      </div>}
 
       <style>{`
         @media (min-width: 1024px) {
@@ -768,11 +997,13 @@ export default function PDV() {
         }
         @media (max-width: 767px) {
           .pdv-header-desktop { display: none !important; }
-          .pdv-mobile-cart-trigger { display: flex !important; }
+          .pdv-mobile-cart-trigger { position:fixed;z-index:20;left:12px;right:12px;bottom:12px;width:calc(100% - 24px);display:flex !important;box-sizing:border-box; }
+          .pdv-mobile-mesas-trigger{position:fixed;z-index:20;right:12px;bottom:72px;display:block;padding:9px 13px;border:1px solid var(--accent-border);border-radius:999px;background:var(--bg-secondary);color:var(--accent-primary);font:inherit;font-size:12px;font-weight:800;box-shadow:var(--shadow-sm)}
+          .pdv-grid{padding-bottom:70px}
           .pdv-grid { gap: 10px !important; min-width: 0; }
           .pdv-grid > div { min-width: 0; }
           .pdv-cart-panel { display: none; }
-          .pdv-cart-panel.mobile-open { display: block; position: static; order: -1; overflow: visible; padding: 0; background: transparent; }
+          .pdv-cart-panel.mobile-open { display: block; position:fixed;z-index:1000;left:0;right:0;bottom:0;max-height:88vh;overflow:auto;order:initial;padding:10px 10px 24px;background:var(--bg-primary);border-radius:18px 18px 0 0;box-shadow:0 -12px 36px rgba(0,0,0,.22);animation:pdv-sheet-in .2s ease-out; }
           .pdv-cart-panel.mobile-open > div { min-height: 0; border-radius: 14px !important; }
           .pdv-cart-panel.mobile-open .pdv-cart-items { max-height: none !important; overflow: visible !important; }
           .pdv-mobile-cart-close { display: inline-flex !important; width: auto; min-width: 44px; height: 38px; padding: 0 10px; font-size: 12px; font-weight: 700; }
@@ -785,12 +1016,28 @@ export default function PDV() {
         }
         .product-card:active { transform: scale(0.97); }
         .product-card-added { animation: item-added .35s ease; border-color: var(--accent-primary) !important; }
-        .pdv-mobile-cart-trigger, .pdv-mobile-cart-close { display: none; }
+        .pdv-mobile-cart-trigger, .pdv-mobile-cart-close,.pdv-mobile-mesas-trigger { display: none; }
         .pdv-mobile-product-select { display: none; }
         .pdv-mobile-cart-trigger { width: 100%; min-height: 50px; margin-bottom: 10px; padding: 10px 14px; align-items: center; justify-content: space-between; gap: 12px; border: 0; border-radius: 12px; background: var(--accent-primary); color: #fff; font: inherit; font-size: 14px; cursor: pointer; box-shadow: var(--shadow-sm); }
         .pdv-mobile-cart-trigger strong { font-size: 13px; white-space: nowrap; }
         .pdv-mobile-cart-close { align-items: center; justify-content: center; width: 38px; height: 38px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 24px; cursor: pointer; }
+        .pdv-mesas-trigger,.pdv-command-pill{min-height:42px;padding:9px 14px;border:1px solid var(--accent-border);border-radius:999px;background:var(--accent-light);color:var(--accent-primary);font:inherit;font-weight:700;cursor:pointer}
+        .pdv-command-selector{position:relative;margin-left:auto}
+        .pdv-command-popover{position:absolute;top:calc(100% + 8px);right:0;z-index:20;width:220px;padding:7px;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-secondary);box-shadow:var(--shadow-lg)}
+        .pdv-command-popover button{display:block;width:100%;padding:10px;border:0;border-radius:8px;background:transparent;color:var(--text-primary);text-align:left;font:inherit;cursor:pointer}
+        .pdv-command-popover button:hover{background:var(--bg-tertiary)}
+        .pdv-command-actions{display:grid;grid-template-columns:1fr;gap:8px}
+        .pdv-offline-save{min-height:42px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-tertiary);color:var(--text-primary);font:inherit;cursor:pointer}
+        .pdv-payment-overlay{position:fixed;inset:0;z-index:10001;display:grid;place-items:center;padding:18px;background:rgba(22,15,10,.5)}
+        .pdv-payment-dialog{width:min(420px,100%);padding:22px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);color:var(--text-primary);box-shadow:var(--shadow-lg)}
+        .pdv-payment-dialog h2{margin:0 0 12px}.pdv-payment-dialog p{color:var(--text-secondary)}
+        .pdv-payment-dialog label{display:grid;gap:7px;font-size:13px;font-weight:700}
+        .pdv-payment-dialog select{min-height:46px;padding:10px;border:1px solid var(--border-color);border-radius:9px;background:var(--input-bg);color:var(--input-text);font:inherit}
+        .pdv-payment-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:18px}
+        .pdv-payment-actions button{min-height:46px;padding:8px;border:1px solid var(--border-color);border-radius:9px;background:var(--bg-tertiary);color:var(--text-primary);font:inherit;font-weight:700;cursor:pointer}
+        .pdv-payment-actions button:last-child{border-color:var(--accent-primary);background:var(--accent-primary);color:#fff}
         @keyframes item-added { 50% { transform: scale(1.035); box-shadow: 0 0 0 4px var(--accent-light); } }
+        @keyframes pdv-sheet-in{from{transform:translateY(100%)}to{transform:translateY(0)}}
       `}</style>
     </div>
   );

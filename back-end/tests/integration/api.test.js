@@ -408,6 +408,28 @@ describe('API Endpoints', () => {
     expect((await Product.findById(produtoVenda._id)).estoque).toBe(99);
   });
 
+  test('POST /api/comandas salva rascunho sem baixar estoque e mantém a comanda recuperável', async () => {
+    const resposta = await request(app)
+      .post('/api/comandas')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        idTemporario: 'rascunho-comanda-1001',
+        rascunho: true,
+        tipoAtendimento: 'retirada',
+        itens: [{ produtoId: produtoVenda._id, quantidade: 2 }],
+      });
+
+    expect(resposta.statusCode).toBe(201);
+    expect(resposta.body.status).toBe('rascunho');
+    expect(resposta.body.tipoAtendimento).toBe('retirada');
+    expect((await Product.findById(produtoVenda._id)).estoque).toBe(100);
+
+    const abertas = await request(app)
+      .get('/api/comandas?status=aberta')
+      .set('Authorization', `Bearer ${adminToken}`)
+    expect(abertas.body.some(comanda => comanda._id === resposta.body._id)).toBe(true);
+  });
+
   test('vendas delivery são classificadas como Delivery no dashboard, inclusive comandas antigas vinculadas', async () => {
     const venda = await request(app)
       .post('/api/comandas')

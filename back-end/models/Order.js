@@ -100,7 +100,7 @@ const orderSchema = new mongoose.Schema({
     data: { type: Date, required: true },
     usuario: { type: String, required: true },
   }],
-  tipoAtendimento: { type: String, enum: ['mesa', 'balcao', 'delivery'], default: 'mesa', index: true },
+  tipoAtendimento: { type: String,   enum: ['mesa', 'balcao', 'retirada', 'delivery'], default: 'mesa', index: true },
 }, { timestamps: true });
 
 // Gerar número do pedido automaticamente

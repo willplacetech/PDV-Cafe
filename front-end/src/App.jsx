@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
+import { ComandaProvider } from './context/ComandaContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import { ToastProvider } from './components/Toast.jsx';
 import PrivateRoute from './components/PrivateRoute.jsx';
@@ -12,7 +13,6 @@ const Products = lazy(() => import('./pages/Products.jsx'));
 const Customers = lazy(() => import('./pages/Customers.jsx'));
 const ContasReceber = lazy(() => import('./pages/ContasReceber'));
 const Users = lazy(() => import('./pages/Users'));
-const Comandas = lazy(() => import('./pages/Comandas.jsx'));
 const MesasCadastro = lazy(() => import('./pages/MesasCadastro.jsx'));
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
 const Production = lazy(() => import('./pages/Production.jsx'));
@@ -21,6 +21,7 @@ const Kitchen = lazy(() => import('./pages/Kitchen.jsx'));
 const Financeiro = lazy(() => import('./pages/Financeiro.jsx'));
 const Caixa = lazy(() => import('./pages/Caixa.jsx'));
 const ImpressoraManager = lazy(() => import('./components/Impressao/ImpressoraManager.jsx'));
+const PaymentSettings = lazy(() => import('./pages/PaymentSettings.jsx'));
 
 
 const DeliveryAdmin = lazy(() => import('./pages/DeliveryAdmin.jsx'));
@@ -45,9 +46,9 @@ export default function App() {
               <Route path="/pedido/:token" element={<RastreioEntrega />} />
               <Route path="/login" element={<Login />} />
               <Route element={<PrivateRoute />}>
-                <Route element={<Layout />}>
+                <Route element={<ComandaProvider><Layout /></ComandaProvider>}>
                   <Route path="/pdv" element={<PDV />} />
-                  <Route path="/atendimento/mesas" element={<Comandas />} />
+                  <Route path="/atendimento/mesas" element={<Navigate to="/pdv?mesas=abrir" replace />} />
                   <Route path="/comandas" element={<Navigate to="/atendimento/mesas" replace />} />
                   <Route path="/cadastro/mesas" element={<MesasCadastro />} />
                   <Route element={<RoleRoute roles={['admin', 'operador', 'cozinha']} />}>
@@ -65,6 +66,7 @@ export default function App() {
                     <Route path="/financeiro" element={<Financeiro />} />
                     <Route path="/caixa" element={<Caixa />} />
                     <Route path="/ajustes/impressoras" element={<ImpressoraManager />} />
+                    <Route path="/configuracoes/pagamentos" element={<PaymentSettings />} />
                   </Route>
                   <Route element={<RoleRoute roles={['admin', 'cozinha']} />}>
                     <Route path="/producao/fichas" element={<Navigate to="/producao?tab=fichas" replace />} />

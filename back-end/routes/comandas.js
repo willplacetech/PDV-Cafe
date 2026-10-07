@@ -65,7 +65,9 @@ async function recalcularPrecosComanda(comanda, session) {
 
 router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
-    const filter = req.query.status ? { status: req.query.status } : {};
+    const filter = req.query.status === 'aberta'
+      ? { status: { $in: ['aberta', 'rascunho'] } }
+      : req.query.status ? { status: req.query.status } : {};
     const { dataInicio, dataFim } = req.query;
     if (dataInicio || dataFim) {
       const inicio = dataInicio ? new Date(`${dataInicio}T00:00:00.000Z`) : null;
@@ -232,16 +234,17 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
         item.faltamParaGrupo = grupoPricing.faltamParaGrupo;
       }
     });
-    await ajustarEstoque(itens, 'baixar', session);
+    const rascunho = req.body.rascunho === true;
+    if (!rascunho) await ajustarEstoque(itens, 'baixar', session);
     const temEntrega = req.body.entrega && typeof req.body.entrega === 'object' && !Array.isArray(req.body.entrega);
-    const tipoAtendimento = temEntrega ? 'delivery' : req.body.tipoAtendimento === 'balcao' ? 'balcao' : 'mesa';
+    const tipoAtendimento = temEntrega ? 'delivery' : ['balcao', 'retirada'].includes(req.body.tipoAtendimento) ? req.body.tipoAtendimento : 'mesa';
     const taxaEntrega = req.body.entrega && typeof req.body.entrega.taxaEntrega === 'number' && Number.isFinite(req.body.entrega.taxaEntrega) && req.body.entrega.taxaEntrega >= 0 ? money(req.body.entrega.taxaEntrega) : 0;
     const valorTotal = money(calcularSubtotalComanda(itens) + taxaEntrega);
     const usuarioDelivery = temEntrega && mongoose.isValidObjectId(req.user.id) ? await User.findById(req.user.id).select('tenantId').session(session).catch(() => null) : null;
     // O comércio é capturado na venda; a entrega é processada depois, sem bloquear o PDV.
     const entrega = temEntrega ? { usuarioId: req.user.id, tenantId: usuarioDelivery?.tenantId, telefone: typeof req.body.entrega.telefone === 'string' ? req.body.entrega.telefone.slice(0, 30) : '', endereco: Object.fromEntries(['rua', 'numero', 'bairro', 'complemento', 'referencia'].map(campo => [campo, typeof req.body.entrega.endereco?.[campo] === 'string' ? req.body.entrega.endereco[campo].slice(0, campo === 'rua' ? 300 : campo === 'bairro' ? 120 : campo === 'numero' ? 30 : 200) : ''])), preservarEnderecoCadastrado: Boolean(req.body.entrega.preservarEnderecoCadastrado), taxaEntrega } : undefined;
     const clienteTelefone = normalizarTelefoneCliente(req.body.clienteTelefone || (temEntrega ? req.body.entrega.telefone : '')).slice(0, 30);
-    const [comanda] = await Comanda.create([{ entrega, taxaEntrega, idTemporario: idTemporario || undefined, idempotencyKey: idempotencyKey || undefined, idempotencyHash: idempotencyKey ? idempotencyHash : undefined, clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', clienteTelefone, observacao: req.body.observacao, mesa: req.body.mesa, tipoAtendimento, statusBalcao: tipoAtendimento === 'balcao' ? 'aguardando' : undefined, itens, valorTotal, saldoDevedor: valorTotal, statusPagamento: 'pendente', estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
+    const [comanda] = await Comanda.create([{ entrega, taxaEntrega, idTemporario: idTemporario || undefined, idempotencyKey: idempotencyKey || undefined, idempotencyHash: idempotencyKey ? idempotencyHash : undefined, clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', clienteTelefone, observacao: req.body.observacao, mesa: req.body.mesa, tipoAtendimento, statusBalcao: tipoAtendimento === 'balcao' ? 'aguardando' : undefined, itens, valorTotal, saldoDevedor: valorTotal, statusPagamento: 'pendente', estoqueBaixado: !rascunho && itens.length > 0, status: rascunho ? 'rascunho' : 'aberta', atendente: req.user.username }], { session });
     if (origemOffline !== undefined) {
       // Revalidar depois do trabalho assincromo e antes do commit: inclusive um
       // mesmo operador reassociado a outro comercio enquanto a venda processa.
@@ -283,7 +286,7 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
     const vendaPorPeso = produtoControlaPeso(product) && req.body.tipoVenda === 'peso';
     const pesoVendidoKg = vendaPorPeso ? Number(req.body.pesoVendidoKg) : 0;
     const quantidade = vendaPorPeso ? 1 : Number(req.body.quantidade);
-    if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
+    if (!comanda || !['aberta', 'rascunho'].includes(comanda.status)) return res.status(400).json({ msg: 'Comanda não está aberta' });
     if (!product || !Number.isFinite(quantidade) || quantidade < 0.001) return res.status(400).json({ msg: 'Item inválido' });
     if (vendaPorPeso && (!Number.isFinite(pesoVendidoKg) || pesoVendidoKg <= 0)) return res.status(400).json({ msg: 'Informe o peso vendido' });
     if (!permiteFracionar(product) && !Number.isInteger(quantidade)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
@@ -291,11 +294,10 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
       ? req.body.modificadores.filter((item) => typeof item === 'string').slice(0, 10)
       : [];
     comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product), quantidade, quantidadePecas: vendaPorPeso ? 0 : quantidade, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
-    await ajustarEstoque([comanda.itens[comanda.itens.length - 1]], 'baixar', session);
+    if (comanda.estoqueBaixado) await ajustarEstoque([comanda.itens[comanda.itens.length - 1]], 'baixar', session);
     await recalcularPrecosComanda(comanda, session);
     comanda.valorTotal = money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
     comanda.saldoDevedor = Math.max(0, comanda.valorTotal - Number(comanda.valorPago || 0));
-    comanda.estoqueBaixado = true;
     await comanda.save({ session });
     await session.commitTransaction();
     res.json(comanda);
@@ -311,7 +313,7 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'g
     session.startTransaction();
     const comanda = await Comanda.findById(req.params.id).session(session);
     const quantidade = Number(req.body.quantidade);
-    if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
+    if (!comanda || !['aberta', 'rascunho'].includes(comanda.status)) return res.status(400).json({ msg: 'Comanda não está aberta' });
     const item = comanda.itens.id(req.params.itemId);
     if (!item) return res.status(404).json({ msg: 'Item não encontrado' });
     if (!Number.isFinite(quantidade) || quantidade < 0.001) return res.status(400).json({ msg: 'Quantidade inválida' });
@@ -320,15 +322,15 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'g
     const porPeso = item.tipoVenda === 'peso';
     const pesoNovo = porPeso ? (req.body.pesoVendidoKg == null ? Number(item.pesoVendidoKg) * quantidade / Number(item.quantidade) : Number(req.body.pesoVendidoKg)) : 0;
     if (porPeso && (!Number.isFinite(pesoNovo) || pesoNovo <= 0)) throw new Error('Informe o peso vendido');
-    if (comanda.estoqueBaixado) await ajustarEstoque([item], 'devolver', session);
+    const estoqueBaixado = comanda.estoqueBaixado;
+    if (estoqueBaixado) await ajustarEstoque([item], 'devolver', session);
     item.quantidade = quantidade;
     item.quantidadePecas = porPeso ? 0 : quantidade;
     if (porPeso) {
       item.pesoVendidoKg = pesoNovo;
       item.precoUnitario = money(pesoNovo * Number(product.preco || 0) / quantidade);
     }
-    await ajustarEstoque([item], 'baixar', session);
-    comanda.estoqueBaixado = true;
+    if (estoqueBaixado) await ajustarEstoque([item], 'baixar', session);
     await recalcularPrecosComanda(comanda, session);
     comanda.valorTotal = money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
     comanda.saldoDevedor = Math.max(0, comanda.valorTotal - Number(comanda.valorPago || 0));
@@ -346,7 +348,7 @@ router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', '
   try {
     session.startTransaction();
     const comanda = await Comanda.findById(req.params.id).session(session);
-    if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
+    if (!comanda || !['aberta', 'rascunho'].includes(comanda.status)) return res.status(400).json({ msg: 'Comanda não está aberta' });
     const item = comanda.itens.id(req.params.itemId);
     if (!item) return res.status(404).json({ msg: 'Item não encontrado' });
     if (comanda.estoqueBaixado) await ajustarEstoque([item], 'devolver', session);
@@ -518,11 +520,70 @@ router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador', 'garcom'
   } finally { await session.endSession(); }
 });
 
+router.patch('/:id/detalhes', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+    const comanda = await Comanda.findById(req.params.id).session(session);
+    if (!comanda || !['aberta', 'rascunho'].includes(comanda.status)) throw new Error('Comanda não está aberta');
+    const tipoAtendimento = req.body.tipoAtendimento;
+    if (!['mesa', 'balcao', 'retirada', 'delivery'].includes(tipoAtendimento)) throw new Error('Tipo de atendimento inválido');
+    if (tipoAtendimento === 'mesa' && !String(req.body.mesa || '').trim()) throw new Error('Selecione uma mesa');
+
+    comanda.tipoAtendimento = tipoAtendimento;
+    comanda.mesa = tipoAtendimento === 'mesa' ? String(req.body.mesa).trim().slice(0, 30) : undefined;
+    if (req.body.clienteId && !mongoose.isValidObjectId(req.body.clienteId)) throw new Error('Cliente inválido');
+    if (req.body.clienteId) comanda.clienteId = req.body.clienteId;
+    else if (!req.body.clienteId) comanda.clienteId = undefined;
+    if (typeof req.body.clienteNome === 'string') comanda.clienteNome = req.body.clienteNome.trim().slice(0, 160) || 'Cliente não identificado';
+    if (typeof req.body.clienteTelefone === 'string') comanda.clienteTelefone = normalizarTelefoneCliente(req.body.clienteTelefone).slice(0, 30);
+    if (typeof req.body.observacao === 'string') comanda.observacao = req.body.observacao.trim().slice(0, 500);
+
+    if (tipoAtendimento === 'delivery') {
+      const dadosEntrega = req.body.entrega;
+      if (!dadosEntrega || typeof dadosEntrega !== 'object' || Array.isArray(dadosEntrega)) throw new Error('Informe os dados da entrega');
+      const taxaEntrega = Number(dadosEntrega.taxaEntrega || 0);
+      if (!Number.isFinite(taxaEntrega) || taxaEntrega < 0) throw new Error('Taxa de entrega inválida');
+      const telefone = normalizarTelefoneCliente(dadosEntrega.telefone || comanda.clienteTelefone);
+      if (!telefone) throw new Error('Informe o telefone do cliente');
+      const endereco = Object.fromEntries(['rua', 'numero', 'bairro', 'complemento', 'referencia'].map(campo => [
+        campo,
+        typeof dadosEntrega.endereco?.[campo] === 'string' ? dadosEntrega.endereco[campo].trim().slice(0, campo === 'rua' ? 300 : campo === 'bairro' ? 120 : campo === 'numero' ? 30 : 200) : '',
+      ]));
+      comanda.taxaEntrega = money(taxaEntrega);
+      comanda.clienteTelefone = telefone.slice(0, 30);
+      comanda.entrega = {
+        ...comanda.entrega?.toObject?.(),
+        usuarioId: comanda.entrega?.usuarioId || req.user.id,
+        tenantId: comanda.entrega?.tenantId || req.user.tenantId,
+        telefone: comanda.clienteTelefone,
+        endereco,
+        taxaEntrega: comanda.taxaEntrega,
+        preservarEnderecoCadastrado: Boolean(dadosEntrega.preservarEnderecoCadastrado),
+        status: comanda.entrega?.status || 'pendente',
+      };
+    } else {
+      comanda.entrega = undefined;
+      comanda.taxaEntrega = 0;
+    }
+    comanda.valorTotal = money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
+    const pagamento = calcularStatusPagamento(comanda);
+    if (comanda.valorTotal < pagamento.valorPago) throw new Error('A alteração reduziria a comanda abaixo do valor já recebido');
+    comanda.saldoDevedor = saldoDevedor(comanda.valorTotal, comanda.historicoPagamentos);
+    await comanda.save({ session });
+    await session.commitTransaction();
+    res.json(comanda);
+  } catch (error) {
+    if (session.inTransaction()) await session.abortTransaction();
+    res.status(400).json({ msg: error.message });
+  } finally { await session.endSession(); }
+});
+
 router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const resultado = await executarOperacaoFinanceira({ req, tipo: 'comanda-fechar', recursoId: req.params.id, executar: async (session, dataRecebimento) => {
     const comanda = await Comanda.findById(req.params.id).session(session);
-    if (!comanda || comanda.status !== 'aberta' || !comanda.itens.length) throw new Error('Comanda sem itens ou já fechada');
+    if (!comanda || !['aberta', 'rascunho'].includes(comanda.status) || !comanda.itens.length) throw new Error('Comanda sem itens ou já fechada');
     await recalcularPrecosComanda(comanda, session);
     const utilizacaoInterna = Boolean(req.body.utilizacaoInterna);
     const metodoPagamento = normalizarFormaPagamento(req.body.metodoPagamento);
