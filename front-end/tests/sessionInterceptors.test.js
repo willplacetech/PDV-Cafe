@@ -44,6 +44,22 @@ test('401 replay emits one request end for the pending-request indicator', async
     else globalThis.window = previousWindow;
   }
 });
+test('silent background requests do not show the pending-request indicator', async () => {
+  const previousWindow = globalThis.window;
+  const events = [];
+  globalThis.window = { dispatchEvent: event => {
+    if (event.type.startsWith('pdv:')) events.push(event.type);
+  } };
+  try {
+    const api = axios.create({ baseURL: 'https://example.test/api', adapter: config => Promise.resolve({ status: 200, data: {}, config }) });
+    attachRequestTracker(api);
+    await api.get('/entregas/pedidos', { pdvSilenciosa: true });
+    assert.deepEqual(events, []);
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
+});
 test('401 from a previous login cannot clear or refresh a newer session', async () => {
   setAccessSession('pdv', { token: 'old', user: { id: 'old', role: 'admin' } });
   let calls = 0;

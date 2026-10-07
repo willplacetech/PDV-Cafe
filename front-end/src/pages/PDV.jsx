@@ -603,7 +603,7 @@ export default function PDV() {
   ).filter((produto) => {
     if (grupoAtivo === 'Todos') return true;
     if (grupoAtivo === 'Favoritos') return idsMaisVendidos.has(String(produto._id));
-    return produto.categoria === grupoAtivo;
+    return normalizarTexto(produto.categoria) === normalizarTexto(grupoAtivo);
   });
   const rotuloComandaAtual = comandaAtual.tipo === 'mesa'
     ? `Mesa ${comandaAtual.mesaNumero || '—'}`
@@ -706,7 +706,11 @@ export default function PDV() {
               }}>{filtrados.length}</span>
             </div>
             {filtrados.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px 20px', fontSize: 14 }}>Nenhum produto encontrado</p>
+              <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px 20px', fontSize: 14 }}>
+                {grupoAtivo === 'Todos'
+                  ? (termoBusca ? 'Nenhum produto encontrado para esta busca.' : 'Nenhum produto cadastrado.')
+                  : `Nenhum produto em ${grupoAtivo}${termoBusca ? ' para esta busca' : ''}.`}
+              </p>
             ) : (
               <div style={{
                 display: 'grid', gap: 10,
@@ -893,16 +897,16 @@ export default function PDV() {
                   </div>
                   
                   <div className="pdv-command-actions">
-                  <button type="button" onClick={salvarComandaAtual} disabled={enviando} style={{
+                  {comandaAtual.tipo === 'mesa' && <button type="button" onClick={salvarComandaAtual} disabled={enviando} style={{
                     width: '100%', padding: '13px', background: 'var(--bg-tertiary)', color: 'var(--accent-primary)',
                     border: '1px solid var(--accent-border)', borderRadius: 12, fontSize: 14, fontWeight: 700,
                     cursor: 'pointer', minHeight: 48
-                  }}>Salvar em aberto</button>
+                  }}>Salvar em aberto</button>}
                   <button type="button" onClick={abrirPagamento} disabled={enviando} style={{
                     width: '100%', padding: '14px', background: 'var(--accent-primary)', color: '#fff',
                     border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
                     cursor: 'pointer', minHeight: 52
-                  }}>Fechar venda → pagamento</button>
+                  }}>{comandaAtual.tipo === 'mesa' ? 'Fechar venda → pagamento' : 'Finalizar venda'}</button>
                   {!navigator.onLine && <button type="button" onClick={finalizar} disabled={enviando} className="pdv-offline-save">Salvar fila offline</button>}
                   </div>
                   

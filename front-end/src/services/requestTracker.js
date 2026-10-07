@@ -10,6 +10,7 @@ const finalizarRequisicao = config => {
 
 export const attachRequestTracker = api => {
   api.interceptors.request.use(config => {
+    if (config.pdvSilenciosa) return config;
     if (!config.pdvRequisicaoEmAndamento) {
       config.pdvRequisicaoEmAndamento = true;
       emitirEventoApi('pdv:request-start');

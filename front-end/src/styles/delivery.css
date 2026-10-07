@@ -19,6 +19,8 @@
 .delivery-board .delivery-order{border-top:4px solid var(--accent-primary)}
 .delivery-board .delivery-order.amarelo{border-top-color:var(--warning-bg)}
 .delivery-board .delivery-order.vermelho{border-top-color:var(--error-bg)}
+.delivery-board .delivery-sla-alert{margin-left:8px;background:color-mix(in srgb,var(--error-bg) 16%,var(--bg-secondary));color:var(--error-bg)}
+.delivery-board .delivery-order.vermelho{background:color-mix(in srgb,var(--error-bg) 5%,var(--bg-secondary))}
 .delivery-board .delivery-error{background:color-mix(in srgb,var(--error-bg) 14%,var(--bg-secondary));color:var(--error-bg)}
 .delivery-board .delivery-success{background:color-mix(in srgb,var(--success-bg) 14%,var(--bg-secondary));color:var(--text-primary)}
 .delivery-board .delivery-empty{color:var(--text-secondary)}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { imprimirEntrega } from '../utils/imprimirEntrega.js';
@@ -16,9 +16,15 @@ const moeda = valor => Number(valor || 0).toLocaleString('pt-BR', { style: 'curr
 const enderecoTexto = endereco => [endereco?.rua, endereco?.numero, endereco?.bairro, endereco?.complemento].filter(Boolean).join(', ');
 const idadeMinutos = (data, referencia = Date.now()) => Math.max(0, Math.floor((referencia - new Date(data).getTime()) / 60000));
 
-function faixaAtraso(criadoEm, agora) {
-  const minutos = idadeMinutos(criadoEm, agora);
-  return minutos < 10 ? '' : minutos < 20 ? 'amarelo' : 'vermelho';
+function minutosNoStatus(pedido, status, agora) {
+  const evento = [...(pedido.statusHistorico || [])].reverse().find(item => item.status === status);
+  if (!evento?.data) return null;
+  const data = new Date(evento.data).getTime();
+  return Number.isFinite(data) ? idadeMinutos(data, agora) : null;
+}
+
+function faixaAtraso(minutos) {
+  return minutos !== null && minutos > 10 ? 'vermelho' : '';
 }
 
 function FormularioPedidoManual({ onSubmit, ocupado }) {
@@ -73,14 +79,15 @@ export default function Entregas() {
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
   const [carregando, setCarregando] = useState(true);
-  const [atualizando, setAtualizando] = useState(false);
   const [agora, setAgora] = useState(Date.now());
   const [ocupado, setOcupado] = useState(false);
   const [despachando, setDespachando] = useState('');
+  const carregamentoAtivo = useRef(false);
 
   const carregar = useCallback(async (silencioso = false) => {
-    if (silencioso) setAtualizando(true);
-    else setCarregando(true);
+    if (carregamentoAtivo.current) return;
+    carregamentoAtivo.current = true;
+    if (!silencioso) setCarregando(true);
     try {
       const query = new URLSearchParams({ pagina: String(aba === 'historico' ? pagina : 1), limite: aba === 'historico' ? '30' : '100' });
       if (aba === 'historico') {
@@ -88,10 +95,10 @@ export default function Entregas() {
         if (filtroData) query.set('data', filtroData);
       }
       const [pedidosResponse, entregadoresResponse, estatisticasResponse, comercioResponse] = await Promise.all([
-        api.get(`/entregas/pedidos?${query}`),
-        api.get('/entregas/entregadores'),
-        api.get('/entregas/estatisticas'),
-        api.get('/entregas/configuracao'),
+        api.get(`/entregas/pedidos?${query}`, { pdvSilenciosa: silencioso }),
+        api.get('/entregas/entregadores', { pdvSilenciosa: silencioso }),
+        api.get('/entregas/estatisticas', { pdvSilenciosa: silencioso }),
+        api.get('/entregas/configuracao', { pdvSilenciosa: silencioso }),
       ]);
       setPedidos(pedidosResponse.data.pedidos || []);
       setPaginas(pedidosResponse.data.paginas || 0);
@@ -104,7 +111,7 @@ export default function Entregas() {
       setErro(error.response?.data?.msg || 'Não foi possível carregar as entregas.');
     } finally {
       setCarregando(false);
-      setAtualizando(false);
+      carregamentoAtivo.current = false;
     }
   }, [aba, filtroData, filtroStatus, pagina]);
 
@@ -265,7 +272,7 @@ export default function Entregas() {
   return <div className="delivery-app delivery-board">
     <header className="delivery-board-heading page-heading">
       <div><span className="dashboard-eyebrow">OPERAÇÃO DO DIA</span><h1>Entregas</h1><p>Acompanhe e despache os pedidos do seu comércio.</p></div>
-      <button type="button" className="delivery-secondary" onClick={() => void carregar(true)} disabled={atualizando}>{atualizando ? 'Atualizando…' : 'Atualizar'}</button>
+      <span className="delivery-muted" role="status">Atualização automática a cada 15 segundos</span>
     </header>
 
     <section className="delivery-stats" aria-label="Resumo das entregas">
@@ -347,8 +354,10 @@ export default function Entregas() {
           const entregador = typeof pedido.entregadorId === 'object' ? pedido.entregadorId : null;
           const endereco = enderecoTexto(pedido.origem.endereco);
           const podeCancelar = ['pendente', 'pronto', 'despachado'].includes(pedido.status);
-          return <article className={`delivery-card delivery-order ${aba === 'fila' && pedido.status === 'pronto' ? faixaAtraso(pedido.criadoEm, agora) : ''}`} key={pedido._id} id={`pedido-${pedido._id}`} aria-current={pedido._id === pedidoDestacado ? 'true' : undefined}>
-            <div className="delivery-order-heading"><div><span className="delivery-badge">{STATUS_NOMES[pedido.status]}</span><h2>{pedido.origem.nomeCliente}</h2></div><span>{idadeMinutos(pedido.criadoEm, agora)} min</span></div>
+          const minutosPronto = pedido.status === 'pronto' ? minutosNoStatus(pedido, 'pronto', agora) : null;
+          const atrasoSla = aba === 'fila' && pedido.status === 'pronto' && minutosPronto !== null && minutosPronto > 10;
+          return <article className={`delivery-card delivery-order ${aba === 'fila' && pedido.status === 'pronto' ? faixaAtraso(minutosPronto) : ''}`} key={pedido._id} id={`pedido-${pedido._id}`} aria-current={pedido._id === pedidoDestacado ? 'true' : undefined}>
+            <div className="delivery-order-heading"><div><span className="delivery-badge">{STATUS_NOMES[pedido.status]}</span>{atrasoSla && <span className="delivery-badge delivery-sla-alert" role="status">Atraso · SLA de 10 min</span>}<h2>{pedido.origem.nomeCliente}</h2></div><span>{pedido.status === 'pronto' ? (minutosPronto === null ? 'Tempo no status indisponível' : `Pronto há ${minutosPronto} min`) : `${idadeMinutos(pedido.criadoEm, agora)} min`}</span></div>
             <p><strong>Endereço:</strong> {endereco}</p>
             <p><strong>Telefone:</strong> <a href={`tel:${pedido.origem.telefone}`}>{pedido.origem.telefone}</a></p>
             <p><strong>Valor:</strong> {moeda(Number(pedido.valorTotal || 0) + Number(pedido.taxaEntrega || 0))}</p>
