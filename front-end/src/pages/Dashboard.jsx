@@ -12,6 +12,7 @@ import AreaTabs from '../components/AreaTabs.jsx';
 import { rotuloPagamento } from '../utils/formasPagamento.jsx';
 import { carregarConfiguracaoImpressao, imprimirCupomVenda } from '../services/impressaoService.js';
 import DeliveryAnalytics from '../components/dashboard/DeliveryAnalytics.jsx';
+import CentralDoDia from '../components/dashboard/CentralDoDia.jsx';
 
 const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const quantidadeComDuasCasas = (value) => Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -254,12 +255,7 @@ export default function Dashboard() {
   return <div className="dashboard-page">
       <AreaTabs area="dashboard" />
     <div className="dashboard-heading page-heading"><div><span className="dashboard-eyebrow">GESTÃO DA CASA</span><h1>Dashboard</h1><p>Acompanhe o ritmo do Sabor de Abraço.</p></div><div className="dashboard-open">{data.comandasAbertas} comandas abertas</div></div>
-    <section className="dashboard-channel-summary dashboard-channel-top">
-      <div className="channel-mesa"><span>🪑 Mesas</span><strong>{money(vendasPorTipo.mesa)}</strong><small>{percentualCanal(vendasPorTipo.mesa)}</small></div>
-      <div className="channel-balcao"><span>📦 Balcão</span><strong>{money(vendasPorTipo.balcao)}</strong><small>{percentualCanal(vendasPorTipo.balcao)}</small></div>
-      <div className="channel-delivery"><span>🛵 Delivery</span><strong>{money(vendasPorTipo.delivery)}</strong><small>{percentualCanal(vendasPorTipo.delivery)}</small></div>
-    </section>
-    <DeliveryAnalytics />
+    <CentralDoDia />
     <DashboardTabs value={dashboardTab} onChange={setDashboardTab} />
     {dashboardTab === 'producao' ? <>
     <section className="dashboard-production-grid"><div className="dashboard-production-summary"><span>Insumos abaixo do mínimo</span><b>{productionData?.baixoEstoque?.length || 0}</b></div><div className="dashboard-production-summary"><span>Fichas disponíveis</span><b>{productionData?.receitasPossiveis?.filter((recipe) => recipe.producoesPossiveis > 0).length || 0}</b></div><div className="dashboard-production-summary"><span>Produções recentes</span><b>{productionData?.producoesRecentes?.length || 0}</b></div></section>
@@ -267,7 +263,14 @@ export default function Dashboard() {
     <section className="dashboard-production-panel"><h2>Alertas de insumos</h2>{productionData?.baixoEstoque?.length ? productionData.baixoEstoque.map((product) => <div className="dashboard-production-row" key={product._id}><span><strong>{product.nome}</strong><small>Código {product.codigo}</small></span><b>{product.estoqueInsumos} / mínimo {product.estoqueMinimoInsumos} {product.unidadeVenda}</b></div>) : <p>Nenhum insumo abaixo do mínimo.</p>}</section>
     <style>{`.dashboard-production-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.dashboard-production-summary,.dashboard-production-panel{margin-top:16px;padding:18px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);box-shadow:var(--shadow-sm)}.dashboard-production-summary span,.dashboard-production-summary b{display:block}.dashboard-production-summary span{color:var(--text-secondary);font-size:11px}.dashboard-production-summary b{margin-top:7px;color:var(--accent-primary);font-size:22px}.dashboard-production-panel h2{margin:0 0 10px;color:var(--text-primary);font-size:18px}.dashboard-production-panel p{color:var(--text-secondary);font-size:12px}.dashboard-production-row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-light);font-size:12px}.dashboard-production-row span{display:grid;gap:4px}.dashboard-production-row small{color:var(--text-secondary);font-size:11px}.dashboard-production-row b{color:var(--accent-primary);font-size:12px;text-align:right}.dashboard-production-meta{display:grid;gap:4px;justify-items:end}.dashboard-production-meta small{max-width:260px;text-align:right;line-height:1.45}@media(max-width:900px){.dashboard-production-grid{grid-template-columns:1fr}}@media(max-width:640px){.dashboard-production-row{align-items:flex-start;flex-direction:column}.dashboard-production-row b{text-align:left}.dashboard-production-meta{justify-items:start}.dashboard-production-meta small{text-align:left}}`}</style>
     </> : <>
+    <DeliveryAnalytics section="chart" />
     <div className="dashboard-periods">{['dia', 'semana', 'mes'].map((periodo) => { const metric = data.periodos[periodo]; return <section className="dashboard-period" key={periodo}><div className="dashboard-period-title"><h2>{labels[periodo]}</h2><span>{metric.pedidos} pedidos</span></div><strong className="dashboard-total">{money(metric.total)}</strong><div className="dashboard-stats"><span><b>{quantidadeComDuasCasas(metric.itens)}</b> itens</span><span><b>{money(metric.ticketMedio)}</b> ticket médio</span></div><div className="dashboard-products"><h3>Mais pedidos</h3>{metric.maisVendidos.length ? metric.maisVendidos.map((product) => <div className="dashboard-product" key={product.nome}><span>{product.nome}</span><b>{product.quantidade}</b></div>) : <p>Nenhum pedido no período.</p>}</div></section>; })}</div>
+    <section className="dashboard-channel-summary dashboard-channel-top">
+      <div className="channel-mesa"><span>🪑 Mesas</span><strong>{money(vendasPorTipo.mesa)}</strong><small>{percentualCanal(vendasPorTipo.mesa)}</small></div>
+      <div className="channel-balcao"><span>📦 Balcão</span><strong>{money(vendasPorTipo.balcao)}</strong><small>{percentualCanal(vendasPorTipo.balcao)}</small></div>
+      <div className="channel-delivery"><span>🛵 Delivery</span><strong>{money(vendasPorTipo.delivery)}</strong><small>{percentualCanal(vendasPorTipo.delivery)}</small></div>
+    </section>
+    <DeliveryAnalytics section="summary" />
     <section className="dashboard-comparison">
       <div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">ANÁLISE DE VENDAS</span><h2>Comparar períodos</h2><p>Escolha semanas ou meses para analisar a evolução das vendas.</p></div></div>
       <div className="dashboard-comparison-controls">

@@ -31,6 +31,7 @@ const vazio = {
   estoqueMinimoEmbalagens: '',
   rendimentoPorUnidadeCompra: '',
   custo: '',
+  estoqueMinimo: 5,
   custoCalculado: null,
   dataUltimoCalculo: null,
   fonteCalculo: 'indisponivel',
@@ -217,6 +218,7 @@ export default function Products() {
       tipoProduto: tipo === 'venda' ? form.tipoProduto : undefined,
       rendimentoPorReceita: tipo === 'venda' && form.tipoProduto === 'producao' ? Number(form.rendimentoPorReceita || 1) : 1,
       estoque: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : (form.aFazer ? 0 : limparCampoNumerico(form.estoque) ?? 0),
+      estoqueMinimo: tipo === 'venda' ? limparCampoNumerico(form.estoqueMinimo) ?? 5 : 0,
       estoqueInsumos: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : (form.usavelEmReceita ? limparCampoNumerico(form.estoqueInsumos) ?? 0 : undefined),
       estoqueEmbalagens: tipo === 'insumo' ? limparCampoNumerico(form.estoqueEmbalagens) ?? 0 : undefined,
       estoqueMinimoEmbalagens: tipo === 'insumo' ? limparCampoNumerico(form.estoqueMinimoEmbalagens) ?? 0 : undefined,
@@ -295,6 +297,7 @@ export default function Products() {
       dataUltimoCalculo: produto.dataUltimoCalculo || null,
       fonteCalculo: produto.fonteCalculo || 'indisponivel',
       estoque: produto.tipo === 'insumo' ? (produto.estoqueInsumos ?? '') : (produto.estoque ?? ''),
+      estoqueMinimo: Number(produto.estoqueMinimo) || 5,
       unidadeVenda: produto.unidadeVenda || 'un',
       vendidoFracionado: Boolean(produto.vendidoFracionado),
       aFazer: Boolean(produto.aFazer),
@@ -324,6 +327,23 @@ export default function Products() {
     setForm(vazio);
   };
 
+  const filtrarEstoqueBaixo = searchParams.get('filtro') === 'estoque-baixo';
+  const abaixoDoMinimo = (produto) => {
+    if (produto.tipoProduto === 'coz' || produto.aFazer) return false;
+    if (produto.tipo === 'insumo') {
+      const conteudo = Number(produto.conteudoPorEmbalagem || 0);
+      const estoqueAtual = Number(produto.estoqueEmbalagens ?? produto.estoqueInsumos ?? 0) * conteudo + Number(produto.estoqueConteudoAberto || 0);
+      const minimo = Number(produto.estoqueMinimoBase)
+        || Number(produto.estoqueMinimoEmbalagens || 0) * (conteudo || 1)
+        || 5;
+      return estoqueAtual <= minimo;
+    }
+    const controlaPeso = Number(produto.pesoPorUnidade || 0) > 0 && produto.unidadeVenda === 'kg';
+    const estoqueAtual = controlaPeso
+      ? Number(produto.estoquePesoKg ?? (Number(produto.estoque || 0) > 1000 ? Number(produto.estoque) / 1000 : 0))
+      : Number(produto.estoque || 0);
+    return estoqueAtual <= (Number(produto.estoqueMinimo) || 5);
+  };
   const filtrados = produtos.filter((produto) => {
     const tipoOk = filtroTipo === 'Todos' || (filtroTipo === 'Estoque de Venda' ? produto.tipo === 'venda' : produto.tipo === 'insumo');
     const categoriaOk = filtroCategoria === 'Todos' || (produto.categoria === filtroCategoria);
@@ -334,7 +354,7 @@ export default function Products() {
       || (filtroFicha === 'Sem ficha' && !possuiFicha)
       || ingredientesDaFicha.has(String(produto._id));
     const textoOk = [produto.nome, produto.codigo].join(' ').toLowerCase().includes(filtroTexto.toLowerCase());
-    return tipoOk && categoriaOk && fichaOk && textoOk;
+    return tipoOk && categoriaOk && fichaOk && textoOk && (!filtrarEstoqueBaixo || abaixoDoMinimo(produto));
   });
 
   return (
@@ -387,7 +407,7 @@ export default function Products() {
               </label>
               {form.tipo === 'venda' && <>
                 <label>Preço de venda (R$) * <input type="number" step="0.01" min={0} value={form.preco} required onChange={(event) => setForm({ ...form, preco: event.target.value })} /></label>
-                {form.tipoProduto !== 'coz' ? <label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label> : <div className="coz-stock-notice product-field-full"><strong>⚠️ Coz não possui estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
+                {form.tipoProduto !== 'coz' ? <><label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label><label>Estoque mínimo <small>Alerta quando chegar neste nível</small><input type="number" step="0.001" min={0} value={form.estoqueMinimo} onChange={(event) => setForm({ ...form, estoqueMinimo: event.target.value })} /></label></> : <div className="coz-stock-notice product-field-full"><strong>⚠️ Coz não possui estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
                 <label>Unidade de compra
                   <select value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>
                     {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
@@ -572,7 +592,7 @@ export default function Products() {
         </div>
 
         <div className="product-list-controls">
-          <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Produtos</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>{filtrarEstoqueBaixo ? 'Produtos abaixo do mínimo' : 'Produtos'}</h3>
           <div className="product-list-filters">
 
               <select className="product-filter-select" value={filtroFicha} onChange={(event) => setFiltroFicha(event.target.value)} aria-label="Selecionar ficha técnica">

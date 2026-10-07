@@ -4,7 +4,7 @@ import api from '../../services/api.jsx';
 const dinheiro = value => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const periodos = [{ id: 'hoje', titulo: 'Hoje' }, { id: 'semana', titulo: 'Esta semana' }, { id: 'mes', titulo: 'Este mês' }];
 
-export default function DeliveryAnalytics() {
+export default function DeliveryAnalytics({ section = 'both' }) {
   const [periodo, setPeriodo] = useState('hoje');
   const [tentativa, setTentativa] = useState(0);
   const [resultado, setResultado] = useState(null);
@@ -16,20 +16,22 @@ export default function DeliveryAnalytics() {
   const [erroGrafico, setErroGrafico] = useState('');
 
   useEffect(() => {
+    if (section !== 'summary' && section !== 'both') return undefined;
     let ativo = true;
     api.get('/dashboard/delivery', { params: { periodo } })
       .then(({ data }) => { if (ativo) setResultado({ chave, data }); })
       .catch(error => { if (ativo) setResultado({ chave, erro: error.response?.data?.msg || 'Não foi possível carregar os indicadores de Delivery.' }); });
     return () => { ativo = false; };
-  }, [periodo, chave]);
+  }, [periodo, chave, section]);
 
   useEffect(() => {
+    if (section !== 'chart' && section !== 'both') return undefined;
     let ativo = true;
     api.get('/dashboard/receita-7-dias')
       .then(({ data }) => { if (ativo) { setDias(data || []); setErroGrafico(''); } })
       .catch(error => { if (ativo) setErroGrafico(error.response?.data?.msg || 'Não foi possível carregar a receita dos últimos sete dias.'); });
     return () => { ativo = false; };
-  }, []);
+  }, [section]);
 
   const maxReceita = Math.max(1, ...dias.map(dia => Number(dia.total || 0)));
   const maxTicket = Math.max(1, ...dias.map(dia => Number(dia.ticketMedio || 0)));
@@ -40,7 +42,7 @@ export default function DeliveryAnalytics() {
   }).join(' ');
 
   return <div className="delivery-analytics">
-    <section className="delivery-chart-card">
+    {(section === 'chart' || section === 'both') && <section className="delivery-chart-card">
       <div className="delivery-analytics-heading"><div><span>ÚLTIMOS 7 DIAS</span><h2>Receita e ticket médio</h2></div><small>Barras: receita · linha: ticket médio</small></div>
       {erroGrafico ? <p role="alert" className="delivery-analytics-error">{erroGrafico}</p> : <div className="delivery-chart">
         <svg className="delivery-chart-line" viewBox="0 0 700 140" preserveAspectRatio="none" role="img" aria-label="Linha de ticket médio nos últimos sete dias">
@@ -52,9 +54,9 @@ export default function DeliveryAnalytics() {
           <small>{dia.dia}</small>
         </div>)}
       </div>}
-    </section>
+    </section>}
 
-    <section className="delivery-summary">
+    {(section === 'summary' || section === 'both') && <section className="delivery-summary">
       <div className="delivery-analytics-heading"><div><span>CANAL DE VENDAS</span><h2>Delivery</h2></div>
         <div className="delivery-period-selector" aria-label="Período dos indicadores de Delivery">{periodos.map(item => <button type="button" key={item.id} className={periodo === item.id ? 'active' : ''} onClick={() => setPeriodo(item.id)}>{item.titulo}</button>)}</div>
       </div>
@@ -77,7 +79,7 @@ export default function DeliveryAnalytics() {
           </table></div>
         </details>
       </>}
-    </section>
+    </section>}
     <style>{`
       .delivery-analytics{display:grid;gap:16px;margin:18px 0}
       .delivery-chart-card,.delivery-summary{padding:18px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);box-shadow:var(--shadow-sm)}

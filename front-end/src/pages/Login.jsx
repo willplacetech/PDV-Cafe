@@ -38,7 +38,7 @@ export default function Login() {
     };
   }, [imagensMarca.length, showToast]);
 
-  if (user) return <Navigate to="/pdv" />;
+  if (user) return <Navigate to={user.role === 'admin' ? '/dashboard' : '/pdv'} replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();

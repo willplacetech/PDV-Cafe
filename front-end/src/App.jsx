@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { ComandaProvider } from './context/ComandaContext.jsx';
@@ -7,6 +7,7 @@ import { ToastProvider } from './components/Toast.jsx';
 import PrivateRoute from './components/PrivateRoute.jsx';
 import RoleRoute from './components/RoleRoute.jsx';
 import Layout from './components/Layout.jsx';
+import { AuthContext } from './context/AuthContextDefinition.jsx';
 const Login = lazy(() => import('./pages/Login.jsx'));
 const PDV = lazy(() => import('./pages/PDV.jsx'));
 const Products = lazy(() => import('./pages/Products.jsx'));
@@ -30,6 +31,11 @@ const DeliveryEntry = lazy(() => import('./pages/DeliveryEntry.jsx'));
 const DeliveryPlataforma = lazy(() => import('./pages/DeliveryPlataforma.jsx'));
 const DeliveryEntregador = lazy(() => import('./pages/DeliveryEntregador.jsx'));
 const RastreioEntrega = lazy(() => import('./pages/RastreioEntrega.jsx'));
+
+function DefaultLanding() {
+  const { user } = useContext(AuthContext);
+  return <Navigate to={user?.role === 'admin' ? '/dashboard' : '/pdv'} replace />;
+}
 
 export default function App() {
   return (
@@ -72,7 +78,7 @@ export default function App() {
                   <Route element={<RoleRoute roles={['admin', 'cozinha']} />}>
                     <Route path="/producao/fichas" element={<Navigate to="/producao?tab=fichas" replace />} />
                   </Route>
-                  <Route path="*" element={<Navigate to="/pdv" />} />
+                  <Route path="*" element={<DefaultLanding />} />
                 </Route>
               </Route>
             </Routes>

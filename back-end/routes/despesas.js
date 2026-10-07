@@ -105,6 +105,37 @@ router.get('/resumo', async (req, res) => {
   }
 });
 
+router.get('/central-resumo', async (req, res) => {
+  try {
+    const inicioHoje = new Date(`${dataHojeSaoPaulo()}T00:00:00.000Z`);
+    const inicioAmanha = new Date(inicioHoje);
+    inicioAmanha.setUTCDate(inicioAmanha.getUTCDate() + 1);
+    const filtroAberto = { status: { $ne: 'pago' } };
+    const [atrasadas, vencemHoje, totalPendente] = await Promise.all([
+      Despesa.aggregate([
+        { $match: { ...filtroAberto, dataVencimento: { $lt: inicioHoje } } },
+        { $group: { _id: null, valor: { $sum: '$valor' }, count: { $sum: 1 } } },
+      ]),
+      Despesa.aggregate([
+        { $match: { ...filtroAberto, dataVencimento: { $gte: inicioHoje, $lt: inicioAmanha } } },
+        { $group: { _id: null, valor: { $sum: '$valor' }, count: { $sum: 1 } } },
+      ]),
+      Despesa.aggregate([
+        { $match: filtroAberto },
+        { $group: { _id: null, valor: { $sum: '$valor' }, count: { $sum: 1 } } },
+      ]),
+    ]);
+    return res.json({
+      totalPendente: totalPendente[0]?.valor || 0,
+      totalPendenteCount: totalPendente[0]?.count || 0,
+      vencemHoje: { valor: vencemHoje[0]?.valor || 0, count: vencemHoje[0]?.count || 0 },
+      atrasadas: { valor: atrasadas[0]?.valor || 0, count: atrasadas[0]?.count || 0 },
+    });
+  } catch (error) {
+    return res.status(500).json({ msg: error.message });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   if (!idValido(req.params.id, res)) return;
   try {

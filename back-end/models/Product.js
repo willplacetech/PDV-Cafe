@@ -224,7 +224,7 @@ const ProductSchema = new mongoose.Schema({
   },
    estoqueMinimo: {
      type: Number,
-     default: 0,
+     default: 5,
      min: [0, 'Estoque mínimo não pode ser negativo'],
    },
    estoqueMinimoInsumos: {

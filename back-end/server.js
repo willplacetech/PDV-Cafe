@@ -79,6 +79,8 @@ app.use('/api/production', require('./routes/production'));
 app.use('/api/customers', require('./routes/customers'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/comandas', require('./routes/comandas'));
+app.use('/api/contas-receber', require('./routes/contasReceber'));
+app.use('/api/estoque', require('./routes/estoque'));
 app.use('/api/caixa', require('./routes/caixa'));
 app.use('/api/fiscal', require('./routes/fiscal'));
 app.use('/api/dashboard', require('./routes/dashboard'));

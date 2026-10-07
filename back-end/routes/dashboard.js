@@ -10,9 +10,12 @@ const Entregador = require('../models/Entregador');
 const auth = require('../middleware/auth');
 const User = require('../models/User');
 const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
+const Despesa = require('../models/Despesa');
+const { listarEstoqueBaixo } = require('../utils/estoqueBaixo');
 
 const router = express.Router();
 const TIME_ZONE = 'America/Sao_Paulo';
+const dinheiroUrgencia = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const partesDataSaoPaulo = (value = new Date()) => {
   const partes = new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(value));
@@ -108,6 +111,83 @@ router.use(auth);
 router.use((req, res, next) => {
   if (req.user.role !== 'admin') return res.status(403).json({ msg: 'Acesso restrito ao administrador' });
   next();
+});
+
+router.get('/urgencias', async (req, res) => {
+  try {
+    const agora = new Date();
+    const inicioHoje = new Date(`${dataSaoPaulo()}T00:00:00.000Z`);
+    const inicioAmanha = new Date(inicioHoje);
+    inicioAmanha.setUTCDate(inicioAmanha.getUTCDate() + 1);
+    const limiteComanda = new Date(agora.getTime() - 2 * 60 * 60 * 1000);
+    const limiteEntrega = new Date(agora.getTime() - 30 * 60 * 1000);
+    const [despesasVencidas, despesasHoje, produtos, comandasAbertas, entregasParadas] = await Promise.all([
+      Despesa.find({ dataVencimento: { $lt: inicioHoje }, status: { $ne: 'pago' } }).select('descricao valor dataVencimento status').lean(),
+      Despesa.find({ dataVencimento: { $gte: inicioHoje, $lt: inicioAmanha }, status: { $ne: 'pago' } }).select('descricao valor dataVencimento status').lean(),
+      Product.find({ ativo: { $ne: false } })
+        .select('_id nome tipo tipoProduto aFazer estoque estoquePesoKg estoquePesoNormalizado pesoPorUnidade estoqueMinimo estoqueMinimoBase estoqueMinimoEmbalagens estoqueEmbalagens estoqueInsumos estoqueConteudoAberto conteudoPorEmbalagem unidade unidadeCompra unidadeConteudo unidadeVenda')
+        .lean(),
+      Comanda.find({ status: 'aberta', createdAt: { $lte: limiteComanda } }).select('numero tipoAtendimento mesa clienteNome createdAt valorTotal').lean(),
+      req.user.tenantId
+        ? PedidoEntrega.find({ tenantId: req.user.tenantId, status: { $nin: ['entregue', 'cancelado'] } })
+          .select('status statusHistorico origem.nomeCliente valorTotal criadoEm')
+          .lean()
+        : Promise.resolve([]),
+    ]);
+
+    const urgencias = [];
+    despesasVencidas.forEach((despesa) => urgencias.push({
+      severidade: 'atrasado',
+      tipo: 'conta-pagar-atrasada',
+      titulo: `Conta vencida: ${despesa.descricao}`,
+      subtitulo: dinheiroUrgencia(despesa.valor),
+      valor: Number(despesa.valor || 0),
+      link: '/financeiro',
+    }));
+    despesasHoje.forEach((despesa) => urgencias.push({
+      severidade: 'hoje',
+      tipo: 'conta-pagar-hoje',
+      titulo: `Vence hoje: ${despesa.descricao}`,
+      subtitulo: dinheiroUrgencia(despesa.valor),
+      valor: Number(despesa.valor || 0),
+      link: '/financeiro',
+    }));
+
+    listarEstoqueBaixo(produtos).forEach(({ produto, qtdAtual, minimo, unidade }) => urgencias.push({
+      severidade: qtdAtual <= 0 ? 'atrasado' : 'hoje',
+      tipo: 'estoque-baixo',
+      titulo: qtdAtual <= 0 ? `${produto.nome} está sem estoque` : `${produto.nome} abaixo do mínimo`,
+      subtitulo: `${qtdAtual} ${unidade} · mínimo ${minimo} ${unidade}`,
+      link: '/produtos?filtro=estoque-baixo',
+    }));
+
+    comandasAbertas.forEach((comanda) => urgencias.push({
+      severidade: 'atencao',
+      tipo: 'comanda-aberta',
+      titulo: `Comanda #${comanda.numero} aberta há mais de 2h`,
+      subtitulo: comanda.clienteNome || (comanda.mesa ? `Mesa ${comanda.mesa}` : 'Verificar atendimento'),
+      link: '/atendimento/mesas',
+    }));
+
+    entregasParadas.forEach((entrega) => {
+      const ultimaMudancaStatus = [...(entrega.statusHistorico || [])].reverse().find((item) => item.status === entrega.status);
+      const desde = ultimaMudancaStatus?.data ? new Date(ultimaMudancaStatus.data) : new Date(entrega.criadoEm);
+      if (!Number.isFinite(desde.getTime()) || desde > limiteEntrega) return;
+      urgencias.push({
+        severidade: 'atrasado',
+        tipo: 'delivery-parado',
+        titulo: `Delivery parado em "${entrega.status}" há mais de 30min`,
+        subtitulo: entrega.origem?.nomeCliente || dinheiroUrgencia(entrega.valorTotal),
+        link: '/entregas',
+      });
+    });
+
+    const prioridade = { atrasado: 0, hoje: 1, atencao: 2 };
+    urgencias.sort((a, b) => prioridade[a.severidade] - prioridade[b.severidade] || a.titulo.localeCompare(b.titulo, 'pt-BR'));
+    return res.json(urgencias);
+  } catch (error) {
+    return res.status(500).json({ msg: error.message });
+  }
 });
 
 const resumoVendasPeriodo = async (inicio, fim) => {
