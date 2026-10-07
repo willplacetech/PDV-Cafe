@@ -84,7 +84,7 @@ describe('Comanda unificada sem serviços externos', () => {
     panel().contains('button', '🛵 Delivery').click();
     panel().contains('button', 'Fechar venda').click();
     cy.get('.pdv-payment-dialog').should('not.exist');
-    panel().contains('label', 'Nome (opcional)').find('input').type('João');
+    panel().contains('label', 'Nome').find('input').type('João');
     panel().contains('label', 'Telefone do cliente').find('input').type('11999999999');
     for (const [label, value] of [['Rua', 'Rua Um'], ['Número', '10'], ['Bairro', 'Centro']]) panel().contains('label', label).find('input').type(value);
     panel().contains('label', 'Taxa de entrega no caixa').find('input').clear().type('4');

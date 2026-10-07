@@ -109,7 +109,17 @@ export function createOfflineSynchronizer(store, post = (...args) => api.post(..
           });
           if (lostLease || stopped || !await store.completeClaim(claim)) { retry(); break; }
           publicarFila();
-        } catch {
+        } catch (error) {
+          if (error.response?.status === 409 && error.response?.data?.code === 'OFFLINE_ORIGIN_MISMATCH') {
+            try {
+              const preservada = await store.quarantineClaim(claim, error.response.data.code);
+              if (preservada) publicarFila();
+              else publicarArmazenamento(true);
+            } catch {
+              publicarArmazenamento(true);
+            }
+            break;
+          }
           // Uma resposta perdida nao troca a chave: o backend deduplica o retry.
           retry();
           break;
@@ -151,7 +161,11 @@ export default function useFilaOffline() {
         const quarantine = await offlineStore.listQuarantine(identity);
         if (ativo && version === revision && mesmaOrigem(identity, origemAtual())) {
           setPendentes(fila.length);
-          setOrigensPendentes(quarantine.map(item => ({ idTemporario: item.idTemporario, criadaEm: item.criadaEm })));
+          setOrigensPendentes(quarantine.map(item => ({
+            idTemporario: item.idTemporario,
+            criadaEm: item.criadaEm,
+            motivoQuarentena: item.motivoQuarentena,
+          })));
           if (migration.invalidos) setArmazenamentoCheio(true);
         }
       } catch {

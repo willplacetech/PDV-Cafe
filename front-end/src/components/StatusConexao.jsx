@@ -39,8 +39,10 @@ export default function StatusConexao({ compacto = false }) {
       </strong>
       {armazenamentoCheio && <span style={{ color: 'var(--error-bg)', fontWeight: 700 }}>Conecte à internet para sincronizar</span>}
       {pendentes > 0 && <span>Não limpe os dados do site enquanto houver vendas pendentes.</span>}
-      {origensPendentes.length > 0 && <span>Vendas legadas com origem desconhecida: {origensPendentes.length}. Preservadas para revisao do administrador.</span>}
-      {origensPendentes.map(item => <button key={item.idTemporario} type="button" onClick={() => confirmarOrigem(item.idTemporario)}>Conferir origem: {item.idTemporario}</button>)}
+      {origensPendentes.length > 0 && <span>Vendas preservadas para revisão: {origensPendentes.length}.</span>}
+      {origensPendentes.map(item => item.motivoQuarentena === 'OFFLINE_ORIGIN_MISMATCH'
+        ? <span key={item.idTemporario}>A venda {item.idTemporario} foi rejeitada porque o operador ou comércio mudou. Confira os dados antes de lançá-la novamente.</span>
+        : <button key={item.idTemporario} type="button" onClick={() => confirmarOrigem(item.idTemporario)}>Conferir origem: {item.idTemporario}</button>)}
     </div>
   );
 }

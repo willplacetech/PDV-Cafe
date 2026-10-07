@@ -779,7 +779,7 @@ export default function PDV() {
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Nome no atendimento</label>
-                <input disabled={Boolean(comandaPagamento?.metodoPagamento)} placeholder="Digite o nome (opcional)" value={clienteNome} onChange={e => { setClienteNome(e.target.value); setComandaAtual(atual => ({ ...atual, clienteNome: e.target.value, status: 'rascunho' })); }} style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)', borderRadius: 10, fontSize: 16, boxSizing: 'border-box', outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48 }} />
+                <input disabled={Boolean(comandaPagamento?.metodoPagamento)} placeholder={comandaAtual.tipo === 'delivery' ? 'Digite o nome' : 'Digite o nome (opcional)'} required={comandaAtual.tipo === 'delivery'} value={clienteNome} onChange={e => { setClienteNome(e.target.value); setComandaAtual(atual => ({ ...atual, clienteNome: e.target.value, status: 'rascunho' })); }} style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)', borderRadius: 10, fontSize: 16, boxSizing: 'border-box', outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48 }} />
               </div>
             </div>
           </div>
@@ -900,7 +900,7 @@ export default function PDV() {
               <button type="button" className={comandaAtual.tipo === 'delivery' ? 'active' : ''} onClick={() => selecionarComandaPainel({ tipoAtendimento: 'delivery' })}>🛵 Delivery</button>
             </div>
             <div className="pdv-command-current"><span>{comandaAtual._id ? `Adicionando à ${rotuloComandaAtual} · #${comandaAtual.numero}` : rotuloComandaAtual}</span><button type="button" onClick={iniciarNovaComanda} disabled={enviando}>+ Novo pedido</button></div>
-            <label className="pdv-command-name">Nome (opcional)<input value={clienteNome} onChange={event => { setClienteNome(event.target.value); setComandaAtual(atual => ({ ...atual, clienteNome: event.target.value, status: 'rascunho' })); }} maxLength={160} /></label>
+            <label className="pdv-command-name">{comandaAtual.tipo === 'delivery' ? 'Nome' : 'Nome (opcional)'}<input value={clienteNome} onChange={event => { setClienteNome(event.target.value); setComandaAtual(atual => ({ ...atual, clienteNome: event.target.value, status: 'rascunho' })); }} maxLength={160} required={comandaAtual.tipo === 'delivery'} /></label>
             {comandaAtual.tipo === 'delivery' && <DeliveryPDV value={entregaPDV} onChange={setEntregaPDV} customer={clienteSelecionado} showToggle={false} />}
             <label className="pdv-command-name">Observação<textarea value={comandaAtual.observacao || ''} maxLength={500} onChange={event => setComandaAtual(atual => ({ ...atual, observacao: event.target.value, status: 'rascunho' }))} /></label>
             <label className="pdv-mobile-product-select">

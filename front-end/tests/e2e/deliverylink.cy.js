@@ -166,7 +166,7 @@ describe('DeliveryLink', () => {
       win.localStorage.setItem('pdv_user', JSON.stringify({ username: 'teste', role: 'admin' }));
     } });
     cy.contains('.product-card', produto.nome).click();
-    cy.get('input[placeholder="Digite o nome (opcional)"]').type('Maria');
+    cy.get('input[placeholder="Digite o nome"]').type('Maria');
     cy.contains('label', 'Entrega ao cliente').find('input').check();
     for (const [label, value] of [['Telefone do cliente', '11988888888'], ['Rua', 'Rua Um'], ['Número', '12'], ['Bairro', 'Centro']]) cy.contains('label', label).find('input').type(value);
     cy.contains('label', 'Taxa de entrega no caixa').find('input').clear().type('4');

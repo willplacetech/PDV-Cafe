@@ -170,5 +170,7 @@ test('409 de origem mantem a venda em quarentena sem repetir automaticamente', a
   const [saved] = await store.list({ ownerId: 'user-1', tenantId: 'tenant-1' });
   assert.equal(saved.status, 'quarentena');
   assert.equal(saved.motivoQuarentena, 'OFFLINE_ORIGIN_MISMATCH');
+  assert.equal((await store.listQuarantine({ ownerId: 'user-1', tenantId: 'tenant-1' })).length, 1);
+  assert.equal((await store.listQuarantine({ ownerId: 'other-user', tenantId: 'tenant-1' })).length, 0);
   assert.equal(sends, 1);
 });

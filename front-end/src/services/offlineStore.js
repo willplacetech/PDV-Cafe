@@ -134,8 +134,12 @@ export function createOfflineStore(options = {}) {
     list: identity => operate('readonly', async queue => (await requestResult(queue.getAll())).filter(item => belongsTo(item, identity))),
     // Inspecao local para diagnostico; a UI e o worker usam exclusivamente list(identity).
     inspectAll: () => operate('readonly', queue => requestResult(queue.getAll())),
-    listQuarantine: identity => operate('readonly', async queue => identity?.role === 'admin' && knownOrigin(identity)
-      ? (await requestResult(queue.getAll())).filter(unresolvedOrigin) : []),
+    listQuarantine: identity => operate('readonly', async queue => knownOrigin(identity)
+      ? (await requestResult(queue.getAll())).filter(item => (
+        (identity.role === 'admin' && unresolvedOrigin(item))
+        || (item.status === 'quarentena' && item.motivoQuarentena === 'OFFLINE_ORIGIN_MISMATCH'
+          && belongsTo(item, identity))
+      )) : []),
     resolveOrigin: (id, identity, confirmation) => operate('readwrite', async (queue, metadata) => {
       if (identity?.role !== 'admin' || !knownOrigin(identity) || confirmation?.confirmed !== true
         || typeof confirmation.reason !== 'string' || confirmation.reason.trim().length < 3) throw new Error('Administrador, confirmacao e motivo obrigatorios');
@@ -199,6 +203,15 @@ export function createOfflineStore(options = {}) {
       const lease = await requestResult(metadata.get('syncLease'));
       if (!sameLease(lease, claim) || lease.expiresAt <= now()) return false;
       await requestResult(queue.delete(claim.venda.idTemporario));
+      await requestResult(metadata.delete('syncLease'));
+      return true;
+    }),
+    quarantineClaim: (claim, reason) => operate('readwrite', async (queue, metadata) => {
+      const lease = await requestResult(metadata.get('syncLease'));
+      if (!sameLease(lease, claim)) return false;
+      const venda = await requestResult(queue.get(claim.venda.idTemporario));
+      if (!venda || !belongsTo(venda, claim.venda)) return false;
+      await requestResult(queue.put({ ...venda, status: 'quarentena', motivoQuarentena: reason }));
       await requestResult(metadata.delete('syncLease'));
       return true;
     }),
