@@ -159,6 +159,33 @@ describe('Comanda unificada sem serviços externos', () => {
     cy.get('.dashboard-periods').should('be.visible');
   });
 
+  it('Delivery mostra carregamento, permite repetir falha e troca o período', () => {
+    const metric = { total: 0, pedidos: 0, itens: 0, ticketMedio: 0, maisVendidos: [] };
+    const delivery = { totalPedidos: 2, receitaTotal: 50, freteTotal: 10, porcentagemFaturamento: 100, ticketMedio: 25, ticketMedioPresencial: 0, porEntregador: [], tempoMedioMinutos: 20 };
+    cy.intercept('GET', '**/api/dashboard', { comandasAbertas: 0, periodos: { dia: metric, semana: metric, mes: metric } });
+    cy.intercept('GET', '**/api/dashboard/comparar-vendas*', { periodoA: { ...metric, rotulo: 'Atual' }, periodoB: { ...metric, rotulo: 'Anterior' } });
+    cy.intercept('GET', '**/api/dashboard/receita-7-dias', []);
+    let falhar = true;
+    cy.intercept('GET', '**/api/dashboard/delivery*', req => {
+      if (req.query.periodo === 'mes') req.alias = 'deliveryMes';
+      if (falhar) req.reply({ statusCode: 503, delay: 500, body: { msg: 'Serviço temporariamente indisponível' } });
+      else req.reply({ delay: 500, body: { ...delivery, totalPedidos: req.query.periodo === 'mes' ? 8 : 2 } });
+    }).as('deliveryMetrics');
+    cy.get('#sidebar-desktop').contains('a', 'Dashboard').click();
+    cy.get('.delivery-summary').contains('Carregando indicadores de Delivery').should('be.visible');
+    cy.wait('@deliveryMetrics');
+    cy.get('.delivery-summary [role="alert"]').should('be.visible').and('contain', 'O servidor encontrou um problema');
+    cy.then(() => { falhar = false; });
+    cy.get('.delivery-summary').contains('button', 'Tentar novamente').click();
+    cy.wait('@deliveryMetrics');
+    cy.get('.delivery-summary-grid article').first().find('strong').should('have.text', '2');
+    cy.get('.delivery-summary-grid').contains('R$ 50,00').should('be.visible');
+    cy.get('.delivery-summary').contains('button', 'Este mês').click();
+    cy.get('.delivery-summary-grid').should('not.exist');
+    cy.wait('@deliveryMes').its('request.query.periodo').should('equal', 'mes');
+    cy.get('.delivery-summary-grid article').first().find('strong').should('have.text', '8');
+  });
+
   it('pagamento incerto impede trocar de mesa pelo botão do cabeçalho', () => {
     cy.intercept('POST', '**/api/comandas/*/fechar', { statusCode: 504, body: { msg: 'Sem confirmação' } }).as('uncertainPayment');
     add();

@@ -72,3 +72,11 @@ A suíte unitária completa do frontend ainda apresenta 7 falhas nos testes anti
 - [ ] **Menu/loading:** Dashboard aparece primeiro em Atendimento para administrador; marca navega; após terminar requisições em Entregas o indicador desaparece.
 
 Para repetir os testes específicos, use `npm --prefix front-end run test:frontend -- --spec tests/e2e/comanda_unificada.cy.js` com Vite na porta 5173, e `npm --prefix back-end run test:integration -- --runTestsByPath tests/integration/comandaUnified.test.js tests/integration/paymentIdempotency.test.js`.
+
+## Correção adicional: indicadores Delivery
+
+O resumo Delivery ignorava pedidos criados diretamente em Entregas, sem venda no PDV. A consulta agora inclui os pedidos diretos entregues no período da conclusão, soma produtos e frete e mantém o filtro por comércio. Pedidos vinculados a uma venda do PDV continuam sendo contados uma única vez, após o pagamento. Pendentes e cancelados sem venda ficam fora dos totais.
+
+O componente `front-end/src/components/dashboard/DeliveryAnalytics.jsx` mostra carregamento ao abrir ou trocar o período e permite tentar novamente após falha. A consulta está em `back-end/routes/dashboard.js`; os cenários adicionais estão nos testes de integração e Cypress indicados acima. Para conferir manualmente, concluir um pedido criado em Entregas e consultar o período correspondente no Dashboard.
+
+Validação desta correção: 9 testes de integração em `comandaUnified.test.js` e 10 cenários Cypress em `comanda_unificada.cy.js` passaram, assim como o build Vite/PWA e o lint do componente DeliveryAnalytics. O cenário de erro respeita a mensagem genérica de falhas 5xx do interceptor existente. Estas verificações usam banco de teste e APIs simuladas; não houve publicação nem consulta aos dados de produção.

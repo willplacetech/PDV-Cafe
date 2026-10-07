@@ -239,25 +239,35 @@ router.get('/delivery', auth, auth.allowRoles('admin'), async (req, res) => {
       status: 'fechada', tipoAtendimento: 'delivery', 'entrega.tenantId': req.user.tenantId,
     }).select('_id pedidoId').lean();
     const comandasPorId = new Map(comandas.map(comanda => [String(comanda._id), comanda]));
-    const pedidosPorId = new Map(pedidos.map(pedido => [String(pedido._id), pedido]));
-    const entregas = await PedidoEntrega.find({
-      tenantId: req.user.tenantId,
-      vendaId: { $in: comandas.map(comanda => comanda._id) },
-      status: { $ne: 'cancelado' },
-    }).populate('entregadorId', 'nome').lean();
+    const [entregas, entregasDiretas] = await Promise.all([
+      PedidoEntrega.find({
+        tenantId: req.user.tenantId,
+        vendaId: { $in: comandas.map(comanda => comanda._id) },
+        status: { $ne: 'cancelado' },
+      }).populate('entregadorId', 'nome').lean(),
+      PedidoEntrega.find({
+        tenantId: req.user.tenantId,
+        vendaId: null,
+        status: 'entregue',
+        statusHistorico: { $elemMatch: { status: 'entregue', data: { $gte: inicio, $lte: agora } } },
+      }).populate('entregadorId', 'nome').lean(),
+    ]);
     const entregasPorVenda = new Map(entregas.map(entrega => [String(entrega.vendaId), entrega]));
-    const entregasConcluidas = pedidos.map(pedido => entregasPorVenda.get(String(pedido.comandaId)) || {
-      vendaId: pedido.comandaId, entregadorId: null, statusHistorico: [],
-    }).filter(entrega => comandasPorId.has(String(entrega.vendaId)));
-    const faturamentoEntrega = entregasConcluidas.reduce((soma, entrega) => {
-      const comanda = comandasPorId.get(String(entrega.vendaId));
-      return soma + Number(pedidosPorId.get(String(comanda.pedidoId))?.total || 0);
-    }, 0);
-    const freteTotal = entregasConcluidas.reduce((soma, entrega) => {
-      const comanda = comandasPorId.get(String(entrega.vendaId));
-      return soma + Number(pedidosPorId.get(String(comanda.pedidoId))?.taxaEntrega || 0);
-    }, 0);
-    const totalFaturamento = pedidosPeriodo.reduce((soma, pedido) => soma + Number(pedido.total || 0), 0);
+    const entregasConcluidas = pedidos.filter(pedido => comandasPorId.has(String(pedido.comandaId))).map(pedido => ({
+      ...(entregasPorVenda.get(String(pedido.comandaId)) || { entregadorId: null, statusHistorico: [] }),
+      receita: Number(pedido.total || 0),
+      frete: Number(pedido.taxaEntrega || 0),
+    }));
+    // Direct deliveries have no PDV sale; count completed ones once, including freight.
+    entregasConcluidas.push(...entregasDiretas.map(entrega => ({
+      ...entrega,
+      receita: Number(entrega.valorTotal || 0) + Number(entrega.taxaEntrega || 0),
+      frete: Number(entrega.taxaEntrega || 0),
+    })));
+    const faturamentoEntrega = entregasConcluidas.reduce((soma, entrega) => soma + entrega.receita, 0);
+    const freteTotal = entregasConcluidas.reduce((soma, entrega) => soma + entrega.frete, 0);
+    const receitaDireta = entregasDiretas.reduce((soma, entrega) => soma + Number(entrega.valorTotal || 0) + Number(entrega.taxaEntrega || 0), 0);
+    const totalFaturamento = pedidosPeriodo.reduce((soma, pedido) => soma + Number(pedido.total || 0), receitaDireta);
     const pedidosPresenciais = pedidosPeriodo.filter(pedido => ['mesa', 'balcao'].includes(pedido.tipoAtendimento));
     const receitaPresencial = pedidosPresenciais.reduce((soma, pedido) => soma + Number(pedido.total || 0), 0);
     const porEntregador = new Map();
@@ -273,12 +283,10 @@ router.get('/delivery', auth, auth.allowRoles('admin'), async (req, res) => {
       const entregadorId = entrega.entregadorId?._id ? String(entrega.entregadorId._id) : 'sem-entregador';
       const nome = entrega.entregadorId?.nome || 'Sem entregador atribuído';
       const registro = porEntregador.get(entregadorId) || { nome, pedidos: 0, receita: 0, frete: 0, duracoes: [] };
-      const comanda = comandasPorId.get(String(entrega.vendaId));
-      const receita = Number(pedidosPorId.get(String(comanda.pedidoId)).total || 0);
       const duracao = duracaoEntregaMinutos(entrega.statusHistorico);
       registro.pedidos += 1;
-      registro.receita += receita;
-      registro.frete += Number(pedidosPorId.get(String(comanda.pedidoId))?.taxaEntrega || 0);
+      registro.receita += entrega.receita;
+      registro.frete += entrega.frete;
       if (duracao !== null) {
         registro.duracoes.push(duracao);
         duracoes.push(duracao);

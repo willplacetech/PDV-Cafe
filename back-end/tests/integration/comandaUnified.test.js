@@ -6,6 +6,7 @@ const Product = require('../../models/Product');
 const Order = require('../../models/Order');
 const Comanda = require('../../models/Comanda');
 const Tenant = require('../../models/Tenant');
+const PedidoEntrega = require('../../models/PedidoEntrega');
 
 let token;
 let product;
@@ -63,4 +64,37 @@ test('dashboard inclui venda delivery paga antes da entrega e isola faturamento 
   expect(response.body.porcentagemFaturamento).toBe(50);
   expect(response.body.ticketMedioPresencial).toBe(25);
   expect(response.body.tempoMedioMinutos).toBeNull();
+});
+
+test('dashboard inclui delivery criado diretamente em Entregas, sem venda PDV', async () => {
+  const data = { tenantId: tenant.id, fonte: 'formulario', origem: { nomeCliente: 'Maria', telefone: '11999999999', endereco: { rua: 'Rua Um', numero: '1', bairro: 'Centro' } }, valorTotal: 20, taxaEntrega: 5 };
+  await PedidoEntrega.create({ ...data, status: 'entregue', statusHistorico: [{ status: 'despachado', data: new Date(Date.now() - 20 * 60000), por: { tipo: 'sistema' } }, { status: 'entregue', data: new Date(), por: { tipo: 'sistema' } }] });
+  await PedidoEntrega.create({ ...data, status: 'cancelado' });
+  await PedidoEntrega.create({ ...data, status: 'pronto' });
+  const other = await Tenant.create({ nome: 'Outro', slug: 'outro', telefone: '11888888888', endereco: 'Rua Dois' });
+  await PedidoEntrega.create({ ...data, tenantId: other.id, status: 'entregue' });
+  const response = await api('get', '/api/dashboard/delivery?periodo=hoje');
+  expect(response.status).toBe(200);
+  expect(response.body).toMatchObject({ totalPedidos: 1, receitaTotal: 25, freteTotal: 5, ticketMedio: 25, porcentagemFaturamento: 100, tempoMedioMinutos: 20 });
+  expect(response.body.porEntregador.find(item => item.nome === 'Sem entregador atribuído')).toMatchObject({ pedidos: 1, receita: 25, frete: 5 });
+});
+
+test('delivery vinculado ao PDV é contado uma vez quando também foi entregue', async () => {
+  const order = await Order.create({ atendente: user.username, subtotal: 20, total: 25, taxaEntrega: 5, status: 'pago', tipoAtendimento: 'delivery' });
+  const comanda = await Comanda.create({ atendente: user.username, tipoAtendimento: 'delivery', status: 'fechada', pedidoId: order.id, entrega: { tenantId: tenant.id } });
+  order.comandaId = comanda.id;
+  await order.save();
+  await PedidoEntrega.create({ tenantId: tenant.id, fonte: 'pdv', vendaId: comanda.id, origem: { nomeCliente: 'Maria', telefone: '11999999999', endereco: { rua: 'Rua Um', numero: '1', bairro: 'Centro' } }, valorTotal: 20, taxaEntrega: 5, status: 'entregue' });
+  const response = await api('get', '/api/dashboard/delivery?periodo=hoje');
+  expect(response.body).toMatchObject({ totalPedidos: 1, receitaTotal: 25, freteTotal: 5, porcentagemFaturamento: 100 });
+});
+
+test('delivery direto entra no período da entrega, mesmo criado em outro dia', async () => {
+  const agora = new Date();
+  const ontem = new Date(Date.now() - 86400000);
+  const data = { tenantId: tenant.id, fonte: 'api', origem: { nomeCliente: 'Maria', telefone: '11999999999', endereco: { rua: 'Rua Um', numero: '1', bairro: 'Centro' } }, valorTotal: 20, taxaEntrega: 5, status: 'entregue' };
+  await PedidoEntrega.create({ ...data, criadoEm: ontem, statusHistorico: [{ status: 'entregue', data: agora, por: { tipo: 'sistema' } }] });
+  await PedidoEntrega.create({ ...data, statusHistorico: [{ status: 'entregue', data: ontem, por: { tipo: 'sistema' } }] });
+  const response = await api('get', '/api/dashboard/delivery?periodo=hoje');
+  expect(response.body).toMatchObject({ totalPedidos: 1, receitaTotal: 25, freteTotal: 5 });
 });

@@ -6,18 +6,22 @@ const periodos = [{ id: 'hoje', titulo: 'Hoje' }, { id: 'semana', titulo: 'Esta 
 
 export default function DeliveryAnalytics() {
   const [periodo, setPeriodo] = useState('hoje');
-  const [delivery, setDelivery] = useState(null);
+  const [tentativa, setTentativa] = useState(0);
+  const [resultado, setResultado] = useState(null);
+  const chave = `${periodo}:${tentativa}`;
+  const carregando = resultado?.chave !== chave;
+  const delivery = carregando ? null : resultado?.data;
+  const erroDelivery = carregando ? '' : resultado?.erro;
   const [dias, setDias] = useState([]);
-  const [erroDelivery, setErroDelivery] = useState('');
   const [erroGrafico, setErroGrafico] = useState('');
 
   useEffect(() => {
     let ativo = true;
     api.get('/dashboard/delivery', { params: { periodo } })
-      .then(({ data }) => { if (ativo) { setDelivery(data); setErroDelivery(''); } })
-      .catch(error => { if (ativo) setErroDelivery(error.response?.data?.msg || 'Não foi possível carregar os indicadores de Delivery.'); });
+      .then(({ data }) => { if (ativo) setResultado({ chave, data }); })
+      .catch(error => { if (ativo) setResultado({ chave, erro: error.response?.data?.msg || 'Não foi possível carregar os indicadores de Delivery.' }); });
     return () => { ativo = false; };
-  }, [periodo]);
+  }, [periodo, chave]);
 
   useEffect(() => {
     let ativo = true;
@@ -54,9 +58,9 @@ export default function DeliveryAnalytics() {
       <div className="delivery-analytics-heading"><div><span>CANAL DE VENDAS</span><h2>Delivery</h2></div>
         <div className="delivery-period-selector" aria-label="Período dos indicadores de Delivery">{periodos.map(item => <button type="button" key={item.id} className={periodo === item.id ? 'active' : ''} onClick={() => setPeriodo(item.id)}>{item.titulo}</button>)}</div>
       </div>
-      {erroDelivery ? <p role="alert" className="delivery-analytics-error">{erroDelivery}</p> : delivery && <>
+      {carregando ? <p role="status">Carregando indicadores de Delivery...</p> : erroDelivery ? <div className="delivery-analytics-error"><p role="alert">{erroDelivery}</p><button type="button" onClick={() => setTentativa(valor => valor + 1)}>Tentar novamente</button></div> : delivery && <>
         <div className="delivery-summary-grid">
-          <article><span>Pedidos entregues</span><strong>{delivery.totalPedidos}</strong></article>
+          <article><span>Pedidos Delivery</span><strong>{delivery.totalPedidos}</strong></article>
           <article><span>Receita delivery</span><strong>{dinheiro(delivery.receitaTotal)}</strong><small>{Number(delivery.porcentagemFaturamento || 0).toLocaleString('pt-BR')}% do faturamento total</small></article>
           <article><span>Frete cobrado</span><strong>{dinheiro(delivery.freteTotal)}</strong></article>
           <article><span>Ticket médio</span><strong>{dinheiro(delivery.ticketMedio)}</strong><small>Presencial: {dinheiro(delivery.ticketMedioPresencial)}</small></article>
@@ -66,10 +70,10 @@ export default function DeliveryAnalytics() {
         </div>
         <details className="delivery-couriers">
           <summary>Entregadores · {delivery.porEntregador.length}</summary>
-          <div className="delivery-table-wrap"><table><thead><tr><th>Entregador</th><th>Pedidos entregues</th><th>Receita total</th><th>Frete coletado</th><th>Tempo médio</th></tr></thead>
+          <div className="delivery-table-wrap"><table><thead><tr><th>Entregador</th><th>Pedidos Delivery</th><th>Receita total</th><th>Frete coletado</th><th>Tempo médio</th></tr></thead>
             <tbody>{delivery.porEntregador.length ? delivery.porEntregador.map((entregador, indice) => <tr key={`${entregador.nome}-${indice}`}>
               <td>{entregador.nome}</td><td>{entregador.pedidos}</td><td>{dinheiro(entregador.receita)}</td><td>{dinheiro(entregador.frete)}</td><td>{entregador.tempoMedioMinutos == null ? '—' : `${entregador.tempoMedioMinutos} min`}</td>
-            </tr>) : <tr><td colSpan="5">Nenhum pedido entregue no período.</td></tr>}</tbody>
+            </tr>) : <tr><td colSpan="5">Nenhum pedido Delivery concluído no período.</td></tr>}</tbody>
           </table></div>
         </details>
       </>}
