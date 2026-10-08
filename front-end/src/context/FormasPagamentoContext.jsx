@@ -19,20 +19,23 @@ export function FormasPagamentoProvider({ children }) {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const requisicaoRef = useRef(null);
+  const versaoRef = useRef(0);
   const atualizarFormas = useCallback(formas => {
+    versaoRef.current += 1;
     setFormasPagamento(formas);
     setErro('');
     try { localStorage.setItem(chaveCache, JSON.stringify(formas)); } catch { /* cache auxiliar */ }
   }, [chaveCache]);
   const recarregar = useCallback(() => {
     if (requisicaoRef.current) return requisicaoRef.current;
+    const versaoInicial = versaoRef.current;
     setCarregando(true);
     const requisicao = api.get('/payment-settings', { pdvSilenciosa: true }).then(({ data }) => {
       if (!Array.isArray(data.formasPagamento) || !data.formasPagamento.length) throw new Error('Não foi possível carregar as formas de pagamento.');
-      atualizarFormas(data.formasPagamento);
+      if (versaoInicial === versaoRef.current) atualizarFormas(data.formasPagamento);
       return data.formasPagamento;
     }).catch(error => {
-      setErro(error.response?.data?.msg || 'Não foi possível carregar as formas de pagamento.');
+      if (versaoInicial === versaoRef.current) setErro(error.response?.data?.msg || 'Não foi possível carregar as formas de pagamento.');
       return null;
     }).finally(() => { setCarregando(false); requisicaoRef.current = null; });
     requisicaoRef.current = requisicao;

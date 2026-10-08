@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const mongoose = require('mongoose');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
 const Product = require('../models/Product');
@@ -30,9 +31,11 @@ test('reprocessamento de taxas atualiza formaPagamento de comandas', async (t) =
   const pagamento = { valor: 100, formaPagamento: 'cartao_credito', data: new Date('2025-01-10T12:00:00Z') };
   let query;
   let saves = 0;
+  t.mock.method(mongoose, 'startSession', async () => ({ withTransaction: async (work) => work(), endSession: async () => {} }));
+  t.mock.method(PaymentSettings, 'findOne', () => ({ session: async () => null }));
   t.mock.method(PaymentSettings, 'findOneAndUpdate', async () => ({}));
-  t.mock.method(Order, 'find', async () => []);
-  t.mock.method(Comanda, 'find', async (filter) => { query = filter; return [{ historicoPagamentos: [pagamento], save: async () => { saves += 1; } }]; });
+  t.mock.method(Order, 'find', () => ({ session: async () => [] }));
+  t.mock.method(Comanda, 'find', (filter) => { query = filter; return { session: async () => [{ historicoPagamentos: [pagamento], save: async () => { saves += 1; } }] }; });
   const res = response();
   await handler(contabil, '/taxas-cartao')({ body: { mes: '2025-01', tipo: 'cartao_credito', taxaPercentual: 2 } }, res);
   assert.equal(query.historicoPagamentos.$elemMatch.formaPagamento, 'cartao_credito');

@@ -20,7 +20,11 @@ describe('Formas de pagamento cadastradas', () => {
       if (path.endsWith('/products') || path.endsWith('/products/pdv')) return req.reply([product]);
       if (path.endsWith('/comandas') || path.endsWith('/comandas/a-receber')) return req.reply(commands);
       if (path.endsWith('/mesas')) return req.reply({ mesas: [] });
-      if (path.endsWith('/dashboard')) return req.reply({ formasPagamento: methods, taxasCartao: {}, periodos: Object.fromEntries(['dia', 'semana', 'mes'].map(periodo => [periodo, { pedidos: receipts.length, total: receipts.length * 100, recebido: receipts.length * 100, pendente: 0, produtos: [] }])), relatorioMes: { total: receipts.length * 100, recebido: receipts.length * 100, pendente: 0, pedidos: receipts.length, produtos: [], pagamentos: receipts, status: {}, vendasPorDia: [], clientes: 0 } });
+      if (path.endsWith('/dashboard/comparar-vendas')) {
+        const periodo = { rotulo: 'Teste', total: 0, pedidos: 0, itens: 0, ticketMedio: 0 };
+        return req.reply({ periodoA: periodo, periodoB: periodo });
+      }
+      if (path.endsWith('/dashboard')) return req.reply({ formasPagamento: methods, taxasCartao: {}, periodos: Object.fromEntries(['dia', 'semana', 'mes'].map(periodo => [periodo, { pedidos: receipts.length, total: receipts.length * 100, recebido: receipts.length * 100, pendente: 0, itens: receipts.length, ticketMedio: 100, maisVendidos: [], produtos: [] }])), relatorioMes: { total: receipts.length * 100, recebido: receipts.length * 100, pendente: 0, pedidos: receipts.length, produtos: [], pagamentos: receipts, status: {}, vendasPorDia: [], clientes: 0 } });
       return req.reply([]);
     });
     cy.intercept('POST', '**/api/payment-settings', req => {
@@ -48,7 +52,7 @@ describe('Formas de pagamento cadastradas', () => {
     cy.get('#sidebar-desktop').contains('PDV · Nova venda').click();
     cy.get('.product-card').contains(product.nome).click();
     cy.get('.pdv-cart-panel').contains('button', 'Fechar venda').click();
-    cy.get('.pdv-payment-dialog').contains('label', 'Forma de pagamento').find('select').select(custom.value);
+    cy.get('.pdv-payment-dialog').contains('label', 'Forma de pagamento').find('select').should('not.be.disabled').select(custom.value);
     cy.intercept('POST', '**/api/comandas/*/fechar', req => {
       expect(req.body.metodoPagamento).to.equal(custom.value);
       receipts = [{ tipo: custom.value, rotuloPagamento: custom.label, bruto: 100, taxa: 3, total: 97 }];
