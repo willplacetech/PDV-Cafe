@@ -25,10 +25,13 @@ const tenantSchema = new mongoose.Schema({
   telefone: { type: String, required: true, trim: true, maxlength: 30 },
   endereco: { type: String, required: true, trim: true, maxlength: 500 },
   ativo: { type: Boolean, default: true },
+  pdvIntegrado: { type: Boolean, default: false },
   plano: { type: String, enum: ['teste', 'mensal'], default: 'teste' },
   dataVencimento: Date,
   taxaPorEntrega: { type: Number, min: 0, validate: Number.isFinite },
   configuracao: { type: configuracaoSchema, required: true, default: () => ({}) },
 }, { timestamps: true });
+
+tenantSchema.index({ pdvIntegrado: 1 }, { unique: true, partialFilterExpression: { pdvIntegrado: true } });
 
 module.exports = mongoose.model('Tenant', tenantSchema);

@@ -72,6 +72,45 @@ test('role atual substitui privilégio de admin do token antigo', async () => {
   expect((await api('post', '/auth/register', adminToken).send({ username: 'intruso', password, role: 'admin' })).status).toBe(403);
 });
 
+test('novos usuários admin e operador herdam o comércio integrado ao PDV', async () => {
+  const tenant = await Tenant.create({
+    nome: 'Café integrado',
+    slug: 'cafe-integrado-autovinculo',
+    telefone: '11999999999',
+    endereco: 'Rua Um',
+    pdvIntegrado: true,
+  });
+
+  const adminCriado = await api('post', '/auth/register', adminToken)
+    .send({ username: 'novo-admin-integrado', password, role: 'admin' });
+  const operadorCriado = await api('post', '/auth/register', adminToken)
+    .send({ username: 'novo-operador-integrado', password, role: 'operador' });
+  const cozinhaCriada = await api('post', '/auth/register', adminToken)
+    .send({ username: 'nova-cozinha-sem-vinculo', password, role: 'cozinha' });
+
+  expect(adminCriado.status).toBe(201);
+  expect(operadorCriado.status).toBe(201);
+  expect(cozinhaCriada.status).toBe(201);
+  expect(String((await User.findOne({ username: 'novo-admin-integrado' })).tenantId)).toBe(String(tenant._id));
+  expect(String((await User.findOne({ username: 'novo-operador-integrado' })).tenantId)).toBe(String(tenant._id));
+  expect((await User.findOne({ username: 'nova-cozinha-sem-vinculo' })).tenantId).toBeUndefined();
+});
+
+test('promover usuário a admin ou operador aplica o comércio integrado ao PDV', async () => {
+  const tenant = await Tenant.create({
+    nome: 'Café integrado',
+    slug: 'cafe-integrado-promocao',
+    telefone: '11999999999',
+    endereco: 'Rua Um',
+    pdvIntegrado: true,
+  });
+
+  const response = await api('patch', `/auth/users/${operador.id}`, adminToken).send({ role: 'admin' });
+
+  expect(response.status).toBe(200);
+  expect(String((await User.findById(operador.id)).tenantId)).toBe(String(tenant._id));
+});
+
 test('restrição do Delivery acompanha mudança de perfil mesmo com claims antigos de admin', async () => {
   await User.updateOne({ _id: admin._id }, { $set: { role: 'tenant_admin' } });
   expect((await api('get', '/products', adminToken)).status).toBe(403);
@@ -94,6 +133,16 @@ test('admin lista usuários PDV sem expor hashes de senha', async () => {
   expect(response.body.find(user => user.id === operador.id)).toEqual({ id: operador.id, username: operador.username, role: 'operador', ativo: true });
   expect(response.body.every(user => user.password === undefined)).toBe(true);
   expect((await api('get', '/auth/users', token)).status).toBe(403);
+});
+
+test('admin não vê a conta dola na página de usuários', async () => {
+  await User.create({ username: 'dola', password, role: 'operador' });
+
+  const response = await api('get', '/auth/users', adminToken);
+
+  expect(response.status).toBe(200);
+  expect(response.body.some(user => user.username === 'dola')).toBe(false);
+  expect(response.body.some(user => user.username === operador.username)).toBe(true);
 });
 
 test('admin exclui usuário PDV e remove suas sessões', async () => {

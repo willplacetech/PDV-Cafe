@@ -348,11 +348,33 @@ router.delete('/plataforma/tenants/:id', ...platformAuth, route(async (req, res)
 }));
 router.post('/plataforma/tenants/:id/vincular-pdv', ...platformAuth, route(async (req, res) => {
   const tenantId = service.validarId(req.params.id);
-  if (!await Tenant.exists({ _id: tenantId, ativo: true })) throw service.erro('Comércio não encontrado', 404);
-  const username = service.texto(req.body.username, 'usuário do PDV', true, 160).toLowerCase();
-  const user = await User.findOneAndUpdate({ username, role: { $in: ['admin', 'operador', 'garcom'] } }, { tenantId }, { new: true });
-  if (!user) throw service.erro('Operador do PDV não encontrado', 404);
-  res.json({ username: user.username, tenantId: user.tenantId });
+  const tenant = await Tenant.findOne({ _id: tenantId, ativo: true }).select('_id').lean();
+  if (!tenant) throw service.erro('Comércio não encontrado', 404);
+
+  if (req.body?.username !== undefined) {
+    const username = service.texto(req.body.username, 'usuário do PDV', true, 160).toLowerCase();
+    const user = await User.findOneAndUpdate({ username, role: { $in: ['admin', 'operador', 'garcom'] } }, { tenantId }, { new: true });
+    if (!user) throw service.erro('Operador do PDV não encontrado', 404);
+    return res.json({ username: user.username, tenantId: user.tenantId });
+  }
+
+  const session = await mongoose.startSession();
+  let usuariosVinculados = 0;
+  try {
+    await session.withTransaction(async () => {
+      await Tenant.updateMany({ pdvIntegrado: true }, { $set: { pdvIntegrado: false } }, { session });
+      await Tenant.updateOne({ _id: tenantId }, { $set: { pdvIntegrado: true } }, { session });
+      const resultado = await User.updateMany(
+        { role: { $in: ['admin', 'operador'] } },
+        { $set: { tenantId } },
+        { session },
+      );
+      usuariosVinculados = resultado.matchedCount;
+    });
+  } finally {
+    await session.endSession();
+  }
+  res.json({ tenantId: String(tenantId), usuariosVinculados });
 }));
 router.get('/plataforma/entregadores', ...platformAuth, route(async (req, res) => {
   res.json(await Entregador.find().select('nome telefone status tenantId ativo').populate('tenantId', 'nome').sort({ nome: 1 }).lean());

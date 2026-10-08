@@ -432,12 +432,11 @@ export default function Layout({ children }) {
             boxShadow: 'var(--shadow-lg)',
             color: 'var(--text-primary)'
           }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: '50%',
-              background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 28, margin: '0 auto 16px'
-            }}></div>
+            <img src="/Abraco1.png" alt="Sabor de Abraço" style={{
+              display: 'block', width: 64, height: 64, borderRadius: '50%',
+              objectFit: 'cover', margin: '0 auto 16px',
+              border: '2px solid var(--brand-gold)'
+            }} />
             <h3 style={{ margin: '0 0 8px', fontSize: 18, color: 'var(--text-primary)' }}>Deseja realmente sair?</h3>
             <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-secondary)' }}>
               Voce precisara fazer login novamente para acessar o sistema.

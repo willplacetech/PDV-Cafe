@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const Tenant = require('../models/Tenant');
 const AuthSession = require('../models/AuthSession');
 const auth = require('../middleware/auth');
 const router = express.Router();
@@ -60,7 +61,10 @@ router.post('/register', auth, auth.allowRoles('admin'), async (req, res) => {
     if (!validUsername(username)) return res.status(400).json({ msg: 'Usuário deve ter entre 2 e 254 caracteres válidos' });
     if (!validNewPassword(password)) return res.status(400).json({ msg: PASSWORD_MESSAGE });
     if (await User.exists({ username })) return res.status(409).json({ msg: 'Este usuário já existe' });
-    const user = await User.create({ username, password, role });
+    const tenant = ['admin', 'operador'].includes(role)
+      ? await Tenant.findOne({ pdvIntegrado: true, ativo: true }).select('_id').lean()
+      : null;
+    const user = await User.create({ username, password, role, ...(tenant ? { tenantId: tenant._id } : {}) });
     res.status(201).json({ id: user.id, username: user.username, role: user.role });
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
@@ -69,7 +73,7 @@ router.post('/register', auth, auth.allowRoles('admin'), async (req, res) => {
 router.get('/users', auth, auth.allowRoles('admin'), async (req, res, next) => {
   try {
     const users = await User.find({ role: { $in: pdvRoles } }).select('username role ativo').sort({ username: 1 });
-    res.json(users.map(publicManagedUser));
+    res.json(users.filter(user => user.username.toLowerCase() !== 'dola').map(publicManagedUser));
   } catch (error) { next(error); }
 });
 
@@ -86,6 +90,10 @@ router.patch('/users/:id', auth, auth.allowRoles('admin'), async (req, res, next
     const alteracoes = {};
     if ('ativo' in body) alteracoes.ativo = body.ativo;
     if ('role' in body) alteracoes.role = body.role;
+    if (['admin', 'operador'].includes(body.role)) {
+      const tenant = await Tenant.findOne({ pdvIntegrado: true, ativo: true }).select('_id').lean();
+      if (tenant) alteracoes.tenantId = tenant._id;
+    }
     // findOneAndUpdate não executa o hook de senha de save; hash antes do update atômico.
     if ('password' in body) alteracoes.password = await bcrypt.hash(body.password, 10);
     const user = await User.findOneAndUpdate(

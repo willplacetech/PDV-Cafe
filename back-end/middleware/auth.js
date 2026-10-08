@@ -30,7 +30,7 @@ const auth = async (req, res, next) => {
   // Credenciais autônomas do Delivery são validadas por courierAuth/integrationAuth.
   if (claims.role === 'sistema' || (claims.role === 'entregador' && !claims.id)) {
     const permitido = claims.role === 'sistema'
-      ? caminho === '/api/pedidos/integracao'
+      ? ['/api/pedidos/integracao', '/api/entregas/pedidos/integracao'].includes(caminho)
       : /^\/api\/entregador(?:\/|$)/.test(caminho);
     if (!permitido) return res.status(403).json({ msg: 'Esta sessão só permite acesso ao DeliveryLink' });
     req.user = claims;
@@ -56,7 +56,7 @@ const auth = async (req, res, next) => {
     // A associação ao comércio também deve acompanhar o estado atual do usuário.
     delete req.user.tenantId;
     if (user.tenantId) req.user.tenantId = String(user.tenantId);
-    if (['tenant_admin', 'admin_plataforma', 'entregador'].includes(req.user.role) && !/^\/api\/(tenant(?:\/|$)|plataforma(?:\/|$)|entregador(?:\/|$)|delivery\/logout$|pedidos\/integracao$|auth\/(?:me|logout)$)/.test(caminho)) {
+    if (['tenant_admin', 'admin_plataforma', 'entregador'].includes(req.user.role) && !/^\/api\/(tenant(?:\/|$)|entregas(?:\/|$)|plataforma(?:\/|$)|entregador(?:\/|$)|delivery\/logout$|pedidos\/integracao$|auth\/(?:me|logout)$)/.test(caminho)) {
       return res.status(403).json({ msg: 'Esta sessão só permite acesso ao DeliveryLink' });
     }
     return next();

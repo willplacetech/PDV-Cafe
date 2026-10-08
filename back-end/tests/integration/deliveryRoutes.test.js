@@ -37,6 +37,21 @@ test('login por email reutiliza User e não aceita login de PDV no portal', asyn
   expect((await request(app).post('/api/delivery/login').send({ email: { $ne: '' }, senha: 'x' })).status).toBe(400);
 });
 
+test('plataforma associa em lote todos os admins e operadores do PDV ao comércio selecionado', async () => {
+  const admin = await User.create({ username: 'admin-pdv-lote', password: 'senha-segura-123', role: 'admin' });
+  const operador = await User.create({ username: 'operador-pdv-lote', password: 'senha-segura-123', role: 'operador' });
+  const cozinha = await User.create({ username: 'cozinha-pdv-lote', password: 'senha-segura-123', role: 'cozinha' });
+
+  const response = await api('post', `/plataforma/tenants/${tenant._id}/vincular-pdv`, platformToken).send({});
+
+  expect(response.status).toBe(200);
+  expect(response.body).toEqual({ tenantId: String(tenant._id), usuariosVinculados: 2 });
+  expect((await Tenant.findById(tenant._id)).pdvIntegrado).toBe(true);
+  expect(String((await User.findById(admin._id)).tenantId)).toBe(String(tenant._id));
+  expect(String((await User.findById(operador._id)).tenantId)).toBe(String(tenant._id));
+  expect((await User.findById(cozinha._id)).tenantId).toBeUndefined();
+});
+
 test('operador autenticado no PDV acessa somente o Delivery do comércio vinculado', async () => {
   const operador = await User.create({
     username: 'operador-entregas@cafe.test',
