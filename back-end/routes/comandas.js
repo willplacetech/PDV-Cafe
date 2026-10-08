@@ -8,7 +8,7 @@ const Customer = require('../models/Customer');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const { obterTaxasCartao } = require('../utils/taxasCartao');
-const { calcularStatusPagamento, construirPagamento, formaPagamentoValida, normalizarFormaPagamento, saldoDevedor, validarCancelamentoFinanceiro } = require('../utils/pagamento');
+const { calcularStatusPagamento, construirPagamento, formaPagamentoValida, normalizarFormaPagamento, saldoDevedor, totalPago, validarCancelamentoFinanceiro } = require('../utils/pagamento');
 const { precoPorUnidade } = require('../utils/pesoProduto');
 const { produtoControlaPeso } = require('../utils/estoqueProduto');
 const { calcularPrecoComDesconto, calcularPrecoGrupo } = require('../utils/descontosQuantidade');
@@ -629,10 +629,13 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     }
     const subtotal = calcularSubtotalComanda(comanda.itens);
     const discount = money(req.body.desconto || 0);
-    if (discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
+    if (!Number.isFinite(discount) || discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
     const total = utilizacaoInterna ? 0 : money(subtotal + Number(comanda.taxaEntrega || 0) - discount);
 
     const historico = Array.isArray(comanda.historicoPagamentos) ? comanda.historicoPagamentos : [];
+    if (!utilizacaoInterna && total < totalPago(historico)) {
+      throw new Error('O desconto não pode reduzir o total abaixo do valor já recebido. Regularize o estorno primeiro.');
+    }
     comanda.valorTotal = total;
     const saldoRestante = saldoDevedor(total, historico);
     const pagamentoFinal = utilizacaoInterna ? 'credito_loja' : metodoPagamento;

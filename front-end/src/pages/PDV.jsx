@@ -9,7 +9,7 @@ import useFilaOffline from '../hooks/useFilaOffline.js';
 import DeliveryPDV from '../components/DeliveryPDV.jsx';
 import MesasDrawer from '../components/atendimento/MesasDrawer.jsx';
 import { useComanda } from '../context/ComandaContext.jsx';
-import { FORMAS_PAGAMENTO } from '../utils/formasPagamento.jsx';
+import { FORMAS_PAGAMENTO, totalPago } from '../utils/formasPagamento.jsx';
 import {
   carregarConfiguracaoImpressao,
   carregarPreferenciaImpressora,
@@ -86,6 +86,8 @@ export default function PDV() {
   const [grupoAtivo, setGrupoAtivo] = useState('Todos');
   const [feedbackProduto, setFeedbackProduto] = useState(null);
   const [modalSucesso, setModalSucesso] = useState(null);
+  const [nfceLoading, setNfceLoading] = useState(false);
+  const [comprovanteEnviando, setComprovanteEnviando] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const { showToast } = useToast();
   const { enfileirar } = useFilaOffline();
@@ -110,9 +112,12 @@ export default function PDV() {
   const [comandasAbertasCount, setComandasAbertasCount] = useState(0);
 
   const [paymentOpen, setPaymentOpen] = useState(false);
-  const [metodoPagamento, setMetodoPagamento] = useState('dinheiro');
-  const [comandaPagamento, setComandaPagamento] = useState(() => comandaAtual.pagamentoPendente ? { ...comandaAtual, valorTotal: comandaAtual.registroOriginal?.valorTotal, metodoPagamento: comandaAtual.pagamentoPendente.metodoPagamento } : null);
-  const pagamentoPreparadoRef = useRef(comandaAtual.pagamentoPendente ? { ...comandaAtual, metodoPagamento: comandaAtual.pagamentoPendente.metodoPagamento } : null);
+  const [metodoPagamento, setMetodoPagamento] = useState('');
+  const [descontoFechamento, setDescontoFechamento] = useState(comandaAtual.pagamentoPendente?.desconto ?? '0');
+  const [nomeFechamento, setNomeFechamento] = useState(comandaAtual.pagamentoPendente?.nome || '');
+  const [telefoneFechamento, setTelefoneFechamento] = useState(comandaAtual.pagamentoPendente?.telefone || '');
+  const [comandaPagamento, setComandaPagamento] = useState(() => comandaAtual.pagamentoPendente ? { ...comandaAtual, valorTotal: comandaAtual.registroOriginal?.valorTotal, ...comandaAtual.pagamentoPendente } : null);
+  const pagamentoPreparadoRef = useRef(comandaAtual.pagamentoPendente ? { ...comandaAtual, ...comandaAtual.pagamentoPendente } : null);
   const consumoPreparadoRef = useRef(comandaAtual.consumoInternoPendente ? comandaAtual : null);
   const fechamentoPendente = Boolean(comandaPagamento?.metodoPagamento || comandaAtual.consumoInternoPendente);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -307,6 +312,9 @@ export default function PDV() {
   const consumoInterno = Boolean(clienteSelecionado?.clienteInterno);
   const subtotal = carrinho.reduce((ac, i) => ac + i.precoUnitario * i.quantidade, 0);
   const total = consumoInterno ? 0 : subtotal + (entregaPDV ? Number(entregaPDV.taxaEntrega) || 0 : 0);
+  const jaRecebido = totalPago(comandaAtual.registroOriginal?.historicoPagamentos);
+  const totalFechamento = Math.max(0, subtotal + Number(comandaPagamento?.taxaEntrega || 0) - (Number(descontoFechamento) || 0));
+  const saldoFechamento = Math.max(0, totalFechamento - jaRecebido);
   const descontoQuantidadeTotal = carrinho.reduce((acumulado, item) => acumulado + Number(item.economiaQuantidade || 0), 0);
   const totalItens = carrinho.reduce((ac, i) => ac + i.quantidade, 0);
   const clienteTemEnderecoCadastrado = ['rua', 'numero', 'bairro'].every(campo => clienteSelecionado?.enderecoEntrega?.[campo]?.trim());
@@ -513,6 +521,38 @@ export default function PDV() {
     return dadosValidos;
   };
 
+  const cancelarComandaAtual = async () => {
+    if (envioRef.current || fechamentoPendente) return;
+    const confirmacao = comandaAtual._id
+      ? `Cancelar a comanda #${comandaAtual.numero}?`
+      : 'Cancelar esta comanda e descartar os itens?';
+    if (!window.confirm(confirmacao)) return;
+    envioRef.current = true;
+    setEnviando(true);
+    try {
+      if (comandaAtual._id) await api.patch(`/comandas/${comandaAtual._id}/cancelar`);
+      limparComanda();
+      idempotenciaRef.current = null;
+      pagamentoPreparadoRef.current = null;
+      consumoPreparadoRef.current = null;
+      setComandaPagamento(null);
+      setPaymentOpen(false);
+      setQuantidadesRascunho({});
+      setPrecosRascunho({});
+      setClienteId('');
+      setClienteNome('');
+      setEntregaPDV(null);
+      setTransferindoMesa(false);
+      void carregarDados();
+      showToast('Comanda cancelada.', 'success');
+    } catch (error) {
+      showToast(error.response?.data?.msg || error.message || 'Não foi possível cancelar a comanda.', 'error');
+    } finally {
+      envioRef.current = false;
+      setEnviando(false);
+    }
+  };
+
   const abrirPagamento = () => {
     if (!carrinho.length) return showToast('Adicione itens à comanda antes de fechar a venda.', 'warning');
     if (!validarDadosEntrega()) return;
@@ -524,7 +564,12 @@ export default function PDV() {
       setPaymentOpen(true);
       return;
     }
-    setComandaPagamento({ ...dadosComandaParaSalvar(), valorTotal: total });
+    const dados = dadosComandaParaSalvar();
+    setComandaPagamento({ ...dados, valorTotal: total });
+    setDescontoFechamento('0');
+    setNomeFechamento(dados.clienteNome || '');
+    setTelefoneFechamento(dados.clienteTelefone || '');
+    setMetodoPagamento('');
     setPaymentOpen(true);
   };
 
@@ -561,24 +606,38 @@ export default function PDV() {
 
   const confirmarPagamento = async () => {
     if (envioRef.current) return;
+    if (!metodoPagamento && !pagamentoPreparadoRef.current) {
+      showToast('Escolha a forma de pagamento.', 'warning');
+      return;
+    }
+    const desconto = Number(String(descontoFechamento).replace(',', '.'));
+    if (!Number.isFinite(desconto) || desconto < 0 || desconto > subtotal) {
+      showToast('Informe um desconto entre zero e o subtotal dos itens.', 'warning');
+      return;
+    }
+    if (totalFechamento < jaRecebido) {
+      showToast('O desconto não pode reduzir o total abaixo do valor já recebido. Regularize o estorno primeiro.', 'warning');
+      return;
+    }
     envioRef.current = true;
     try {
       setEnviando(true);
-      const comandaParaFechar = pagamentoPreparadoRef.current || await salvarComandaAberta(comandaPagamento || dadosComandaParaSalvar());
-      const telefone = comandaParaFechar.clienteTelefone || comandaParaFechar.entrega?.telefone || '';
-      if (!pagamentoPreparadoRef.current && telefone.trim()) {
-        await api.patch(`/comandas/${comandaParaFechar._id}/cliente`, {
-          nome: comandaParaFechar.clienteNome,
-          telefone,
-          enderecoEntrega: comandaParaFechar.entrega?.endereco,
-        });
-      }
-      pagamentoPreparadoRef.current = { ...comandaParaFechar, metodoPagamento: comandaParaFechar.metodoPagamento || metodoPagamento };
-      const metodoConfirmado = pagamentoPreparadoRef.current.metodoPagamento;
-      setComandaPagamento(atual => ({ ...atual, metodoPagamento: metodoConfirmado }));
-      setComandaAtual(atual => ({ ...atual, pagamentoPendente: { metodoPagamento: metodoConfirmado } }));
-      const resultado = await fecharComanda({ metodoPagamento: pagamentoPreparadoRef.current.metodoPagamento }, comandaParaFechar);
-      setModalSucesso(resultado.pedido);
+      const dados = comandaPagamento || dadosComandaParaSalvar();
+      const comandaParaFechar = pagamentoPreparadoRef.current || await salvarComandaAberta({ ...dados, clienteNome: nomeFechamento.trim() || dados.clienteNome });
+      pagamentoPreparadoRef.current = pagamentoPreparadoRef.current || {
+        ...comandaParaFechar,
+        metodoPagamento,
+        desconto,
+        nome: nomeFechamento.trim(),
+        telefone: telefoneFechamento.trim(),
+        enderecoEntrega: comandaParaFechar.entrega?.endereco,
+      };
+      const preparado = pagamentoPreparadoRef.current;
+      const pagamento = { metodoPagamento: preparado.metodoPagamento, desconto: preparado.desconto, nome: preparado.nome, telefone: preparado.telefone, enderecoEntrega: preparado.enderecoEntrega };
+      setComandaPagamento(atual => ({ ...atual, ...pagamento }));
+      setComandaAtual(atual => ({ ...atual, pagamentoPendente: pagamento }));
+      const resultado = await fecharComanda(pagamento, comandaParaFechar);
+      setModalSucesso({ ...resultado.pedido, comandaNumero: comandaParaFechar.numero, comandaEncerrada: comandaParaFechar, comprovanteNome: preparado.nome, comprovanteTelefone: preparado.telefone });
       idempotenciaRef.current = null;
       setQuantidadesRascunho({});
       setPaymentOpen(false);
@@ -731,9 +790,51 @@ export default function PDV() {
   // ==========================================
   // 💬 ENVIAR VIA WHATSAPP
   // ==========================================
-  const enviarWhatsApp = (pedido) => {
-    if (!pedido) return;
-    return compartilharNotaWhatsApp(pedido);
+  const enviarWhatsApp = async (pedido) => {
+    if (!pedido || comprovanteEnviando) return;
+    setComprovanteEnviando(true);
+    const nome = pedido.comprovanteNome ?? pedido.clienteNome;
+    const telefone = pedido.comprovanteTelefone ?? pedido.clienteTelefone ?? '';
+    const comprovante = { ...pedido, clienteNome: nome, clienteTelefone: telefone };
+    try {
+      if (telefone.trim() && pedido.comandaEncerrada?._id && !pedido.utilizacaoInterna) {
+        try {
+          await api.patch(`/comandas/${pedido.comandaEncerrada._id}/cliente`, {
+            nome, telefone, enderecoEntrega: pedido.comandaEncerrada.entrega?.endereco,
+          });
+          setModalSucesso(atual => atual?._id === pedido._id ? { ...atual, clienteNome: nome, clienteTelefone: telefone } : atual);
+        } catch (error) {
+          showToast(error.response?.data?.msg || 'Não foi possível atualizar o cadastro do cliente.', 'warning');
+        }
+      }
+      compartilharNotaWhatsApp(comprovante, { comandaNumero: pedido.comandaEncerrada?.numero }, telefone);
+    } finally {
+      setComprovanteEnviando(false);
+    }
+  };
+
+  const emitirNfce = async () => {
+    if (!modalSucesso?._id || modalSucesso.utilizacaoInterna || nfceLoading || modalSucesso.nfce?.status === 'autorizada') return;
+    const pedidoId = modalSucesso._id;
+    setNfceLoading(true);
+    try {
+      const { data } = await api.post(`/fiscal/orders/${pedidoId}/emitir`);
+      setModalSucesso(atual => atual?._id === pedidoId ? { ...atual, ...data.order } : atual);
+      showToast(data.avisos?.length ? `NFC-e autorizada com avisos: ${data.avisos.join('; ')}` : 'NFC-e autorizada', data.avisos?.length ? 'warning' : 'success');
+    } catch (error) {
+      const nfce = error.response?.data?.nfce;
+      if (nfce) setModalSucesso(atual => atual?._id === pedidoId ? { ...atual, nfce } : atual);
+      const faltantes = error.response?.data?.faltantes || [];
+      const mensagem = error.response?.data?.msg || 'Não foi possível emitir a NFC-e';
+      showToast(faltantes.length ? `${mensagem}: ${faltantes.join(', ')}` : mensagem, error.response?.status === 409 ? 'warning' : 'error');
+    } finally {
+      setNfceLoading(false);
+    }
+  };
+
+  const abrirDanfe = () => {
+    const pdf = modalSucesso?.nfce?.danfePdf;
+    if (pdf) window.open(`data:application/pdf;base64,${pdf}`, '_blank', 'noopener,noreferrer');
   };
 
 
@@ -1067,6 +1168,9 @@ export default function PDV() {
                 </div>
               </>
             )}
+            {(comandaAtual._id || carrinho.length > 0) && <div className="pdv-command-actions" style={{ marginTop: 8 }}>
+              <button type="button" onClick={cancelarComandaAtual} disabled={enviando || fechamentoPendente} style={{ color: 'var(--error-bg)', borderColor: 'var(--error-bg)' }}>Cancelar comanda</button>
+            </div>}
           </div>
         </div>
       </div>
@@ -1080,9 +1184,9 @@ export default function PDV() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 99999, padding: 20
         }}>
-          <div onClick={e => e.stopPropagation()} style={{
+          <div className="pdv-success-dialog" onClick={e => e.stopPropagation()} style={{
             background: 'var(--bg-secondary)', borderRadius: 20, padding: 28, width: '100%', maxWidth: 400,
-            textAlign: 'center', boxShadow: 'var(--shadow-lg)',
+            maxHeight: 'calc(100dvh - 40px)', overflowY: 'auto', textAlign: 'center', boxShadow: 'var(--shadow-lg)',
             color: 'var(--text-primary)'
           }}>
             <div style={{
@@ -1091,23 +1195,43 @@ export default function PDV() {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 36
             }}>✅</div>
-            <h3 style={{ margin: '0 0 4px', fontSize: 20, color: 'var(--text-primary)' }}>{modalSucesso.utilizacaoInterna ? 'Consumo interno registrado!' : 'Venda Finalizada!'}</h3>
+            <h3 style={{ margin: '0 0 4px', fontSize: 20, color: 'var(--text-primary)' }}>{modalSucesso.utilizacaoInterna ? 'Consumo interno registrado!' : modalSucesso.comandaEncerrada ? 'Comanda Fechada!' : 'Venda Finalizada!'}</h3>
             <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-secondary)' }}>
+              {modalSucesso.comandaEncerrada && <>Comanda <strong>#{modalSucesso.comandaEncerrada.numero}</strong> → </>}
               Pedido <strong style={{ color: 'var(--text-primary)' }}>#{modalSucesso.numero}</strong>
               <br />
               Total: <strong style={{ color: 'var(--accent-primary)', fontSize: 16 }}>
                 R$ {modalSucesso.total.toFixed(2).replace('.', ',')}
               </strong>
             </p>
+            {!modalSucesso.utilizacaoInterna && <>
+              <div className="pdv-fiscal-status">
+                <strong>NFC-e: {modalSucesso.nfce?.status === 'autorizada' ? 'Autorizada' : modalSucesso.nfce?.status === 'rejeitada' ? 'Rejeitada' : 'Não emitida'}</strong>
+                {modalSucesso.nfce?.mensagemSeErro && <small>{modalSucesso.nfce.mensagemSeErro}</small>}
+                {modalSucesso.nfce?.chaveAcesso && <small>Chave: {modalSucesso.nfce.chaveAcesso}</small>}
+              </div>
+              <div className="pdv-receipt-contact">
+                <label>Nome do cliente (opcional)
+                  <input type="text" value={modalSucesso.comprovanteNome ?? modalSucesso.clienteNome ?? ''} disabled={comprovanteEnviando || nfceLoading} onChange={event => setModalSucesso(atual => ({ ...atual, comprovanteNome: event.target.value }))} />
+                </label>
+                <label>WhatsApp para enviar comprovante
+                  <input type="tel" placeholder="(00) 00000-0000" value={modalSucesso.comprovanteTelefone ?? modalSucesso.clienteTelefone ?? ''} disabled={comprovanteEnviando || nfceLoading} onChange={event => setModalSucesso(atual => ({ ...atual, comprovanteTelefone: event.target.value }))} />
+                </label>
+              </div>
+            </>}
             <div style={{ borderTop: '1px solid rgba(15,23,42,.08)', marginBottom: 20 }}></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {!modalSucesso.utilizacaoInterna && <>
+                <button className="pdv-fiscal-button" type="button" onClick={emitirNfce} disabled={!modalSucesso._id || nfceLoading || comprovanteEnviando || modalSucesso.nfce?.status === 'autorizada'}>{nfceLoading ? 'Emitindo NFC-e...' : modalSucesso.nfce?.status === 'autorizada' ? 'NFC-e autorizada' : 'Emitir NFC-e'}</button>
+                {modalSucesso.nfce?.danfePdf && <button className="pdv-fiscal-button" type="button" onClick={abrirDanfe}>Abrir DANFE PDF</button>}
+              </>}
               <button onClick={() => imprimirCupom(modalSucesso)} style={{
                 width: '100%', padding: '14px', background: 'var(--brand-brown)', color: '#fff',
                 border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
                 cursor: 'pointer', minHeight: 52, display: 'flex',
                 alignItems: 'center', justifyContent: 'center', gap: 10
               }}>🖨️ Imprimir Cupom</button>
-              <button onClick={() => enviarWhatsApp(modalSucesso)} style={{
+              <button onClick={() => void enviarWhatsApp(modalSucesso)} disabled={comprovanteEnviando || nfceLoading} style={{
                 width: '100%', padding: '14px', background: 'var(--success-bg)', color: '#fff',
                 border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
                 cursor: 'pointer', minHeight: 52, display: 'flex',
@@ -1131,16 +1255,36 @@ export default function PDV() {
       <MesasDrawer open={mesasDrawerOpen} onClose={() => { setMesasDrawerOpen(false); setTransferindoMesa(false); }} onSelect={selecionarComandaPainel} />
       {paymentOpen && <div className="pdv-payment-overlay" onMouseDown={event => { if (event.target === event.currentTarget) setPaymentOpen(false); }}>
         <section className="pdv-payment-dialog" role="dialog" aria-modal="true" aria-labelledby="pdv-payment-title">
-          <h2 id="pdv-payment-title">Fechar comanda</h2>
-          <p>Total a receber: <strong>{formatMoney(comandaPagamento?.valorTotal || total)}</strong></p>
+          <div className="pdv-payment-heading">
+            <div><span>FECHAR COMANDA</span><h2 id="pdv-payment-title">{comandaAtual.numero ? `#${comandaAtual.numero}` : 'Comanda atual'} — {comandaPagamento?.clienteNome || 'Cliente não identificado'}</h2></div>
+            <button type="button" aria-label="Voltar ao atendimento" disabled={enviando} onClick={() => setPaymentOpen(false)}>×</button>
+          </div>
+          <div className="pdv-payment-items">
+            {carrinho.map((item, index) => <div key={item._id || index}><span>{item.quantidade}× {item.nome}{item.modificadores?.length > 0 && <small> ({item.modificadores.join(', ')})</small>}</span><strong>{formatMoney(item.quantidade * item.precoUnitario)}</strong></div>)}
+          </div>
+          <p>Subtotal: <strong>{formatMoney(subtotal)}</strong></p>
+          {Number(comandaPagamento?.taxaEntrega) > 0 && <p>Taxa de entrega: <strong>{formatMoney(comandaPagamento.taxaEntrega)}</strong></p>}
+          <div className="pdv-payment-summary">
+            <label>Desconto (R$)
+              <input type="number" min="0" max={subtotal} step="0.01" disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={descontoFechamento} onChange={event => setDescontoFechamento(event.target.value)} />
+            </label>
+            <div><span>{jaRecebido > 0 ? 'Saldo em aberto' : 'Total a cobrar'}</span><strong>{formatMoney(saldoFechamento)}</strong>{jaRecebido > 0 && <small>Total {formatMoney(totalFechamento)} · já recebido {formatMoney(jaRecebido)}</small>}</div>
+          </div>
           <label>Forma de pagamento
             <select disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={comandaPagamento?.metodoPagamento || metodoPagamento} onChange={event => setMetodoPagamento(event.target.value)}>
-              {FORMAS_PAGAMENTO.map(forma => <option value={forma.value} key={forma.value}>{forma.label.replace(/^[^ ]+ /, '')}</option>)}
+              <option value="">Selecione…</option>
+              {FORMAS_PAGAMENTO.map(forma => <option value={forma.value} key={forma.value}>{forma.label}</option>)}
             </select>
+          </label>
+          <label>Nome do cliente (opcional)
+            <input type="text" placeholder="Nome do cliente" disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={nomeFechamento} onChange={event => setNomeFechamento(event.target.value)} />
+          </label>
+          <label>Telefone para WhatsApp (opcional)
+            <input type="tel" placeholder="DDD + número" disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={telefoneFechamento} onChange={event => setTelefoneFechamento(event.target.value)} />
           </label>
           <div className="pdv-payment-actions">
             <button type="button" onClick={() => setPaymentOpen(false)} disabled={enviando}>Voltar</button>
-            <button type="button" onClick={confirmarPagamento} disabled={enviando}>{enviando ? 'Registrando...' : 'Confirmar pagamento'}</button>
+            <button type="button" onClick={confirmarPagamento} disabled={enviando}>{enviando ? 'Registrando...' : 'Confirmar Fechamento'}</button>
           </div>
         </section>
       </div>}
@@ -1187,10 +1331,15 @@ export default function PDV() {
         .pdv-command-actions{display:grid;grid-template-columns:1fr;gap:8px}
         .pdv-offline-save{min-height:42px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-tertiary);color:var(--text-primary);font:inherit;cursor:pointer}
         .pdv-payment-overlay{position:fixed;inset:0;z-index:10001;display:grid;place-items:center;padding:18px;background:rgba(22,15,10,.5)}
-        .pdv-payment-dialog{width:min(420px,100%);padding:22px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);color:var(--text-primary);box-shadow:var(--shadow-lg)}
+        .pdv-payment-dialog{width:min(480px,100%);max-height:calc(100dvh - 36px);overflow:auto;padding:22px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);color:var(--text-primary);box-shadow:var(--shadow-lg)}
         .pdv-payment-dialog h2{margin:0 0 12px}.pdv-payment-dialog p{color:var(--text-secondary)}
-        .pdv-payment-dialog label{display:grid;gap:7px;font-size:13px;font-weight:700}
-        .pdv-payment-dialog select{min-height:46px;padding:10px;border:1px solid var(--border-color);border-radius:9px;background:var(--input-bg);color:var(--input-text);font:inherit}
+        .pdv-payment-dialog label{display:grid;gap:7px;margin-top:12px;font-size:13px;font-weight:700}
+        .pdv-payment-dialog select,.pdv-payment-dialog input{width:100%;box-sizing:border-box;min-height:46px;padding:10px;border:1px solid var(--border-color);border-radius:9px;background:var(--input-bg);color:var(--input-text);font:inherit}
+        .pdv-payment-items{max-height:200px;overflow:auto;background:var(--bg-tertiary);padding:10px 14px;border-radius:10px}.pdv-payment-items>div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border-color);font-size:13px}
+        .pdv-payment-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}.pdv-payment-heading span{font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--accent-primary)}.pdv-payment-heading h2{font-size:20px;margin:4px 0 0}.pdv-payment-heading button{border:0;background:transparent;font-size:22px;color:var(--text-secondary);cursor:pointer}
+        .pdv-payment-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.pdv-payment-summary>div{display:flex;flex-direction:column;justify-content:flex-end;gap:4px;font-size:12px;color:var(--text-secondary)}.pdv-payment-summary strong{font-size:22px;color:var(--accent-primary)}
+        .pdv-fiscal-status{padding:12px;margin-bottom:16px;border-radius:10px;background:var(--bg-tertiary);text-align:left}.pdv-fiscal-status small{display:block;margin-top:5px;overflow-wrap:anywhere;color:var(--text-secondary)}
+        .pdv-receipt-contact{text-align:left;margin-bottom:18px}.pdv-receipt-contact label{display:grid;gap:6px;margin-top:12px;font-size:12px;font-weight:700}.pdv-receipt-contact input{width:100%;box-sizing:border-box;min-height:46px;padding:10px;border:1px solid var(--border-color);border-radius:9px;background:var(--input-bg);color:var(--input-text);font:inherit}.pdv-fiscal-button{min-height:50px;padding:13px;border:0;border-radius:12px;background:var(--accent-primary);color:#fff;font:inherit;font-weight:700;cursor:pointer}
         .pdv-payment-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:18px}
         .pdv-payment-actions button{min-height:46px;padding:8px;border:1px solid var(--border-color);border-radius:9px;background:var(--bg-tertiary);color:var(--text-primary);font:inherit;font-weight:700;cursor:pointer}
         .pdv-payment-actions button:last-child{border-color:var(--accent-primary);background:var(--accent-primary);color:#fff}

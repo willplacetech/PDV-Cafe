@@ -16,6 +16,19 @@ const makeOrder = async (extra = {}) => {
   if (extra.comandaId) { comanda.pedidoId = order.id; await comanda.save(); }
   return order;
 };
+
+test('desconto no fechamento não reduz total abaixo do valor recebido', async () => {
+  comanda.historicoPagamentos = [{ valor: 10, formaPagamento: 'pix', data: receiptDate }];
+  await comanda.save();
+  const response = await request(app).post(`/api/comandas/${comanda.id}/fechar`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ desconto: 15, metodoPagamento: 'dinheiro', operacaoId: 'desconto-sem-estorno' });
+  expect(response.status).toBe(400);
+  expect(response.body.msg).toMatch(/recebido|estorno/i);
+  expect((await Comanda.findById(comanda.id)).status).toBe('aberta');
+  expect((await Product.findById(product.id)).estoque).toBe(9);
+  expect(await Order.countDocuments()).toBe(0);
+});
 beforeEach(async () => {
   const user = await User.create({ username: 'cancel-admin', password: 'test-password', role: 'admin' });
   token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET);

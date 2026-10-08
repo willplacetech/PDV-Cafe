@@ -24,3 +24,27 @@ As verificações gerais também foram executadas e não estão integralmente ve
 - E2E geral de comanda: os cenários de fechamento e atendimento passaram; continuaram falhando os casos “Dashboard aparece primeiro no Atendimento e Produção permanece na mesma tela” e “Delivery mostra carregamento, permite repetir falha e troca o período”, que procuram links de Dashboard ausentes no menu.
 
 Os testes usam MongoDB isolado e serviços simulados no navegador. Não houve publicação, acesso ao banco de produção ou validação de impressora física. Produtos sem custo cadastrado permanecem sinalizados pelo DRE; registros antigos sem custo histórico usam o cálculo legado.
+
+## Restauração do fechamento da comanda — 08/10/2026
+
+O fechamento normal no PDV voltou a mostrar os itens, subtotal, taxa de entrega, desconto em reais, total a receber, forma de pagamento, nome e telefone opcionais. O comprovante usa o telefone informado ao acionar “Enviar pelo WhatsApp”. A opção manual “Utilização interna” foi removida do fechamento legado; Cliente Interno continua identificado automaticamente.
+
+Desconto e contato são preservados na retomada de confirmação incerta, junto com a mesma operação financeira. O nome informado é salvo na comanda mesmo quando não há telefone.
+
+Validação: três testes Cypress de fechamento normal e três de consumo interno passaram, com API simulada. Foram conferidos o desconto e destino do WhatsApp, retomada com payload idêntico, nome sem telefone e os fluxos automáticos do Cliente Interno. ESLint de PDV.jsx/Comandas.jsx, build de produção e `git diff --check` passaram. O teste simula a abertura do WhatsApp; não envia mensagens reais. As limitações gerais acima continuam registradas e a suíte completa não foi repetida nesta correção.
+
+## Restauração do cancelamento da comanda — 08/10/2026
+
+A ação “Cancelar comanda” foi recolocada na comanda atual do PDV, com confirmação. Comandas salvas usam a rota existente de cancelamento, que valida pagamentos e devolve estoque; rascunhos são descartados localmente. A interface preserva os itens quando a API rejeita o cancelamento e bloqueia a ação enquanto um fechamento aguarda confirmação.
+
+Validação: três testes Cypress de cancelamento passaram (salva, rejeição e desistência/descarte de rascunho), assim como os três testes de fechamento e os três de consumo interno. Os dez testes de integração existentes em `cancellationFinancial.test.js` passaram com MongoDB isolado, incluindo proteção de recebimentos e devolução de estoque. ESLint de PDV.jsx, build e `git diff --check` passaram. Não houve alteração no backend nem acesso à produção.
+
+## Fluxo de encerramento baseado na branch Compras — 08/10/2026
+
+Referência consultada: `Compras:front-end/src/pages/Comandas.jsx`, commit `3d284d818b150afd89b4ff2874ff6dc9dcbd6f0a`, igual à referência local `origin/Compras` na consulta. O fluxo foi adaptado à tela atual do PDV, sem trocar a branch nem mesclar módulos de compras.
+
+O modal segue o modelo de identificação da comanda, resumo com modificadores, desconto ao lado do total ou saldo recebido, seleção explícita de pagamento e confirmação do fechamento. O sucesso identifica comanda e pedido; permite completar nome/telefone e salvar o cadastro ao compartilhar o comprovante, imprimir cupom com número da comanda, emitir NFC-e e abrir DANFE PDF. Emissão fiscal continua sendo uma ação explícita na API existente. Cliente Interno fecha automaticamente sem opções fiscais; o cancelamento restaurado permanece disponível antes do fechamento.
+
+Na revisão, foram corrigidos dois casos: respostas fiscais atrasadas não alteram o modal de outra venda e descontos não podem reduzir o total abaixo dos pagamentos reais recebidos. A segunda regra também foi aplicada à API, preservando comanda e estoque na rejeição.
+
+Validação: 13 testes Cypress passaram (7 de fechamento, 3 de cancelamento e 3 de consumo interno), incluindo contato após fechar, fluxo fiscal simulado, resposta fiscal atrasada, seleção obrigatória de pagamento e desconto em comanda parcialmente recebida. Os 18 testes de integração de cancelamento financeiro e Cliente Interno passaram com MongoDB isolado. ESLint dos arquivos React modificados, build de produção e `git diff --check` passaram. Não houve publicação, emissão fiscal real, envio de WhatsApp real nem repetição da suíte geral.
