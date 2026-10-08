@@ -110,14 +110,22 @@ router.get('/central-resumo', async (req, res) => {
     const inicioHoje = new Date(`${dataHojeSaoPaulo()}T00:00:00.000Z`);
     const inicioAmanha = new Date(inicioHoje);
     inicioAmanha.setUTCDate(inicioAmanha.getUTCDate() + 1);
+    const inicioSemana = new Date(inicioHoje);
+    inicioSemana.setUTCDate(inicioSemana.getUTCDate() - ((inicioSemana.getUTCDay() + 6) % 7));
+    const inicioProximaSemana = new Date(inicioSemana);
+    inicioProximaSemana.setUTCDate(inicioProximaSemana.getUTCDate() + 7);
     const filtroAberto = { status: { $ne: 'pago' } };
-    const [atrasadas, vencemHoje, totalPendente] = await Promise.all([
+    const [atrasadas, vencemHoje, vencemSemana, totalPendente] = await Promise.all([
       Despesa.aggregate([
         { $match: { ...filtroAberto, dataVencimento: { $lt: inicioHoje } } },
         { $group: { _id: null, valor: { $sum: '$valor' }, count: { $sum: 1 } } },
       ]),
       Despesa.aggregate([
         { $match: { ...filtroAberto, dataVencimento: { $gte: inicioHoje, $lt: inicioAmanha } } },
+        { $group: { _id: null, valor: { $sum: '$valor' }, count: { $sum: 1 } } },
+      ]),
+      Despesa.aggregate([
+        { $match: { ...filtroAberto, dataVencimento: { $gte: inicioSemana, $lt: inicioProximaSemana } } },
         { $group: { _id: null, valor: { $sum: '$valor' }, count: { $sum: 1 } } },
       ]),
       Despesa.aggregate([
@@ -129,6 +137,7 @@ router.get('/central-resumo', async (req, res) => {
       totalPendente: totalPendente[0]?.valor || 0,
       totalPendenteCount: totalPendente[0]?.count || 0,
       vencemHoje: { valor: vencemHoje[0]?.valor || 0, count: vencemHoje[0]?.count || 0 },
+      vencemSemana: { valor: vencemSemana[0]?.valor || 0, count: vencemSemana[0]?.count || 0 },
       atrasadas: { valor: atrasadas[0]?.valor || 0, count: atrasadas[0]?.count || 0 },
     });
   } catch (error) {

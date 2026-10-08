@@ -78,6 +78,49 @@ test('listing order does not take payment status from a linked comanda with a di
   });
 });
 
+test('receivables summary follows the receivables page and handles linked orders consistently', async () => {
+  await Comanda.create({
+    atendente: 'transfer-admin',
+    status: 'fechada',
+    valorTotal: 40,
+  });
+
+  const inconsistentComanda = await Comanda.create({
+    atendente: 'transfer-admin',
+    status: 'fechada',
+    valorTotal: 10,
+  });
+  await Order.create({
+    numero: '000003',
+    atendente: 'transfer-admin',
+    subtotal: 30,
+    total: 30,
+    status: 'pendente',
+    comandaId: inconsistentComanda.id,
+  });
+
+  const openComanda = await Comanda.create({
+    atendente: 'transfer-admin',
+    status: 'aberta',
+    valorTotal: 25,
+  });
+  await Order.create({
+    numero: '000004',
+    atendente: 'transfer-admin',
+    subtotal: 25,
+    total: 25,
+    status: 'pendente',
+    comandaId: openComanda.id,
+  });
+
+  const response = await request(app)
+    .get('/api/contas-receber/resumo')
+    .set('Authorization', `Bearer ${token}`);
+
+  expect(response.status).toBe(200);
+  expect(response.body.total).toBe(70);
+});
+
 test.each(['items', 'payments', 'order', 'internal', 'delivery', 'customer'])('rejects incompatible destination %s without changing any document', async (kind) => {
   if (kind === 'items') { destination.itens = source.itens; destination.valorTotal = 20; }
   if (kind === 'payments') destination.historicoPagamentos = [{ valor: 3, formaPagamento: 'pix' }];

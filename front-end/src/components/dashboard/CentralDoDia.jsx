@@ -111,8 +111,6 @@ export default function CentralDoDia() {
         <h3>💰 Contas a Receber</h3>
         <div className="day-receivable-stats">
           <div><small>Total a receber</small><strong>{dinheiro(totalReceber)}</strong><span>saldo sem vencimento registrado</span></div>
-          <div><small>Despesas vencem hoje</small><strong>{dinheiro(resumoDespesas.vencemHoje?.valor)}</strong><span>{resumoDespesas.vencemHoje?.count || 0} conta(s) a pagar</span></div>
-          <div className={Number(resumoDespesas.atrasadas?.count) ? 'receivable-late' : ''}><small>Despesas atrasadas</small><strong>{dinheiro(resumoDespesas.atrasadas?.valor)}</strong><span>{resumoDespesas.atrasadas?.count || 0} conta(s) a pagar</span></div>
         </div>
         <h4>Maiores saldos de clientes</h4>
         {resumoReceber.topDevedores?.length ? <ul className="day-debtor-list">{resumoReceber.topDevedores.map((devedor, index) => <li key={`${devedor.nome}-${index}`}>
@@ -120,6 +118,16 @@ export default function CentralDoDia() {
           {porWhatsApp(devedor) && <a href={porWhatsApp(devedor)} target="_blank" rel="noreferrer">Cobrar no WhatsApp</a>}
         </li>)}</ul> : <p className="day-center-clear">Nenhum saldo pendente de clientes.</p>}
         <Link className="day-center-footer" to="/contas-receber">Gerir contas →</Link>
+      </article>
+
+      <article className="day-center-card day-payables">
+        <h3>🧾 Contas a Pagar</h3>
+        <div className="day-receivable-stats">
+          <div><small>Vencem hoje</small><strong>{dinheiro(resumoDespesas.vencemHoje?.valor)}</strong><span>{resumoDespesas.vencemHoje?.count || 0} conta(s) a pagar</span></div>
+          <div><small>Semana atual (seg. a dom.)</small><strong>{dinheiro(resumoDespesas.vencemSemana?.valor)}</strong><span>{resumoDespesas.vencemSemana?.count || 0} conta(s) com vencimento nesta semana</span></div>
+          <div className={Number(resumoDespesas.atrasadas?.count) ? 'receivable-late' : ''}><small>Em atraso</small><strong>{dinheiro(resumoDespesas.atrasadas?.valor)}</strong><span>{resumoDespesas.atrasadas?.count || 0} conta(s) a pagar</span></div>
+        </div>
+        <Link className="day-center-footer" to="/financeiro">Gerir contas a pagar →</Link>
       </article>
     </div>
     {reporProduto && <div className="day-replenish-overlay" onClick={() => setReporProduto(null)}>
@@ -138,7 +146,7 @@ const estilos = `
   .day-center{margin:0 0 18px;padding:18px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);box-shadow:var(--shadow-sm);color:var(--text-primary)}
   .day-center-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
   .day-center-heading h2{margin:4px 0;font-size:20px}.day-center-heading p{margin:0;color:var(--text-secondary);font-size:12px}
-  .day-center-columns{display:grid;grid-template-columns:1.1fr 1fr 1.2fr;gap:12px}
+  .day-center-columns{display:grid;grid-template-columns:1.1fr 1fr 1.2fr 1.2fr;gap:12px}
   .day-center-card{min-width:0;padding:14px;border:1px solid var(--border-light);border-radius:12px;background:var(--bg-primary)}
   .day-center-card h3{display:flex;align-items:center;gap:7px;margin:0 0 12px;font-size:14px}.day-center-card h3 span{display:grid;place-items:center;min-width:21px;height:21px;padding:0 5px;border-radius:12px;background:var(--bg-tertiary);font-size:10px}
   .day-urgency-list,.day-stock-list,.day-debtor-list{display:grid;gap:7px;margin:0;padding:0;list-style:none}
@@ -164,6 +172,6 @@ const estilos = `
   .day-replenish-modal h3,.day-replenish-modal p{margin:0}.day-replenish-modal p,.day-replenish-modal label{color:var(--text-secondary);font-size:12px}
   .day-replenish-modal input{min-height:42px;padding:9px;border:1px solid var(--border-color);border-radius:8px;background:var(--input-bg);color:var(--input-text);font:inherit}
   .day-replenish-modal>div{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}.day-replenish-modal button[type=submit]{border-color:var(--accent-primary);background:var(--accent-primary);color:#fff}
-  @media(max-width:1050px){.day-center-columns{grid-template-columns:1fr 1fr}.day-receivables{grid-column:1/-1}}
-  @media(max-width:640px){.day-center{padding:13px}.day-center-columns{grid-template-columns:1fr}.day-receivables{grid-column:auto}.day-center-error{align-items:flex-start;flex-direction:column}.day-center-error>button{width:100%}}
+  @media(max-width:1050px){.day-center-columns{grid-template-columns:1fr 1fr}}
+  @media(max-width:640px){.day-center{padding:13px}.day-center-columns{grid-template-columns:1fr}.day-center-error{align-items:flex-start;flex-direction:column}.day-center-error>button{width:100%}}
 `;

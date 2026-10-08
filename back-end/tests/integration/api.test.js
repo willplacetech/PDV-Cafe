@@ -34,6 +34,36 @@ beforeEach(async () => {
 });
 
 describe('API Endpoints', () => {
+  test('GET /api/despesas/central-resumo → separa vencimentos de hoje, da semana e atrasados', async () => {
+    const hoje = new Date(`${new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())}T00:00:00.000Z`);
+    const inicioSemana = new Date(hoje);
+    inicioSemana.setUTCDate(inicioSemana.getUTCDate() - ((inicioSemana.getUTCDay() + 6) % 7));
+    const fimSemana = new Date(inicioSemana);
+    fimSemana.setUTCDate(fimSemana.getUTCDate() + 6);
+    const inicioProximaSemana = new Date(fimSemana);
+    inicioProximaSemana.setUTCDate(inicioProximaSemana.getUTCDate() + 1);
+    const inicioSemanaAnterior = new Date(inicioSemana);
+    inicioSemanaAnterior.setUTCDate(inicioSemanaAnterior.getUTCDate() - 1);
+    const fimDaSemanaEHoje = hoje.getTime() === fimSemana.getTime();
+
+    await Despesa.create([
+      { descricao: 'Vence hoje', categoria: 'Outros', valor: 100, dataVencimento: hoje },
+      { descricao: 'Vence no fim da semana', categoria: 'Outros', valor: 50, dataVencimento: fimSemana },
+      { descricao: 'Vencida semana passada', categoria: 'Outros', valor: 25, dataVencimento: inicioSemanaAnterior },
+      { descricao: 'Vence na próxima semana', categoria: 'Outros', valor: 200, dataVencimento: inicioProximaSemana },
+      { descricao: 'Já paga hoje', categoria: 'Outros', valor: 500, dataVencimento: hoje, dataPagamento: hoje, status: 'pago' },
+    ]);
+
+    const resposta = await request(app)
+      .get('/api/despesas/central-resumo')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(resposta.statusCode).toBe(200);
+    expect(resposta.body.vencemHoje).toEqual({ valor: fimDaSemanaEHoje ? 150 : 100, count: fimDaSemanaEHoje ? 2 : 1 });
+    expect(resposta.body.vencemSemana).toEqual({ valor: 150, count: 2 });
+    expect(resposta.body.atrasadas).toEqual({ valor: 25, count: 1 });
+  });
+
   test('POST /api/auth/login → retorna token', async () => {
     const res = await request(app)
       .post('/api/auth/login')

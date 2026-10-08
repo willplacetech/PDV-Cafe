@@ -2,23 +2,37 @@ const express = require('express');
 const auth = require('../middleware/auth');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
-const { normalizarPagamentos, totalPago } = require('../utils/pagamento');
+const { calcularStatusPagamento, normalizarPagamentos, totalPago } = require('../utils/pagamento');
 
 const router = express.Router();
 
 router.use(auth, auth.allowRoles('admin'));
 
+const dinheiro = (valor) => Math.round((Number(valor || 0) + Number.EPSILON) * 100) / 100;
+
 router.get('/resumo', async (req, res) => {
   try {
-    const [comandas, pedidos] = await Promise.all([
-      Comanda.find({ status: { $in: ['aberta', 'fechada'] }, statusPagamento: { $in: ['pendente', 'parcial'] } })
+    const [comandasAbertas, pedidos] = await Promise.all([
+      Comanda.find({
+        status: 'aberta',
+        utilizacaoInterna: { $ne: true },
+        statusPagamento: { $in: ['pendente', 'parcial'] },
+        valorTotal: { $gt: 0 },
+      })
         .select('_id valorTotal historicoPagamentos clienteId clienteNome clienteTelefone')
         .lean(),
       Order.find({ status: { $in: ['pendente', 'parcial'] }, utilizacaoInterna: { $ne: true } })
         .select('_id comandaId total pagamentos clienteId clienteNome clienteTelefone')
         .lean(),
     ]);
-    const comandasPorId = new Map(comandas.map((comanda) => [String(comanda._id), comanda]));
+    const idsComandasVinculadas = [...new Set(pedidos.map((pedido) => pedido.comandaId).filter(Boolean).map(String))];
+    const comandasVinculadas = idsComandasVinculadas.length
+      ? await Comanda.find({ _id: { $in: idsComandasVinculadas } })
+        .select('_id valorTotal historicoPagamentos')
+        .lean()
+      : [];
+    const comandasPorId = new Map(comandasVinculadas.map((comanda) => [String(comanda._id), comanda]));
+    const comandasAbertasPorId = new Map(comandasAbertas.map((comanda) => [String(comanda._id), comanda]));
     const devedores = new Map();
     let total = 0;
 
@@ -33,14 +47,19 @@ router.get('/resumo', async (req, res) => {
       devedores.set(chave, atual);
     };
 
-    comandas.forEach((comanda) => {
+    comandasAbertas.forEach((comanda) => {
       const saldo = Math.max(0, Number(comanda.valorTotal || 0) - totalPago(comanda.historicoPagamentos));
       acumularDevedor(comanda, saldo);
     });
 
     pedidos.forEach((pedido) => {
-      if (pedido.comandaId && comandasPorId.has(String(pedido.comandaId))) return;
-      const saldo = Math.max(0, Number(pedido.total || 0) - totalPago(normalizarPagamentos(pedido.pagamentos)));
+      const comanda = pedido.comandaId ? comandasPorId.get(String(pedido.comandaId)) : null;
+      const totaisCorrespondem = comanda && dinheiro(comanda.valorTotal) === dinheiro(pedido.total);
+      const pagamentos = totaisCorrespondem ? comanda.historicoPagamentos : normalizarPagamentos(pedido.pagamentos);
+
+      if (totaisCorrespondem && comandasAbertasPorId.has(String(comanda._id))) return;
+      const saldo = Math.max(0, Number(pedido.total || 0) - totalPago(pagamentos));
+      if (totaisCorrespondem && calcularStatusPagamento(comanda).statusPagamento === 'quitado') return;
       acumularDevedor(pedido, saldo);
     });
 
