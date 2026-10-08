@@ -27,8 +27,9 @@ test('calculates low stock for supplies in base content units', () => {
 
 test('does not report products with no independent stock', () => {
   const coz = { _id: 'p3', nome: 'Prato feito', tipo: 'venda', tipoProduto: 'coz', estoque: 0 };
+  const pratoNaHora = { _id: 'p5', nome: 'Prato do dia', tipo: 'venda', categoria: 'Pratos na Hora', estoque: 0 };
 
-  assert.deepEqual(listarEstoqueBaixo([coz]), []);
+  assert.deepEqual(listarEstoqueBaixo([coz, pratoNaHora]), []);
 });
 
 test('uses total kilograms for products sold by weight', () => {

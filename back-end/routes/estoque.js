@@ -16,7 +16,7 @@ router.get('/baixo', async (req, res) => {
 
   try {
     const produtos = await Product.find({ ativo: { $ne: false } })
-      .select('_id nome tipo tipoProduto aFazer estoque estoquePesoKg estoquePesoNormalizado pesoPorUnidade estoqueMinimo estoqueMinimoBase estoqueMinimoEmbalagens estoqueEmbalagens estoqueInsumos estoqueConteudoAberto conteudoPorEmbalagem unidade unidadeCompra unidadeConteudo unidadeVenda')
+      .select('_id nome tipo tipoProduto categoria aFazer estoque estoquePesoKg estoquePesoNormalizado pesoPorUnidade estoqueMinimo estoqueMinimoBase estoqueMinimoEmbalagens estoqueEmbalagens estoqueInsumos estoqueConteudoAberto conteudoPorEmbalagem unidade unidadeCompra unidadeConteudo unidadeVenda')
       .lean();
     const estoqueBaixo = listarEstoqueBaixo(produtos);
     res.set('X-Total-Count', String(estoqueBaixo.length));

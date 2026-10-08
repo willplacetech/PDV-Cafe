@@ -125,7 +125,7 @@ router.get('/urgencias', async (req, res) => {
       Despesa.find({ dataVencimento: { $lt: inicioHoje }, status: { $ne: 'pago' } }).select('descricao valor dataVencimento status').lean(),
       Despesa.find({ dataVencimento: { $gte: inicioHoje, $lt: inicioAmanha }, status: { $ne: 'pago' } }).select('descricao valor dataVencimento status').lean(),
       Product.find({ ativo: { $ne: false } })
-        .select('_id nome tipo tipoProduto aFazer estoque estoquePesoKg estoquePesoNormalizado pesoPorUnidade estoqueMinimo estoqueMinimoBase estoqueMinimoEmbalagens estoqueEmbalagens estoqueInsumos estoqueConteudoAberto conteudoPorEmbalagem unidade unidadeCompra unidadeConteudo unidadeVenda')
+        .select('_id nome tipo tipoProduto categoria aFazer estoque estoquePesoKg estoquePesoNormalizado pesoPorUnidade estoqueMinimo estoqueMinimoBase estoqueMinimoEmbalagens estoqueEmbalagens estoqueInsumos estoqueConteudoAberto conteudoPorEmbalagem unidade unidadeCompra unidadeConteudo unidadeVenda')
         .lean(),
       Comanda.find({ status: 'aberta', createdAt: { $lte: limiteComanda } }).select('numero tipoAtendimento mesa clienteNome createdAt valorTotal').lean(),
       req.user.tenantId

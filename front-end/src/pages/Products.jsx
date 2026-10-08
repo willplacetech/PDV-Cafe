@@ -329,7 +329,7 @@ export default function Products() {
 
   const filtrarEstoqueBaixo = searchParams.get('filtro') === 'estoque-baixo';
   const abaixoDoMinimo = (produto) => {
-    if (produto.tipoProduto === 'coz' || produto.aFazer) return false;
+    if (produto.tipoProduto === 'coz' || produto.aFazer || produto.categoria === 'Pratos na Hora') return false;
     if (produto.tipo === 'insumo') {
       const conteudo = Number(produto.conteudoPorEmbalagem || 0);
       const estoqueAtual = Number(produto.estoqueEmbalagens ?? produto.estoqueInsumos ?? 0) * conteudo + Number(produto.estoqueConteudoAberto || 0);

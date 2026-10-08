@@ -30,8 +30,14 @@ const resumirEstoque = (produto) => {
   };
 };
 
+const ehProdutoCozNaHora = (produto) => (
+  produto.tipoProduto === 'coz'
+  || produto.aFazer === true
+  || produto.categoria === 'Pratos na Hora'
+);
+
 const listarEstoqueBaixo = (produtos) => produtos
-  .filter((produto) => produto.tipoProduto !== 'coz' && produto.aFazer !== true)
+  .filter((produto) => !ehProdutoCozNaHora(produto))
   .map((produto) => ({ produto, ...resumirEstoque(produto) }))
   .filter(({ qtdAtual, minimo }) => qtdAtual <= minimo)
   .sort((a, b) => a.qtdAtual - b.qtdAtual || a.produto.nome.localeCompare(b.produto.nome, 'pt-BR'));
