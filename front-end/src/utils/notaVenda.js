@@ -27,7 +27,7 @@ export function buildNotaVendaHtml(pedido, { comandaNumero, titulo = 'NOTA DE VE
       <td>R$ ${dinheiro(Number(item.quantidade) * Number(item.precoUnitario))}</td>
     </tr>`).join('');
   const pagamentos = (pedido.pagamentos || []).map((pagamento) => `
-    <div class="linha"><span>${textoSeguro(pagamentoLabels[pagamento.tipo] || pagamento.tipo)}</span><span>R$ ${dinheiro(pagamento.valorRecebido)}</span></div>`).join('');
+    <div class="linha"><span>${textoSeguro(pagamento.rotuloPagamento || pagamentoLabels[pagamento.tipo] || pagamento.tipo)}</span><span>R$ ${dinheiro(pagamento.valorRecebido)}</span></div>`).join('');
 
   return `<!DOCTYPE html><html><head><title>${titulo} #${textoSeguro(pedido.numero)}</title>
     <style>
@@ -142,7 +142,7 @@ function buildNotaVendaTextoBase(pedido, { comandaNumero, titulo = 'NOTA DE VEND
     const nome = item.modificadores?.length ? `${item.nome} (${item.modificadores.join(' | ')})` : item.nome;
     return `${item.quantidade}x ${nome}\n${' '.repeat(3)}${linha('Unitario:', `R$ ${dinheiro(item.precoUnitario)}`)}\n${' '.repeat(3)}${linha('Total:', `R$ ${dinheiro(Number(item.quantidade) * Number(item.precoUnitario))}`)}`;
   }).join('\n');
-  const pagamentos = (pedido.pagamentos || []).map((pagamento) => `- ${linha(pagamentoLabels[pagamento.tipo] || pagamento.tipo, `R$ ${dinheiro(pagamento.valorRecebido)}`)}`).join('\n');
+  const pagamentos = (pedido.pagamentos || []).map((pagamento) => `- ${linha(pagamento.rotuloPagamento || pagamentoLabels[pagamento.tipo] || pagamento.tipo, `R$ ${dinheiro(pagamento.valorRecebido)}`)}`).join('\n');
 
   return `*SABOR DE ABRAÇO*\n${titulo}\n--------------------------------\n${linha('Pedido:', `#${pedido.numero}`)}${comandaNumero ? `\n${linha('Comanda:', `#${comandaNumero}`)}` : ''}\n${linha('Data:', new Date(pedido.createdAt || Date.now()).toLocaleString('pt-BR'))}\n${linha('Cliente:', pedido.clienteNome || 'Cliente não identificado')}${pedido.atendente ? `\n${linha('Atendente:', pedido.atendente)}` : ''}\n--------------------------------\n*ITENS DO PEDIDO*\n${itens}\n--------------------------------\n${linha('Subtotal:', `R$ ${dinheiro(pedido.subtotal || pedido.total)}`)}${Number(pedido.taxaEntrega) > 0 ? `\n${linha('Taxa de entrega:', `R$ ${dinheiro(pedido.taxaEntrega)}`)}` : ''}${Number(pedido.desconto) > 0 ? `\n${linha('Desconto:', `-R$ ${dinheiro(pedido.desconto)}`)}` : ''}${utilizacaoInterna ? `\n${linha('Uso interno:', 'SIM')}` : ''}\n*${linha('TOTAL:', `R$ ${dinheiro(pedido.total)}`)}*${pagamentos ? `\n--------------------------------\n*PAGAMENTOS*\n${pagamentos}` : ''}${pago > 0 && falta > 0 ? `\n${linha('FALTA:', `R$ ${dinheiro(falta)}`)}` : ''}\n--------------------------------\n*Sabor de Abraço*\nAgradece a Preferência!\nVolte sempre!`;
 }

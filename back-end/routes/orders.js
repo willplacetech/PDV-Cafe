@@ -10,7 +10,7 @@ const { precoPorUnidade } = require('../utils/pesoProduto');
 const { produtoControlaPeso } = require('../utils/estoqueProduto');
 const { ajustarEstoque } = require('../utils/movimentarEstoqueVenda');
 const { calcularPrecoComDesconto } = require('../utils/descontosQuantidade');
-const { calcularStatusPagamento, construirPagamento, normalizarPagamentos, pagamentosDoPedido, validarCancelamentoFinanceiro } = require('../utils/pagamento');
+const { calcularStatusPagamento, construirPagamento, normalizarPagamentos, pagamentosDoPedido, validarCancelamentoFinanceiro, formaPagamentoValida } = require('../utils/pagamento');
 
 const { executarOperacaoFinanceira } = require('../utils/operacaoFinanceira');
 
@@ -31,7 +31,7 @@ const normalizarStatusFiltro = (status) => {
 const statusPedidoDe = (statusPagamento) => (statusPagamento === 'quitado' ? 'pago' : statusPagamento);
 
 const aplicarRecebimentoPedido = async ({ order, tipo, valorRecebido, observacao, taxas, session, dataRecebimento, quitar = false }) => {
-  if (!['dinheiro', 'pix', 'cartao_credito', 'cartao_debito'].includes(tipo)) throw new Error('Forma de pagamento inválida');
+  if (!formaPagamentoValida(tipo) || tipo === 'credito_loja') throw new Error('Forma de pagamento inválida');
 
   if (order.comandaId) {
     const comanda = await Comanda.findById(order.comandaId).session(session);
@@ -317,7 +317,7 @@ router.patch('/:id/quitar', auth, auth.allowRoles('admin'), async (req, res) => 
     if (!order) throw new Error('Pedido não encontrado');
     const atualizado = await aplicarRecebimentoPedido({
       order,
-      tipo: 'dinheiro',
+      tipo: req.body.tipo || 'dinheiro',
       observacao: 'Quitação total',
       taxas: await obterTaxasCartao(),
       session,

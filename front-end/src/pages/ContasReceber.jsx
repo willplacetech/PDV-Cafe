@@ -1,3 +1,4 @@
+import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { criarOperacoesFinanceiras } from '../utils/operacaoFinanceira';
 import { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import api from '../services/api.jsx';
@@ -6,7 +7,7 @@ import { useToast } from '../components/useToast.js';
 import { buildNotaVendaHtml, compartilharNotaWhatsApp, textoSeguro } from '../utils/notaVenda.js';
 import PagamentoResultadoModal from '../components/PagamentoResultadoModal.jsx';
 import DateInput from '../components/DateInput.jsx';
-import { FORMAS_PAGAMENTO, dataBR, normalizarPagamentos, rotuloPagamento, saldoDevedor, statusPagamentoInfo, totalPago as somarPagamentos } from '../utils/formasPagamento.jsx';
+import { dataBR, normalizarPagamentos, saldoDevedor, statusPagamentoInfo, totalPago as somarPagamentos } from '../utils/formasPagamento.jsx';
 
 
 const statusCor = {
@@ -18,6 +19,7 @@ const statusCor = {
 
 
 export default function ContasReceber() {
+  const { formasPagamento: FORMAS_PAGAMENTO, rotuloPagamento } = useFormasPagamento();
   const [carregando, setCarregando] = useState(true);
   const [aba, setAba] = useState('pedidos');
   const [pedidos, setPedidos] = useState([]);
@@ -917,10 +919,7 @@ export default function ContasReceber() {
               <select disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={e => setFormPagamentoMultiplo({...formPagamentoMultiplo, tipo: e.target.value})} style={{
                 width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10
               }}>
-                <option value="dinheiro">💵 Dinheiro</option>
-                <option value="pix">🔄 PIX</option>
-                <option value="cartao_credito">💳 Cartão de Crédito</option>
-                <option value="cartao_debito">💳 Cartão de Débito</option>
+                {FORMAS_PAGAMENTO.filter(forma => forma.value !== 'credito_loja').map(forma => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
               </select>
             </div>
 
@@ -963,10 +962,7 @@ export default function ContasReceber() {
               <select disabled={recebendo} value={formPagamento.tipo} onChange={e => setFormPagamento({...formPagamento, tipo: e.target.value})} style={{
                 width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10
               }}>
-                <option value="dinheiro">💵 Dinheiro</option>
-                <option value="pix">🔄 PIX</option>
-                <option value="cartao_credito">💳 Cartão de Crédito</option>
-                <option value="cartao_debito">💳 Cartão de Débito</option>
+                {FORMAS_PAGAMENTO.filter(forma => forma.value !== 'credito_loja').map(forma => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
               </select>
             </div>
 
@@ -1031,10 +1027,7 @@ export default function ContasReceber() {
             <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)' }}>Todas as pendências do cliente selecionado serão quitadas.</p>
             <label style={{ display: 'block', marginBottom: 5, fontSize: 13, fontWeight: 700 }}>Forma de pagamento</label>
             <select disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={event => setFormPagamentoMultiplo({ ...formPagamentoMultiplo, tipo: event.target.value })} style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, marginBottom: 16 }}>
-              <option value="dinheiro">💵 Dinheiro</option>
-              <option value="pix">🔄 PIX</option>
-              <option value="cartao_credito">💳 Cartão de Crédito</option>
-              <option value="cartao_debito">💳 Cartão de Débito</option>
+              {FORMAS_PAGAMENTO.filter(forma => forma.value !== 'credito_loja').map(forma => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
             </select>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => { if (!recebendoRef.current) setQuitarClienteModal(false); }} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>

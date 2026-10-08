@@ -44,6 +44,7 @@ const fechamentoCaixaSchema = new mongoose.Schema({
     conferidoEm: Date,
   },
   outrosMeios: {
+    personalizados: [{ tipo: String, nome: String, bruto: Number, taxa: Number, liquido: Number }],
     pix: { type: Number, default: 0 },
     credito: { type: Number, default: 0 },
     taxaCredito: { type: Number, default: 0 },

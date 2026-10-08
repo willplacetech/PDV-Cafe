@@ -1,20 +1,20 @@
 const PaymentSettings = require('../models/PaymentSettings');
+const { formaPagamentoValida, formaPersonalizada, catalogoDaConfiguracao } = require('./formasPagamento');
 
 const dinheiro = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
 const obterTaxasCartao = async () => {
   const configuracao = await PaymentSettings.findOne({ chave: 'principal' }).lean();
-  return {
-    cartao_credito: Number(configuracao?.cartao_credito || 0),
-    cartao_debito: Number(configuracao?.cartao_debito || 0),
-  };
+  const formas = catalogoDaConfiguracao(configuracao);
+  return { ...Object.fromEntries(formas.map(forma => [forma.value, forma.taxaPercentual])), rotulos: Object.fromEntries(formas.map(forma => [forma.value, forma.label])) };
 };
 
 const calcularPagamento = (tipo, valorRecebido, taxas) => {
   const valor = dinheiro(valorRecebido);
-  const percentual = ['cartao_credito', 'cartao_debito'].includes(tipo) ? Number(taxas?.[tipo] || 0) : 0;
+  if (!formaPagamentoValida(tipo) || (formaPersonalizada(tipo) && !Object.hasOwn(taxas || {}, tipo))) throw new Error('Forma de pagamento não cadastrada');
+  const percentual = tipo === 'credito_loja' ? 0 : Number(taxas?.[tipo] || 0);
   const taxaValor = dinheiro(valor * percentual / 100);
-  return { taxaPercentual: percentual, taxaValor, valorLiquido: dinheiro(valor - taxaValor) };
+  return { taxaPercentual: percentual, taxaValor, valorLiquido: dinheiro(valor - taxaValor), ...(formaPersonalizada(tipo) ? { rotuloPagamento: taxas.rotulos?.[tipo] || tipo } : {}) };
 };
 
 module.exports = { obterTaxasCartao, calcularPagamento, dinheiro };

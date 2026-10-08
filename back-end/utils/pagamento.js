@@ -1,16 +1,9 @@
-const FORMAS_PAGAMENTO = ['dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'credito_loja'];
+const { FORMAS_PAGAMENTO, ROTULOS_PAGAMENTO, formaPagamentoValida } = require('./formasPagamento');
+const { calcularPagamento } = require('./taxasCartao');
 const FORMAS_PAGAMENTO_CARTAO = ['cartao_credito', 'cartao_debito'];
-const ROTULOS_PAGAMENTO = {
-  dinheiro: 'Dinheiro',
-  pix: 'Pix',
-  cartao_credito: 'Cartão de Crédito',
-  cartao_debito: 'Cartão de Débito',
-  credito_loja: 'Crédito na Loja',
-};
 
 const dinheiro = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
-const formaPagamentoValida = (valor) => FORMAS_PAGAMENTO.includes(String(valor || ''));
 const normalizarFormaPagamento = (valor) => (formaPagamentoValida(valor) ? String(valor) : null);
 const rotuloPagamento = (tipo) => ROTULOS_PAGAMENTO[String(tipo || '')] || String(tipo || '');
 const ehCartao = (tipo) => FORMAS_PAGAMENTO_CARTAO.includes(String(tipo || ''));
@@ -28,9 +21,10 @@ const normalizarPagamento = (pagamento) => {
   if (formaInformada && !tipoInformado) return null;
   const tipo = tipoInformado || 'dinheiro';
   const valorRecebido = dinheiro(pagamento?.valorRecebido ?? pagamento?.valor ?? 0);
-  const { taxa, liquido } = taxaDePagamento({ ...pagamento, valorRecebido });
+  const { taxa, liquido } = taxaDePagamento({ taxaValor: pagamento.taxaValor, valorRecebido });
   return {
     tipo,
+    ...(pagamento.rotuloPagamento ? { rotuloPagamento: pagamento.rotuloPagamento } : {}),
     valorRecebido,
     taxaPercentual: Number(pagamento?.taxaPercentual || 0),
     taxaValor: taxa,
@@ -67,14 +61,11 @@ const construirPagamento = ({ valor, formaPagamento, taxas, observacao, usuario,
   if (!tipo) throw new Error('Forma de pagamento inválida');
   const valorRecebido = dinheiro(valor);
   if (!Number.isFinite(valorRecebido) || valorRecebido <= 0) throw new Error('Informe um valor válido para receber');
-  const percentual = ehCartao(tipo) ? Number(taxas?.[tipo] || 0) : 0;
-  const taxaValor = dinheiro(valorRecebido * percentual / 100);
+  const valores = calcularPagamento(tipo, valorRecebido, taxas);
   return {
     valor: valorRecebido,
     formaPagamento: tipo,
-    taxaPercentual: percentual,
-    taxaValor,
-    valorLiquido: dinheiro(valorRecebido - taxaValor),
+    ...valores,
     data: data || new Date(),
     observacao: observacao || '',
     usuario: usuario || 'sistema',

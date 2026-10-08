@@ -25,6 +25,7 @@ export const arredondar = (valor) => Math.round((Number(valor || 0) + Number.EPS
 
 /** Aceita tanto Order.pagamentos (tipo/valorRecebido/dataPagamento) quanto Comanda.historicoPagamentos (formaPagamento/valor/data). */
 export const normalizarPagamento = (pagamento) => ({
+  ...(pagamento?.rotuloPagamento ? { rotuloPagamento: pagamento.rotuloPagamento } : {}),
   tipo: pagamento?.tipo || pagamento?.formaPagamento || 'dinheiro',
   valor: arredondar(pagamento?.valorRecebido ?? pagamento?.valor ?? 0),
   data: pagamento?.dataPagamento || pagamento?.data || null,

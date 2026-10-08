@@ -67,56 +67,66 @@ router.use(auth);
 router.use(auth.allowRoles('admin'));
 
 router.patch('/taxas-cartao', async (req, res) => {
+  const session = await mongoose.startSession();
   try {
-    const mes = /^\d{4}-\d{2}$/.test(String(req.body.mes || '')) ? req.body.mes : null;
-    const tipo = ['cartao_credito', 'cartao_debito'].includes(req.body.tipo) ? req.body.tipo : null;
+    const mes = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.body.mes || '')) ? req.body.mes : null;
+    const tipo = typeof req.body.tipo === 'string' ? req.body.tipo : '';
     const percentual = Number(req.body.taxaPercentual);
-    if (!mes || !tipo || !Number.isFinite(percentual) || percentual < 0) return res.status(400).json({ msg: 'Informe mês, cartão e uma taxa válida' });
-    await PaymentSettings.findOneAndUpdate(
-      { chave: 'principal' },
-      { $set: { [tipo]: percentual } },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
-    const { inicio, fim } = getMesRange(mes);
-    const pedidos = await Order.find({ pagamentos: { $elemMatch: { tipo, dataPagamento: { $gte: inicio, $lt: fim } } } });
+    if (!mes || !tipo || req.body.taxaPercentual == null || req.body.taxaPercentual === '' || !Number.isFinite(percentual) || percentual < 0 || percentual > 100) return res.status(400).json({ msg: 'Informe mês, forma de pagamento e taxa entre 0% e 100%.' });
     let atualizados = 0;
-    for (const pedido of pedidos) {
-      let alterado = false;
-      pedido.pagamentos.forEach((pagamento) => {
-        const data = new Date(pagamento.dataPagamento);
-        if (pagamento.tipo !== tipo || data < inicio || data >= fim) return;
-        const valor = dinheiro(pagamento.valorRecebido);
-        pagamento.taxaPercentual = percentual;
-        pagamento.taxaValor = dinheiro(valor * percentual / 100);
-        pagamento.valorLiquido = dinheiro(valor - pagamento.taxaValor);
-        alterado = true;
-        atualizados += 1;
-      });
-      if (alterado) await pedido.save();
-    }
+    await session.withTransaction(async () => {
+      atualizados = 0;
+      const configuracao = await PaymentSettings.findOne({ chave: 'principal' }).session(session);
+      const personalizada = configuracao?.formasPersonalizadas.find(forma => forma.tipo === tipo);
+      if (!['cartao_credito', 'cartao_debito'].includes(tipo) && !personalizada) throw Object.assign(new Error('Forma de pagamento não cadastrada.'), { status: 400 });
+      if (personalizada) {
+        personalizada.taxaPercentual = percentual;
+        await configuracao.save({ session });
+      } else {
+        await PaymentSettings.findOneAndUpdate({ chave: 'principal' }, { $set: { [tipo]: percentual } }, { upsert: true, new: true, setDefaultsOnInsert: true, session });
+      }
+      const { inicio, fim } = getMesRange(mes);
+      const pedidos = await Order.find({ pagamentos: { $elemMatch: { tipo, dataPagamento: { $gte: inicio, $lt: fim } } } }).session(session);
+      for (const pedido of pedidos) {
+        let alterado = false;
+        pedido.pagamentos.forEach((pagamento) => {
+          const data = new Date(pagamento.dataPagamento);
+          if (pagamento.tipo !== tipo || data < inicio || data >= fim) return;
+          const valor = dinheiro(pagamento.valorRecebido);
+          pagamento.taxaPercentual = percentual;
+          pagamento.taxaValor = dinheiro(valor * percentual / 100);
+          pagamento.valorLiquido = dinheiro(valor - pagamento.taxaValor);
+          alterado = true;
+          atualizados += 1;
+        });
+        if (alterado) await pedido.save({ session });
+      }
 
-    // Pagamentos de comandas vivem em Comanda.historicoPagamentos (fonte única),
-    // logo a reprocessagem de taxas precisa alcançar esses lançamentos também.
-    const comandas = await Comanda.find({
-      historicoPagamentos: { $elemMatch: { formaPagamento: tipo, data: { $gte: inicio, $lt: fim } } },
+      // Pagamentos de comandas vivem em Comanda.historicoPagamentos (fonte única),
+      // logo a reprocessagem de taxas precisa alcançar esses lançamentos também.
+      const comandas = await Comanda.find({
+        historicoPagamentos: { $elemMatch: { formaPagamento: tipo, data: { $gte: inicio, $lt: fim } } },
+      }).session(session);
+      for (const comanda of comandas) {
+        let alterado = false;
+        comanda.historicoPagamentos.forEach((pagamento) => {
+          const data = new Date(pagamento.data);
+          if (pagamento.formaPagamento !== tipo || data < inicio || data >= fim) return;
+          const valor = dinheiro(pagamento.valor ?? pagamento.valorRecebido);
+          pagamento.taxaPercentual = percentual;
+          pagamento.taxaValor = dinheiro(valor * percentual / 100);
+          pagamento.valorLiquido = dinheiro(valor - pagamento.taxaValor);
+          alterado = true;
+          atualizados += 1;
+        });
+        if (alterado) await comanda.save({ session });
+      }
     });
-    for (const comanda of comandas) {
-      let alterado = false;
-      comanda.historicoPagamentos.forEach((pagamento) => {
-        const data = new Date(pagamento.data);
-        if (pagamento.formaPagamento !== tipo || data < inicio || data >= fim) return;
-        const valor = dinheiro(pagamento.valor ?? pagamento.valorRecebido);
-        pagamento.taxaPercentual = percentual;
-        pagamento.taxaValor = dinheiro(valor * percentual / 100);
-        pagamento.valorLiquido = dinheiro(valor - pagamento.taxaValor);
-        alterado = true;
-        atualizados += 1;
-      });
-      if (alterado) await comanda.save();
-    }
     res.json({ mes, tipo, taxaPercentual: percentual, pagamentosAtualizados: atualizados });
   } catch (error) {
-    res.status(500).json({ msg: error.message });
+    res.status(error.status || 500).json({ msg: error.message });
+  } finally {
+    await session.endSession();
   }
 });
 

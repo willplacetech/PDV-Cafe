@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { formaPagamentoValida } = require('../utils/formasPagamento');
 const { UNIDADES_PERMITIDAS, normalizarUnidade } = require('../utils/unidades');
 
 const itemSchema = new mongoose.Schema({
@@ -36,10 +37,11 @@ const itemSchema = new mongoose.Schema({
 const pagamentoSchema = new mongoose.Schema({
   tipo: { 
     type: String, 
-    enum: ['dinheiro', 'pix', 'credito_loja', 'cartao_credito', 'cartao_debito'],
+    validate: formaPagamentoValida,
     default: 'credito_loja'
   },
   valorRecebido: { type: Number, default: 0 },
+  rotuloPagamento: String,
   taxaPercentual: { type: Number, default: 0, min: 0 },
   taxaValor: { type: Number, default: 0, min: 0 },
   valorLiquido: { type: Number, default: 0, min: 0 },

@@ -27,6 +27,17 @@ const calcularOutrosMeios = (pagamentos) => {
   const creditoLoja = somarPagamentos(pagamentos, ['credito_loja']);
   const taxaCredito = money(normalizados.filter((pagamento) => pagamento.tipo === 'cartao_credito').reduce((total, pagamento) => total + pagamento.taxaValor, 0));
   const taxaDebito = money(normalizados.filter((pagamento) => pagamento.tipo === 'cartao_debito').reduce((total, pagamento) => total + pagamento.taxaValor, 0));
+  const personalizadosPorTipo = new Map();
+  normalizados.filter(pagamento => pagamento.tipo.startsWith('personalizado_')).forEach(pagamento => {
+    const atual = personalizadosPorTipo.get(pagamento.tipo) || { tipo: pagamento.tipo, nome: pagamento.rotuloPagamento || pagamento.tipo, bruto: 0, taxa: 0, liquido: 0 };
+    atual.bruto = money(atual.bruto + pagamento.valorRecebido);
+    atual.taxa = money(atual.taxa + pagamento.taxaValor);
+    atual.liquido = money(atual.bruto - atual.taxa);
+    personalizadosPorTipo.set(pagamento.tipo, atual);
+  });
+  const personalizados = [...personalizadosPorTipo.values()];
+  const brutoPersonalizados = personalizados.reduce((total, forma) => total + forma.bruto, 0);
+  const liquidoPersonalizados = personalizados.reduce((total, forma) => total + forma.liquido, 0);
   return {
     pix,
     credito,
@@ -36,8 +47,9 @@ const calcularOutrosMeios = (pagamentos) => {
     taxaDebito,
     liquidoDebito: money(debito - taxaDebito),
     creditoLoja,
-    total: money(pix + credito + debito),
-    totalLiquido: money(pix + credito - taxaCredito + debito - taxaDebito),
+    ...(personalizados.length ? { personalizados } : {}),
+    total: money(pix + credito + debito + brutoPersonalizados),
+    totalLiquido: money(pix + credito - taxaCredito + debito - taxaDebito + liquidoPersonalizados),
   };
 };
 

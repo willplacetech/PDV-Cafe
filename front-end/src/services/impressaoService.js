@@ -57,7 +57,7 @@ export function carregarPreferenciaImpressora() {
     if (!preference || !['ble', 'usb', 'sistema'].includes(preference.tipo)) return null;
     return preference;
   } catch (error) {
-    throw new Error(`Não foi possível ler a impressora salva: ${error.message}`);
+    throw new Error(`Não foi possível ler a impressora salva: ${error.message}`, { cause: error });
   }
 }
 
@@ -76,7 +76,7 @@ export function listarImpressoesPendentes() {
     }
     return jobs;
   } catch (error) {
-    throw new Error(`Não foi possível ler a fila de impressão pendente: ${error.message}`);
+    throw new Error(`Não foi possível ler a fila de impressão pendente: ${error.message}`, { cause: error });
   }
 }
 
@@ -119,7 +119,7 @@ export function carregarConfiguracaoImpressao() {
     }
     return merged;
   } catch (error) {
-    throw new Error(`Não foi possível carregar as configurações de impressão: ${error.message}`);
+    throw new Error(`Não foi possível carregar as configurações de impressão: ${error.message}`, { cause: error });
   }
 }
 
@@ -160,7 +160,7 @@ export async function conectarImpressora(tipo) {
       salvarPreferencia(preference);
       return preference;
     } catch (error) {
-      throw new Error(mensagemConexao(error, 'BLE'));
+      throw new Error(mensagemConexao(error, 'BLE'), { cause: error });
     }
   }
 
@@ -182,7 +182,7 @@ export async function conectarImpressora(tipo) {
       salvarPreferencia(preference);
       return preference;
     } catch (error) {
-      throw new Error(mensagemConexao(error, 'USB'));
+      throw new Error(mensagemConexao(error, 'USB'), { cause: error });
     }
   }
 
@@ -656,7 +656,7 @@ function htmlCupom(venda, { empresa = {}, paperWidth = '80mm' } = {}) {
     return `<div><b>${escapeHtml(item.quantidade)} x ${escapeHtml(item.nome || item.produtoNome || 'Item')}</b><div class="line"><span>Unitário</span><span>R$ ${dinheiro(item.precoUnitario)}</span></div><div class="line"><span>Total</span><span>R$ ${dinheiro(Number(item.quantidade) * Number(item.precoUnitario))}</span></div>${notes}</div>`;
   }).join('<hr>');
   const payments = list(venda.pagamentos || venda.historicoPagamentos)
-    .map((payment) => `<div class="line"><span>${escapeHtml(paymentLabels[payment.tipo || payment.formaPagamento] || payment.tipo || payment.formaPagamento || 'Pagamento')}</span><span>R$ ${dinheiro(payment.valorRecebido ?? payment.valor)}</span></div>`)
+    .map((payment) => `<div class="line"><span>${escapeHtml(payment.rotuloPagamento || paymentLabels[payment.tipo || payment.formaPagamento] || payment.tipo || payment.formaPagamento || 'Pagamento')}</span><span>R$ ${dinheiro(payment.valorRecebido ?? payment.valor)}</span></div>`)
     .join('');
   const nfce = venda.nfce?.status === 'autorizada' ? `<hr><h3>DOCUMENTO FISCAL</h3><p>Chave: ${escapeHtml(venda.nfce.chaveAcesso || venda.nfce.chave || '')}</p>${venda.nfce.urlDanfe ? `<p>DANFE: ${escapeHtml(venda.nfce.urlDanfe)}</p>` : ''}${venda.nfce.protocolo ? `<p>Protocolo: ${escapeHtml(venda.nfce.protocolo)}</p>` : ''}<p>QR Code: ${escapeHtml(venda.nfce.qrCode || venda.nfce.urlDanfe || '')}</p>` : '';
   const width = paperWidth === '58mm' ? '54mm' : '76mm';

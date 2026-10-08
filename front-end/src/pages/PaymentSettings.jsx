@@ -1,53 +1,71 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/useToast.js';
+import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 
-const formas = [
-  { tipo: 'cartao_credito', titulo: 'Cartão de crédito' },
-  { tipo: 'cartao_debito', titulo: 'Cartão de débito' },
-];
+const mesAtual = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
+const taxaValida = valor => String(valor).trim() !== '' && Number.isFinite(Number(valor)) && Number(valor) >= 0 && Number(valor) <= 100;
 
 export default function PaymentSettings() {
-  const [taxas, setTaxas] = useState({ cartao_credito: '', cartao_debito: '' });
+  const { formasPagamento, recarregar, atualizarFormas, carregando, erro } = useFormasPagamento();
+  const [taxas, setTaxas] = useState({});
+  const [novaForma, setNovaForma] = useState({ nome: '', taxaPercentual: '0' });
   const [salvando, setSalvando] = useState('');
   const { showToast } = useToast();
+  const formasComTaxa = formasPagamento.filter(forma => forma.personalizada || ['cartao_credito', 'cartao_debito'].includes(forma.value));
 
-  useEffect(() => {
-    api.get('/dashboard')
-      .then(({ data }) => {
-        const configuradas = data.taxasCartao || {};
-        setTaxas({
-          cartao_credito: configuradas.cartao_credito ?? '',
-          cartao_debito: configuradas.cartao_debito ?? '',
-        });
-      })
-      .catch(error => showToast(error.response?.data?.msg || 'Não foi possível carregar as taxas de pagamento.', 'error'));
-  }, [showToast]);
-
-  const salvar = async tipo => {
-    const taxaPercentual = Number(taxas[tipo]);
-    if (!Number.isFinite(taxaPercentual) || taxaPercentual < 0) {
-      showToast('Informe uma taxa percentual válida.', 'warning');
+  const adicionar = async event => {
+    event.preventDefault();
+    if (salvando) return;
+    const nome = novaForma.nome.trim();
+    if (!nome || !taxaValida(novaForma.taxaPercentual)) {
+      showToast('Informe nome e taxa entre 0% e 100%.', 'warning');
       return;
     }
     try {
-      setSalvando(tipo);
-      await api.patch('/contabil/taxas-cartao', { mes: new Date().toISOString().slice(0, 7), tipo, taxaPercentual });
+      setSalvando('nova');
+      const { data } = await api.post('/payment-settings', { nome, taxaPercentual: Number(novaForma.taxaPercentual) });
+      atualizarFormas(data.formasPagamento);
+      setNovaForma({ nome: '', taxaPercentual: '0' });
+      showToast('Forma de pagamento cadastrada e disponível nos recebimentos.', 'success');
+    } catch (error) {
+      showToast(error.response?.data?.msg || 'Não foi possível cadastrar a forma de pagamento.', 'error');
+    } finally { setSalvando(''); }
+  };
+
+  const salvar = async forma => {
+    if (salvando) return;
+    const valor = taxas[forma.value] ?? forma.taxaPercentual;
+    if (!taxaValida(valor)) {
+      showToast('Informe uma taxa entre 0% e 100%.', 'warning');
+      return;
+    }
+    try {
+      setSalvando(forma.value);
+      await api.patch('/contabil/taxas-cartao', { mes: mesAtual(), tipo: forma.value, taxaPercentual: Number(valor) });
+      atualizarFormas(formasPagamento.map(atual => atual.value === forma.value ? { ...atual, taxaPercentual: Number(valor) } : atual));
+      setTaxas(atual => { const proximo = { ...atual }; delete proximo[forma.value]; return proximo; });
       showToast('Taxa salva e aplicada aos pagamentos do mês.', 'success');
     } catch (error) {
       showToast(error.response?.data?.msg || 'Não foi possível salvar a taxa.', 'error');
-    } finally {
-      setSalvando('');
-    }
+    } finally { setSalvando(''); }
   };
 
   return <main className="payment-settings-page">
-    <header className="page-heading"><div><span>CONFIGURAÇÕES</span><h1>Taxas de cartão</h1><p>As taxas ficam definidas até serem alteradas e são aplicadas aos pagamentos do mês.</p></div></header>
-    <section className="payment-settings-grid">
-      {formas.map(forma => <article key={forma.tipo}>
-        <label htmlFor={`taxa-${forma.tipo}`}>{forma.titulo}</label>
-        <div><input id={`taxa-${forma.tipo}`} type="number" min="0" step="0.01" value={taxas[forma.tipo]} onChange={event => setTaxas(atual => ({ ...atual, [forma.tipo]: event.target.value }))} aria-label={`Taxa do ${forma.titulo}`} /><span>%</span></div>
-        <button type="button" onClick={() => salvar(forma.tipo)} disabled={Boolean(salvando)}>{salvando === forma.tipo ? 'Salvando...' : 'Salvar taxa'}</button>
+    <header className="page-heading"><div><span>CONFIGURAÇÕES</span><h1>Formas de pagamento</h1><p>Cadastre formas como Vale Refeição e configure suas taxas. Alterações de taxa são aplicadas aos recebimentos do mês atual.</p></div></header>
+    {erro && <p role="alert">{erro} <button type="button" onClick={() => void recarregar()}>Tentar novamente</button></p>}
+    {carregando && <p role="status">Carregando formas de pagamento...</p>}
+    <form className="payment-settings-new" onSubmit={adicionar}>
+      <h2>Nova forma de pagamento</h2>
+      <label>Nome<input maxLength={80} required placeholder="Nome da forma de pagamento" value={novaForma.nome} disabled={Boolean(salvando)} onChange={event => setNovaForma(atual => ({ ...atual, nome: event.target.value }))} /></label>
+      <label>Taxa (%)<input type="number" min="0" max="100" step="0.01" required aria-label="Taxa da nova forma de pagamento" value={novaForma.taxaPercentual} disabled={Boolean(salvando)} onChange={event => setNovaForma(atual => ({ ...atual, taxaPercentual: event.target.value }))} /></label>
+      <button type="submit" disabled={Boolean(salvando) || carregando || Boolean(erro)}>{salvando === 'nova' ? 'Adicionando...' : 'Adicionar forma de pagamento'}</button>
+    </form>
+    <section className="payment-settings-grid" aria-label="Taxas das formas de pagamento">
+      {formasComTaxa.map(forma => <article key={forma.value}>
+        <label htmlFor={`taxa-${forma.value}`}>{forma.label}</label>
+        <div><input id={`taxa-${forma.value}`} type="number" min="0" max="100" step="0.01" value={taxas[forma.value] ?? forma.taxaPercentual} onChange={event => setTaxas(atual => ({ ...atual, [forma.value]: event.target.value }))} aria-label={`Taxa de ${forma.label}`} /><span>%</span></div>
+        <button type="button" onClick={() => void salvar(forma)} disabled={Boolean(salvando) || carregando || Boolean(erro)}>{salvando === forma.value ? 'Salvando...' : 'Salvar taxa'}</button>
       </article>)}
     </section>
     <style>{`
@@ -55,12 +73,13 @@ export default function PaymentSettings() {
       .payment-settings-page .page-heading>div>span{font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--accent-primary)}
       .payment-settings-page .page-heading h1{margin:5px 0}.payment-settings-page .page-heading p{color:var(--text-secondary);font-size:13px}
       .payment-settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}
-      .payment-settings-grid article{display:grid;gap:12px;padding:20px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);box-shadow:var(--shadow-sm)}
-      .payment-settings-grid label{font-weight:800}.payment-settings-grid article>div{display:flex;align-items:center;gap:8px}
-      .payment-settings-grid input{width:100%;min-height:46px;padding:10px;border:1px solid var(--border-color);border-radius:9px;background:var(--input-bg);color:var(--input-text);font:inherit}
-      .payment-settings-grid button{min-height:44px;border:0;border-radius:9px;background:var(--accent-primary);color:#fff;font:inherit;font-weight:800;cursor:pointer}
-      .payment-settings-grid button:disabled{opacity:.6;cursor:wait}
-      @media(max-width:600px){.payment-settings-grid{grid-template-columns:1fr}}
+      .payment-settings-grid article,.payment-settings-new{display:grid;gap:12px;padding:20px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);box-shadow:var(--shadow-sm)}
+      .payment-settings-new{grid-template-columns:2fr 1fr auto;margin-top:18px;align-items:end}.payment-settings-new h2{grid-column:1/-1;margin:0;font-size:16px}
+      .payment-settings-new label{display:grid;gap:8px}.payment-settings-grid label{font-weight:800}.payment-settings-grid article>div{display:flex;align-items:center;gap:8px}
+      .payment-settings-page input{width:100%;box-sizing:border-box;min-height:46px;padding:10px;border:1px solid var(--border-color);border-radius:9px;background:var(--input-bg);color:var(--input-text);font:inherit}
+      .payment-settings-page button{min-height:44px;padding:10px;border:0;border-radius:9px;background:var(--accent-primary);color:#fff;font:inherit;font-weight:800;cursor:pointer}
+      .payment-settings-page button:disabled{opacity:.6;cursor:wait}
+      @media(max-width:600px){.payment-settings-grid,.payment-settings-new{grid-template-columns:1fr}}
     `}</style>
   </main>;
 }

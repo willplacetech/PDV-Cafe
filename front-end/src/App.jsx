@@ -2,6 +2,7 @@ import { lazy, Suspense, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { ComandaProvider } from './context/ComandaContext.jsx';
+import { FormasPagamentoProvider } from './context/FormasPagamentoContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import { ToastProvider } from './components/Toast.jsx';
 import PrivateRoute from './components/PrivateRoute.jsx';
@@ -53,7 +54,7 @@ export default function App() {
               <Route path="/pedido/:token" element={<RastreioEntrega />} />
               <Route path="/login" element={<Login />} />
               <Route element={<PrivateRoute />}>
-                <Route element={<ComandaProvider><Layout /></ComandaProvider>}>
+                <Route element={<FormasPagamentoProvider><ComandaProvider><Layout /></ComandaProvider></FormasPagamentoProvider>}>
                   <Route path="/pdv" element={<PDV />} />
                   <Route path="/atendimento/mesas" element={<Mesas />} />
                   <Route path="/comandas" element={<Navigate to="/atendimento/mesas" replace />} />

@@ -8,7 +8,7 @@ const Customer = require('../models/Customer');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const { obterTaxasCartao } = require('../utils/taxasCartao');
-const { calcularStatusPagamento, construirPagamento, formaPagamentoValida, normalizarFormaPagamento, saldoDevedor, totalPago, validarCancelamentoFinanceiro } = require('../utils/pagamento');
+const { calcularStatusPagamento, construirPagamento, formaPagamentoValida, normalizarFormaPagamento, normalizarPagamentos, saldoDevedor, totalPago, validarCancelamentoFinanceiro } = require('../utils/pagamento');
 const { precoPorUnidade } = require('../utils/pesoProduto');
 const { produtoControlaPeso } = require('../utils/estoqueProduto');
 const { calcularPrecoComDesconto, calcularPrecoGrupo } = require('../utils/descontosQuantidade');
@@ -710,7 +710,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     comanda.saldoDevedor = situacaoFinal.saldoDevedor;
     comanda.statusPagamento = utilizacaoInterna ? 'quitado' : situacaoFinal.statusPagamento;
     await comanda.save({ session });
-    return { comanda, pedido: order };
+    return { comanda, pedido: { ...order.toObject(), pagamentos: normalizarPagamentos(comanda.historicoPagamentos) } };
     } });
     res.json(resultado);
   } catch (err) {

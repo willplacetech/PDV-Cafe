@@ -5,6 +5,7 @@ const { indexarComandasPorId, normalizarPagamentos, pagamentosDoPedido, carregar
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
 const PaymentSettings = require('../models/PaymentSettings');
+const { catalogoDaConfiguracao } = require('../utils/formasPagamento');
 const PedidoEntrega = require('../models/PedidoEntrega');
 const Entregador = require('../models/Entregador');
 const auth = require('../middleware/auth');
@@ -482,7 +483,7 @@ router.get('/', async (req, res) => {
       });
     });
     recebimentosMes.filter((pagamento) => pagamento.tipo !== 'credito_loja').forEach((pagamento) => {
-      const atual = pagamentosMes.get(pagamento.tipo) || { bruto: 0, taxa: 0, total: 0 };
+      const atual = pagamentosMes.get(pagamento.tipo) || { bruto: 0, taxa: 0, total: 0, rotuloPagamento: pagamento.rotuloPagamento };
       const valores = pagamentoTaxa(pagamento);
       atual.bruto += valores.bruto;
       atual.taxa += valores.taxa;
@@ -500,8 +501,8 @@ router.get('/', async (req, res) => {
       atual.unidades += Number(item.quantidade || 0);
       rankingDescontos.set(String(item.produtoId), atual);
     }));
-    const recebidoMes = vendasMes.reduce((total, pedido) => total + pagamentosDe(comandasPorId, pedido).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((soma, pagamento) => soma + pagamento.valorRecebido, 0), 0);
-    const taxasMes = vendasMes.reduce((total, pedido) => total + pagamentosDe(comandasPorId, pedido).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).taxa, 0), 0);
+    const recebidoMes = recebimentosMes.filter(pagamento => pagamento.tipo !== 'credito_loja').reduce((total, pagamento) => total + pagamento.valorRecebido, 0);
+    const taxasMes = recebimentosMes.filter(pagamento => pagamento.tipo !== 'credito_loja').reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0);
     const statusMes = pedidosMes.reduce((status, pedido) => { status[pedido.status] = (status[pedido.status] || 0) + 1; return status; }, {});
     const clientesRelatorio = new Map(clientesRecentes.map((cliente) => [String(cliente._id), {
       id: cliente._id,
@@ -603,7 +604,8 @@ router.get('/', async (req, res) => {
       fidelidade: { clientesComCompra, clientesRecorrentes, taxaRecorrencia: clientesComCompra ? (clientesRecorrentes / clientesComCompra) * 100 : 0, clientes: clientesFrequentes },
     };
     const configuracaoTaxas = await PaymentSettings.findOne({ chave: 'principal' }).lean();
-    res.json({ taxasCartao: configuracaoTaxas ? { cartao_credito: Number(configuracaoTaxas.cartao_credito || 0), cartao_debito: Number(configuracaoTaxas.cartao_debito || 0) } : null, periodos: Object.fromEntries(periodMetrics.map((metric) => [metric.periodo, metric])), comandasAbertas: openCommands, pedidosHoje: pedidosDia.slice(0, 30), clientesCadastrados, clientesRecentes, vendasHoje: { pedidos: vendasHoje.length, itens: vendasHojeItens, total: vendasHojeTotal, recebido: vendasHojeRecebido, pendente: vendasHojePendente }, relatorioMes, relatorioClientes: { periodo: relatorioMes.periodo, totalCadastrados: todosClientes.length, clientesComCompra: relatorioClientes.filter((cliente) => cliente.pedidos > 0).length, totalVendido: relatorioClientes.reduce((total, cliente) => total + cliente.total, 0), totalRecebido: relatorioClientes.reduce((total, cliente) => total + cliente.recebido, 0), totalPendente: relatorioClientes.reduce((total, cliente) => total + cliente.pendente, 0), clientes: relatorioClientes }, insights, atualizadoEm: new Date() });
+    const formasPagamento = catalogoDaConfiguracao(configuracaoTaxas);
+    res.json({ formasPagamento, taxasCartao: configuracaoTaxas ? { cartao_credito: Number(configuracaoTaxas.cartao_credito || 0), cartao_debito: Number(configuracaoTaxas.cartao_debito || 0) } : null, periodos: Object.fromEntries(periodMetrics.map((metric) => [metric.periodo, metric])), comandasAbertas: openCommands, pedidosHoje: pedidosDia.slice(0, 30), clientesCadastrados, clientesRecentes, vendasHoje: { pedidos: vendasHoje.length, itens: vendasHojeItens, total: vendasHojeTotal, recebido: vendasHojeRecebido, pendente: vendasHojePendente }, relatorioMes, relatorioClientes: { periodo: relatorioMes.periodo, totalCadastrados: todosClientes.length, clientesComCompra: relatorioClientes.filter((cliente) => cliente.pedidos > 0).length, totalVendido: relatorioClientes.reduce((total, cliente) => total + cliente.total, 0), totalRecebido: relatorioClientes.reduce((total, cliente) => total + cliente.recebido, 0), totalPendente: relatorioClientes.reduce((total, cliente) => total + cliente.pendente, 0), clientes: relatorioClientes }, insights, atualizadoEm: new Date() });
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 

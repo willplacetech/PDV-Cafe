@@ -139,6 +139,7 @@ export default function Caixa() {
             ['Taxa do débito', dinheiro(caixa.outrosMeios?.taxaDebito)],
             ['Débito líquido', dinheiro(caixa.outrosMeios?.liquidoDebito)],
             ['Crédito na loja (não recebido)', dinheiro(caixa.outrosMeios?.creditoLoja)],
+            ...(caixa.outrosMeios?.personalizados || []).flatMap(forma => [[`${forma.nome} (bruto)`, dinheiro(forma.bruto)], [`Taxa de ${forma.nome}`, dinheiro(forma.taxa)], [`${forma.nome} (líquido)`, dinheiro(forma.liquido)]]),
             ['Total recebido (bruto)', dinheiro(Number(sistema.entradasDinheiro || 0) + Number(caixa.outrosMeios?.total || 0))],
             ['Total recebido líquido', dinheiro(Number(sistema.entradasDinheiro || 0) + Number(caixa.outrosMeios?.totalLiquido || 0))],
           ].map(([rotulo, valor]) => <div key={rotulo} style={{ display: 'grid', gap: 5, paddingTop: 8, borderTop: '1px solid var(--border-light)' }}><span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{rotulo}</span><strong>{valor}</strong></div>)}

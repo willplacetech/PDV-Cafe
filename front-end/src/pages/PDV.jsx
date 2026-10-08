@@ -1,3 +1,4 @@
+import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
@@ -9,7 +10,7 @@ import useFilaOffline from '../hooks/useFilaOffline.js';
 import DeliveryPDV from '../components/DeliveryPDV.jsx';
 import MesasDrawer from '../components/atendimento/MesasDrawer.jsx';
 import { useComanda } from '../context/ComandaContext.jsx';
-import { FORMAS_PAGAMENTO, totalPago } from '../utils/formasPagamento.jsx';
+import { totalPago } from '../utils/formasPagamento.jsx';
 import {
   carregarConfiguracaoImpressao,
   carregarPreferenciaImpressora,
@@ -72,6 +73,7 @@ const precoComDescontoGrupo = (produto, quantidade, cartItens, precoBase) => {
 
 
 export default function PDV() {
+  const { formasPagamento: FORMAS_PAGAMENTO } = useFormasPagamento();
   const { comandaAtual, setComandaAtual, setTipo, setMesa, salvarComandaAberta, fecharComanda, carregarComanda, limparComanda } = useComanda();
   const carrinho = comandaAtual.itens;
   const [produtos, setProdutos] = useState([]);

@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const { UNIDADES_PERMITIDAS, normalizarUnidade } = require('../utils/unidades');
-const { FORMAS_PAGAMENTO, calcularStatusPagamento } = require('../utils/pagamento');
+const { formaPagamentoValida, calcularStatusPagamento } = require('../utils/pagamento');
 
 const itemSchema = new mongoose.Schema({
   produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
@@ -58,7 +58,8 @@ const comandaSchema = new mongoose.Schema({
   statusPagamento: { type: String, enum: ['pendente', 'parcial', 'quitado', 'cancelado'], default: 'pendente' },
   historicoPagamentos: [{
     valor: { type: Number, required: true, min: 0 },
-    formaPagamento: { type: String, enum: FORMAS_PAGAMENTO, default: 'dinheiro' },
+    formaPagamento: { type: String, validate: formaPagamentoValida, default: 'dinheiro' },
+    rotuloPagamento: String,
     taxaPercentual: { type: Number, default: 0, min: 0 },
     taxaValor: { type: Number, default: 0, min: 0 },
     valorLiquido: { type: Number, default: 0, min: 0 },

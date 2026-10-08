@@ -1,3 +1,4 @@
+import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { criarOperacoesFinanceiras } from '../utils/operacaoFinanceira';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -5,7 +6,7 @@ import api from '../services/api.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/useToast.js';
 import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
-import { FORMAS_PAGAMENTO, dataBR, normalizarPagamentos, rotuloPagamento, saldoDevedor, statusPagamentoInfo, totalPago } from '../utils/formasPagamento.jsx';
+import { dataBR, normalizarPagamentos, saldoDevedor, statusPagamentoInfo, totalPago } from '../utils/formasPagamento.jsx';
 import {
   carregarConfiguracaoImpressao,
   carregarPreferenciaImpressora,
@@ -29,6 +30,7 @@ const produtoPorPeso = (product) => Number(product?.pesoPorUnidade) > 0 && produ
 // ─── componente principal ─────────────────────────────────────────────────────
 
 export default function Comandas() {
+  const { formasPagamento: FORMAS_PAGAMENTO, rotuloPagamento } = useFormasPagamento();
   const navigate = useNavigate();
   const [comandas, setComandas] = useState([]);
   const [products, setProducts] = useState([]);
