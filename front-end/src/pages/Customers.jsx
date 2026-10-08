@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/useToast.js';
 import AreaTabs from '../components/AreaTabs.jsx';
+import { criarXmlClientes } from '../utils/customersXml.js';
 
 // 🎯 Máscaras
 const aplicarMascaraTelefone = (valor) => {
@@ -129,6 +130,19 @@ export default function Customers() {
     }
   };
 
+  const exportarXml = () => {
+    const xml = criarXmlClientes(clientes);
+    const arquivo = new Blob([xml], { type: 'application/xml;charset=utf-8' });
+    const url = URL.createObjectURL(arquivo);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `clientes-${new Date().toISOString().slice(0, 10)}.xml`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+
 
   const handleTelefoneChange = (e) => {
     const valor = e.target.value.replace(/\D/g, '').slice(0, 11);
@@ -253,11 +267,16 @@ export default function Customers() {
         background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
         borderRadius: 16, padding: 16
       }}>
-        <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-          Cadastrados
-          <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-bg)', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
-            {clientes.length}
+        <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            Cadastrados
+            <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-bg)', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
+              {clientes.length}
+            </span>
           </span>
+          <button type="button" onClick={exportarXml} style={btnTable} aria-label="Exportar lista de clientes em XML">
+            Exportar XML
+          </button>
         </h3>
         <div style={{ overflowX: 'auto', margin: '0 -16px', padding: '0 16px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
