@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import api from '../../services/api.jsx';
+import { AuthContext } from '../../context/AuthContextDefinition.jsx';
 
 const dinheiro = value => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const periodos = [{ id: 'hoje', titulo: 'Hoje' }, { id: 'semana', titulo: 'Esta semana' }, { id: 'mes', titulo: 'Este mês' }];
 
 export default function DeliveryAnalytics({ section = 'both' }) {
+  const { user } = useContext(AuthContext);
   const [periodo, setPeriodo] = useState('hoje');
   const [tentativa, setTentativa] = useState(0);
   const [resultado, setResultado] = useState(null);
@@ -16,13 +18,13 @@ export default function DeliveryAnalytics({ section = 'both' }) {
   const [erroGrafico, setErroGrafico] = useState('');
 
   useEffect(() => {
-    if (section !== 'summary' && section !== 'both') return undefined;
+    if ((section !== 'summary' && section !== 'both') || user?.role !== 'admin' || !user.tenantId) return undefined;
     let ativo = true;
     api.get('/dashboard/delivery', { params: { periodo } })
       .then(({ data }) => { if (ativo) setResultado({ chave, data }); })
       .catch(error => { if (ativo) setResultado({ chave, erro: error.response?.data?.msg || 'Não foi possível carregar os indicadores de Delivery.' }); });
     return () => { ativo = false; };
-  }, [periodo, chave, section]);
+  }, [periodo, chave, section, user?.role, user?.tenantId]);
 
   useEffect(() => {
     if (section !== 'chart' && section !== 'both') return undefined;
@@ -60,7 +62,7 @@ export default function DeliveryAnalytics({ section = 'both' }) {
       <div className="delivery-analytics-heading"><div><span>CANAL DE VENDAS</span><h2>Delivery</h2></div>
         <div className="delivery-period-selector" aria-label="Período dos indicadores de Delivery">{periodos.map(item => <button type="button" key={item.id} className={periodo === item.id ? 'active' : ''} onClick={() => setPeriodo(item.id)}>{item.titulo}</button>)}</div>
       </div>
-      {carregando ? <p role="status">Carregando indicadores de Delivery...</p> : erroDelivery ? <div className="delivery-analytics-error"><p role="alert">{erroDelivery}</p><button type="button" onClick={() => setTentativa(valor => valor + 1)}>Tentar novamente</button></div> : delivery && <>
+      {!user?.tenantId ? <p role="status">Associe este usuário administrador a um comércio para consultar os indicadores de Delivery.</p> : carregando ? <p role="status">Carregando indicadores de Delivery...</p> : erroDelivery ? <div className="delivery-analytics-error"><p role="alert">{erroDelivery}</p><button type="button" onClick={() => setTentativa(valor => valor + 1)}>Tentar novamente</button></div> : delivery && <>
         <div className="delivery-summary-grid">
           <article><span>Pedidos Delivery</span><strong>{delivery.totalPedidos}</strong></article>
           <article><span>Receita delivery</span><strong>{dinheiro(delivery.receitaTotal)}</strong><small>{Number(delivery.porcentagemFaturamento || 0).toLocaleString('pt-BR')}% do faturamento total</small></article>

@@ -146,7 +146,7 @@ router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
     const comandasPorId = new Map(comandas.map((comanda) => [String(comanda._id), comanda]));
     res.json(pedidos.map((pedido) => {
       const comanda = pedido.comandaId ? comandasPorId.get(String(pedido.comandaId)) : null;
-      if (!comanda) return pedido;
+      if (!comanda || money(comanda.valorTotal) !== money(pedido.total)) return pedido;
       const situacao = calcularStatusPagamento(comanda);
       return {
         ...pedido,

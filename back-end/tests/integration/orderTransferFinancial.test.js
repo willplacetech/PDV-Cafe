@@ -57,6 +57,27 @@ test('transfer preserves debt, historical receipts and period revenue, then acce
   expect((await Order.findById(order.id)).transferenciasComanda).toHaveLength(1);
 });
 
+test('listing order does not take payment status from a linked comanda with a different total', async () => {
+  const zeroTotalComanda = await Comanda.create({ atendente: 'transfer-admin', status: 'fechada', valorTotal: 0 });
+  const inconsistentOrder = await Order.create({
+    numero: '000002',
+    atendente: 'transfer-admin',
+    subtotal: 82.3,
+    total: 82.3,
+    status: 'pendente',
+    comandaId: zeroTotalComanda.id,
+  });
+
+  const response = await request(app).get('/api/orders').set('Authorization', `Bearer ${token}`);
+
+  expect(response.status).toBe(200);
+  expect(response.body.find((pedido) => pedido._id === inconsistentOrder.id)).toMatchObject({
+    status: 'pendente',
+    total: 82.3,
+    pagamentos: [],
+  });
+});
+
 test.each(['items', 'payments', 'order', 'internal', 'delivery', 'customer'])('rejects incompatible destination %s without changing any document', async (kind) => {
   if (kind === 'items') { destination.itens = source.itens; destination.valorTotal = 20; }
   if (kind === 'payments') destination.historicoPagamentos = [{ valor: 3, formaPagamento: 'pix' }];
