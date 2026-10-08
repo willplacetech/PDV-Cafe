@@ -113,6 +113,8 @@ export default function PDV() {
   const [metodoPagamento, setMetodoPagamento] = useState('dinheiro');
   const [comandaPagamento, setComandaPagamento] = useState(() => comandaAtual.pagamentoPendente ? { ...comandaAtual, valorTotal: comandaAtual.registroOriginal?.valorTotal, metodoPagamento: comandaAtual.pagamentoPendente.metodoPagamento } : null);
   const pagamentoPreparadoRef = useRef(comandaAtual.pagamentoPendente ? { ...comandaAtual, metodoPagamento: comandaAtual.pagamentoPendente.metodoPagamento } : null);
+  const consumoPreparadoRef = useRef(comandaAtual.consumoInternoPendente ? comandaAtual : null);
+  const fechamentoPendente = Boolean(comandaPagamento?.metodoPagamento || comandaAtual.consumoInternoPendente);
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
@@ -256,7 +258,7 @@ export default function PDV() {
   };
 
   const selecionarProduto = (prod) => {
-    if (comandaPagamento?.metodoPagamento) return showToast('Retome o pagamento pendente antes de adicionar produtos.', 'warning');
+    if (fechamentoPendente) return showToast('Retome o fechamento pendente antes de adicionar produtos.', 'warning');
     adicionarItem(prod);
   };
 
@@ -301,14 +303,15 @@ export default function PDV() {
   };
 
 
+  const clienteSelecionado = clientes.find(c => c._id === clienteId);
+  const consumoInterno = Boolean(clienteSelecionado?.clienteInterno);
   const subtotal = carrinho.reduce((ac, i) => ac + i.precoUnitario * i.quantidade, 0);
-  const total = subtotal + (entregaPDV ? Number(entregaPDV.taxaEntrega) || 0 : 0);
+  const total = consumoInterno ? 0 : subtotal + (entregaPDV ? Number(entregaPDV.taxaEntrega) || 0 : 0);
   const descontoQuantidadeTotal = carrinho.reduce((acumulado, item) => acumulado + Number(item.economiaQuantidade || 0), 0);
   const totalItens = carrinho.reduce((ac, i) => ac + i.quantidade, 0);
-  const clienteSelecionado = clientes.find(c => c._id === clienteId);
   const clienteTemEnderecoCadastrado = ['rua', 'numero', 'bairro'].every(campo => clienteSelecionado?.enderecoEntrega?.[campo]?.trim());
   const selecionarCliente = (id) => {
-    if (comandaPagamento?.metodoPagamento) return;
+    if (fechamentoPendente) return;
     const cliente = clientes.find(c => c._id === id);
     setClienteId(id);
     setComandaAtual(atual => ({ ...atual, clienteId: id || undefined, clienteNome: cliente?.nome || atual.clienteNome, status: 'rascunho' }));
@@ -513,12 +516,47 @@ export default function PDV() {
   const abrirPagamento = () => {
     if (!carrinho.length) return showToast('Adicione itens à comanda antes de fechar a venda.', 'warning');
     if (!validarDadosEntrega()) return;
+    if (consumoInterno) {
+      void registrarConsumoInterno();
+      return;
+    }
     if (pagamentoPreparadoRef.current) {
       setPaymentOpen(true);
       return;
     }
     setComandaPagamento({ ...dadosComandaParaSalvar(), valorTotal: total });
     setPaymentOpen(true);
+  };
+
+  const registrarConsumoInterno = async () => {
+    if (envioRef.current) return;
+    envioRef.current = true;
+    setEnviando(true);
+    try {
+      const comanda = consumoPreparadoRef.current || await salvarComandaAberta(dadosComandaParaSalvar());
+      consumoPreparadoRef.current = comanda;
+      setComandaAtual(atual => ({ ...atual, consumoInternoPendente: true }));
+      const resultado = await fecharComanda({ utilizacaoInterna: true }, comanda);
+      consumoPreparadoRef.current = null;
+      setModalSucesso(resultado.pedido);
+      idempotenciaRef.current = null;
+      setQuantidadesRascunho({});
+      setClienteId('');
+      setClienteNome('');
+      setEntregaPDV(null);
+      void carregarDados();
+      showToast('Consumo interno registrado com baixa de estoque e custo, sem pagamento.', 'success');
+    } catch (error) {
+      const status = error.response?.status;
+      if (status && status < 500 && status !== 408) {
+        consumoPreparadoRef.current = null;
+        setComandaAtual(atual => ({ ...atual, consumoInternoPendente: false }));
+      }
+      showToast(error.response?.data?.msg || error.message || 'Não foi possível registrar o consumo interno.', 'error');
+    } finally {
+      envioRef.current = false;
+      setEnviando(false);
+    }
   };
 
   const confirmarPagamento = async () => {
@@ -566,10 +604,10 @@ export default function PDV() {
   };
 
   const selecionarComandaPainel = async selecao => {
-    if (comandaPagamento?.metodoPagamento) {
+    if (fechamentoPendente) {
       setMesasDrawerOpen(false);
-      setPaymentOpen(true);
-      showToast('Retome o pagamento pendente antes de trocar de comanda.', 'warning');
+      setPaymentOpen(Boolean(comandaPagamento?.metodoPagamento));
+      showToast('Retome o fechamento pendente antes de trocar de comanda.', 'warning');
       return;
     }
     setMesasDrawerOpen(false);
@@ -776,10 +814,11 @@ export default function PDV() {
                   <option value="">Cliente não identificado</option>
                   {clientes.map(c => <option key={c._id} value={c._id}>{c.nome}</option>)}
                 </select>
+                {consumoInterno && <small role="status">Consumo da equipe: sem pagamento, com baixa de estoque e registro de custo.</small>}
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Nome no atendimento</label>
-                <input disabled={Boolean(comandaPagamento?.metodoPagamento)} placeholder={comandaAtual.tipo === 'delivery' ? 'Digite o nome' : 'Digite o nome (opcional)'} required={comandaAtual.tipo === 'delivery'} value={clienteNome} onChange={e => { setClienteNome(e.target.value); setComandaAtual(atual => ({ ...atual, clienteNome: e.target.value, status: 'rascunho' })); }} style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)', borderRadius: 10, fontSize: 16, boxSizing: 'border-box', outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48 }} />
+                <input disabled={fechamentoPendente} placeholder={comandaAtual.tipo === 'delivery' ? 'Digite o nome' : 'Digite o nome (opcional)'} required={comandaAtual.tipo === 'delivery'} value={clienteNome} onChange={e => { setClienteNome(e.target.value); setComandaAtual(atual => ({ ...atual, clienteNome: e.target.value, status: 'rascunho' })); }} style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)', borderRadius: 10, fontSize: 16, boxSizing: 'border-box', outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48 }} />
               </div>
             </div>
           </div>
@@ -879,7 +918,8 @@ export default function PDV() {
         {mobileCartOpen && <div className="pdv-mobile-cart-backdrop" onClick={() => setMobileCartOpen(false)} aria-hidden="true" />}
         <div className={`pdv-cart-panel ${mobileCartOpen ? 'mobile-open' : ''}`}>
           {comandaPagamento?.metodoPagamento && !paymentOpen && <p role="status">Pagamento aguardando confirmação. <button type="button" onClick={abrirPagamento}>Retomar pagamento</button></p>}
-          <div inert={Boolean(comandaPagamento?.metodoPagamento)} style={{
+          {comandaAtual.consumoInternoPendente && <p role="status">Consumo interno aguardando confirmação. <button type="button" onClick={registrarConsumoInterno} disabled={enviando}>Retomar consumo interno</button></p>}
+          <div inert={fechamentoPendente} style={{
             background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
             borderRadius: 16, padding: 16, position: 'sticky', top: 16
           }}>
@@ -1018,7 +1058,7 @@ export default function PDV() {
                     width: '100%', padding: '14px', background: 'var(--accent-primary)', color: '#fff',
                     border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
                     cursor: 'pointer', minHeight: 52
-                  }}>Fechar venda → pagamento</button>
+                  }}>{consumoInterno ? 'Registrar consumo interno' : 'Fechar venda → pagamento'}</button>
                   <button type="button" onClick={imprimirComandaAtual} disabled={enviando}>🖨️ Imprimir comanda</button>
                   {comandaAtual.tipo === 'mesa' && <button type="button" onClick={() => { setTransferindoMesa(true); setMesasDrawerOpen(true); }} disabled={enviando}>Transferir mesa</button>}
                   {!navigator.onLine && <button type="button" onClick={finalizar} disabled={enviando} className="pdv-offline-save">Salvar fila offline</button>}
@@ -1051,7 +1091,7 @@ export default function PDV() {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 36
             }}>✅</div>
-            <h3 style={{ margin: '0 0 4px', fontSize: 20, color: 'var(--text-primary)' }}>Venda Finalizada!</h3>
+            <h3 style={{ margin: '0 0 4px', fontSize: 20, color: 'var(--text-primary)' }}>{modalSucesso.utilizacaoInterna ? 'Consumo interno registrado!' : 'Venda Finalizada!'}</h3>
             <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-secondary)' }}>
               Pedido <strong style={{ color: 'var(--text-primary)' }}>#{modalSucesso.numero}</strong>
               <br />

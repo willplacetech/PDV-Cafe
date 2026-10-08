@@ -8,6 +8,14 @@ Base independente do PDV, adaptada para operação de cafeteria.
 - Comandas permitem abrir mesa/balcão, lançar itens e fechar gerando um pedido com baixa de estoque.
 - Cada pedido reserva os campos de situação fiscal e a API expõe uma configuração segura em `GET /api/fiscal/config`.
 
+## Consumo da equipe
+
+O cadastro disponibiliza automaticamente o **Cliente Interno**, sem telefone ou CPF. Selecione esse cliente no PDV e use **Registrar consumo interno**. Comandas salvas para ele também fecham diretamente, sem escolher pagamento. O registro não gera dívida, recebimento ou fidelidade; baixa o estoque dos produtos ou insumos consumidos uma única vez.
+
+O custo histórico aparece no **Financeiro → DRE / EBITDA**, na linha **Consumo da equipe (custo separado)**, e na exportação CSV. Esse custo fica separado do CMV e do lucro das vendas. O consumo também não entra nos indicadores ou rankings de vendas. Cadastre os custos dos produtos e insumos para que a contabilização seja completa; produtos sem custo aparecem no aviso do DRE.
+
+Se a confirmação falhar, use **Retomar consumo interno**. O sistema reutiliza a operação pendente para evitar duplicar o consumo. O Cliente Interno é reservado pelo sistema e não pode ser editado ou excluído.
+
 ## Fiscal
 
 Nenhum documento fiscal é emitido sem a configuração explícita de um provedor. Defina as variáveis do arquivo `back-end/.env.example` após escolher o emissor e instalar o respectivo adaptador. As credenciais devem permanecer somente no servidor.

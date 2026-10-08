@@ -76,7 +76,7 @@ async function recalcularPrecosComanda(comanda, session) {
       item.faltamParaGrupo = grupoPricing?.faltamParaGrupo || 0;
     }
   });
-  comanda.valorTotal = money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
+  comanda.valorTotal = comanda.utilizacaoInterna ? 0 : money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
   const pago = calcularStatusPagamento(comanda).valorPago;
   if (comanda.valorTotal < pago) throw new Error('A alteracao reduziria a comanda abaixo do valor ja recebido. Estorne o pagamento antes.');
   comanda.saldoDevedor = money(Math.max(0, comanda.valorTotal - pago));
@@ -259,12 +259,15 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
     const temEntrega = req.body.entrega && typeof req.body.entrega === 'object' && !Array.isArray(req.body.entrega);
     const tipoAtendimento = temEntrega ? 'delivery' : ['balcao', 'retirada'].includes(req.body.tipoAtendimento) ? req.body.tipoAtendimento : 'mesa';
     const taxaEntrega = req.body.entrega && typeof req.body.entrega.taxaEntrega === 'number' && Number.isFinite(req.body.entrega.taxaEntrega) && req.body.entrega.taxaEntrega >= 0 ? money(req.body.entrega.taxaEntrega) : 0;
-    const valorTotal = money(calcularSubtotalComanda(itens) + taxaEntrega);
+    const customer = req.body.clienteId ? await Customer.findById(req.body.clienteId).session(session) : null;
+    if (req.body.clienteId && !customer) throw new Error('Cliente não encontrado');
+    const utilizacaoInterna = Boolean(customer?.clienteInterno);
+    const valorTotal = utilizacaoInterna ? 0 : money(calcularSubtotalComanda(itens) + taxaEntrega);
     const usuarioDelivery = temEntrega && mongoose.isValidObjectId(req.user.id) ? await User.findById(req.user.id).select('tenantId').session(session).catch(() => null) : null;
     // O comércio é capturado na venda; a entrega é processada depois, sem bloquear o PDV.
     const entrega = temEntrega ? { usuarioId: req.user.id, tenantId: usuarioDelivery?.tenantId, telefone: typeof req.body.entrega.telefone === 'string' ? req.body.entrega.telefone.slice(0, 30) : '', endereco: Object.fromEntries(['rua', 'numero', 'bairro', 'complemento', 'referencia'].map(campo => [campo, typeof req.body.entrega.endereco?.[campo] === 'string' ? req.body.entrega.endereco[campo].slice(0, campo === 'rua' ? 300 : campo === 'bairro' ? 120 : campo === 'numero' ? 30 : 200) : ''])), preservarEnderecoCadastrado: Boolean(req.body.entrega.preservarEnderecoCadastrado), taxaEntrega } : undefined;
     const clienteTelefone = normalizarTelefoneCliente(req.body.clienteTelefone || (temEntrega ? req.body.entrega.telefone : '')).slice(0, 30);
-    const [comanda] = await Comanda.create([{ entrega, taxaEntrega, idTemporario: idTemporario || undefined, idempotencyKey: idempotencyKey || undefined, idempotencyHash: idempotencyKey ? idempotencyHash : undefined, clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', clienteTelefone, observacao: req.body.observacao, mesa: req.body.mesa, tipoAtendimento, statusBalcao: tipoAtendimento === 'balcao' ? 'aguardando' : undefined, itens, valorTotal, saldoDevedor: valorTotal, statusPagamento: 'pendente', estoqueBaixado: !rascunho && itens.length > 0, status: rascunho ? 'rascunho' : 'aberta', atendente: req.user.username }], { session });
+    const [comanda] = await Comanda.create([{ entrega, taxaEntrega, utilizacaoInterna, idTemporario: idTemporario || undefined, idempotencyKey: idempotencyKey || undefined, idempotencyHash: idempotencyKey ? idempotencyHash : undefined, clienteId: req.body.clienteId || undefined, clienteNome: customer?.clienteInterno ? customer.nome : req.body.clienteNome || 'Cliente não identificado', clienteTelefone, observacao: req.body.observacao, mesa: req.body.mesa, tipoAtendimento, statusBalcao: tipoAtendimento === 'balcao' ? 'aguardando' : undefined, itens, valorTotal, saldoDevedor: valorTotal, statusPagamento: utilizacaoInterna ? 'quitado' : 'pendente', estoqueBaixado: !rascunho && itens.length > 0, status: rascunho ? 'rascunho' : 'aberta', atendente: req.user.username }], { session });
     if (origemOffline !== undefined) {
       // Revalidar depois do trabalho assincromo e antes do commit: inclusive um
       // mesmo operador reassociado a outro comercio enquanto a venda processa.
@@ -317,7 +320,7 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
     aplicarPrecoManual(comanda.itens[comanda.itens.length - 1], req.body.precoUnitarioManual);
     if (comanda.estoqueBaixado) await ajustarEstoque([comanda.itens[comanda.itens.length - 1]], 'baixar', session);
     await recalcularPrecosComanda(comanda, session);
-    comanda.valorTotal = money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
+    comanda.valorTotal = comanda.utilizacaoInterna ? 0 : money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
     comanda.saldoDevedor = Math.max(0, comanda.valorTotal - Number(comanda.valorPago || 0));
     await comanda.save({ session });
     await session.commitTransaction();
@@ -354,7 +357,7 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'g
     aplicarPrecoManual(item, req.body.precoUnitarioManual);
     if (estoqueBaixado) await ajustarEstoque([item], 'baixar', session);
     await recalcularPrecosComanda(comanda, session);
-    comanda.valorTotal = money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
+    comanda.valorTotal = comanda.utilizacaoInterna ? 0 : money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
     comanda.saldoDevedor = Math.max(0, comanda.valorTotal - Number(comanda.valorPago || 0));
     await comanda.save({ session });
     await session.commitTransaction();
@@ -416,6 +419,7 @@ router.post('/:id/mover', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
       clienteNome: req.body.clienteNome || comandaOrigem.clienteNome || 'Cliente nao identificado',
       observacao: req.body.observacao || comandaOrigem.observacao,
       tipoAtendimento: comandaOrigem.tipoAtendimento, mesa: comandaOrigem.mesa,
+      utilizacaoInterna: comandaOrigem.utilizacaoInterna,
       itens: itensMovidos, estoqueBaixado, atendente: req.user.username,
       status: 'aberta',
     });
@@ -456,6 +460,8 @@ router.patch('/:id/receber-parcial', auth, auth.allowRoles('admin', 'operador', 
     const resultado = await executarOperacaoFinanceira({ req, tipo: 'comanda-receber', recursoId: req.params.id, executar: async (session, dataRecebimento) => {
     const comanda = await Comanda.findById(req.params.id).session(session);
     if (!comanda || comanda.status !== 'aberta') throw new Error('Comanda não está aberta');
+
+    if (comanda.utilizacaoInterna) throw new Error('Consumo interno não aceita pagamentos');
 
     const formaPagamento = String(req.body.formaPagamento || 'dinheiro');
     if (!formaPagamentoValida(formaPagamento)) throw new Error('Forma de pagamento inválida');
@@ -517,6 +523,7 @@ router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador', 'garcom'
     if (!comanda || !telefone) throw new Error('Dados do cliente inválidos');
 
     let customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
+    if (customer?.clienteInterno) throw new Error('O Cliente Interno não aceita alteração de dados de contato');
     customer = customer || await Customer.findOne({ telefone }).session(session);
     if (customer) {
       if (nome) customer.nome = nome;
@@ -557,9 +564,13 @@ router.patch('/:id/detalhes', auth, auth.allowRoles('admin', 'operador', 'garcom
     if (req.body.clienteId && !mongoose.isValidObjectId(req.body.clienteId)) throw new Error('Cliente inválido');
     if (req.body.clienteId) comanda.clienteId = req.body.clienteId;
     else if (!req.body.clienteId) comanda.clienteId = undefined;
+    const customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
+    if (comanda.clienteId && !customer) throw new Error('Cliente não encontrado');
+    comanda.utilizacaoInterna = Boolean(customer?.clienteInterno);
     if (typeof req.body.clienteNome === 'string') comanda.clienteNome = req.body.clienteNome.trim().slice(0, 160) || 'Cliente não identificado';
     if (typeof req.body.clienteTelefone === 'string') comanda.clienteTelefone = normalizarTelefoneCliente(req.body.clienteTelefone).slice(0, 30);
     if (typeof req.body.observacao === 'string') comanda.observacao = req.body.observacao.trim().slice(0, 500);
+    if (customer?.clienteInterno) comanda.clienteNome = customer.nome;
 
     if (tipoAtendimento === 'delivery') {
       const dadosEntrega = req.body.entrega;
@@ -588,10 +599,11 @@ router.patch('/:id/detalhes', auth, auth.allowRoles('admin', 'operador', 'garcom
       comanda.entrega = undefined;
       comanda.taxaEntrega = 0;
     }
-    comanda.valorTotal = money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
+    comanda.valorTotal = comanda.utilizacaoInterna ? 0 : money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
     const pagamento = calcularStatusPagamento(comanda);
     if (comanda.valorTotal < pagamento.valorPago) throw new Error('A alteração reduziria a comanda abaixo do valor já recebido');
     comanda.saldoDevedor = saldoDevedor(comanda.valorTotal, comanda.historicoPagamentos);
+    comanda.statusPagamento = calcularStatusPagamento(comanda).statusPagamento;
     await comanda.save({ session });
     await session.commitTransaction();
     res.json(comanda);
@@ -607,7 +619,9 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     const comanda = await Comanda.findById(req.params.id).session(session);
     if (!comanda || !['aberta', 'rascunho'].includes(comanda.status) || !comanda.itens.length) throw new Error('Comanda sem itens ou já fechada');
     await recalcularPrecosComanda(comanda, session);
-    const utilizacaoInterna = Boolean(req.body.utilizacaoInterna);
+    let customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
+    const utilizacaoInterna = Boolean(customer?.clienteInterno || comanda.utilizacaoInterna || req.body.utilizacaoInterna);
+    if (utilizacaoInterna && calcularStatusPagamento(comanda).valorPago > 0) throw new Error('Estorne os recebimentos antes de registrar consumo interno');
     const metodoPagamento = normalizarFormaPagamento(req.body.metodoPagamento);
     if (!comanda.estoqueBaixado) {
       await ajustarEstoque(comanda.itens, 'baixar', session);
@@ -644,8 +658,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     const enderecoEntrega = !comanda.entrega?.preservarEnderecoCadastrado && req.body.enderecoEntrega && typeof req.body.enderecoEntrega === 'object' && !Array.isArray(req.body.enderecoEntrega)
       ? Object.fromEntries(['rua', 'numero', 'bairro', 'complemento', 'referencia'].map(campo => [campo, typeof req.body.enderecoEntrega[campo] === 'string' ? req.body.enderecoEntrega[campo].slice(0, campo === 'rua' ? 300 : campo === 'bairro' ? 120 : campo === 'numero' ? 30 : 200).trim() : '']))
       : undefined;
-    let customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
-    if (telefone) {
+    if (telefone && !customer?.clienteInterno) {
       customer = customer || await Customer.findOne({ telefone }).session(session);
       if (customer) {
         if (nome) customer.nome = nome;
@@ -657,7 +670,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
         customer = new Customer({ nome: nome || comanda.clienteNome || 'Cliente não identificado', telefone, enderecoEntrega, createdBy: req.user.id });
         await customer.save({ session });
       }
-    } else if (customer && (nome || enderecoEntrega)) {
+    } else if (customer && !customer.clienteInterno && (nome || enderecoEntrega)) {
       if (nome) customer.nome = nome;
       if (enderecoEntrega) customer.enderecoEntrega = enderecoEntrega;
       await customer.save({ session });

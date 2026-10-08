@@ -25,6 +25,11 @@ const normalizarEnderecoEntrega = (endereco) => {
 router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
     const { search } = req.query;
+    await Customer.findOneAndUpdate(
+      { clienteInterno: true },
+      { $setOnInsert: { nome: 'Cliente Interno', clienteInterno: true, createdBy: req.user.id } },
+      { upsert: true, setDefaultsOnInsert: true },
+    );
     let query = {};
 
     if (search) {
@@ -104,6 +109,9 @@ router.post(
 // @access  Privado
 router.put('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
+    if (await Customer.exists({ _id: req.params.id, clienteInterno: true })) {
+      return res.status(409).json({ msg: 'O Cliente Interno é reservado para consumo da equipe e não pode ser alterado' });
+    }
     const { nome, telefone, endereco, cpf, aniversario } = req.body;
     const enderecoEntrega = normalizarEnderecoEntrega(req.body.enderecoEntrega);
     if (enderecoEntrega === null) return res.status(400).json({ msg: 'Endereço de entrega inválido' });
@@ -150,6 +158,8 @@ router.delete('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
     if (!customer) {
       return res.status(404).json({ msg: 'Cliente não encontrado' });
     }
+
+    if (customer.clienteInterno) return res.status(409).json({ msg: 'O Cliente Interno é reservado para consumo da equipe e não pode ser excluído' });
 
     const [pendenciaFinanceira, comandaAberta] = await Promise.all([
       Order.exists({ clienteId: req.params.id, status: { $in: ['pendente', 'parcial'] } }),

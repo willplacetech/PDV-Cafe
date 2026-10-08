@@ -406,7 +406,7 @@ router.get('/receita-7-dias', auth, auth.allowRoles('admin'), async (req, res) =
     });
     const inicio = new Date(`${datas[0]}T00:00:00-03:00`);
     const vendas = await Order.aggregate([
-      { $match: { createdAt: { $gte: inicio, $lte: new Date() }, status: { $in: ['pago', 'parcial'] } } },
+      { $match: { createdAt: { $gte: inicio, $lte: new Date() }, status: { $in: ['pago', 'parcial'] }, utilizacaoInterna: { $ne: true } } },
       { $group: {
         _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: TIME_ZONE } },
         total: { $sum: '$total' },
@@ -448,7 +448,7 @@ router.get('/', async (req, res) => {
       Customer.countDocuments(),
       Customer.find().sort({ createdAt: -1 }).limit(8).select('nome telefone createdAt cafesFidelidade'),
       Product.find({ tipo: 'venda' }).select('nome codigo preco custo estoque categoria'),
-      Order.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status total itens clienteId clienteNome'),
+      Order.find({ createdAt: { $gte: inicioInsights }, utilizacaoInterna: { $ne: true } }).select('createdAt status total itens clienteId clienteNome'),
       Comanda.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status'),
     ]);
     const comandasPorId = await comandasPorIdDe([...pedidosDia, ...pedidosMes, ...recebimentosDia, ...recebimentosMes]);

@@ -263,6 +263,7 @@ export default function Financeiro() {
       ['Deduções', dre.deducoes],
       ['Receita Líquida', dre.receitaLiquida],
       ['CMV', dre.cmv],
+      ['Consumo da equipe (custo separado)', dre.custoConsumoInterno || 0],
       ['Fórmula do CMV', dre.cmvFormula],
       ['Lucro Bruto', dre.lucroBruto],
       ['Despesas Operacionais', dre.despesasOperacionais],
@@ -614,6 +615,7 @@ export default function Financeiro() {
                   <tr><th>− Deduções</th><td>{money(dre.deducoes)}</td><td>{dre.receitaBruta ? `${((dre.deducoes / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
                   <tr><th>= Receita Líquida</th><td>{money(dre.receitaLiquida)}</td><td>{dre.receitaBruta ? `${((dre.receitaLiquida / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
                   <tr><th>− CMV</th><td>{money(dre.cmv)}</td><td>{dre.receitaBruta ? `${((dre.cmv / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
+                  <tr><th>Consumo da equipe (custo separado)</th><td>{money(dre.custoConsumoInterno || 0)}</td><td>Fora do lucro das vendas</td></tr>
                   <tr><th colSpan="3">CMV = {dre.cmvFormula || 'Estoque inicial + Compras - Estoque final'}</th></tr>
                   <tr><th>= Lucro Bruto</th><td>{money(dre.lucroBruto)}</td><td>{dre.receitaBruta ? `${((dre.lucroBruto / dre.receitaBruta) * 100).toFixed(1)}%` : '0%'}</td></tr>
                   <tr><th>− Despesas Operacionais</th><td>{money(dre.despesasOperacionais)}</td><td>{dre.receitaLiquida ? `${((dre.despesasOperacionais / dre.receitaLiquida) * 100).toFixed(1)}%` : '0%'}</td></tr>

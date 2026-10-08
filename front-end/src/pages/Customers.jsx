@@ -292,7 +292,7 @@ export default function Customers() {
                 <tr><td colSpan={5} style={{ textAlign: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum cliente cadastrado</td></tr>
               ) : clientes.map(c => (
                 <tr key={c._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                  <td style={{ padding: '10px 8px', fontWeight: 600, fontSize: 13 }}>{c.nome}</td>
+                  <td style={{ padding: '10px 8px', fontWeight: 600, fontSize: 13 }}>{c.nome}{c.clienteInterno && <small style={{ display: 'block', fontWeight: 400 }}>Consumo da equipe · sem pagamento</small>}</td>
                   <td style={{ padding: '10px 8px', fontSize: 13, fontFamily: 'monospace' }}>
                     {aplicarMascaraTelefone(c.telefone) || '-'}
                   </td>
@@ -303,8 +303,10 @@ export default function Customers() {
                      {c.aniversario || '-'}
                    </td>
                   <td style={{ padding: '10px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button onClick={() => alterar(c)} style={btnTable}>Editar</button>
-                    <button onClick={() => remover(c._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>Excluir</button>
+                    {c.clienteInterno ? <span>Cliente do sistema</span> : <>
+                      <button onClick={() => alterar(c)} style={btnTable}>Editar</button>
+                      <button onClick={() => remover(c._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>Excluir</button>
+                    </>}
                   </td>
                 </tr>
               ))}

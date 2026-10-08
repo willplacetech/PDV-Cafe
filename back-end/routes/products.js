@@ -136,7 +136,7 @@ router.get('/mais-vendidos', auth, auth.allowRoles('admin', 'operador', 'garcom'
   try {
     const limite = Math.min(Math.max(Number(req.query.limite) || 8, 1), 20);
     const ranking = await Order.aggregate([
-      { $match: { status: { $ne: 'cancelado' } } },
+      { $match: { status: { $ne: 'cancelado' }, utilizacaoInterna: { $ne: true } } },
       { $unwind: '$itens' },
       { $project: { produtoId: '$itens.produtoId', quantidade: { $cond: [{ $in: ['$itens.unidadeVenda', ['g', 'ml']] }, { $divide: ['$itens.quantidade', 1000] }, '$itens.quantidade'] } } },
       { $group: { _id: '$produtoId', quantidade: { $sum: '$quantidade' } } },

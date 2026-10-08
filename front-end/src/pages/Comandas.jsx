@@ -355,6 +355,10 @@ export default function Comandas() {
   const abrirModalFechamento = () => {
     if (!selected) return;
     if (!selected.itens.length) { showToast('A comanda não tem itens', 'warning'); return; }
+    if (selected.utilizacaoInterna) {
+      void confirmarFechamento({ consumoInterno: true });
+      return;
+    }
     setDiscount('0');
     setPaymentMethod('');
     setUtilizacaoInterna(false);
@@ -365,22 +369,24 @@ export default function Comandas() {
   };
 
 
-  const confirmarFechamento = async () => {
-    if (!utilizacaoInterna && !paymentMethod) { setPaymentError(true); showToast('Escolha a forma de pagamento', 'warning'); return; }
+  const confirmarFechamento = async ({ consumoInterno = false } = {}) => {
+    const interno = Boolean(consumoInterno || selected?.utilizacaoInterna || utilizacaoInterna);
+    if (!interno && !paymentMethod) { setPaymentError(true); showToast('Escolha a forma de pagamento', 'warning'); return; }
     if (fechandoRef.current) return;
     fechandoRef.current = true;
     setFechando(true);
     const comandaFechada = selected;
     try {
       const { data } = await operacoesFechamentoRef.current.enviar('post', `/comandas/${selected._id}/fechar`, {
-        desconto: Number(discount),
-        metodoPagamento: utilizacaoInterna ? 'credito_loja' : paymentMethod,
-        utilizacaoInterna,
-        telefone: telefoneModal,
-        nome: nomeModal,
+        desconto: interno ? 0 : Number(discount),
+        metodoPagamento: interno ? undefined : paymentMethod,
+        utilizacaoInterna: interno,
+        telefone: interno ? undefined : telefoneModal,
+        nome: interno ? undefined : nomeModal,
         enderecoEntrega: comandaFechada.entrega?.endereco,
       });
       setModalFechamento(false);
+      operacoesFechamentoRef.current.limpar();
       setDiscount('0'); setPaymentMethod(''); setUtilizacaoInterna(false); setPaymentError(false);
       setModalSucesso({
         pedido: data.pedido,
@@ -705,11 +711,10 @@ export default function Comandas() {
             {/* forma de pagamento */}
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Forma de pagamento</label>
-              <select disabled={fechando}
+              <select disabled={fechando || utilizacaoInterna}
                 className="comandas-field"
                 value={utilizacaoInterna ? 'credito_loja' : paymentMethod}
                 onChange={e => { setPaymentMethod(e.target.value); setPaymentError(false); }}
-                disabled={utilizacaoInterna}
                 style={{ width: '100%', borderColor: paymentError ? 'var(--error-bg)' : undefined, opacity: utilizacaoInterna ? 0.7 : 1 }}
               >
                 <option value="">Selecione…</option>

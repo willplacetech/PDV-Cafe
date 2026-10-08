@@ -125,7 +125,7 @@ router.get('/dre', async (req, res) => {
     const { inicio, fim } = getMesRange(req.query.mes || req.query.data || null);
     const [periodoVendas, comprasPeriodo, pagamentosPeriodo] = await Promise.all([
       Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $in: ['pago', 'parcial'] } })
-        .select('total itens pagamentos')
+        .select('total itens pagamentos utilizacaoInterna')
         .lean(),
       Purchase.find({ data: { $gte: inicio, $lt: fim } }).select('valorTotal').lean(),
       carregarPagamentosDoPeriodo({ inicio, fim }),
@@ -140,11 +140,12 @@ router.get('/dre', async (req, res) => {
 
     let receitaBruta = 0;
     let cmv = 0;
+    let custoConsumoInterno = 0;
     const produtosSemCusto = new Set();
     const itensSemCusto = [];
 
     for (const pedido of periodoVendas) {
-      receitaBruta += Number(pedido.total || 0);
+      if (!pedido.utilizacaoInterna) receitaBruta += Number(pedido.total || 0);
       for (const item of pedido.itens || []) {
         const produtoId = String(item.produtoId || '');
         const quantidade = quantidadeNaUnidadeBase(item);
@@ -160,7 +161,8 @@ router.get('/dre', async (req, res) => {
             ? Number(produto?.custoUnitario || produto?.custoUnitarioBase || 0)
             : calcularCustoUnitarioVenda(produto);
         if (custoUnitario > 0) {
-          cmv += quantidade * custoUnitario;
+          if (pedido.utilizacaoInterna) custoConsumoInterno += quantidade * custoUnitario;
+          else cmv += quantidade * custoUnitario;
         } else {
           produtosSemCusto.add(produto?.nome || item.nome || 'Produto sem cadastro');
           itensSemCusto.push({ produto: produto?.nome || item.nome || 'Produto sem cadastro', quantidade, precoUnitario: Number(item.precoUnitario || 0) });
@@ -202,6 +204,7 @@ router.get('/dre', async (req, res) => {
       deducoes,
       taxasCartao,
       cmv,
+      custoConsumoInterno: dinheiro(custoConsumoInterno),
       cmvFormula: 'Estoque inicial + Compras - Estoque final',
       cmvComponentes: { estoqueInicial: null, compras, estoqueFinal: null, metodoAtual: 'custo dos itens vendidos' },
       lucroBruto,

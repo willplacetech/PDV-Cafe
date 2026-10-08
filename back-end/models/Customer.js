@@ -32,6 +32,7 @@ const CustomerSchema = new mongoose.Schema({
     trim: true,
   },
   cafesFidelidade: { type: Number, default: 0, min: 0 },
+  clienteInterno: { type: Boolean, default: false },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -43,6 +44,7 @@ const CustomerSchema = new mongoose.Schema({
 });
 
 CustomerSchema.index({ nome: 'text', telefone: 'text' });
+CustomerSchema.index({ clienteInterno: 1 }, { unique: true, partialFilterExpression: { clienteInterno: true } });
 CustomerSchema.index({ telefone: 1 }, { unique: true, partialFilterExpression: { telefone: { $gt: '' } } });
 
 module.exports = mongoose.model('Customer', CustomerSchema);

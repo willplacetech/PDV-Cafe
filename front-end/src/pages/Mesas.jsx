@@ -12,8 +12,8 @@ export default function Mesas() {
   const [selecionando, setSelecionando] = useState(false);
 
   const selecionar = async ({ mesa, comanda, tipoAtendimento }) => {
-    if (comandaAtual.pagamentoPendente) {
-      showToast('Retome o pagamento pendente antes de trocar de comanda.', 'warning');
+    if (comandaAtual.pagamentoPendente || comandaAtual.consumoInternoPendente) {
+      showToast('Retome o fechamento pendente antes de trocar de comanda.', 'warning');
       navigate('/pdv');
       return;
     }
