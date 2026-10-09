@@ -3,6 +3,7 @@ import api from '../services/api.jsx';
 import { useToast } from '../components/useToast.js';
 import AreaTabs from '../components/AreaTabs.jsx';
 import { criarXmlClientes } from '../utils/customersXml.js';
+import { calcularMultiplicadorFidelidade } from '../utils/fidelidade.js';
 
 // 🎯 Máscaras
 const aplicarMascaraTelefone = (valor) => {
@@ -34,7 +35,7 @@ const aplicarMascaraData = (valor) => {
 
 export default function Customers() {
   const [clientes, setClientes] = useState([]);
-  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '' }, cpf: '', aniversario: '' });
+  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '' }, cpf: '', aniversario: '', cafesFidelidade: '0' });
   const [editing, setEditing] = useState(null);
   const { showToast } = useToast();
 
@@ -77,6 +78,10 @@ export default function Customers() {
     if (cpfLimpo && cpfJaExiste(cpfLimpo, editing?._id)) {
       return showToast('⚠️ Este CPF já está cadastrado!', 'warning');
     }
+    const cafesFidelidade = Number(form.cafesFidelidade);
+    if (editing && (!Number.isSafeInteger(cafesFidelidade) || cafesFidelidade < 0)) {
+      return showToast('⚠️ Informe um total histórico de comandas inteiro e não negativo', 'warning');
+    }
     const telefoneJaExiste = clientes.some(c =>
       String(c.telefone || '').replace(/\D/g, '') === telefoneLimpo && c._id !== editing?._id
     );
@@ -88,6 +93,7 @@ export default function Customers() {
       enderecoEntrega: form.enderecoEntrega,
       cpf: cpfLimpo,
       aniversario: form.aniversario.replace(/\D/g, '').length === 8 ? form.aniversario : '',
+      ...(editing ? { cafesFidelidade } : {}),
     };
 
     try {
@@ -96,11 +102,11 @@ export default function Customers() {
         : await api.post('/customers', dadosParaEnviar);
       
       showToast(editing ? '✅ Cliente atualizado!' : '✅ Cliente cadastrado!', 'success');
-      setForm({ nome: '', telefone: '', endereco: '', enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '' }, cpf: '', aniversario: '' });
+      setForm({ nome: '', telefone: '', endereco: '', enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '' }, cpf: '', aniversario: '', cafesFidelidade: '0' });
       setEditing(null);
-      carregar();
-    } catch {
-      showToast('❌ Erro ao salvar', 'error');
+      await carregar();
+    } catch (err) {
+      showToast(err.response?.data?.msg || '❌ Erro ao salvar', 'error');
     }
   };
 
@@ -113,7 +119,8 @@ export default function Customers() {
       endereco: c.endereco || '',
       enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '', ...(c.enderecoEntrega || {}) },
       aniversario: aplicarMascaraData(c.aniversario || ''),
-      cpf: aplicarMascaraCPF(c.cpf || '') 
+      cpf: aplicarMascaraCPF(c.cpf || ''),
+      cafesFidelidade: String(c.cafesFidelidade || 0),
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -221,6 +228,24 @@ export default function Customers() {
                 style={inputStyle} 
               />
             </div>
+            {editing && <div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>
+                Histórico de comandas da fidelidade
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputMode="numeric"
+                required
+                value={form.cafesFidelidade}
+                onChange={event => setForm({ ...form, cafesFidelidade: event.target.value })}
+                style={inputStyle}
+              />
+              <small style={{ color: 'var(--text-secondary)' }}>
+                Cada 10 comandas completam um multiplicador.
+              </small>
+            </div>}
           </div>
           <fieldset style={{ marginTop: 14, padding: 12, border: '1px solid var(--border-color)', borderRadius: 10 }}>
             <legend style={{ padding: '0 6px', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Endereço de entrega cadastrado</legend>
@@ -252,7 +277,7 @@ export default function Customers() {
             }}>{editing ? 'Atualizar' : 'Cadastrar'}</button>
             {editing && <button type="button" onClick={() => { 
               setEditing(null); 
-      setForm({ nome: '', telefone: '', endereco: '', enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '' }, cpf: '', aniversario: '' });
+      setForm({ nome: '', telefone: '', endereco: '', enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '' }, cpf: '', aniversario: '', cafesFidelidade: '0' });
             }} style={{
               padding: '12px 20px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)',
               border: '1.5px solid var(--border-color)', borderRadius: 10,
@@ -279,17 +304,17 @@ export default function Customers() {
           </button>
         </h3>
         <div style={{ overflowX: 'auto', margin: '0 -16px', padding: '0 16px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                {['Nome', 'Telefone', 'CPF', 'Aniv.', 'Ações'].map(h => (
+                {['Nome', 'Telefone', 'CPF', 'Aniv.', 'Fidelidade', 'Ações'].map(h => (
                   <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {clientes.length === 0 ? (
-                <tr><td colSpan={5} style={{ textAlign: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum cliente cadastrado</td></tr>
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum cliente cadastrado</td></tr>
               ) : clientes.map(c => (
                 <tr key={c._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
                   <td style={{ padding: '10px 8px', fontWeight: 600, fontSize: 13 }}>{c.nome}{c.clienteInterno && <small style={{ display: 'block', fontWeight: 400 }}>Consumo da equipe · sem pagamento</small>}</td>
@@ -302,6 +327,9 @@ export default function Customers() {
                    <td style={{ padding: '10px 8px', fontSize: 13, fontFamily: 'monospace', color: 'var(--accent-primary)' }}>
                      {c.aniversario || '-'}
                    </td>
+                  <td style={{ padding: '10px 8px', fontSize: 13, whiteSpace: 'nowrap' }}>
+                    {c.clienteInterno ? '-' : <>{c.cafesFidelidade || 0} comandas · x{calcularMultiplicadorFidelidade(c.cafesFidelidade)}</>}
+                  </td>
                   <td style={{ padding: '10px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {c.clienteInterno ? <span>Cliente do sistema</span> : <>
                       <button onClick={() => alterar(c)} style={btnTable}>Editar</button>

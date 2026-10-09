@@ -11,6 +11,7 @@ import DeliveryPDV from '../components/DeliveryPDV.jsx';
 import MesasDrawer from '../components/atendimento/MesasDrawer.jsx';
 import { useComanda } from '../context/ComandaContext.jsx';
 import { totalPago } from '../utils/formasPagamento.jsx';
+import { calcularMultiplicadorFidelidade, COMANDAS_POR_MULTIPLICADOR_FIDELIDADE } from '../utils/fidelidade.js';
 import {
   carregarConfiguracaoImpressao,
   carregarPreferenciaImpressora,
@@ -314,6 +315,9 @@ export default function PDV() {
   const consumoInterno = Boolean(clienteSelecionado?.clienteInterno);
   const subtotal = carrinho.reduce((ac, i) => ac + i.precoUnitario * i.quantidade, 0);
   const total = consumoInterno ? 0 : subtotal + (entregaPDV ? Number(entregaPDV.taxaEntrega) || 0 : 0);
+  const comandasFidelidade = Number(clienteSelecionado?.cafesFidelidade || 0);
+  const multiplicadorFidelidade = calcularMultiplicadorFidelidade(comandasFidelidade);
+  const progressoFidelidade = Math.max(0, comandasFidelidade) % COMANDAS_POR_MULTIPLICADOR_FIDELIDADE;
   const jaRecebido = totalPago(comandaAtual.registroOriginal?.historicoPagamentos);
   const totalFechamento = Math.max(0, subtotal + Number(comandaPagamento?.taxaEntrega || 0) - (Number(descontoFechamento) || 0));
   const saldoFechamento = Math.max(0, totalFechamento - jaRecebido);
@@ -901,7 +905,18 @@ export default function PDV() {
                     outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48
                   }}
                 />
-                {clienteSelecionado && <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 9, background: 'var(--accent-light)', color: 'var(--text-secondary)', fontSize: 11 }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}><strong style={{ color: 'var(--text-primary)' }}>Fidelidade</strong><span>{Math.min(5, clienteSelecionado.cafesFidelidade || 0)}/5 cafés</span></div><div style={{ height: 6, borderRadius: 99, background: 'var(--bg-tertiary)', overflow: 'hidden' }}><div style={{ width: `${Math.min(100, ((clienteSelecionado.cafesFidelidade || 0) / 5) * 100)}%`, height: '100%', background: 'var(--accent-secondary)', transition: 'width .3s ease' }} /></div><span style={{ display: 'block', marginTop: 4 }}>Faltam {Math.max(0, 5 - (clienteSelecionado.cafesFidelidade || 0))} para o próximo café</span></div>}
+                {clienteSelecionado && <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 9, background: 'var(--accent-light)', color: 'var(--text-secondary)', fontSize: 11 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>Fidelidade</strong>
+                    <span>{comandasFidelidade} comandas · x{multiplicadorFidelidade}</span>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 99, background: 'var(--bg-tertiary)', overflow: 'hidden' }}>
+                    <div style={{ width: `${(progressoFidelidade / COMANDAS_POR_MULTIPLICADOR_FIDELIDADE) * 100}%`, height: '100%', background: 'var(--accent-secondary)', transition: 'width .3s ease' }} />
+                  </div>
+                  <span style={{ display: 'block', marginTop: 4 }}>
+                    Faltam {COMANDAS_POR_MULTIPLICADOR_FIDELIDADE - progressoFidelidade} para x{multiplicadorFidelidade + 1}
+                  </span>
+                </div>}
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Cliente</label>

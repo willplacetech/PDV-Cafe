@@ -113,6 +113,10 @@ router.put('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
       return res.status(409).json({ msg: 'O Cliente Interno é reservado para consumo da equipe e não pode ser alterado' });
     }
     const { nome, telefone, endereco, cpf, aniversario } = req.body;
+    if (req.body.cafesFidelidade !== undefined
+      && (!Number.isSafeInteger(req.body.cafesFidelidade) || req.body.cafesFidelidade < 0)) {
+      return res.status(400).json({ msg: 'Total histórico de comandas deve ser um inteiro não negativo' });
+    }
     const enderecoEntrega = normalizarEnderecoEntrega(req.body.enderecoEntrega);
     if (enderecoEntrega === null) return res.status(400).json({ msg: 'Endereço de entrega inválido' });
     const telefoneNormalizado = telefone !== undefined ? normalizarTelefone(telefone) : undefined;
@@ -127,6 +131,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
     if (enderecoEntrega !== undefined) updateFields.enderecoEntrega = enderecoEntrega;
     if (aniversario !== undefined) updateFields.aniversario = aniversario.trim();
     if (cpf !== undefined) updateFields.cpf = cpf.trim();
+    if (req.body.cafesFidelidade !== undefined) updateFields.cafesFidelidade = req.body.cafesFidelidade;
 
     const customer = await Customer.findByIdAndUpdate(
       req.params.id,

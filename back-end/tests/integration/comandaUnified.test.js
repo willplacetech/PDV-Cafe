@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const app = require('../../server');
 const User = require('../../models/User');
 const Product = require('../../models/Product');
+const Customer = require('../../models/Customer');
 const Order = require('../../models/Order');
 const Comanda = require('../../models/Comanda');
 const Tenant = require('../../models/Tenant');
@@ -34,6 +35,24 @@ test('preço editado persiste ao salvar, alterar quantidade e fechar venda', asy
   expect(closed.body.pedido.total).toBe(9);
   const replay = await api('post', `/api/comandas/${id}/fechar`, { metodoPagamento: 'dinheiro', operacaoId: 'comanda-close-1' });
   expect(replay.body.pedido._id).toBe(closed.body.pedido._id);
+});
+
+test('comanda normal fechada soma um ponto de fidelidade ao cliente', async () => {
+  const customer = await Customer.create({ nome: 'Cliente fidelidade', cafesFidelidade: 9 });
+  const created = await api('post', '/api/comandas', {
+    tipoAtendimento: 'balcao',
+    clienteId: customer.id,
+    rascunho: true,
+    itens: [{ produtoId: product.id, quantidade: 1 }],
+  });
+
+  const closed = await api('post', `/api/comandas/${created.body._id}/fechar`, {
+    metodoPagamento: 'dinheiro',
+    operacaoId: 'fidelidade-comanda-1',
+  });
+
+  expect(closed.status).toBe(200);
+  expect((await Customer.findById(customer.id)).cafesFidelidade).toBe(10);
 });
 
 test.each([-1, 'inválido', null])('preço manual inválido %p é recusado', async value => {

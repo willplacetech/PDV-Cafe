@@ -31,7 +31,12 @@ const CustomerSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
-  cafesFidelidade: { type: Number, default: 0, min: 0 },
+  cafesFidelidade: {
+    type: Number,
+    default: 0,
+    min: 0,
+    validate: { validator: Number.isSafeInteger, message: 'Total de comandas de fidelidade deve ser um inteiro seguro' },
+  },
   clienteInterno: { type: Boolean, default: false },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
