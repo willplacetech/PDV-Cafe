@@ -70,9 +70,25 @@ for (const [path, scope, roles] of [['/delivery/logout', 'delivery', ['tenant_ad
 
 router.get(['/tenant/configuracao', '/entregas/configuracao'], ...tenantAuth, route(async (req, res) => res.json(req.tenant)));
 router.put(['/tenant/configuracao', '/entregas/configuracao'], ...tenantAuth, route(async (req, res) => {
-  const tempo = service.numero(req.body.tempoEstimadoPadraoMin, 'tempo estimado');
-  const mensagem = service.texto(req.body.mensagemWhatsApp, 'mensagem', true, 1000);
-  const tenant = await Tenant.findByIdAndUpdate(req.tenantId, { configuracao: { tempoEstimadoPadraoMin: tempo, mensagemWhatsApp: mensagem } }, { new: true, runValidators: true });
+  const camposTexto = { nome: 160, telefone: 30, endereco: 500 };
+  const atualizacoes = {};
+  for (const [campo, limite] of Object.entries(camposTexto)) {
+    if (req.body[campo] !== undefined) atualizacoes[campo] = service.texto(req.body[campo], campo, true, limite);
+  }
+  if (req.body.taxaEntregaPadrao !== undefined) {
+    atualizacoes.taxaEntregaPadrao = service.numero(req.body.taxaEntregaPadrao, 'taxa padrão de entrega');
+  }
+  if (req.body.tempoEstimadoPadraoMin !== undefined) {
+    const tempo = service.numero(req.body.tempoEstimadoPadraoMin, 'tempo estimado');
+    if (!Number.isInteger(tempo) || tempo < 1) throw service.erro('Informe tempo estimado válido');
+    atualizacoes['configuracao.tempoEstimadoPadraoMin'] = tempo;
+  }
+  if (req.body.mensagemWhatsApp !== undefined) {
+    atualizacoes['configuracao.mensagemWhatsApp'] = service.texto(req.body.mensagemWhatsApp, 'mensagem', true, 1000);
+  }
+  if (Object.keys(atualizacoes).length === 0) throw service.erro('Informe ao menos uma configuração de entrega');
+  const tenant = await Tenant.findByIdAndUpdate(req.tenantId, { $set: atualizacoes }, { new: true, runValidators: true });
+  if (!tenant) throw service.erro('Comércio não encontrado', 404);
   res.json(tenant);
 }));
 

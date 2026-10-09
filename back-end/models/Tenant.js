@@ -29,6 +29,7 @@ const tenantSchema = new mongoose.Schema({
   plano: { type: String, enum: ['teste', 'mensal'], default: 'teste' },
   dataVencimento: Date,
   taxaPorEntrega: { type: Number, min: 0, validate: Number.isFinite },
+  taxaEntregaPadrao: { type: Number, min: 0, validate: Number.isFinite },
   configuracao: { type: configuracaoSchema, required: true, default: () => ({}) },
 }, { timestamps: true });
 

@@ -104,6 +104,39 @@ test('usuário do PDV gerencia entregadores e configuração pelo namespace inte
   expect((await api('delete', `/entregas/entregadores/${criado.body._id}`, operadorToken)).status).toBe(204);
 });
 
+test('configuração integrada atualiza campos operacionais sem alterar dados administrativos do tenant', async () => {
+  await Tenant.updateOne({ _id: tenant._id }, {
+    $set: {
+      cnpj: '12.345.678/0001-90',
+      plano: 'mensal',
+      taxaPorEntrega: 11,
+      'configuracao.mensagemWhatsApp': 'Mensagem anterior: {link}',
+    },
+  });
+
+  const salva = await api('put', '/entregas/configuracao').send({
+    nome: 'Café Atualizado',
+    telefone: '11988887777',
+    endereco: 'Rua Nova, 123',
+    taxaEntregaPadrao: 6.5,
+    tempoEstimadoPadraoMin: 45,
+    plano: 'teste',
+    slug: 'slug-forjado',
+  });
+
+  expect(salva.status).toBe(200);
+  expect(salva.body.nome).toBe('Café Atualizado');
+  expect(salva.body.telefone).toBe('11988887777');
+  expect(salva.body.endereco).toBe('Rua Nova, 123');
+  expect(salva.body.taxaEntregaPadrao).toBe(6.5);
+  expect(salva.body.configuracao.tempoEstimadoPadraoMin).toBe(45);
+  expect(salva.body.configuracao.mensagemWhatsApp).toBe('Mensagem anterior: {link}');
+  expect(salva.body.plano).toBe('mensal');
+  expect(salva.body.slug).toBe('cafe');
+  expect(salva.body.cnpj).toBe('12.345.678/0001-90');
+  expect(salva.body.taxaPorEntrega).toBe(11);
+});
+
 test('indicador do menu inclui pedidos prontos antigos ainda não despachados', async () => {
   const pedido = await criarPedido();
   await PedidoEntrega.updateOne({ _id: pedido._id }, { $set: { criadoEm: new Date(Date.now() - 48 * 60 * 60 * 1000) } });
@@ -366,7 +399,7 @@ test('PDV persiste entrega na venda e processa idempotentemente sem bloquear em 
   expect(venda.body.entrega.status).toBe('pendente');
   await outbox.processar();
   expect(await PedidoEntrega.countDocuments({ tenantId: tenant._id })).toBe(0);
-  await api('post', `/comandas/${venda.body._id}/fechar`, assinar(pdv)).send({ metodoPagamento: 'dinheiro' });
+  await api('post', `/comandas/${venda.body._id}/fechar`, assinar(pdv)).set('Idempotency-Key', require('crypto').randomUUID()).send({ metodoPagamento: 'dinheiro' });
   await outbox.processar(); await outbox.processar();
   const comanda = await Comanda.findById(venda.body._id);
   expect(comanda.entrega.status).toBe('processado');
@@ -375,7 +408,7 @@ test('PDV persiste entrega na venda e processa idempotentemente sem bloquear em 
   expect(pedidoDelivery).toMatchObject({ status: 'pronto', vendaId: comanda._id });
   const invalida = await api('post', '/comandas', assinar(pdv)).send({ clienteNome: 'Maria', itens: [{ produtoId: produto.id, quantidade: 1 }], entrega: { telefone: '123' } });
   expect(invalida.status).toBe(201);
-  await api('post', `/comandas/${invalida.body._id}/fechar`, assinar(pdv)).send({ metodoPagamento: 'dinheiro' });
+  await api('post', `/comandas/${invalida.body._id}/fechar`, assinar(pdv)).set('Idempotency-Key', require('crypto').randomUUID()).send({ metodoPagamento: 'dinheiro' });
   await outbox.processar();
   expect((await Comanda.findById(invalida.body._id)).entrega.status).toBe('erro');
 });
@@ -389,7 +422,7 @@ test('integração da comanda fechada aguarda preparo para produtos A Fazer', as
     entrega: { telefone: '11988888888', endereco: dados().origem.endereco, taxaEntrega: 4 },
   });
 
-  await api('post', `/comandas/${venda.body._id}/fechar`, assinar(pdv)).send({ metodoPagamento: 'dinheiro' });
+  await api('post', `/comandas/${venda.body._id}/fechar`, assinar(pdv)).set('Idempotency-Key', require('crypto').randomUUID()).send({ metodoPagamento: 'dinheiro' });
   await outbox.processar();
 
   const pedido = await PedidoEntrega.findOne({ vendaId: venda.body._id });
@@ -414,7 +447,7 @@ test('KDS pode marcar entrega em preparo como pronta antes de fechar a venda', a
   expect(preparo.status).toBe(200);
   expect(preparo.body.entrega.preparoPronto).toBe(true);
 
-  await api('post', `/comandas/${venda.body._id}/fechar`, assinar(operador)).send({ metodoPagamento: 'dinheiro' });
+  await api('post', `/comandas/${venda.body._id}/fechar`, assinar(operador)).set('Idempotency-Key', require('crypto').randomUUID()).send({ metodoPagamento: 'dinheiro' });
   await outbox.processar();
 
   const pedido = await PedidoEntrega.findOne({ vendaId: venda.body._id });

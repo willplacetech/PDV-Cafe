@@ -1,5 +1,5 @@
 const token = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const tenant = { _id: 'tenant', nome: 'Café da Praça', configuracao: { tempoEstimadoPadraoMin: 30, mensagemWhatsApp: 'Acompanhe: {link}' } };
+const tenant = { _id: 'tenant', nome: 'Café da Praça', telefone: '11999999999', endereco: 'Rua Um, 12', taxaEntregaPadrao: 6.5, configuracao: { tempoEstimadoPadraoMin: 30, mensagemWhatsApp: 'Acompanhe: {link}' } };
 const pedido = { _id: 'pedido', tokenRastreamento: token, status: 'pronto', criadoEm: new Date().toISOString(), origem: { nomeCliente: 'Maria', telefone: '11988888888', endereco: { rua: 'Rua Um', numero: '12', bairro: 'Centro' } }, valorTotal: 16, taxaEntrega: 4 };
 
 describe('DeliveryLink', () => {
@@ -15,22 +15,29 @@ describe('DeliveryLink', () => {
     cy.contains('a', 'Fazer novo pedido').should('have.attr', 'href', 'https://wa.me/5511999999999');
   });
 
-  it('comércio cria pedido e despacha com mensagem WhatsApp de contingência', () => {
-    cy.intercept('GET', '**/api/tenant/pedidos?*', { pedidos: [pedido], paginas: 1 });
-    cy.intercept('GET', '**/api/tenant/entregadores', [{ _id: 'courier', nome: 'João', status: 'disponivel' }]);
-    cy.intercept('GET', '**/api/tenant/estatisticas', { totalHoje: 1, entregues: 0, tempoMedioMin: 0, cancelados: 0 });
-    cy.intercept('GET', '**/api/tenant/configuracao', tenant);
-    cy.intercept('POST', '**/api/tenant/pedidos', { ...pedido }).as('criar');
-    cy.intercept('POST', '**/api/tenant/pedidos/pedido/despachar', { ...pedido, status: 'despachado', whatsapp: { mensagemPronta: `Acompanhe: http://localhost:5173/pedido/${token}`, whatsappUrl: 'https://wa.me/5511988888888' } }).as('despachar');
-    cy.visit('/admin', { onBeforeLoad(win) { win.localStorage.setItem('delivery_admin', JSON.stringify({ token: 'fake', user: { role: 'tenant_admin' } })); } });
-    cy.contains('button', 'Novo pedido').click();
-    for (const [name, value] of Object.entries({ nomeCliente: 'Maria', telefone: '11988888888', rua: 'Rua Um', numero: '12', bairro: 'Centro', valorTotal: '16' })) cy.get(`[name="${name}"]`).type(value);
-    cy.contains('button', 'Criar pedido').click();
-    cy.wait('@criar').its('request.body.origem.endereco.bairro').should('eq', 'Centro');
-    cy.get('.delivery-order select').select('courier');
-    cy.contains('button', 'Despachar').click();
-    cy.wait('@despachar');
-    cy.contains('Link para o cliente').should('be.visible');
+  it('redireciona rotas de administração antigas para Entregas sob a sessão e as permissões do PDV', () => {
+    cy.intercept('GET', '**/api/entregas/pedidos?*', { pedidos: [], paginas: 0 });
+    cy.intercept('GET', '**/api/entregas/entregadores', []);
+    cy.intercept('GET', '**/api/entregas/estatisticas', {});
+    cy.intercept('GET', '**/api/entregas/configuracao', tenant);
+    cy.visit('/DeliveryAdmin', { onBeforeLoad(win) {
+      win.localStorage.setItem('pdv_token', 'fake');
+      win.localStorage.setItem('pdv_user', JSON.stringify({ username: 'operador', role: 'admin', tenantId: 'tenant' }));
+    } });
+    cy.location('pathname').should('eq', '/entregas');
+    cy.contains('h1', 'Entregas').should('be.visible');
+
+    cy.visit('/admin', { onBeforeLoad(win) {
+      win.localStorage.setItem('pdv_user', JSON.stringify({ username: 'operador', role: 'admin', tenantId: 'tenant' }));
+    } });
+    cy.location('pathname').should('eq', '/entregas');
+    cy.contains('h1', 'Entregas').should('be.visible');
+
+    cy.visit('/plataforma', { onBeforeLoad(win) {
+      win.localStorage.removeItem('pdv_token');
+      win.localStorage.removeItem('pdv_user');
+    } });
+    cy.location('pathname').should('eq', '/login');
   });
 
   it('abre entregas pelo menu do PDV e despacha apenas pedidos prontos', () => {
@@ -57,16 +64,26 @@ describe('DeliveryLink', () => {
     cy.intercept('GET', '**/api/entregas/entregadores', []);
     cy.intercept('GET', '**/api/entregas/estatisticas', { pendentes: 0, prontos: 0, despachados: 0, emEntrega: 0, entregues: 0, tempoMedioMin: 0 });
     cy.intercept('GET', '**/api/entregas/configuracao', tenant).as('configuracao');
-    cy.intercept('PUT', '**/api/entregas/configuracao', { ...tenant, configuracao: { tempoEstimadoPadraoMin: 45, mensagemWhatsApp: 'Acompanhe: {link}' } }).as('salvarConfiguracao');
+    cy.intercept('PUT', '**/api/entregas/configuracao', { ...tenant, nome: 'Café Novo', telefone: '11988887777', endereco: 'Rua Nova, 45', taxaEntregaPadrao: 8, configuracao: { tempoEstimadoPadraoMin: 45, mensagemWhatsApp: 'Acompanhe: {link}' } }).as('salvarConfiguracao');
     cy.visit('/entregas', { onBeforeLoad(win) {
       win.localStorage.setItem('pdv_token', 'fake');
       win.localStorage.setItem('pdv_user', JSON.stringify({ username: 'operador', role: 'admin', tenantId: 'tenant' }));
     } });
     cy.contains('button', 'Configurações').click();
     cy.wait('@configuracao');
+    cy.get('[name="nome"]').should('have.value', 'Café da Praça').clear().type('Café Novo');
+    cy.get('[name="telefone"]').should('have.value', '11999999999').clear().type('11988887777');
+    cy.get('[name="endereco"]').should('have.value', 'Rua Um, 12').clear().type('Rua Nova, 45');
+    cy.get('[name="taxaEntregaPadrao"]').should('have.value', '6.5').clear().type('8');
     cy.get('[name="tempo"]').clear().type('45');
     cy.contains('button', 'Salvar configurações').click();
-    cy.wait('@salvarConfiguracao').its('request.body.tempoEstimadoPadraoMin').should('eq', 45);
+    cy.wait('@salvarConfiguracao').its('request.body').should('deep.include', {
+      nome: 'Café Novo',
+      telefone: '11988887777',
+      endereco: 'Rua Nova, 45',
+      taxaEntregaPadrao: 8,
+      tempoEstimadoPadraoMin: 45,
+    });
     cy.contains('Configurações salvas.').should('be.visible');
   });
 
@@ -81,6 +98,7 @@ describe('DeliveryLink', () => {
       win.localStorage.setItem('pdv_user', JSON.stringify({ username: 'operador', role: 'admin', tenantId: 'tenant' }));
     } });
     cy.contains('button', 'Novo pedido').click();
+    cy.get('[name="taxaEntrega"]').should('have.value', '6.5');
     for (const [name, value] of Object.entries({ nomeCliente: 'Maria', telefone: '11988888888', rua: 'Rua Um', numero: '12', bairro: 'Centro', valorTotal: '16' })) cy.get(`[name="${name}"]`).type(value);
     cy.contains('button', 'Adicionar item').click();
     cy.get('[name="descricao"]').type('Café');
@@ -89,6 +107,7 @@ describe('DeliveryLink', () => {
     cy.contains('button', 'Criar pedido').click();
     cy.wait('@criarPedidoManual').then(({ request }) => {
       expect(request.body.origem.endereco.bairro).to.eq('Centro');
+      expect(request.body.taxaEntrega).to.eq(6.5);
       expect(request.body.itens).to.deep.equal([{ descricao: 'Café', quantidade: 2, precoUnitario: 8 }]);
     });
   });

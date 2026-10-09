@@ -1,7 +1,7 @@
 import { useContext } from 'react';
+import { Navigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import Layout from '../components/Layout.jsx';
-import DeliveryAdmin from './DeliveryAdmin.jsx';
 import Entregas from './Entregas.jsx';
 
 export default function DeliveryEntry() {
@@ -12,5 +12,5 @@ export default function DeliveryEntry() {
     return <Layout><Entregas /></Layout>;
   }
 
-  return <DeliveryAdmin />;
+  return <Navigate to={user ? '/pdv' : '/login'} replace />;
 }

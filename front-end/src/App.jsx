@@ -27,9 +27,7 @@ const ImpressoraManager = lazy(() => import('./components/Impressao/ImpressoraMa
 const PaymentSettings = lazy(() => import('./pages/PaymentSettings.jsx'));
 
 
-const DeliveryAdmin = lazy(() => import('./pages/DeliveryAdmin.jsx'));
 const DeliveryEntry = lazy(() => import('./pages/DeliveryEntry.jsx'));
-const DeliveryPlataforma = lazy(() => import('./pages/DeliveryPlataforma.jsx'));
 const DeliveryEntregador = lazy(() => import('./pages/DeliveryEntregador.jsx'));
 const RastreioEntrega = lazy(() => import('./pages/RastreioEntrega.jsx'));
 
@@ -46,10 +44,10 @@ export default function App() {
           <Router>
             <Suspense fallback={<p role="status" style={{ padding: 24 }}>Carregando…</p>}>
             <Routes>
-              <Route path="/DeliveryAdmin" element={<Navigate to="/admin" replace />} />
+              <Route path="/DeliveryAdmin" element={<Navigate to="/entregas" replace />} />
               <Route path="/entregas" element={<DeliveryEntry />} />
-              <Route path="/admin" element={<DeliveryAdmin />} />
-              <Route path="/plataforma" element={<DeliveryPlataforma />} />
+              <Route path="/admin" element={<Navigate to="/entregas" replace />} />
+              <Route path="/plataforma" element={<Navigate to="/entregas" replace />} />
               <Route path="/entregador" element={<DeliveryEntregador />} />
               <Route path="/pedido/:token" element={<RastreioEntrega />} />
               <Route path="/login" element={<Login />} />

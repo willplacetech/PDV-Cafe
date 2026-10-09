@@ -1,0 +1,15 @@
+{
+  "name": "deliverylink-hub",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm --prefix back-end run dev",
+    "dev:web": "npm --prefix front-end run dev",
+    "start": "npm --prefix back-end start",
+    "build": "npm --prefix front-end run build",
+    "test": "npm --prefix back-end test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

@@ -27,7 +27,7 @@ function faixaAtraso(minutos) {
   return minutos !== null && minutos > 10 ? 'vermelho' : '';
 }
 
-function FormularioPedidoManual({ onSubmit, ocupado }) {
+function FormularioPedidoManual({ onSubmit, ocupado, taxaPadrao }) {
   const [itens, setItens] = useState([]);
   const alterarItem = (indice, campo, valor) => {
     setItens(atuais => atuais.map((item, posicao) => posicao === indice ? { ...item, [campo]: valor } : item));
@@ -43,7 +43,7 @@ function FormularioPedidoManual({ onSubmit, ocupado }) {
       <label>Complemento<input name="complemento" maxLength={200} /></label>
       <label>Referência<input name="referencia" maxLength={300} /></label>
       <label>Valor do pedido (R$)<input name="valorTotal" type="number" step="0.01" min="0" required /></label>
-      <label>Taxa de entrega (R$)<input name="taxaEntrega" type="number" step="0.01" min="0" defaultValue="0" required /></label>
+      <label>Taxa de entrega (R$)<input name="taxaEntrega" type="number" step="0.01" min="0" defaultValue={taxaPadrao} required /></label>
     </div>
     <details>
       <summary>Itens do pedido (opcional)</summary>
@@ -252,6 +252,10 @@ export default function Entregas() {
     const form = new FormData(event.currentTarget);
     void executar(
       () => api.put('/entregas/configuracao', {
+        nome: form.get('nome'),
+        telefone: form.get('telefone'),
+        endereco: form.get('endereco'),
+        taxaEntregaPadrao: Number(form.get('taxaEntregaPadrao')),
         tempoEstimadoPadraoMin: Number(form.get('tempo')),
         mensagemWhatsApp: form.get('mensagem'),
       }),
@@ -301,7 +305,7 @@ export default function Entregas() {
       )}
     </nav>
 
-    {aba === 'novo' && <FormularioPedidoManual onSubmit={criarPedidoManual} ocupado={ocupado} />}
+    {aba === 'novo' && comercio && <FormularioPedidoManual onSubmit={criarPedidoManual} ocupado={ocupado} taxaPadrao={Number(comercio.taxaEntregaPadrao ?? comercio.taxaPorEntrega ?? 0)} />}
 
     {aba === 'fila' && <nav className="delivery-tabs" aria-label="Status da fila">
       <button type="button" aria-selected={filaAba === 'prontos'} onClick={() => setFilaAba('prontos')}>Prontos para despachar ({prontos.length})</button>
@@ -342,6 +346,10 @@ export default function Entregas() {
 
     {aba === 'configuracao' && comercio && <form className="delivery-card" onSubmit={salvarConfiguracao} key={comercio._id}>
       <h2>Configurações de entrega</h2>
+      <label>Nome do comércio<input name="nome" required maxLength={160} defaultValue={comercio.nome} /></label>
+      <label>Telefone do comércio<input name="telefone" type="tel" required maxLength={30} defaultValue={comercio.telefone} /></label>
+      <label>Endereço do comércio<textarea name="endereco" required maxLength={500} defaultValue={comercio.endereco} /></label>
+      <label>Taxa padrão de entrega (R$)<input name="taxaEntregaPadrao" type="number" min="0" step="0.01" required defaultValue={comercio.taxaEntregaPadrao ?? comercio.taxaPorEntrega ?? 0} /></label>
       <label>Tempo estimado padrão (minutos)<input name="tempo" type="number" min="1" step="1" required defaultValue={comercio.configuracao.tempoEstimadoPadraoMin} /></label>
       <label>Mensagem para o cliente<textarea name="mensagem" required maxLength={1000} defaultValue={comercio.configuracao.mensagemWhatsApp} /></label>
       <p className="delivery-muted">Use {'{link}'} no ponto onde deve aparecer o rastreamento.</p>
