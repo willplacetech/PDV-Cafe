@@ -9,10 +9,12 @@ const taxaValida = valor => String(valor).trim() !== '' && Number.isFinite(Numbe
 export default function PaymentSettings() {
   const { formasPagamento, recarregar, atualizarFormas, carregando, erro } = useFormasPagamento();
   const [taxas, setTaxas] = useState({});
+  const [edicao, setEdicao] = useState(null);
   const [novaForma, setNovaForma] = useState({ nome: '', taxaPercentual: '0' });
   const [salvando, setSalvando] = useState('');
   const { showToast } = useToast();
   const formasComTaxa = formasPagamento.filter(forma => forma.personalizada || ['cartao_credito', 'cartao_debito'].includes(forma.value));
+  const bloqueado = Boolean(salvando) || carregando || Boolean(erro);
 
   const adicionar = async event => {
     event.preventDefault();
@@ -35,19 +37,34 @@ export default function PaymentSettings() {
 
   const salvar = async forma => {
     if (salvando) return;
-    const valor = taxas[forma.value] ?? forma.taxaPercentual;
-    if (!taxaValida(valor)) {
-      showToast('Informe uma taxa entre 0% e 100%.', 'warning');
+    const valor = forma.personalizada ? edicao?.taxaPercentual : taxas[forma.value] ?? forma.taxaPercentual;
+    const nome = forma.personalizada ? edicao?.nome.trim() : undefined;
+    if (!taxaValida(valor) || (forma.personalizada && !nome)) {
+      showToast('Informe nome e taxa entre 0% e 100%.', 'warning');
       return;
     }
     try {
       setSalvando(forma.value);
-      await api.patch('/contabil/taxas-cartao', { mes: mesAtual(), tipo: forma.value, taxaPercentual: Number(valor) });
-      atualizarFormas(formasPagamento.map(atual => atual.value === forma.value ? { ...atual, taxaPercentual: Number(valor) } : atual));
+      const { data } = await api.patch('/contabil/taxas-cartao', { mes: mesAtual(), tipo: forma.value, taxaPercentual: Number(valor), ...(forma.personalizada ? { nome } : {}) });
+      atualizarFormas(data.formasPagamento || formasPagamento.map(atual => atual.value === forma.value ? { ...atual, taxaPercentual: Number(valor), ...(forma.personalizada ? { label: nome } : {}) } : atual));
       setTaxas(atual => { const proximo = { ...atual }; delete proximo[forma.value]; return proximo; });
-      showToast('Taxa salva e aplicada aos pagamentos do mês.', 'success');
+      setEdicao(null);
+      showToast(forma.personalizada ? 'Forma de pagamento atualizada. Taxa aplicada aos pagamentos do mês.' : 'Taxa salva e aplicada aos pagamentos do mês.', 'success');
     } catch (error) {
       showToast(error.response?.data?.msg || 'Não foi possível salvar a taxa.', 'error');
+    } finally { setSalvando(''); }
+  };
+
+  const excluir = async forma => {
+    if (bloqueado || !window.confirm(`Excluir a forma de pagamento "${forma.label}"? Os pagamentos já registrados serão preservados.`)) return;
+    try {
+      setSalvando(`excluir-${forma.value}`);
+      const { data } = await api.delete(`/payment-settings/${forma.value}`);
+      atualizarFormas(data.formasPagamento);
+      if (edicao?.tipo === forma.value) setEdicao(null);
+      showToast('Forma de pagamento excluída.', 'success');
+    } catch (error) {
+      showToast(error.response?.data?.msg || 'Não foi possível excluir a forma de pagamento.', 'error');
     } finally { setSalvando(''); }
   };
 
@@ -63,9 +80,27 @@ export default function PaymentSettings() {
     </form>
     <section className="payment-settings-grid" aria-label="Taxas das formas de pagamento">
       {formasComTaxa.map(forma => <article key={forma.value}>
-        <label htmlFor={`taxa-${forma.value}`}>{forma.label}</label>
-        <div><input id={`taxa-${forma.value}`} type="number" min="0" max="100" step="0.01" value={taxas[forma.value] ?? forma.taxaPercentual} onChange={event => setTaxas(atual => ({ ...atual, [forma.value]: event.target.value }))} aria-label={`Taxa de ${forma.label}`} /><span>%</span></div>
-        <button type="button" onClick={() => void salvar(forma)} disabled={Boolean(salvando) || carregando || Boolean(erro)}>{salvando === forma.value ? 'Salvando...' : 'Salvar taxa'}</button>
+        <h2>{forma.label}</h2>
+        {forma.personalizada ? edicao?.tipo === forma.value ? <form className="payment-settings-edit" onSubmit={event => { event.preventDefault(); void salvar(forma); }}>
+          <label htmlFor={`nome-${forma.value}`}>Nome</label>
+          <input id={`nome-${forma.value}`} type="text" maxLength={80} required autoFocus value={edicao.nome} disabled={bloqueado} onChange={event => setEdicao(atual => ({ ...atual, nome: event.target.value }))} />
+          <label htmlFor={`taxa-${forma.value}`}>Taxa (%)</label>
+          <input id={`taxa-${forma.value}`} type="number" min="0" max="100" step="0.01" required value={edicao.taxaPercentual} disabled={bloqueado} onChange={event => setEdicao(atual => ({ ...atual, taxaPercentual: event.target.value }))} />
+          <div className="payment-settings-actions">
+            <button type="submit" disabled={bloqueado}>{salvando === forma.value ? 'Salvando...' : 'Salvar alterações'}</button>
+            <button type="button" className="payment-settings-secondary" disabled={bloqueado} onClick={() => setEdicao(null)}>Cancelar</button>
+          </div>
+        </form> : <>
+          <p className="payment-settings-rate">Taxa: <strong>{forma.taxaPercentual}%</strong></p>
+          <div className="payment-settings-actions">
+            <button type="button" disabled={bloqueado} onClick={() => setEdicao({ tipo: forma.value, nome: forma.label, taxaPercentual: String(forma.taxaPercentual) })}>Editar</button>
+            <button type="button" className="payment-settings-danger" disabled={bloqueado} onClick={() => void excluir(forma)}>{salvando === `excluir-${forma.value}` ? 'Excluindo...' : 'Excluir'}</button>
+          </div>
+        </> : <>
+          <label htmlFor={`taxa-${forma.value}`}>Taxa (%)</label>
+          <div><input id={`taxa-${forma.value}`} type="number" min="0" max="100" step="0.01" disabled={bloqueado} value={taxas[forma.value] ?? forma.taxaPercentual} onChange={event => setTaxas(atual => ({ ...atual, [forma.value]: event.target.value }))} aria-label={`Taxa de ${forma.label}`} /><span>%</span></div>
+          <button type="button" onClick={() => void salvar(forma)} disabled={bloqueado}>{salvando === forma.value ? 'Salvando...' : 'Salvar taxa'}</button>
+        </>}
       </article>)}
     </section>
     <style>{`
@@ -79,6 +114,11 @@ export default function PaymentSettings() {
       .payment-settings-page input{width:100%;box-sizing:border-box;min-height:46px;padding:10px;border:1px solid var(--border-color);border-radius:9px;background:var(--input-bg);color:var(--input-text);font:inherit}
       .payment-settings-page button{min-height:44px;padding:10px;border:0;border-radius:9px;background:var(--accent-primary);color:#fff;font:inherit;font-weight:800;cursor:pointer}
       .payment-settings-page button:disabled{opacity:.6;cursor:wait}
+      .payment-settings-grid article{align-content:start}.payment-settings-grid h2{margin:0;font-size:16px}
+      .payment-settings-edit{display:grid;gap:8px}.payment-settings-rate{margin:0;color:var(--text-secondary)}
+      .payment-settings-actions{display:flex;gap:8px;flex-wrap:wrap}.payment-settings-actions button{flex:1}
+      .payment-settings-page .payment-settings-secondary{background:var(--bg-tertiary);color:var(--text-primary);border:1px solid var(--border-color)}
+      .payment-settings-page .payment-settings-danger{background:rgba(239,68,68,.1);color:var(--error-bg);border:1px solid rgba(239,68,68,.2)}
       @media(max-width:600px){.payment-settings-grid,.payment-settings-new{grid-template-columns:1fr}}
     `}</style>
   </main>;

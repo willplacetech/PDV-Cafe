@@ -2,7 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const auth = require('../middleware/auth');
 const PaymentSettings = require('../models/PaymentSettings');
-const { ROTULOS_PAGAMENTO, catalogoDaConfiguracao, normalizarNome } = require('../utils/formasPagamento');
+const { ROTULOS_PAGAMENTO, catalogoDaConfiguracao, normalizarNome, formaPersonalizada } = require('../utils/formasPagamento');
 
 const router = express.Router();
 router.use(auth);
@@ -26,6 +26,20 @@ router.post('/', auth.allowRoles('admin'), async (req, res) => {
     const formasPagamento = catalogoDaConfiguracao(configuracao);
     res.status(201).json({ formaPagamento: formasPagamento.find(forma => forma.value === tipo), formasPagamento });
   } catch (error) { res.status(error.code === 11000 ? 409 : 500).json({ msg: error.code === 11000 ? 'Tente novamente o cadastro da forma de pagamento.' : error.message }); }
+});
+
+router.delete('/:tipo', auth.allowRoles('admin'), async (req, res) => {
+  const { tipo } = req.params;
+  if (!formaPersonalizada(tipo)) return res.status(400).json({ msg: 'Somente formas de pagamento personalizadas podem ser excluídas.' });
+  try {
+    const configuracao = await PaymentSettings.findOneAndUpdate(
+      { chave: 'principal', 'formasPersonalizadas.tipo': tipo },
+      { $pull: { formasPersonalizadas: { tipo } } },
+      { new: true, runValidators: true },
+    );
+    if (!configuracao) return res.status(404).json({ msg: 'Forma de pagamento não encontrada.' });
+    res.json({ formasPagamento: catalogoDaConfiguracao(configuracao) });
+  } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
 module.exports = router;

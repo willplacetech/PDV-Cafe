@@ -20,6 +20,7 @@ describe('Formas de pagamento cadastradas', () => {
       if (path.endsWith('/products') || path.endsWith('/products/pdv')) return req.reply([product]);
       if (path.endsWith('/comandas') || path.endsWith('/comandas/a-receber')) return req.reply(commands);
       if (path.endsWith('/mesas')) return req.reply({ mesas: [] });
+      if (path.endsWith('/dashboard/delivery')) return req.reply({ totalPedidos: 0, receitaTotal: 0, freteTotal: 0, ticketMedio: 0, porEntregador: [] });
       if (path.endsWith('/dashboard/comparar-vendas')) {
         const periodo = { rotulo: 'Teste', total: 0, pedidos: 0, itens: 0, ticketMedio: 0 };
         return req.reply({ periodoA: periodo, periodoB: periodo });
@@ -94,11 +95,68 @@ describe('Formas de pagamento cadastradas', () => {
       req.reply({ pagamentosAtualizados: 0 });
     }).as('rate');
     cy.get('.payment-settings-grid article').contains(custom.label).closest('article').within(() => {
-      cy.get('input').clear().type('4');
-      cy.contains('button', 'Salvar taxa').click();
+      cy.contains('button', 'Editar').click();
+      cy.get('input[type="number"]').clear().type('4');
+      cy.contains('button', 'Salvar alterações').click();
     });
     cy.wait('@rate');
     cy.reload();
-    cy.get('.payment-settings-grid article').contains(custom.label).closest('article').find('input').should('have.value', '4');
+    cy.get('.payment-settings-grid article').contains(custom.label).closest('article').should('contain', '4%');
+  });
+
+  it('edita nome no card, cancela edição e confirma exclusão', () => {
+    addMethod();
+    receipts = [{ tipo: custom.value, rotuloPagamento: custom.label, bruto: 100, taxa: 3, total: 97 }];
+    const card = () => cy.get('.payment-settings-grid article').contains(custom.label).closest('article');
+    card().contains('button', 'Editar').click();
+    card().find('input[type="text"]').clear().type('Nome cancelado');
+    card().contains('button', 'Cancelar').click();
+    card().should('not.contain', 'Nome cancelado');
+    cy.intercept('PATCH', '**/api/contabil/taxas-cartao', req => {
+      methods = methods.map(method => method.value === custom.value ? { ...method, label: req.body.nome, taxaPercentual: req.body.taxaPercentual } : method);
+      req.reply({ formasPagamento: methods });
+    }).as('edit');
+    card().contains('button', 'Editar').click();
+    card().find('input[type="text"]').clear().type('Vale Alimentação');
+    card().contains('button', 'Salvar alterações').click();
+    cy.wait('@edit');
+    const renamed = () => cy.get('.payment-settings-grid article').contains('Vale Alimentação').closest('article');
+    renamed().should('contain', '3%');
+    cy.on('window:confirm', () => false);
+    renamed().contains('button', 'Excluir').click();
+    renamed().should('exist');
+    cy.removeAllListeners('window:confirm');
+    cy.on('window:confirm', () => true);
+    cy.intercept('DELETE', `**/api/payment-settings/${custom.value}`, req => {
+      methods = methods.filter(method => method.value !== custom.value);
+      req.reply({ formasPagamento: methods });
+    }).as('delete');
+    renamed().contains('button', 'Excluir').click();
+    cy.wait('@delete');
+    cy.get('.payment-settings-grid').should('not.contain', 'Vale Alimentação');
+    cy.reload();
+    cy.get('.payment-settings-grid').should('not.contain', 'Vale Alimentação');
+    cy.get('.payment-settings-grid article').contains('Cartão de Crédito').closest('article').should('not.contain', 'Excluir');
+    cy.visit('/dashboard');
+    cy.get('.dashboard-monthly').contains('button', 'Mostrar').click();
+    cy.get('.dashboard-monthly-row').contains(custom.label).parent().should('contain', '3,00%').and('contain', '97,00');
+  });
+
+  it('mantém o card e a edição quando a API recusa uma alteração ou exclusão', () => {
+    addMethod();
+    cy.intercept('PATCH', '**/api/contabil/taxas-cartao', { statusCode: 409, body: { msg: 'Nome já cadastrado.' } }).as('editError');
+    cy.get('.payment-settings-grid article').contains(custom.label).closest('article').within(() => {
+      cy.contains('button', 'Editar').click();
+      cy.get('input[type="text"]').clear().type('PIX');
+      cy.contains('button', 'Salvar alterações').click();
+    });
+    cy.wait('@editError');
+    cy.get('.payment-settings-grid input[type="text"]').should('have.value', 'PIX');
+    cy.get('.payment-settings-grid').contains('button', 'Cancelar').click();
+    cy.intercept('DELETE', `**/api/payment-settings/${custom.value}`, { statusCode: 500, body: { msg: 'Falha ao excluir.' } }).as('deleteError');
+    cy.on('window:confirm', () => true);
+    cy.get('.payment-settings-grid article').contains(custom.label).closest('article').contains('button', 'Excluir').click();
+    cy.wait('@deleteError');
+    cy.get('.payment-settings-grid').should('contain', custom.label);
   });
 });

@@ -8,6 +8,7 @@ const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
 const Despesa = require('../models/Despesa');
 const PaymentSettings = require('../models/PaymentSettings');
 const Purchase = require('../models/Purchase');
+const { ROTULOS_PAGAMENTO, normalizarNome, catalogoDaConfiguracao } = require('../utils/formasPagamento');
 const { calcularCustoUnitarioVenda } = require('../utils/estoqueInsumo');
 const { carregarPagamentosDoPeriodo, dinheiro: dinheiroPagamento } = require('../utils/pagamento');
 
@@ -73,18 +74,32 @@ router.patch('/taxas-cartao', async (req, res) => {
     const tipo = typeof req.body.tipo === 'string' ? req.body.tipo : '';
     const percentual = Number(req.body.taxaPercentual);
     if (!mes || !tipo || req.body.taxaPercentual == null || req.body.taxaPercentual === '' || !Number.isFinite(percentual) || percentual < 0 || percentual > 100) return res.status(400).json({ msg: 'Informe mês, forma de pagamento e taxa entre 0% e 100%.' });
+    const editarNome = Object.prototype.hasOwnProperty.call(req.body, 'nome');
+    const nome = typeof req.body.nome === 'string' ? req.body.nome.trim().replace(/\s+/g, ' ') : '';
+    const nomeNormalizado = normalizarNome(nome);
+    if (editarNome && (!nome || nome.length > 80 || /[\u0000-\u001f\u007f]/.test(nome))) return res.status(400).json({ msg: 'Informe um nome válido com até 80 caracteres.' });
     let atualizados = 0;
+    let formasPagamento;
     await session.withTransaction(async () => {
       atualizados = 0;
-      const configuracao = await PaymentSettings.findOne({ chave: 'principal' }).session(session);
+      let configuracao = await PaymentSettings.findOne({ chave: 'principal' }).session(session);
       const personalizada = configuracao?.formasPersonalizadas.find(forma => forma.tipo === tipo);
       if (!['cartao_credito', 'cartao_debito'].includes(tipo) && !personalizada) throw Object.assign(new Error('Forma de pagamento não cadastrada.'), { status: 400 });
+      if (editarNome) {
+        if (!personalizada) throw Object.assign(new Error('Somente formas personalizadas podem ser renomeadas.'), { status: 400 });
+        const duplicado = Object.values(ROTULOS_PAGAMENTO).some(rotulo => normalizarNome(rotulo) === nomeNormalizado)
+          || configuracao.formasPersonalizadas.some(forma => forma.tipo !== tipo && forma.nomeNormalizado === nomeNormalizado);
+        if (duplicado) throw Object.assign(new Error('Já existe uma forma de pagamento com este nome.'), { status: 409 });
+        personalizada.nome = nome;
+        personalizada.nomeNormalizado = nomeNormalizado;
+      }
       if (personalizada) {
         personalizada.taxaPercentual = percentual;
         await configuracao.save({ session });
       } else {
-        await PaymentSettings.findOneAndUpdate({ chave: 'principal' }, { $set: { [tipo]: percentual } }, { upsert: true, new: true, setDefaultsOnInsert: true, session });
+        configuracao = await PaymentSettings.findOneAndUpdate({ chave: 'principal' }, { $set: { [tipo]: percentual } }, { upsert: true, new: true, setDefaultsOnInsert: true, session });
       }
+      formasPagamento = catalogoDaConfiguracao(configuracao);
       const { inicio, fim } = getMesRange(mes);
       const pedidos = await Order.find({ pagamentos: { $elemMatch: { tipo, dataPagamento: { $gte: inicio, $lt: fim } } } }).session(session);
       for (const pedido of pedidos) {
@@ -122,7 +137,7 @@ router.patch('/taxas-cartao', async (req, res) => {
         if (alterado) await comanda.save({ session });
       }
     });
-    res.json({ mes, tipo, taxaPercentual: percentual, pagamentosAtualizados: atualizados });
+    res.json({ mes, tipo, taxaPercentual: percentual, pagamentosAtualizados: atualizados, formasPagamento });
   } catch (error) {
     res.status(error.status || 500).json({ msg: error.message });
   } finally {

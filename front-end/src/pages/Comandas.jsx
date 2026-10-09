@@ -634,7 +634,7 @@ export default function Comandas() {
                     <div style={{ marginTop: 6, display: 'grid', gap: 4 }}>
                       {normalizarPagamentos(selected.historicoPagamentos).map((pagamento, indice) => (
                         <small key={indice} style={{ color: 'var(--text-secondary)' }}>
-                          {dataBR(pagamento.data)} · {rotuloPagamento(pagamento.tipo)} · <strong>{formatMoney(pagamento.valor)}</strong>
+                          {dataBR(pagamento.data)} · {pagamento.rotuloPagamento || rotuloPagamento(pagamento.tipo)} · <strong>{formatMoney(pagamento.valor)}</strong>
                           {pagamento.usuario ? ` · ${pagamento.usuario}` : ''}
                         </small>
                       ))}

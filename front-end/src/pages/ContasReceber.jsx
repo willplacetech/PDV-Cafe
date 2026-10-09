@@ -679,7 +679,7 @@ export default function ContasReceber() {
                       <div style={{ marginTop: 6, display: 'grid', gap: 4 }}>
                         {pagamentos.map((pagamento, indice) => (
                           <small key={indice} style={{ color: 'var(--text-secondary)' }}>
-                            {dataBR(pagamento.data)} · {rotuloPagamento(pagamento.tipo)} · <strong>R$ {Number(pagamento.valor || 0).toFixed(2).replace('.', ',')}</strong>
+                            {dataBR(pagamento.data)} · {pagamento.rotuloPagamento || rotuloPagamento(pagamento.tipo)} · <strong>R$ {Number(pagamento.valor || 0).toFixed(2).replace('.', ',')}</strong>
                             {pagamento.observacao ? ` · ${pagamento.observacao}` : ''}
                           </small>
                         ))}
@@ -769,7 +769,7 @@ export default function ContasReceber() {
                     {pedido.pagamentos.map((pg, i) => (
                       <div key={i} style={{ fontSize: 12, padding: '4px 0', borderTop: '1px solid var(--border-light)' }}>
                         {pg.dataPagamento ? new Date(pg.dataPagamento).toLocaleDateString('pt-BR') : '-'}
-                        {' • '}{rotuloPagamento(pg.tipo)}
+                        {' • '}{pg.rotuloPagamento || rotuloPagamento(pg.tipo)}
                         {' • '}<strong>R$ {parseFloat(pg.valorRecebido).toFixed(2).replace('.',',')}</strong>
                         {pg.quitado && ' ✅'}
                       </div>
