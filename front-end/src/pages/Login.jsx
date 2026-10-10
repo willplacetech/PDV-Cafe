@@ -45,7 +45,6 @@ export default function Login() {
     setLoading(true);
     try {
       await login(form.username.trim().toLowerCase(), form.password);
-      window.location.reload();
     } catch (err) {
       const mensagem = err.response?.data?.msg || 'Usuário ou senha inválidos';
       showToast(mensagem, 'error');

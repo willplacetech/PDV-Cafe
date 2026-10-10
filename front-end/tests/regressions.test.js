@@ -23,6 +23,26 @@ test('recebido líquido subtrai taxa atual do bruto', () => {
   assert.equal(evaluate(code, { relatorioMes: { recebido: 100, taxasCartao: 3 }, taxasCartaoAtual: 5 }, 'recebidoLiquidoAtual'), 95);
 });
 
+test('login bem sucedido mantém a sessão ativa sem recarregar o documento', async () => {
+  let reloads = 0;
+  let submittedCredentials;
+  const loadingStates = [];
+  const code = 'const handleSubmit = ' + section('Login', 'const handleSubmit = ', 'const handleInstallClick');
+  const handleSubmit = evaluate(code, {
+    form: { username: '  ANA  ', password: 'senha' },
+    setLoading: value => loadingStates.push(value),
+    login: async (...credentials) => { submittedCredentials = credentials; },
+    window: { location: { reload: () => { reloads++; } } },
+    showToast: () => {},
+  }, 'handleSubmit');
+
+  await handleSubmit({ preventDefault() {} });
+
+  assert.deepEqual(submittedCredentials, ['ana', 'senha']);
+  assert.deepEqual(loadingStates, [true, false]);
+  assert.equal(reloads, 0);
+});
+
 for (const valor of ['', '0', '0,00']) {
   test(`recebimento parcial em Contas a Receber ${JSON.stringify(valor)} não envia pagamento`, async () => {
     const requests = [];
