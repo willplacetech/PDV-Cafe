@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { textoSeguro } from '../src/utils/notaVenda.js';
+import { ImpressaoError, imprimirCupomVenda, listarImpressoesPendentes } from '../src/services/impressaoService.js';
 
 const source = (name) => readFileSync(new URL(`../src/pages/${name}.jsx`, import.meta.url), 'utf8');
 const section = (name, from, to) => source(name).split(from)[1].split(to)[0];
@@ -37,7 +38,7 @@ for (const valor of ['', '0', '0,00']) {
 test('remover linha retira desconto quando grupo perde mínimo', () => {
   const functions = source('PDV').split('const precoPorUnidade = ')[1].split('export default function PDV')[0];
   const recalculate = section('PDV', 'const recalcularPrecosCarrinho = ', 'const setCarrinho');
-  const remove = section('PDV', 'const removerItem = ', 'const subtotal');
+  const remove = section('PDV', 'const removerItem = ', 'const clienteSelecionado');
   const produtos = ['a', 'b'].map(_id => ({ _id, preco: 10, grupoDesconto: { nome: 'combo', ativo: true, quantidadeMinima: 2, precoPromocional: 8 } }));
   const carrinho = produtos.map(p => ({ produtoId: p._id, quantidade: 1, precoUnitario: 8, precoUnitarioOriginal: 10 }));
   let updated;
@@ -52,7 +53,7 @@ test('cliques repetidos ao abrir comanda enviam apenas uma requisição', async 
   const pending = new Promise(resolve => { release = resolve; });
   const noop = () => {};
   const code = 'const finalizar = ' + section('PDV', 'const finalizar = ', '// ==========================================');
-  const bindings = { entregaPDV: null, setEntregaPDV: () => {}, navigator: { onLine: true }, enfileirar: async () => ({ ok: true }), carrinho: [{ produtoId: 'a', quantidade: 1 }], clienteId: '', clienteSelecionado: null, clienteNome: '', showToast: noop, navigate: noop, setCarrinho: noop, setClienteId: noop, setClienteNome: noop, setEnviando: noop, envioRef: { current: false }, idempotenciaRef: { current: null }, crypto: { randomUUID: () => 'test-uuid' }, api: { post: async () => { sends++; await pending; return { data: { numero: 1 } }; } } };
+  const bindings = { entregaPDV: null, setEntregaPDV: () => {}, navigator: { onLine: true }, enfileirar: async () => ({ ok: true }), carrinho: [{ produtoId: 'a', quantidade: 1, precoUnitario: 10 }], subtotal: 10, total: 10, clienteId: '', clienteSelecionado: null, clienteNome: '', showToast: noop, navigate: noop, setCarrinho: noop, setClienteId: noop, setClienteNome: noop, setEnviando: noop, limparComanda: noop, setQuantidadesRascunho: noop, setPrecosRascunho: noop, envioRef: { current: false }, idempotenciaRef: { current: null }, crypto: { randomUUID: () => 'test-uuid' }, api: { post: async () => { sends++; await pending; return { data: { numero: 1 } }; } } };
   const fn = evaluate(code, bindings, 'finalizar');
   const first = fn();
   const second = fn();
@@ -74,14 +75,33 @@ test('salvar mesas confirma sucesso só depois de persistir no servidor', async 
 });
 
 
-test('cupom PDV escapa cliente e dados de produto', () => {
-  let html = '';
-  const code = 'const imprimirCupom = ' + section('PDV', 'const imprimirCupom = ', 'const enviarWhatsApp');
-  const fn = evaluate(code, { textoSeguro, window: { location: { origin: 'http://localhost' }, open: () => ({ document: { write: value => { html = value; }, close() {} } }) } }, 'imprimirCupom');
-  fn({ createdAt: '2026-01-01', numero: '1', atendente: '<script>evil()</script>', clienteNome: '<img onerror="evil()">', subtotal: 10, total: 10, desconto: 0, itens: [{ nome: '<img onerror="evil()">', codigo: '<script>evil()</script>', quantidade: 1, precoUnitario: 10 }] });
-  assert.ok(!html.includes('<img onerror'));
-  assert.ok(!html.includes('<script>evil()'));
-  assert.ok(html.includes('&lt;img'));
+test('serviço do cupom escapa dados de produto no HTML de impressão', async () => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const values = new Map();
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: key => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+    },
+  });
+  try {
+    await assert.rejects(
+      imprimirCupomVenda({
+        numero: '1',
+        total: 10,
+        itens: [{ nome: '<img onerror="evil()">', quantidade: 1, precoUnitario: 10 }],
+      }),
+      error => error instanceof ImpressaoError,
+    );
+    const job = listarImpressoesPendentes().find(pending => pending.tipo === 'cupom-1');
+    assert.ok(job);
+    assert.ok(!job.html.includes('<img onerror'));
+    assert.ok(job.html.includes('&lt;img onerror=&quot;evil()&quot;&gt;'));
+  } finally {
+    if (previous) Object.defineProperty(globalThis, 'localStorage', previous);
+    else delete globalThis.localStorage;
+  }
 });
 
 const finalizarPDV = (overrides = {}) => {
@@ -89,10 +109,12 @@ const finalizarPDV = (overrides = {}) => {
   const bindings = {
     entregaPDV: null, setEntregaPDV: () => {},
     navigator: { onLine: false },
-    carrinho: [{ produtoId: 'a', quantidade: 1 }],
+    carrinho: [{ produtoId: 'a', quantidade: 1, precoUnitario: 10 }],
+    subtotal: 10, total: 10, clienteTemEnderecoCadastrado: false,
     clienteId: '', clienteSelecionado: null, clienteNome: '',
     showToast: noop, navigate: noop, setCarrinho: noop,
     setClienteId: noop, setClienteNome: noop, setEnviando: noop,
+    limparComanda: noop, setQuantidadesRascunho: noop, setPrecosRascunho: noop,
     envioRef: { current: false }, idempotenciaRef: { current: null },
     enfileirar: async () => ({ ok: true }),
     api: { post: async () => ({ data: { numero: 1 } }) },
