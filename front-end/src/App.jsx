@@ -1,4 +1,4 @@
-import { lazy, Suspense, useContext } from 'react';
+import { lazy, Suspense, useContext, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { ComandaProvider } from './context/ComandaContext.jsx';
@@ -9,6 +9,8 @@ import PrivateRoute from './components/PrivateRoute.jsx';
 import RoleRoute from './components/RoleRoute.jsx';
 import Layout from './components/Layout.jsx';
 import { AuthContext } from './context/AuthContextDefinition.jsx';
+import { useToast } from './components/useToast.js';
+import { APP_VERSION, fetchPublishedAppVersion, waitForServiceWorkerUpdate } from './services/appVersion.js';
 const Login = lazy(() => import('./pages/Login.jsx'));
 const PDV = lazy(() => import('./pages/PDV.jsx'));
 const Products = lazy(() => import('./pages/Products.jsx'));
@@ -31,6 +33,71 @@ const DeliveryEntry = lazy(() => import('./pages/DeliveryEntry.jsx'));
 const DeliveryEntregador = lazy(() => import('./pages/DeliveryEntregador.jsx'));
 const RastreioEntrega = lazy(() => import('./pages/RastreioEntrega.jsx'));
 
+function AppVersionGuard() {
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    let active = true;
+    let checking = false;
+
+    const checkVersion = async () => {
+      if (checking || navigator.onLine === false || document.visibilityState === 'hidden') return;
+      checking = true;
+      try {
+        const publishedVersion = await fetchPublishedAppVersion();
+        if (!active || publishedVersion === APP_VERSION) return;
+
+        const reloadKey = `pdv:version-reload:${publishedVersion}`;
+        try {
+          if (sessionStorage.getItem(reloadKey) === '1') {
+            showToast('Há uma nova versão disponível. Feche e reabra o aplicativo para tentar atualizar.', 'warning');
+            return;
+          }
+          sessionStorage.setItem(reloadKey, '1');
+        } catch {
+          // A successful service-worker activation still reloads through the PWA runtime.
+        }
+
+        showToast('Nova versão encontrada. Atualizando o aplicativo…', 'info');
+        try {
+          if (!('serviceWorker' in navigator)) throw new Error('Este navegador não oferece suporte ao service worker.');
+          const serviceWorker = navigator.serviceWorker;
+          const registration = await serviceWorker.ready;
+          await waitForServiceWorkerUpdate(registration, serviceWorker);
+        } catch (error) {
+          try {
+            sessionStorage.removeItem(reloadKey);
+          } catch {
+            // Session storage can be unavailable in restricted browser modes.
+          }
+          console.error('[PWA] Não foi possível aplicar a nova versão.', error);
+          if (active) showToast('A nova versão foi encontrada, mas não foi possível aplicá-la. Tente fechar e reabrir o aplicativo.', 'warning');
+        }
+      } catch (error) {
+        console.warn('[PWA] Não foi possível validar a versão atual.', error);
+        if (active) showToast('Não foi possível confirmar a versão atual. O acesso continuará com a versão disponível.', 'warning');
+      } finally {
+        checking = false;
+      }
+    };
+
+    const checkWhenVisible = () => {
+      if (document.visibilityState === 'visible') void checkVersion();
+    };
+
+    void checkVersion();
+    window.addEventListener('online', checkVersion);
+    document.addEventListener('visibilitychange', checkWhenVisible);
+    return () => {
+      active = false;
+      window.removeEventListener('online', checkVersion);
+      document.removeEventListener('visibilitychange', checkWhenVisible);
+    };
+  }, [showToast]);
+
+  return null;
+}
+
 function DefaultLanding() {
   const { user } = useContext(AuthContext);
   return <Navigate to={user?.role === 'admin' ? '/dashboard' : '/pdv'} replace />;
@@ -41,6 +108,7 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <ToastProvider>
+          <AppVersionGuard />
           <Router>
             <Suspense fallback={<p role="status" style={{ padding: 24 }}>Carregando…</p>}>
             <Routes>

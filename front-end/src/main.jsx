@@ -4,7 +4,10 @@ import { registerSW } from 'virtual:pwa-register';
 import App from './App.jsx';
 import './styles/theme.css';
 
-registerSW({ immediate: true });
+registerSW({
+  immediate: true,
+  onRegisterError: (error) => console.error('[PWA] Não foi possível registrar o service worker.', error),
+});
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
