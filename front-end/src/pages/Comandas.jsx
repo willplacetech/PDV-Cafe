@@ -1,3 +1,4 @@
+import FieldLabel from '../components/FieldLabel.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { criarOperacoesFinanceiras } from '../utils/operacaoFinanceira';
@@ -704,18 +705,14 @@ export default function Comandas() {
 
             {/* nome do cliente */}
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
-                👤 Nome do cliente <span style={{ fontWeight: 400 }}>(opcional)</span>
-              </label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}><FieldLabel hint={<> (opcional) </>}> 👤 Nome do cliente </FieldLabel></label>
               <input disabled={fechando} type="text" placeholder="Nome do cliente" value={nomeModal} onChange={e => setNomeModal(e.target.value)}
                 className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
             </div>
 
             {/* telefone do cliente */}
             <div style={{ marginBottom: 18 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
-                📱 Celular do cliente <span style={{ fontWeight: 400 }}>(opcional — salva nome e telefone no cadastro)</span>
-              </label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}><FieldLabel hint={<> (opcional — salva nome e telefone no cadastro) </>}> 📱 Celular do cliente </FieldLabel></label>
               <input disabled={fechando} type="tel" placeholder="(00) 00000-0000" value={telefoneModal} onChange={e => setTelefoneModal(e.target.value)}
                 className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
             </div>

@@ -1,3 +1,4 @@
+import FieldLabel from '../components/FieldLabel.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { criarOperacoesFinanceiras } from '../utils/operacaoFinanceira';
@@ -964,12 +965,12 @@ export default function ContasReceber() {
             </div>
 
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Valor a pagar (R$)</label>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}><FieldLabel hint={<> Saldo pendente: R$ {saldoPagamentoIndividual.toFixed(2)} </>}> Valor a pagar (R$) </FieldLabel></label>
               <input disabled={recebendo} type="number" min="0.01" max={saldoPagamentoIndividual} step="0.01" autoFocus
                 value={formPagamento.valorRecebido}
                 onChange={event => setFormPagamento({ ...formPagamento, valorRecebido: event.target.value })}
                 style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, fontSize: 16, background: 'var(--bg-tertiary)', fontWeight: 700 }} />
-              <small style={{ display: 'block', marginTop: 5, color: 'var(--text-secondary)' }}>Saldo pendente: R$ {saldoPagamentoIndividual.toFixed(2)}</small>
+              
             </div>
 
             <div style={{ marginBottom: 16 }}>

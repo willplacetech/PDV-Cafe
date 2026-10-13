@@ -1,3 +1,4 @@
+import FieldLabel from '../components/FieldLabel.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -352,8 +353,8 @@ export default function Entregas() {
       <label>Endereço do comércio<textarea name="endereco" required maxLength={500} defaultValue={comercio.endereco} /></label>
       <label>Taxa padrão de entrega (R$)<input name="taxaEntregaPadrao" type="number" min="0" step="0.01" required defaultValue={comercio.taxaEntregaPadrao ?? comercio.taxaPorEntrega ?? 0} /></label>
       <label>Tempo estimado padrão (minutos)<input name="tempo" type="number" min="1" step="1" required defaultValue={comercio.configuracao.tempoEstimadoPadraoMin} /></label>
-      <label>Mensagem para o cliente<textarea name="mensagem" required maxLength={1000} defaultValue={comercio.configuracao.mensagemWhatsApp} /></label>
-      <p className="delivery-muted">Use {'{link}'} no ponto onde deve aparecer o rastreamento.</p>
+      <label><FieldLabel hint={<> Use {'{link}'} no ponto onde deve aparecer o rastreamento. </>}> Mensagem para o cliente </FieldLabel><textarea name="mensagem" required maxLength={1000} defaultValue={comercio.configuracao.mensagemWhatsApp} /></label>
+      
       <button disabled={ocupado}>{ocupado ? 'Salvando…' : 'Salvar configurações'}</button>
     </form>}
 

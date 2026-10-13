@@ -1,3 +1,4 @@
+import FieldLabel from '../components/FieldLabel.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -392,14 +393,12 @@ export default function Products() {
                   </label>
                 </div>
               </fieldset>
-              <label>Código {editing && <small>(bloqueado)</small>}
-                <input value={form.codigo} readOnly={Boolean(editing)} onChange={(event) => { if (!editing) setForm({ ...form, codigo: event.target.value }); }} style={{ background: editing ? 'var(--bg-tertiary)' : 'var(--input-bg)', cursor: editing ? 'not-allowed' : 'text' }} />
+              <label><FieldLabel hint={<> {editing && <>(bloqueado)</>} </>}> Código </FieldLabel><input value={form.codigo} readOnly={Boolean(editing)} onChange={(event) => { if (!editing) setForm({ ...form, codigo: event.target.value }); }} style={{ background: editing ? 'var(--bg-tertiary)' : 'var(--input-bg)', cursor: editing ? 'not-allowed' : 'text' }} />
               </label>
               <label>Nome *
                 <input value={form.nome} required onChange={(event) => setForm({ ...form, nome: event.target.value })} />
               </label>
-              {form.tipo === 'insumo' && <label>Marca/Referência <small>(opcional)</small>
-                <input value={form.marcaReferencia} onChange={(event) => setForm({ ...form, marcaReferencia: event.target.value })} />
+              {form.tipo === 'insumo' && <label><FieldLabel hint={<> (opcional) </>}> Marca/Referência </FieldLabel><input value={form.marcaReferencia} onChange={(event) => setForm({ ...form, marcaReferencia: event.target.value })} />
               </label>}
               <label>Categoria
                 <SearchableSelect value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value })}>
@@ -408,7 +407,7 @@ export default function Products() {
               </label>
               {form.tipo === 'venda' && <>
                 <label>Preço de venda (R$) * <input type="number" step="0.01" min={0} value={form.preco} required onChange={(event) => setForm({ ...form, preco: event.target.value })} /></label>
-                {form.tipoProduto !== 'coz' ? <><label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label><label>Estoque mínimo <small>Alerta quando chegar neste nível</small><input type="number" step="0.001" min={0} value={form.estoqueMinimo} onChange={(event) => setForm({ ...form, estoqueMinimo: event.target.value })} /></label></> : <div className="coz-stock-notice product-field-full"><strong>⚠️ Coz não possui estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
+                {form.tipoProduto !== 'coz' ? <><label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label><label><FieldLabel hint={<> Alerta quando chegar neste nível </>}> Estoque mínimo </FieldLabel><input type="number" step="0.001" min={0} value={form.estoqueMinimo} onChange={(event) => setForm({ ...form, estoqueMinimo: event.target.value })} /></label></> : <div className="coz-stock-notice product-field-full"><strong>⚠️ Coz não possui estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
                 <label>Unidade de compra
                   <SearchableSelect value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>
                     {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
@@ -419,9 +418,8 @@ export default function Products() {
                     {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </SearchableSelect>
                 </label>
-                {form.tipoProduto === 'producao' && <label>Rendimento por ficha técnica *
-                  <input required type="number" min="0.001" step="0.001" value={form.rendimentoPorReceita || 1} onChange={(event) => setForm({ ...form, rendimentoPorReceita: event.target.value })} />
-                  <small>Quantas unidades saem de uma fornada.</small>
+                {form.tipoProduto === 'producao' && <label><FieldLabel hint={<> Quantas unidades saem de uma fornada. </>}> Rendimento por ficha técnica * </FieldLabel><input required type="number" min="0.001" step="0.001" value={form.rendimentoPorReceita || 1} onChange={(event) => setForm({ ...form, rendimentoPorReceita: event.target.value })} />
+                  
                 </label>}
               </>}
             </div>
@@ -456,7 +454,7 @@ export default function Products() {
                 {form.tipoProduto === 'revenda' && (
                   <>
                     <label>Preço de compra (R$) <input type="number" step="0.01" min={0} value={form.precoCompra} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
-                    <label>Conteúdo por embalagem <input type="number" step="0.001" min={0} value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /><small>Quantidade de unidades/conteúdo comprada na embalagem.</small></label>
+                    <label><FieldLabel hint={<> Quantidade de unidades/conteúdo comprada na embalagem. </>}> Conteúdo por embalagem </FieldLabel><input type="number" step="0.001" min={0} value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /></label>
                   </>
                 )}
                 <label className="product-checkbox-label" style={{ gridColumn: '1 / -1' }}>
@@ -521,7 +519,7 @@ export default function Products() {
             <details className="product-form-section product-form-collapsible">
               <summary className="product-section-title"><span>⚙️</span><div><strong>CONFIGURAÇÕES AVANÇADAS</strong><small>Estoque de insumos e opções de venda</small></div></summary>
               <div className="product-form-grid">
-                {form.usavelEmReceita && <label>Estoque de insumos <small>Para uso em receitas</small><input type="number" step="0.001" min={0} value={form.estoqueInsumos} onChange={(event) => setForm({ ...form, estoqueInsumos: event.target.value })} /></label>}
+                {form.usavelEmReceita && <label><FieldLabel hint={<> Para uso em receitas </>}> Estoque de insumos </FieldLabel><input type="number" step="0.001" min={0} value={form.estoqueInsumos} onChange={(event) => setForm({ ...form, estoqueInsumos: event.target.value })} /></label>}
                 <label className="product-checkbox-label">
                   <input className="product-checkbox" type="checkbox" checked={form.vendidoFracionado} onChange={(event) => setForm({ ...form, vendidoFracionado: event.target.checked })} />
                   Permitir venda fracionada
@@ -541,18 +539,16 @@ export default function Products() {
               <div className="product-section-title"><span>💰</span><div><strong>COMPRA</strong><small>Preço, conteúdo e quantidade de embalagens</small></div></div>
               <div className="product-form-grid">
                 <label>Preço de compra POR EMBALAGEM (R$) * <input type="number" step="0.01" min={0} value={form.precoCompra} required onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
-                <label>Tipo de embalagem * <small>Unidade em que você compra</small>
-                  <SearchableSelect value={form.unidadeCompra} onChange={(event) => {
+                <label><FieldLabel hint={<> Unidade em que você compra </>}> Tipo de embalagem * </FieldLabel><SearchableSelect value={form.unidadeCompra} onChange={(event) => {
                     setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, conteudoPorEmbalagem: 1, unidadeConteudo: event.target.value });
                   }}>
                     {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </SearchableSelect>
                 </label>
-                <label>Conteúdo da embalagem * <small>Quanto tem dentro de cada embalagem</small>
-                   <div className="product-input-with-unit"><input type="number" step={decimalStep(form.unidade)} min={decimalMinimum(form.unidade)} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, quantidade: event.target.value, conteudoPorEmbalagem: event.target.value })} /><SearchableSelect value={form.unidade} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</SearchableSelect></div>
+                <label><FieldLabel hint={<> Quanto tem dentro de cada embalagem </>}> Conteúdo da embalagem * </FieldLabel><div className="product-input-with-unit"><input type="number" step={decimalStep(form.unidade)} min={decimalMinimum(form.unidade)} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, quantidade: event.target.value, conteudoPorEmbalagem: event.target.value })} /><SearchableSelect value={form.unidade} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</SearchableSelect></div>
                 </label>
                 <label>Quantidade de embalagens em estoque * <input type="number" step="0.001" min={0} value={form.estoqueEmbalagens} required onChange={(event) => setForm({ ...form, estoqueEmbalagens: event.target.value })} /></label>
-                <label>Estoque mínimo ({form.unidadeConteudo}) <small>Mínimo em unidade de conteúdo</small><input type="number" step="0.001" min={0} value={form.estoqueMinimoEmbalagens} onChange={(event) => setForm({ ...form, estoqueMinimoEmbalagens: event.target.value })} /></label>
+                <label><FieldLabel hint={<> Mínimo em unidade de conteúdo </>}> Estoque mínimo ({form.unidadeConteudo}) </FieldLabel><input type="number" step="0.001" min={0} value={form.estoqueMinimoEmbalagens} onChange={(event) => setForm({ ...form, estoqueMinimoEmbalagens: event.target.value })} /></label>
               </div>
             </section>
             <section className="product-form-section product-summary-section">

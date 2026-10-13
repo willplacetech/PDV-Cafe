@@ -1,3 +1,4 @@
+import FieldLabel from '../components/FieldLabel.jsx';
 import { useState, useEffect } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/useToast.js';
@@ -183,9 +184,7 @@ export default function Customers() {
         <form onSubmit={submit}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }} className="form-grid-cli">
             <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>
-                Nome * <span style={{ color: 'var(--error-bg)', fontSize: 10 }}>(obrigatório)</span>
-              </label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}><FieldLabel hint={<> (obrigatório) </>}> Nome * </FieldLabel></label>
               <input 
                 placeholder="Nome completo" 
                 value={form.nome} 
@@ -195,9 +194,7 @@ export default function Customers() {
               />
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>
-                Telefone * <span style={{ color: 'var(--error-bg)', fontSize: 10 }}>(obrigatório)</span>
-              </label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}><FieldLabel hint={<> (obrigatório) </>}> Telefone * </FieldLabel></label>
               <input 
                 placeholder="(11) 99999-9999" 
                 value={form.telefone}
@@ -207,9 +204,7 @@ export default function Customers() {
               />
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>
-                CPF <span style={{ color: 'var(--text-secondary)', fontSize: 10 }}>(opcional/único)</span>
-              </label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}><FieldLabel hint={<> (opcional/único) </>}> CPF </FieldLabel></label>
               <input 
                 placeholder="000.000.000-00" 
                 value={form.cpf}
@@ -218,9 +213,7 @@ export default function Customers() {
               />
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>
-                Aniversário <span style={{ color: 'var(--text-secondary)', fontSize: 10 }}>(opcional)</span>
-              </label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}><FieldLabel hint={<> (opcional) </>}> Aniversário </FieldLabel></label>
               <input 
                 placeholder="DD/MM/AAAA" 
                 value={form.aniversario}
@@ -229,9 +222,9 @@ export default function Customers() {
               />
             </div>
             {editing && <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>
-                Histórico de comandas da fidelidade
-              </label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}><FieldLabel hint={<> 
+                Cada 10 comandas completam um multiplicador.
+               </>}> Histórico de comandas da fidelidade </FieldLabel></label>
               <input
                 type="number"
                 min="0"
@@ -242,9 +235,7 @@ export default function Customers() {
                 onChange={event => setForm({ ...form, cafesFidelidade: event.target.value })}
                 style={inputStyle}
               />
-              <small style={{ color: 'var(--text-secondary)' }}>
-                Cada 10 comandas completam um multiplicador.
-              </small>
+              
             </div>}
           </div>
           <fieldset style={{ marginTop: 14, padding: 12, border: '1px solid var(--border-color)', borderRadius: 10 }}>

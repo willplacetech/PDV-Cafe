@@ -1,3 +1,4 @@
+import FieldLabel from '../components/FieldLabel.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useCallback, useContext, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
@@ -143,10 +144,9 @@ export default function Users() {
         <label style={labelStyle}>Usuário
           <input value={form.username} onChange={event => setForm({ ...form, username: event.target.value })} minLength={2} maxLength={254} required autoComplete="username" style={inputStyle} />
         </label>
-        <label style={labelStyle}>Senha
-          <input type="password" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} minLength={12} required autoComplete="new-password" aria-describedby="new-password-policy" style={inputStyle} />
+        <label style={labelStyle}><FieldLabel hintId="new-password-policy" hint={<> {policyMessage} </>}> Senha </FieldLabel><input type="password" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} minLength={12} required autoComplete="new-password" aria-describedby="new-password-policy" style={inputStyle} />
         </label>
-        <p id="new-password-policy">{policyMessage}</p>
+        
         <label style={labelStyle}>Perfil
           <SearchableSelect value={form.role} onChange={event => setForm({ ...form, role: event.target.value })} style={inputStyle}>
             {Object.entries(roles).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -183,10 +183,9 @@ export default function Users() {
             </SearchableSelect>
           </label>
           <label style={labelStyle}><input type="checkbox" checked={edit.ativo} onChange={event => setEdit({ ...edit, ativo: event.target.checked })} /> Acesso ativo</label>
-          <label style={labelStyle}>Nova senha (deixe vazio para manter a atual)
-            <input type="password" value={edit.password} onChange={event => setEdit({ ...edit, password: event.target.value })} minLength={12} autoComplete="new-password" aria-describedby="reset-password-policy" style={inputStyle} />
+          <label style={labelStyle}><FieldLabel hintId="reset-password-policy" hint={<> {policyMessage} </>}> Nova senha (deixe vazio para manter a atual) </FieldLabel><input type="password" value={edit.password} onChange={event => setEdit({ ...edit, password: event.target.value })} minLength={12} autoComplete="new-password" aria-describedby="reset-password-policy" style={inputStyle} />
           </label>
-          <p id="reset-password-policy">{policyMessage}</p>
+          
           <div className="users-actions">
             <button type="submit" disabled={busy} style={buttonStyle}>{busy ? 'Salvando...' : 'Salvar alterações'}</button>
             <button type="button" className="users-secondary-button" disabled={busy} onClick={() => { setEditingId(null); setEdit(emptyEdit); }}>Cancelar</button>
@@ -221,8 +220,8 @@ export default function Users() {
           <h3>Editar entregador: {courierEdit.nome}</h3>
           <label style={labelStyle}>Nome<input name="nome" required maxLength={160} defaultValue={courierEdit.nome} style={inputStyle} /></label>
           <label style={labelStyle}>Telefone<input name="telefone" type="tel" required maxLength={30} defaultValue={courierEdit.telefone} style={inputStyle} /></label>
-          <label style={labelStyle}>Nova senha (opcional)<input name="senha" type="password" minLength={12} maxLength={72} autoComplete="new-password" aria-describedby="courier-password-policy" style={inputStyle} /></label>
-          <p id="courier-password-policy">{policyMessage}</p>
+          <label style={labelStyle}><FieldLabel hintId="courier-password-policy" hint={<> {policyMessage} </>}> Nova senha (opcional) </FieldLabel><input name="senha" type="password" minLength={12} maxLength={72} autoComplete="new-password" aria-describedby="courier-password-policy" style={inputStyle} /></label>
+          
           <label style={labelStyle}><input name="ativo" type="checkbox" defaultChecked={courierEdit.ativo !== false} /> Cadastro ativo</label>
           <div className="users-actions">
             <button type="submit" disabled={busy} style={buttonStyle}>{busy ? 'Salvando...' : 'Salvar entregador'}</button>

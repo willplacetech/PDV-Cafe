@@ -1,0 +1,47 @@
+.field-label-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  line-height: 1.4;
+}
+.field-label-caption { flex: 0 0 auto; }
+.field-label-line > .field-hint-inline {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: inherit;
+}
+.field-help-tooltip {
+  position: fixed;
+  z-index: 100100;
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--accent-border, #ba987e);
+  border-radius: 10px;
+  background: var(--bg-secondary, #fff);
+  color: var(--text-primary, #30251d);
+  box-shadow: var(--shadow-lg, 0 6px 24px #0003);
+  font: 12px/1.5 var(--font-body, system-ui, sans-serif);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.field-help-tooltip[data-placement="above"] { transform: translateY(-100%); }
+@media (max-width: 767px) {
+  .field-label-line > .field-hint-inline {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    clip-path: inset(50%);
+    white-space: normal;
+  }
+}
