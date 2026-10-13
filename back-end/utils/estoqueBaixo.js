@@ -34,6 +34,7 @@ const ehProdutoCozNaHora = (produto) => (
   produto.tipoProduto === 'coz'
   || produto.aFazer === true
   || produto.categoria === 'Pratos na Hora'
+  || produto.producaoPropria === true
 );
 
 const listarEstoqueBaixo = (produtos) => produtos
