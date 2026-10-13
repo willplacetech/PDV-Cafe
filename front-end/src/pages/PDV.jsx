@@ -1,3 +1,4 @@
+import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -920,7 +921,7 @@ export default function PDV() {
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Cliente</label>
-                <select
+                <SearchableSelect
                   ref={selectClienteRef}
                   value={clienteId}
                   onChange={e => selecionarCliente(e.target.value)}
@@ -931,7 +932,7 @@ export default function PDV() {
                   }}>
                   <option value="">Cliente não identificado</option>
                   {clientes.map(c => <option key={c._id} value={c._id}>{c.nome}</option>)}
-                </select>
+                </SearchableSelect>
                 {consumoInterno && <small role="status">Consumo da equipe: sem pagamento, com baixa de estoque e registro de custo.</small>}
               </div>
               <div>
@@ -1063,7 +1064,7 @@ export default function PDV() {
             <label className="pdv-command-name">Observação<textarea value={comandaAtual.observacao || ''} maxLength={500} onChange={event => setComandaAtual(atual => ({ ...atual, observacao: event.target.value, status: 'rascunho' }))} /></label>
             <label className="pdv-mobile-product-select">
               <span>Adicionar produto</span>
-              <select
+              <SearchableSelect
                 value=""
                 onChange={(event) => {
                   const produto = produtos.find((item) => item._id === event.target.value);
@@ -1076,7 +1077,7 @@ export default function PDV() {
                     {produto.nome} — {formatMoney(produto.preco)}
                   </option>
                 ))}
-              </select>
+              </SearchableSelect>
             </label>
             {carrinho.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)', fontSize: 14 }}>
@@ -1288,10 +1289,10 @@ export default function PDV() {
             <div><span>{jaRecebido > 0 ? 'Saldo em aberto' : 'Total a cobrar'}</span><strong>{formatMoney(saldoFechamento)}</strong>{jaRecebido > 0 && <small>Total {formatMoney(totalFechamento)} · já recebido {formatMoney(jaRecebido)}</small>}</div>
           </div>
           <label>Forma de pagamento
-            <select disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={comandaPagamento?.metodoPagamento || metodoPagamento} onChange={event => setMetodoPagamento(event.target.value)}>
+            <SearchableSelect disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={comandaPagamento?.metodoPagamento || metodoPagamento} onChange={event => setMetodoPagamento(event.target.value)}>
               <option value="">Selecione…</option>
               {FORMAS_PAGAMENTO.map(forma => <option value={forma.value} key={forma.value}>{forma.label}</option>)}
-            </select>
+            </SearchableSelect>
           </label>
           <label>Nome do cliente (opcional)
             <input type="text" placeholder="Nome do cliente" disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={nomeFechamento} onChange={event => setNomeFechamento(event.target.value)} />
@@ -1327,7 +1328,7 @@ export default function PDV() {
           .pdv-cart-panel.mobile-open > div { min-height: 0; border-radius: 14px !important; }
           .pdv-cart-panel.mobile-open .pdv-cart-items { max-height: none !important; overflow: visible !important; }
           .pdv-cart-panel.mobile-open .pdv-mobile-product-select { display: grid; gap: 6px; margin: 0 0 14px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
-          .pdv-mobile-product-select select { width: 100%; min-height: 48px; padding: 10px 12px; border: 1.5px solid var(--border-color); border-radius: 10px; background: var(--input-bg); color: var(--input-text); font-size: 16px; }
+          .pdv-mobile-product-select :is(select, .searchable-select-input) { width: 100%; min-height: 48px; padding: 10px 12px; border: 1.5px solid var(--border-color); border-radius: 10px; background: var(--input-bg); color: var(--input-text); font-size: 16px; }
           .pdv-grid > div > div { padding: 12px !important; border-radius: 12px !important; margin-bottom: 10px !important; }
           .pdv-grid .product-card { min-height: 96px !important; padding: 10px !important; }
           .pdv-grid [style*="max-height: 420px"] { max-height: 280px !important; }
@@ -1351,7 +1352,7 @@ export default function PDV() {
         .pdv-payment-dialog{width:min(480px,100%);max-height:calc(100dvh - 36px);overflow:auto;padding:22px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);color:var(--text-primary);box-shadow:var(--shadow-lg)}
         .pdv-payment-dialog h2{margin:0 0 12px}.pdv-payment-dialog p{color:var(--text-secondary)}
         .pdv-payment-dialog label{display:grid;gap:7px;margin-top:12px;font-size:13px;font-weight:700}
-        .pdv-payment-dialog select,.pdv-payment-dialog input{width:100%;box-sizing:border-box;min-height:46px;padding:10px;border:1px solid var(--border-color);border-radius:9px;background:var(--input-bg);color:var(--input-text);font:inherit}
+        .pdv-payment-dialog :is(select, .searchable-select-input),.pdv-payment-dialog input{width:100%;box-sizing:border-box;min-height:46px;padding:10px;border:1px solid var(--border-color);border-radius:9px;background:var(--input-bg);color:var(--input-text);font:inherit}
         .pdv-payment-items{max-height:200px;overflow:auto;background:var(--bg-tertiary);padding:10px 14px;border-radius:10px}.pdv-payment-items>div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border-color);font-size:13px}
         .pdv-payment-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}.pdv-payment-heading span{font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--accent-primary)}.pdv-payment-heading h2{font-size:20px;margin:4px 0 0}.pdv-payment-heading button{border:0;background:transparent;font-size:22px;color:var(--text-secondary);cursor:pointer}
         .pdv-payment-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.pdv-payment-summary>div{display:flex;flex-direction:column;justify-content:flex-end;gap:4px;font-size:12px;color:var(--text-secondary)}.pdv-payment-summary strong{font-size:22px;color:var(--accent-primary)}

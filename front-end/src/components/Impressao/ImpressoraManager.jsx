@@ -1,3 +1,4 @@
+import SearchableSelect from '../../components/SearchableSelect.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api.jsx';
 import {
@@ -260,10 +261,10 @@ export default function ImpressoraManager() {
         <h2 style={{ marginTop: 0 }}>Cupom e automação</h2>
         <label style={{ display: 'block', marginBottom: 12 }}>
           Largura do papel
-          <select value={config.paperWidth} onChange={(event) => setConfig({ ...config, paperWidth: event.target.value })} style={{ display: 'block', marginTop: 5, minHeight: 40 }}>
+          <SearchableSelect value={config.paperWidth} onChange={(event) => setConfig({ ...config, paperWidth: event.target.value })} style={{ display: 'block', marginTop: 5, minHeight: 40 }}>
             <option value="58mm">58 mm</option>
             <option value="80mm">80 mm</option>
-          </select>
+          </SearchableSelect>
         </label>
         <label style={{ display: 'block', marginBottom: 8 }}>
           <input type="checkbox" checked={config.imprimirCupomAutomaticamente} onChange={(event) => setConfig({ ...config, imprimirCupomAutomaticamente: event.target.checked })} /> Imprimir cupom automaticamente ao fechar a venda
@@ -315,9 +316,9 @@ export default function ImpressoraManager() {
         ))}
         <label style={{ display: 'block', marginBottom: 12 }}>
           Setor padrão
-          <select value={config.setorPadrao} onChange={(event) => setConfig({ ...config, setorPadrao: event.target.value })} style={{ display: 'block', marginTop: 5, minHeight: 38 }}>
+          <SearchableSelect value={config.setorPadrao} onChange={(event) => setConfig({ ...config, setorPadrao: event.target.value })} style={{ display: 'block', marginTop: 5, minHeight: 38 }}>
             {sectors.map((sector, index) => <option key={`${sector.nome}-${index}`} value={sector.nome}>{sector.nome}</option>)}
-          </select>
+          </SearchableSelect>
         </label>
         <form onSubmit={addSector} style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <input value={newSector} onChange={(event) => setNewSector(event.target.value)} placeholder="Nome do novo setor" aria-label="Nome do novo setor" />

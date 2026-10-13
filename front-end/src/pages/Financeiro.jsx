@@ -1,3 +1,4 @@
+import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import api from '../services/api.jsx';
@@ -369,22 +370,22 @@ export default function Financeiro() {
             <div className="filters-grid">
               <label>
                 Status
-                <select value={filtro.status} onChange={(event) => setFiltro({ ...filtro, status: event.target.value })}>
+                <SearchableSelect value={filtro.status} onChange={(event) => setFiltro({ ...filtro, status: event.target.value })}>
                   <option value="">Todos</option>
                   <option value="pendente">Pendente</option>
                   <option value="pago">Pago</option>
                   <option value="atrasado">Atrasado</option>
-                </select>
+                </SearchableSelect>
               </label>
 
               <label>
                 Categoria
-                <select value={filtro.categoria} onChange={(event) => setFiltro({ ...filtro, categoria: event.target.value })}>
+                <SearchableSelect value={filtro.categoria} onChange={(event) => setFiltro({ ...filtro, categoria: event.target.value })}>
                   <option value="">Todas</option>
                   {categorias.map((categoria) => (
                     <option key={categoria} value={categoria}>{categoria}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </label>
 
               <label>
@@ -462,11 +463,11 @@ export default function Financeiro() {
 
               <label>
                 Categoria
-                <select value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value })}>
+                <SearchableSelect value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value })}>
                   {categorias.map((categoria) => (
                     <option key={categoria}>{categoria}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </label>
 
               <label>
@@ -510,10 +511,10 @@ export default function Financeiro() {
                     <>
                       <label>
                         Formato do vencimento
-                        <select value={formatoVencimentoRecorrente} onChange={(event) => setFormatoVencimentoRecorrente(event.target.value)}>
+                        <SearchableSelect value={formatoVencimentoRecorrente} onChange={(event) => setFormatoVencimentoRecorrente(event.target.value)}>
                           <option value="data">Data completa</option>
                           <option value="dia">Dia do mês</option>
-                        </select>
+                        </SearchableSelect>
                       </label>
                       {formatoVencimentoRecorrente === 'dia' ? (
                         <label>
@@ -822,10 +823,10 @@ export default function Financeiro() {
           font-weight: 700;
         }
 
-        .filters-grid select,
+        .filters-grid :is(select, .searchable-select-input),
         .filters-grid input,
         .form-grid input,
-        .form-grid select {
+        .form-grid :is(select, .searchable-select-input) {
           min-height: 42px;
           border: 1px solid var(--border-color);
           border-radius: 8px;

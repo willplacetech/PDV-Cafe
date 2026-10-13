@@ -1,3 +1,4 @@
+import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
@@ -315,9 +316,9 @@ export default function Entregas() {
 
     {aba === 'historico' && <div className="delivery-form-grid">
       <label>Status
-        <select value={filtroStatus} onChange={event => { setFiltroStatus(event.target.value); setPagina(1); }}>
+        <SearchableSelect value={filtroStatus} onChange={event => { setFiltroStatus(event.target.value); setPagina(1); }}>
           <option value="">Todos</option>{Object.entries(STATUS_NOMES).map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
-        </select>
+        </SearchableSelect>
       </label>
       <label>Data<input type="date" value={filtroData} onChange={event => { setFiltroData(event.target.value); setPagina(1); }} /></label>
     </div>}
@@ -372,10 +373,10 @@ export default function Entregas() {
             {entregador && <p><strong>Entregador:</strong> {entregador.nome}</p>}
             {pedido.status === 'pronto' && <div className="delivery-actions">
               <label className="delivery-dispatch-label">Entregador disponível
-                <select value={selecao[pedido._id] || ''} onChange={event => setSelecao(atual => ({ ...atual, [pedido._id]: event.target.value }))}>
+                <SearchableSelect value={selecao[pedido._id] || ''} onChange={event => setSelecao(atual => ({ ...atual, [pedido._id]: event.target.value }))}>
                   <option value="">Selecione…</option>
                   {entregadores.filter(item => item.ativo !== false && ['disponivel', 'em_entrega'].includes(item.status)).map(item => <option key={item._id} value={item._id}>{item.nome}{item.status === 'em_entrega' ? ' · em entrega' : ''}</option>)}
-                </select>
+                </SearchableSelect>
               </label>
               <button type="button" disabled={despachando === pedido._id || !selecao[pedido._id]} onClick={() => void despachar(pedido)}>{despachando === pedido._id ? 'Despachando…' : 'Despachar'}</button>
             </div>}

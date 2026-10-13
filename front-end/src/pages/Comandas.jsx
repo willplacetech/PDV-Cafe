@@ -1,3 +1,4 @@
+import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { criarOperacoesFinanceiras } from '../utils/operacaoFinanceira';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -551,8 +552,8 @@ export default function Comandas() {
             <h2 style={{ marginTop: 0 }}>{selected.tipoAtendimento === 'delivery' ? '🛵 Delivery' : selected.tipoAtendimento === 'balcao' ? '📦 Balcão' : '🪑 Mesa'} #{selected.numero} <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}>— {selected.clienteNome}</small></h2>
             {selected.tipoAtendimento === 'balcao' && <div className="balcao-status-bar"><span>Status: <strong>{selected.statusBalcao || 'aguardando'}</strong></span><div>{['aguardando', 'preparando', 'pronto', 'pago', 'entregue'].map((status) => <button type="button" key={status} className={selected.statusBalcao === status ? 'active' : ''} onClick={() => updateBalcaoStatus(status)}>{status}</button>)}</div></div>}
             <form onSubmit={addItem} className="comandas-add-form">
-              <select className="comandas-field" required disabled={adicionandoItem} value={productId} onChange={(e) => { setProductId(e.target.value); setTipoVenda('inteiro'); setPesoVendidoKg(''); }}><option value="">Adicionar produto…</option>{products.filter((product) => product.categoria !== 'Insumos').map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}{produtoPorPeso(product) ? '/kg' : ''}</option>)}</select>
-              {produtoPorPeso(produtoSelecionado) && <select className="comandas-field" disabled={adicionandoItem} value={tipoVenda} onChange={(e) => setTipoVenda(e.target.value)}><option value="inteiro">Bolo inteiro</option><option value="peso">Fatia pesada</option></select>}
+              <SearchableSelect className="comandas-field" required disabled={adicionandoItem} value={productId} onChange={(e) => { setProductId(e.target.value); setTipoVenda('inteiro'); setPesoVendidoKg(''); }}><option value="">Adicionar produto…</option>{products.filter((product) => product.categoria !== 'Insumos').map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}{produtoPorPeso(product) ? '/kg' : ''}</option>)}</SearchableSelect>
+              {produtoPorPeso(produtoSelecionado) && <SearchableSelect className="comandas-field" disabled={adicionandoItem} value={tipoVenda} onChange={(e) => setTipoVenda(e.target.value)}><option value="inteiro">Bolo inteiro</option><option value="peso">Fatia pesada</option></SearchableSelect>}
               {tipoVenda === 'peso' && produtoPorPeso(produtoSelecionado) ? <input className="comandas-field quantity-field" disabled={adicionandoItem} required type="number" min="0.001" step="0.001" placeholder="Peso vendido (kg)" value={pesoVendidoKg} onChange={(e) => setPesoVendidoKg(e.target.value)} /> : <input className="comandas-field quantity-field" disabled={adicionandoItem} required type="number" min={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} step={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} value={quantity} onChange={(e) => setQuantity(e.target.value)} />}
               <button type="submit" disabled={adicionandoItem} className="comandas-secondary-button">{adicionandoItem ? 'Adicionando…' : 'Adicionar'}</button>
             </form>
@@ -690,7 +691,7 @@ export default function Comandas() {
             {/* forma de pagamento */}
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Forma de pagamento</label>
-              <select disabled={fechando}
+              <SearchableSelect disabled={fechando}
                 className="comandas-field"
                 value={paymentMethod}
                 onChange={e => { setPaymentMethod(e.target.value); setPaymentError(false); }}
@@ -698,7 +699,7 @@ export default function Comandas() {
               >
                 <option value="">Selecione…</option>
                 {FORMAS_PAGAMENTO.map((forma) => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* nome do cliente */}
@@ -796,7 +797,7 @@ export default function Comandas() {
                 {modalSucesso.entregaDelivery.pedido.status === 'pronto' && <>
                   <label style={{ display: 'grid', gap: 6, margin: '10px 0', fontSize: 13, fontWeight: 700 }}>
                     Entregador disponível
-                    <select
+                    <SearchableSelect
                       aria-label="Entregador para despacho"
                       className="comandas-field"
                       value={modalSucesso.entregaDelivery.entregadorId}
@@ -809,7 +810,7 @@ export default function Comandas() {
                       {(modalSucesso.entregaDelivery.entregadores || []).filter(entregador => entregador.ativo !== false && ['disponivel', 'em_entrega'].includes(entregador.status)).map(entregador =>
                         <option key={entregador._id} value={entregador._id}>{entregador.nome}</option>
                       )}
-                    </select>
+                    </SearchableSelect>
                   </label>
                   <button
                     type="button"

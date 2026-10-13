@@ -10,7 +10,7 @@ const { precoPorUnidade } = require('../utils/pesoProduto');
 const { produtoControlaPeso } = require('../utils/estoqueProduto');
 const { ajustarEstoque } = require('../utils/movimentarEstoqueVenda');
 const { calcularPrecoComDesconto } = require('../utils/descontosQuantidade');
-const { calcularStatusPagamento, construirPagamento, normalizarPagamentos, pagamentosDoPedido, validarCancelamentoFinanceiro, formaPagamentoValida } = require('../utils/pagamento');
+const { calcularStatusPagamento, saldoDevedor: calcularSaldoDevedor, construirPagamento, normalizarPagamentos, pagamentosDoPedido, validarCancelamentoFinanceiro, formaPagamentoValida } = require('../utils/pagamento');
 
 const { executarOperacaoFinanceira } = require('../utils/operacaoFinanceira');
 
@@ -140,7 +140,7 @@ router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
     const filter = {};
     if (clienteId) filter.clienteId = clienteId;
     const statusNormalizado = normalizarStatusFiltro(status);
-    if (statusNormalizado) filter.status = statusNormalizado;
+    if (statusNormalizado) filter.$or = [{ status: statusNormalizado }, { comandaId: { $exists: true } }];
     if (inicio && fim) filter.createdAt = { $gte: new Date(inicio), $lte: new Date(new Date(fim).setHours(23, 59, 59)) };
     const pedidos = await Order.find(filter).sort({ createdAt: -1 }).lean();
     const comandaIds = [...new Set(pedidos.map((pedido) => pedido.comandaId).filter(Boolean).map(String))];
@@ -148,16 +148,24 @@ router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
       ? await Comanda.find({ _id: { $in: comandaIds } }).select('_id valorTotal historicoPagamentos').lean()
       : [];
     const comandasPorId = new Map(comandas.map((comanda) => [String(comanda._id), comanda]));
-    res.json(pedidos.map((pedido) => {
+    const pedidosAtualizados = pedidos.map((pedido) => {
       const comanda = pedido.comandaId ? comandasPorId.get(String(pedido.comandaId)) : null;
-      if (!comanda || money(comanda.valorTotal) !== money(pedido.total)) return pedido;
+      if (!comanda) {
+        return { ...pedido, saldoDevedor: calcularSaldoDevedor(pedido.total, pedido.pagamentos) };
+      }
       const situacao = calcularStatusPagamento(comanda);
       return {
         ...pedido,
         status: statusPedidoDe(situacao.statusPagamento),
         pagamentos: normalizarPagamentos(comanda.historicoPagamentos),
+        saldoDevedor: situacao.saldoDevedor,
       };
-    }));
+    });
+    res.json(statusNormalizado
+      ? pedidosAtualizados.filter((pedido) => (Array.isArray(statusNormalizado.$in)
+        ? statusNormalizado.$in.includes(pedido.status)
+        : pedido.status === statusNormalizado))
+      : pedidosAtualizados);
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 

@@ -1,3 +1,4 @@
+import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { criarOperacoesFinanceiras } from '../utils/operacaoFinanceira';
 import { useCallback, useState, useEffect, useMemo, useRef } from 'react';
@@ -15,6 +16,12 @@ const statusCor = {
   parcial: { bg: 'rgba(210,137,48,.16)', txt: 'var(--warning-bg)', label: 'Pagamento parcial' },
   pago: { bg: 'rgba(22,163,74,.12)', txt: 'var(--success-bg)', label: 'Quitado' },
   cancelado: { bg: 'var(--bg-tertiary)', txt: 'var(--text-secondary)', label: 'Cancelado' }
+};
+
+const saldoRecebivelPedido = (pedido) => {
+  const saldoAtual = Number(pedido?.saldoDevedor);
+  if (pedido?.saldoDevedor !== undefined && Number.isFinite(saldoAtual)) return Math.max(0, saldoAtual);
+  return Math.max(0, (parseFloat(pedido?.total) || 0) - somarPagamentos(pedido?.pagamentos));
 };
 
 
@@ -50,7 +57,7 @@ export default function ContasReceber() {
   const { showToast } = useToast();
   const produtoNovoPedido = produtos.find((produto) => produto._id === novoPedidoForm.produtoId);
   const passoQuantidadeNovoPedido = permiteFracionar(produtoNovoPedido) ? '0.001' : '1';
-  const saldoPagamentoIndividual = Math.max(0, Number(pagamentoModal?.total || 0) - somarPagamentos(pagamentoModal?.pagamentos));
+  const saldoPagamentoIndividual = saldoRecebivelPedido(pagamentoModal);
 
 
   const carregarDados = useCallback(async () => {
@@ -131,7 +138,7 @@ export default function ContasReceber() {
 
       const status = String(pedido?.status || '').toLowerCase();
       if (status !== 'pago' && status !== 'cancelado') {
-        totalEmAberto += Math.max(0, valorTotal - valorPago);
+        totalEmAberto += saldoRecebivelPedido(pedido);
       }
     });
 
@@ -238,11 +245,7 @@ export default function ContasReceber() {
   const valorTotalSelecionados = useMemo(() => {
     return pedidos
       .filter(p => selecionados.has(p._id))
-      .reduce((soma, pedido) => {
-        const valorTotal = parseFloat(pedido?.total) || 0;
-        const valorPago = somarPagamentos(pedido?.pagamentos);
-        return soma + Math.max(0, valorTotal - valorPago);
-      }, 0);
+      .reduce((soma, pedido) => soma + saldoRecebivelPedido(pedido), 0);
   }, [pedidos, selecionados]);
 
 
@@ -288,9 +291,7 @@ export default function ContasReceber() {
 
     for (const pedido of pedidosSelecionados) {
       try {
-        const valorTotal = parseFloat(pedido?.total) || 0;
-        const valorPago = somarPagamentos(pedido.pagamentos);
-        const valorAReceber = valorTotal - valorPago;
+        const valorAReceber = saldoRecebivelPedido(pedido);
 
         const { data: pedidoAtualizado } = await operacoesRef.current.enviar('patch', `/orders/${pedido._id}/pagar`, {
           tipo: formPagamentoMultiplo.tipo,
@@ -324,9 +325,7 @@ export default function ContasReceber() {
 
   // ✅ Receber pedido individual
   const abrirModalReceber = (pedido) => {
-    const valorTotal = parseFloat(pedido?.total) || 0;
-    const valorPago = somarPagamentos(pedido?.pagamentos);
-    const valorAReceber = (valorTotal - valorPago).toFixed(2);
+    const valorAReceber = saldoRecebivelPedido(pedido).toFixed(2);
 
     setPagamentoModal(pedido);
     setFormPagamento({
@@ -448,14 +447,12 @@ export default function ContasReceber() {
       aberto: pedidos.reduce((s, p) => {
         const st = String(p.status || '').toLowerCase();
         if (st === 'pago' || st === 'cancelado') return s;
-        const tp = somarPagamentos(p.pagamentos);
-        return s + Math.max(0, parseFloat(p.total) - tp);
+        return s + saldoRecebivelPedido(p);
       }, 0)
     };
 
     const pedidosHtml = pedidos.map(p => {
-      const totalPago = somarPagamentos(p.pagamentos);
-      const falta = Math.max(0, parseFloat(p.total) - totalPago);
+      const falta = saldoRecebivelPedido(p);
 
       return `
         <div style="border-bottom: 1px dashed #000; padding: 6px 0;">
@@ -542,23 +539,23 @@ export default function ContasReceber() {
       }}>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Cliente</label>
-          <select value={clienteFiltro} onChange={e => setClienteFiltro(e.target.value)} style={{
+          <SearchableSelect value={clienteFiltro} onChange={e => setClienteFiltro(e.target.value)} style={{
             width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
           }}>
             <option value="">Todos os clientes</option>
             {clientes.map(c => <option key={c._id} value={c._id}>{c.nome}</option>)}
-          </select>
+          </SearchableSelect>
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Status</label>
-          <select value={statusFiltro} onChange={e => setStatusFiltro(e.target.value)} style={{
+          <SearchableSelect value={statusFiltro} onChange={e => setStatusFiltro(e.target.value)} style={{
             width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
           }}>
             <option value="abertas">Todos em A Receber</option>
             <option value="pendente">Pendentes</option>
             <option value="parcial">Pagamento Parcial</option>
             <option value="pago">Quitados</option>
-          </select>
+          </SearchableSelect>
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Data Início</label>
@@ -709,7 +706,7 @@ export default function ContasReceber() {
           {pedidos.map(pedido => {
             const st = statusCor[pedido.status];
             const totalPago = somarPagamentos(pedido.pagamentos);
-            const falta = Math.max(0, parseFloat(pedido.total) - totalPago);
+            const falta = saldoRecebivelPedido(pedido);
             const estaSelecionado = selecionados.has(pedido._id);
 
             return (
@@ -868,9 +865,9 @@ export default function ContasReceber() {
             </p>
 
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Forma de pagamento</label>
-            <select disabled={recebendo} value={formComanda.formaPagamento} onChange={e => setFormComanda(f => ({ ...f, formaPagamento: e.target.value }))} style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', marginBottom: 12, boxSizing: 'border-box' }}>
+            <SearchableSelect disabled={recebendo} value={formComanda.formaPagamento} onChange={e => setFormComanda(f => ({ ...f, formaPagamento: e.target.value }))} style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', marginBottom: 12, boxSizing: 'border-box' }}>
               {FORMAS_PAGAMENTO.filter((forma) => forma.value !== 'credito_loja').map((forma) => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
-            </select>
+            </SearchableSelect>
             <small style={{ display: 'block', margin: '-8px 0 12px', color: 'var(--text-secondary)' }}>Crédito na loja não entra como recebimento: aqui só entra dinheiro de verdade.</small>
 
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Valor recebido (R$)</label>
@@ -916,11 +913,11 @@ export default function ContasReceber() {
 
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Forma de Pagamento</label>
-              <select disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={e => setFormPagamentoMultiplo({...formPagamentoMultiplo, tipo: e.target.value})} style={{
+              <SearchableSelect disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={e => setFormPagamentoMultiplo({...formPagamentoMultiplo, tipo: e.target.value})} style={{
                 width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10
               }}>
                 {FORMAS_PAGAMENTO.filter(forma => forma.value !== 'credito_loja').map(forma => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
-              </select>
+              </SearchableSelect>
             </div>
 
 
@@ -959,11 +956,11 @@ export default function ContasReceber() {
 
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Forma de Pagamento</label>
-              <select disabled={recebendo} value={formPagamento.tipo} onChange={e => setFormPagamento({...formPagamento, tipo: e.target.value})} style={{
+              <SearchableSelect disabled={recebendo} value={formPagamento.tipo} onChange={e => setFormPagamento({...formPagamento, tipo: e.target.value})} style={{
                 width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10
               }}>
                 {FORMAS_PAGAMENTO.filter(forma => forma.value !== 'credito_loja').map(forma => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
-              </select>
+              </SearchableSelect>
             </div>
 
             <div style={{ marginBottom: 12 }}>
@@ -1000,7 +997,7 @@ export default function ContasReceber() {
             <h3 style={{ margin: '0 0 6px' }}>➕ Novo pedido na conta</h3>
             <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)', fontSize: 13 }}>Pedido #{novoPedidoModal.numero} · {novoPedidoModal.clienteNome}</p>
             <div className="novo-pedido-item-form">
-              <label className="novo-pedido-field">Produto<select disabled={recebendo} value={novoPedidoForm.produtoId} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, produtoId: event.target.value, quantidade: '1' })}><option value="">Selecione um produto</option>{produtos.map(produto => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select></label>
+              <label className="novo-pedido-field">Produto<SearchableSelect disabled={recebendo} value={novoPedidoForm.produtoId} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, produtoId: event.target.value, quantidade: '1' })}><option value="">Selecione um produto</option>{produtos.map(produto => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</SearchableSelect></label>
               <label className="novo-pedido-field novo-pedido-quantity">Quantidade<input disabled={recebendo} type="number" min={passoQuantidadeNovoPedido} step={passoQuantidadeNovoPedido} value={novoPedidoForm.quantidade} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, quantidade: event.target.value })} /></label>
               <button type="button" className="novo-pedido-add" onClick={adicionarItemNovoPedido}>Adicionar produto</button>
             </div>
@@ -1026,9 +1023,9 @@ export default function ContasReceber() {
             <h3 style={{ margin: '0 0 8px' }}>✅ Quitar total do cliente</h3>
             <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)' }}>Todas as pendências do cliente selecionado serão quitadas.</p>
             <label style={{ display: 'block', marginBottom: 5, fontSize: 13, fontWeight: 700 }}>Forma de pagamento</label>
-            <select disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={event => setFormPagamentoMultiplo({ ...formPagamentoMultiplo, tipo: event.target.value })} style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, marginBottom: 16 }}>
+            <SearchableSelect disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={event => setFormPagamentoMultiplo({ ...formPagamentoMultiplo, tipo: event.target.value })} style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, marginBottom: 16 }}>
               {FORMAS_PAGAMENTO.filter(forma => forma.value !== 'credito_loja').map(forma => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
-            </select>
+            </SearchableSelect>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => { if (!recebendoRef.current) setQuitarClienteModal(false); }} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
               <button disabled={recebendo} onClick={confirmarQuitacaoCliente} style={{ flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Quitar tudo</button>
@@ -1058,7 +1055,7 @@ export default function ContasReceber() {
           font-weight: 800;
         }
 
-        .novo-pedido-field select,
+        .novo-pedido-field :is(select, .searchable-select-input),
         .novo-pedido-field input {
           width: 100%;
           min-height: 42px;

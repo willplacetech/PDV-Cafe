@@ -1,3 +1,4 @@
+import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
@@ -401,22 +402,22 @@ export default function Products() {
                 <input value={form.marcaReferencia} onChange={(event) => setForm({ ...form, marcaReferencia: event.target.value })} />
               </label>}
               <label>Categoria
-                <select value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value })}>
+                <SearchableSelect value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value })}>
                   {(form.tipo === 'venda' ? categoriasVenda : ['Insumos', ...categoriasVenda]).map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}
-                </select>
+                </SearchableSelect>
               </label>
               {form.tipo === 'venda' && <>
                 <label>Preço de venda (R$) * <input type="number" step="0.01" min={0} value={form.preco} required onChange={(event) => setForm({ ...form, preco: event.target.value })} /></label>
                 {form.tipoProduto !== 'coz' ? <><label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label><label>Estoque mínimo <small>Alerta quando chegar neste nível</small><input type="number" step="0.001" min={0} value={form.estoqueMinimo} onChange={(event) => setForm({ ...form, estoqueMinimo: event.target.value })} /></label></> : <div className="coz-stock-notice product-field-full"><strong>⚠️ Coz não possui estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
                 <label>Unidade de compra
-                  <select value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>
+                  <SearchableSelect value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>
                     {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
-                  </select>
+                  </SearchableSelect>
                 </label>
                 <label>Unidade de venda
-                  <select value={form.unidadeVenda} onChange={(event) => setForm({ ...form, unidadeVenda: event.target.value })}>
+                  <SearchableSelect value={form.unidadeVenda} onChange={(event) => setForm({ ...form, unidadeVenda: event.target.value })}>
                     {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
-                  </select>
+                  </SearchableSelect>
                 </label>
                 {form.tipoProduto === 'producao' && <label>Rendimento por ficha técnica *
                   <input required type="number" min="0.001" step="0.001" value={form.rendimentoPorReceita || 1} onChange={(event) => setForm({ ...form, rendimentoPorReceita: event.target.value })} />
@@ -466,7 +467,7 @@ export default function Products() {
                   <label>Preço de compra (R$) * <input type="number" step="0.01" min={0.01} required value={form.precoCompra} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
                   <label>Conteúdo por embalagem * <input type="number" step="0.001" min={0.001} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /></label>
                   <label>Unidade do conteúdo
-                    <select value={form.unidade} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</select>
+                    <SearchableSelect value={form.unidade} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</SearchableSelect>
                   </label>
                 </>}
               </div>
@@ -541,14 +542,14 @@ export default function Products() {
               <div className="product-form-grid">
                 <label>Preço de compra POR EMBALAGEM (R$) * <input type="number" step="0.01" min={0} value={form.precoCompra} required onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
                 <label>Tipo de embalagem * <small>Unidade em que você compra</small>
-                  <select value={form.unidadeCompra} onChange={(event) => {
+                  <SearchableSelect value={form.unidadeCompra} onChange={(event) => {
                     setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, conteudoPorEmbalagem: 1, unidadeConteudo: event.target.value });
                   }}>
                     {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
-                  </select>
+                  </SearchableSelect>
                 </label>
                 <label>Conteúdo da embalagem * <small>Quanto tem dentro de cada embalagem</small>
-                   <div className="product-input-with-unit"><input type="number" step={decimalStep(form.unidade)} min={decimalMinimum(form.unidade)} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, quantidade: event.target.value, conteudoPorEmbalagem: event.target.value })} /><select value={form.unidade} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</select></div>
+                   <div className="product-input-with-unit"><input type="number" step={decimalStep(form.unidade)} min={decimalMinimum(form.unidade)} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, quantidade: event.target.value, conteudoPorEmbalagem: event.target.value })} /><SearchableSelect value={form.unidade} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</SearchableSelect></div>
                 </label>
                 <label>Quantidade de embalagens em estoque * <input type="number" step="0.001" min={0} value={form.estoqueEmbalagens} required onChange={(event) => setForm({ ...form, estoqueEmbalagens: event.target.value })} /></label>
                 <label>Estoque mínimo ({form.unidadeConteudo}) <small>Mínimo em unidade de conteúdo</small><input type="number" step="0.001" min={0} value={form.estoqueMinimoEmbalagens} onChange={(event) => setForm({ ...form, estoqueMinimoEmbalagens: event.target.value })} /></label>
@@ -595,15 +596,15 @@ export default function Products() {
           <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>{filtrarEstoqueBaixo ? 'Produtos abaixo do mínimo' : 'Produtos'}</h3>
           <div className="product-list-filters">
 
-              <select className="product-filter-select" value={filtroFicha} onChange={(event) => setFiltroFicha(event.target.value)} aria-label="Selecionar ficha técnica">
+              <SearchableSelect className="product-filter-select" value={filtroFicha} onChange={(event) => setFiltroFicha(event.target.value)} aria-label="Selecionar ficha técnica">
               <option value="Todos">Por Ficha técnica</option>
               {fichas.map((ficha) => <option key={ficha._id} value={ficha._id}>{ficha.produtoId?.nome || ficha.nome}</option>)}
-              </select>
+              </SearchableSelect>
 
-              <select className="product-filter-select" value={filtroCategoria} onChange={(event) => setFiltroCategoria(event.target.value)}>
+              <SearchableSelect className="product-filter-select" value={filtroCategoria} onChange={(event) => setFiltroCategoria(event.target.value)}>
               <option value="Todos">Todas as categorias</option>
               {categoriasVenda.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}
-            </select>
+            </SearchableSelect>
             <input className="product-filter-input" value={filtroTexto} onChange={(event) => setFiltroTexto(event.target.value)} placeholder="Filtrar..." />
           </div>
         </div>
@@ -685,9 +686,9 @@ export default function Products() {
         .product-essential-grid > label { display: flex; min-width: 0; flex-direction: column; align-self: start; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
         .product-essential-grid > label > small { color: var(--text-tertiary); font-size: 11px; font-weight: 500; }
         .product-essential-grid input:not([type="radio"]):not([type="checkbox"]),
-        .product-essential-grid select { width: 100%; min-width: 0; height: 42px; min-height: 42px; box-sizing: border-box; margin: 0; padding: 9px 11px; border: 1px solid var(--input-border); border-radius: 8px; background: var(--input-bg); color: var(--input-text); font: inherit; }
-        .product-essential-grid input:focus, .product-essential-grid select:focus,
-        .product-form-section input:focus, .product-form-section select:focus { outline: none; border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-light); }
+        .product-essential-grid :is(select, .searchable-select-input) { width: 100%; min-width: 0; height: 42px; min-height: 42px; box-sizing: border-box; margin: 0; padding: 9px 11px; border: 1px solid var(--input-border); border-radius: 8px; background: var(--input-bg); color: var(--input-text); font: inherit; }
+        .product-essential-grid input:focus, .product-essential-grid :is(select, .searchable-select-input):focus,
+        .product-form-section input:focus, .product-form-section :is(select, .searchable-select-input):focus { outline: none; border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-light); }
         .product-type-field { min-width: 0; margin: 0; padding: 10px 12px; border: 1px solid var(--border-light); border-radius: 10px; background: var(--bg-tertiary); }
         .product-type-label { padding: 0 4px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
         .product-type-field .product-radio-group { gap: 8px 18px; }
@@ -737,7 +738,7 @@ export default function Products() {
           font-weight: 700;
           min-width: 0;
         }
-        .product-form-section input, .product-form-section select {
+        .product-form-section input, .product-form-section :is(select, .searchable-select-input) {
           width: 100%;
           box-sizing: border-box;
           height: 42px;
@@ -773,7 +774,7 @@ export default function Products() {
         .product-discount-group-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
         .product-discount-hint { color: var(--success-bg); font-size: 11px; }
         .product-input-with-unit { display: grid; grid-template-columns: minmax(0, 1fr) 76px; gap: 8px; align-items: stretch; }
-        .product-input-with-unit input, .product-input-with-unit select { height: 42px; }
+        .product-input-with-unit input, .product-input-with-unit :is(select, .searchable-select-input) { height: 42px; }
         .product-summary-section { background: var(--bg-secondary); }
         .product-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
         .product-summary-grid div { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--border-light); border-radius: 9px; }

@@ -162,7 +162,7 @@ a:hover {
 /* Inputs */
 input,
 textarea,
-select {
+:is(select, .searchable-select-input) {
   background: var(--input-bg);
   color: var(--input-text);
   border: 1px solid var(--input-border);
@@ -176,7 +176,7 @@ textarea::placeholder {
 
 input:focus,
 textarea:focus,
-select:focus {
+:is(select, .searchable-select-input):focus {
   outline: none;
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 3px var(--accent-light);
@@ -184,7 +184,7 @@ select:focus {
 
 input:required:user-invalid,
 textarea:required:user-invalid,
-select:required:user-invalid {
+:is(select, .searchable-select-input):required:user-invalid {
   border-color: var(--error-bg, #dc2626);
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
 }
@@ -429,7 +429,7 @@ tbody tr:hover {
   }
 
   input,
-  select,
+  :is(select, .searchable-select-input),
   textarea,
   button {
     max-width: 100%;

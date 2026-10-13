@@ -57,7 +57,30 @@ test('transfer preserves debt, historical receipts and period revenue, then acce
   expect((await Order.findById(order.id)).transferenciasComanda).toHaveLength(1);
 });
 
-test('listing order does not take payment status from a linked comanda with a different total', async () => {
+test('listing linked order exposes the comanda balance when totals differ', async () => {
+  source.valorTotal = 10;
+  await source.save();
+  order.status = 'pago';
+  await order.save();
+
+  const response = await request(app)
+    .get('/api/orders?status=parcial')
+    .set('Authorization', `Bearer ${token}`);
+
+  expect(response.status).toBe(200);
+  expect(response.body.find((pedido) => pedido._id === order.id)).toMatchObject({
+    status: 'parcial',
+    total: 20,
+    saldoDevedor: 5,
+    pagamentos: expect.arrayContaining([
+      expect.objectContaining({ tipo: 'dinheiro', valorRecebido: 5 }),
+    ]),
+  });
+  expect((await pay(order.id, 'linked-mismatched-total')).status).toBe(200);
+  expect((await Comanda.findById(source.id)).saldoDevedor).toBe(0);
+});
+
+test('listing zero-total linked order treats the comanda as settled despite the order total', async () => {
   const zeroTotalComanda = await Comanda.create({ atendente: 'transfer-admin', status: 'fechada', valorTotal: 0 });
   const inconsistentOrder = await Order.create({
     numero: '000002',
@@ -72,8 +95,9 @@ test('listing order does not take payment status from a linked comanda with a di
 
   expect(response.status).toBe(200);
   expect(response.body.find((pedido) => pedido._id === inconsistentOrder.id)).toMatchObject({
-    status: 'pendente',
+    status: 'pago',
     total: 82.3,
+    saldoDevedor: 0,
     pagamentos: [],
   });
 });

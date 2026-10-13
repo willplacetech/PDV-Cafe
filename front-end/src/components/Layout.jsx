@@ -755,7 +755,7 @@ export default function Layout({ children }) {
           background: rgba(239, 68, 68, 0.05);
         }
 
-        input, select, textarea { font-size: 16px !important; }
+        input, :is(select, .searchable-select-input), textarea { font-size: 16px !important; }
       `}</style>
     </div>
   );

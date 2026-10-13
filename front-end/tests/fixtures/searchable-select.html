@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8" />
+<title>Teste dos selects pesquisáveis</title>
+<div id="root"></div>
+<script type="module">
+  import React, { useState } from 'react';
+  import { createRoot } from 'react-dom/client';
+  import SearchableSelect from '../../src/components/SearchableSelect.jsx';
+  import '../../src/styles/theme.css';
+  const h = React.createElement;
+  function Fixture() {
+    const [value, setValue] = useState('');
+    const [extra, setExtra] = useState(false);
+    const [submitted, setSubmitted] = useState('');
+    return h('form', { style: { minHeight: 600 }, onSubmit: event => { event.preventDefault(); setSubmitted(new FormData(event.target).get('produto')); } },
+      h('div', { style: { width: 280, height: 60, overflow: 'hidden' } },
+        h('label', { htmlFor: 'produto' }, 'Produto'),
+        h(SearchableSelect, { id: 'produto', name: 'produto', required: true, value, style: { width: '100%' }, onChange: event => setValue(event.target.value) },
+          h('option', { value: '' }, 'Selecione'),
+          h('option', { value: 'cafe' }, 'Café com leite'),
+          h('option', { value: 'pao' }, 'Pão francês'),
+          h('option', { value: 'disabled', disabled: true }, 'Indisponível'),
+          extra && h('option', { value: 'novo' }, 'Novo produto'))),
+      h(SearchableSelect, { 'aria-label': 'Desabilitado', disabled: true, value: 'un' }, h('option', { value: 'un' }, 'Unidade')),
+      h('button', { type: 'button', onClick: () => { setExtra(true); setValue('novo'); } }, 'Atualizar opções'),
+      h('button', { type: 'submit' }, 'Salvar'),
+      h('output', { id: 'value' }, value), h('output', { id: 'submitted' }, submitted));
+  }
+  createRoot(document.getElementById('root')).render(h(Fixture));
+</script>
+</html>

@@ -38,7 +38,7 @@
 /* ✅ REGRA PRINCIPAL — Botões e campos USAM A MESMA FONTE */
 button,
 input,
-select,
+:is(select, .searchable-select-input),
 textarea {
   font-family: inherit; /* HERDA a fonte do root → NÃO quebra mais emojis! */
 }
@@ -79,7 +79,7 @@ body {
 
 button,
 input,
-select,
+:is(select, .searchable-select-input),
 textarea,
 a {
   min-height: 44px;
@@ -87,14 +87,14 @@ a {
 
 button,
 input,
-select,
+:is(select, .searchable-select-input),
 textarea {
   font: inherit;
   touch-action: manipulation;
 }
 
 input,
-select,
+:is(select, .searchable-select-input),
 textarea {
   font-size: 16px;
 }

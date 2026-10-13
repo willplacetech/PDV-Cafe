@@ -1,3 +1,4 @@
+import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useCallback, useContext, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
@@ -147,9 +148,9 @@ export default function Users() {
         </label>
         <p id="new-password-policy">{policyMessage}</p>
         <label style={labelStyle}>Perfil
-          <select value={form.role} onChange={event => setForm({ ...form, role: event.target.value })} style={inputStyle}>
+          <SearchableSelect value={form.role} onChange={event => setForm({ ...form, role: event.target.value })} style={inputStyle}>
             {Object.entries(roles).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
+          </SearchableSelect>
         </label>
         <button type="submit" disabled={loading || busy} style={buttonStyle}>{loading ? 'Criando...' : 'Criar usuário'}</button>
       </form>
@@ -177,9 +178,9 @@ export default function Users() {
         {editingId && <form onSubmit={handleUpdate} style={{ marginTop: 24 }} key={editingId}>
           <h3>Editar {users.find(account => account.id === editingId)?.username}</h3>
           <label style={labelStyle}>Perfil
-            <select value={edit.role} onChange={event => setEdit({ ...edit, role: event.target.value })} style={inputStyle}>
+            <SearchableSelect value={edit.role} onChange={event => setEdit({ ...edit, role: event.target.value })} style={inputStyle}>
               {Object.entries(roles).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
+            </SearchableSelect>
           </label>
           <label style={labelStyle}><input type="checkbox" checked={edit.ativo} onChange={event => setEdit({ ...edit, ativo: event.target.checked })} /> Acesso ativo</label>
           <label style={labelStyle}>Nova senha (deixe vazio para manter a atual)
