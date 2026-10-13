@@ -149,11 +149,13 @@ router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
     const pedidos = await Order.find(filter).sort({ createdAt: -1 }).lean();
     const comandaIds = [...new Set(pedidos.map((pedido) => pedido.comandaId).filter(Boolean).map(String))];
     const comandas = comandaIds.length
-      ? await Comanda.find({ _id: { $in: comandaIds } }).select('_id valorTotal historicoPagamentos').lean()
+      ? await Comanda.find({ _id: { $in: comandaIds } }).select('_id valorTotal historicoPagamentos status utilizacaoInterna').lean()
       : [];
     const comandasPorId = new Map(comandas.map((comanda) => [String(comanda._id), comanda]));
     const pedidosAtualizados = pedidos.map((pedido) => {
       const comanda = pedido.comandaId ? comandasPorId.get(String(pedido.comandaId)) : null;
+      if (pedido.status === 'cancelado' || comanda?.status === 'cancelada') return { ...pedido, status: 'cancelado', saldoDevedor: 0 };
+      if (pedido.utilizacaoInterna || comanda?.utilizacaoInterna) return { ...pedido, status: 'pago', saldoDevedor: 0 };
       if (!comanda) {
         return { ...pedido, saldoDevedor: calcularSaldoDevedor(pedido.total, pedido.pagamentos) };
       }

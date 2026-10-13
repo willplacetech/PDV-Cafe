@@ -447,6 +447,7 @@ router.patch('/:id/cancelar', auth, auth.allowRoles('admin', 'operador', 'garcom
     comanda.status = 'cancelada';
     comanda.estoqueBaixado = false;
     await comanda.save({ session });
+    await Order.updateMany({ _id: { $in: pedidos.map(pedido => pedido._id) }, status: { $in: ['pendente', 'parcial'] } }, { $set: { status: 'cancelado' } }, { session });
     await session.commitTransaction();
     res.json(comanda);
   } catch (err) {

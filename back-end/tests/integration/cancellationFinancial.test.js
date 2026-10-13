@@ -92,6 +92,30 @@ test('store credit comanda without receipts cancels and restores stock only once
   expect((await Comanda.findById(comanda.id)).estoqueBaixado).toBe(false);
 });
 
+test('cancelling a comanda cancels its unpaid order and removes it from receivables', async () => {
+  const order = await makeOrder({ comandaId: comanda.id });
+  expect((await cancel('comandas', comanda.id)).status).toBe(200);
+  expect((await Order.findById(order.id)).status).toBe('cancelado');
+  const listed = await request(app).get('/api/orders?status=abertas').set('Authorization', `Bearer ${token}`);
+  expect(listed.body.some(item => item._id === order.id)).toBe(false);
+  expect((await Product.findById(product.id)).estoque).toBe(10);
+});
+
+test('legacy order linked to cancelled comanda does not appear as pending or in receivables summary', async () => {
+  const order = await makeOrder({ comandaId: comanda.id });
+  await Comanda.updateOne({ _id: comanda.id }, { $set: { status: 'cancelada', estoqueBaixado: false } });
+  const listed = await request(app).get('/api/orders?status=abertas').set('Authorization', `Bearer ${token}`);
+  expect(listed.body.some(item => item._id === order.id)).toBe(false);
+  const summary = await request(app).get('/api/contas-receber/resumo').set('Authorization', `Bearer ${token}`);
+  expect(summary.body.total).toBe(0);
+});
+
+test('cancelled order with missing comanda retains audit data and has zero receivable balance', async () => {
+  const order = await makeOrder({ status: 'cancelado', comandaId: new (require('mongoose').Types.ObjectId)() });
+  const listed = await request(app).get('/api/orders').set('Authorization', `Bearer ${token}`);
+  expect(listed.body.find(item => item._id === order.id)).toMatchObject({ status: 'cancelado', saldoDevedor: 0, total: 20 });
+});
+
 test('closing an untracked unpaid comanda records stock withdrawal and cancellation restores it once', async () => {
   comanda.estoqueBaixado = false;
   await comanda.save();

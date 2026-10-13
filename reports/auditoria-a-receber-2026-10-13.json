@@ -1,0 +1,3989 @@
+{
+  "data": "2026-10-13T14:11:20.666Z",
+  "somenteLeitura": true,
+  "pedidosVerificados": 616,
+  "comandasVerificadas": 626,
+  "ocorrencias": [
+    {
+      "pedidoId": "6a995e88cd1eed49317ccf4e",
+      "status": "pago",
+      "total": 8.1,
+      "comandaId": "6a995e40cd1eed49317ccf45",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 8.1,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99629bcd1eed49317ccf72",
+      "status": "pago",
+      "total": 6.9,
+      "comandaId": "6a996272cd1eed49317ccf68",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 6.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a996ba4442750218baab12b",
+      "status": "pago",
+      "total": 15.8,
+      "comandaId": "6a996a15442750218baab0dc",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 15.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a996eaa442750218baab186",
+      "status": "pago",
+      "total": 47.5,
+      "comandaId": "6a996378cd1eed49317ccf91",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 47.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9977b6442750218baab33f",
+      "status": "pago",
+      "total": 55.5,
+      "comandaId": "6a9966c7442750218baab090",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 55.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a997b7a442750218baab4b0",
+      "status": "pago",
+      "total": 39.8,
+      "comandaId": "6a997514442750218baab276",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 39.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9982af442750218baab5bf",
+      "status": "pago",
+      "total": 14.5,
+      "comandaId": "6a997df3442750218baab4fd",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 14.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99852a442750218baab710",
+      "status": "pago",
+      "total": 33.9,
+      "comandaId": "6a9979de442750218baab3ba",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 33.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99861d442750218baab7d5",
+      "status": "pago",
+      "total": 28.8,
+      "comandaId": "6a997c3a442750218baab4d0",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 28.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a998ad4442750218baabab9",
+      "status": "pago",
+      "total": 22.9,
+      "comandaId": "6a9989e8442750218baabaa6",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 22.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a998ae6442750218baabadc",
+      "status": "pago",
+      "total": 21.8,
+      "comandaId": "6a99770e442750218baab31f",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 21.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a998bc4442750218baabafd",
+      "status": "pago",
+      "total": 17.9,
+      "comandaId": "6a9984cf442750218baab6f6",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 17.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a999110ff82e02e2aff00db",
+      "status": "pago",
+      "total": 132,
+      "comandaId": "6a9990a4ff82e02e2aff00b2",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 132,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a999155ff82e02e2aff00eb",
+      "status": "pago",
+      "total": 6.9,
+      "comandaId": "6a998b32442750218baabaef",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 6.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a999abaff82e02e2aff0128",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6a9999b7ff82e02e2aff0118",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a999fd9ff82e02e2aff01a8",
+      "status": "pago",
+      "total": 50.4,
+      "comandaId": "6a999ef9ff82e02e2aff0150",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 50.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a999fe5ff82e02e2aff01bc",
+      "status": "pago",
+      "total": 26,
+      "comandaId": "6a999c5cff82e02e2aff013b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 26,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a999ff7ff82e02e2aff01ce",
+      "status": "pago",
+      "total": 10.9,
+      "comandaId": "6a99973bff82e02e2aff00fe",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 10.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99a393ff82e02e2aff033c",
+      "status": "pago",
+      "total": 64,
+      "comandaId": "6a99a1b8ff82e02e2aff0311",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 64,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99a6ceff82e02e2aff04ab",
+      "status": "pago",
+      "total": 48,
+      "comandaId": "6a99a564ff82e02e2aff0493",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 48,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99acb2ff82e02e2aff0621",
+      "status": "pago",
+      "total": 56,
+      "comandaId": "6a99aca2ff82e02e2aff0616",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 56,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99adbfff82e02e2aff07b1",
+      "status": "pago",
+      "total": 19.8,
+      "comandaId": "6a99ad51ff82e02e2aff0630",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 19.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99b77a330c6b7dc3a20c71",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6a99b772330c6b7dc3a20c67",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99bdc8330c6b7dc3a20e34",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6a99bd8e330c6b7dc3a20e24",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99c598ee5fbda452bef9f7",
+      "status": "pago",
+      "total": 10,
+      "comandaId": "6a99bca3330c6b7dc3a20e09",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 10,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99cb4b9b06953ec70be046",
+      "status": "pago",
+      "total": 82,
+      "comandaId": "6a99bc82330c6b7dc3a20df9",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 82,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99d13e9b06953ec70beaa2",
+      "status": "pago",
+      "total": 7.5,
+      "comandaId": "6a99cd149b06953ec70be23a",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 7.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99d15d9b06953ec70beabc",
+      "status": "pago",
+      "total": 12,
+      "comandaId": "6a99ccc79b06953ec70be22b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 12,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99d1b69b06953ec70bec8e",
+      "status": "pago",
+      "total": 9.3,
+      "comandaId": "6a99cba19b06953ec70be05b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 9.3,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99d3859b06953ec70bee94",
+      "status": "pago",
+      "total": 89.9,
+      "comandaId": "6a99d0d09b06953ec70bea8d",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 89.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99d40e9b06953ec70beecd",
+      "status": "pago",
+      "total": 43.3,
+      "comandaId": "6a99ca90ee5fbda452bf003d",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 43.3,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99d52e9b06953ec70beef2",
+      "status": "pago",
+      "total": 70,
+      "comandaId": "6a99d4fd9b06953ec70beee5",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 70,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99d9d29b06953ec70bf35b",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6a99d5739b06953ec70bef03",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99de819b06953ec70bf3ba",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6a99de409b06953ec70bf3a7",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99df4e9b06953ec70bf3fb",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6a99df2b9b06953ec70bf3e7",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99e02d9b06953ec70bf440",
+      "status": "pago",
+      "total": 56.8,
+      "comandaId": "6a99d66a9b06953ec70bef2c",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 56.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99e1589b06953ec70bf456",
+      "status": "pago",
+      "total": 60.9,
+      "comandaId": "6a99d7d29b06953ec70bf142",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 60.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99e26b9b06953ec70bf483",
+      "status": "pago",
+      "total": 5.5,
+      "comandaId": "6a99de2c9b06953ec70bf385",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 5.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99e6e82dc315e370d319ed",
+      "status": "pago",
+      "total": 7.9,
+      "comandaId": "6a99deec9b06953ec70bf3d2",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 7.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99e75c2dc315e370d31a29",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6a99e7482dc315e370d31a14",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99e9102dc315e370d31a83",
+      "status": "pago",
+      "total": 44.4,
+      "comandaId": "6a99e2d39b06953ec70bf49c",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 44.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99eaa92dc315e370d31af3",
+      "status": "pago",
+      "total": 14.8,
+      "comandaId": "6a99ea9e2dc315e370d31ad9",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 14.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99ef004ab151963be972f3",
+      "status": "pago",
+      "total": 32.8,
+      "comandaId": "6a99e8292dc315e370d31a42",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99ef0d4ab151963be9732d",
+      "status": "pago",
+      "total": 60.5,
+      "comandaId": "6a99e1df9b06953ec70bf471",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 60.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a99f1eb4ab151963be9738f",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6a99f1df4ab151963be9737c",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9a09a080a58d75499dc43c",
+      "status": "pago",
+      "total": 43.8,
+      "comandaId": "6a99fb5f283c4328249579ac",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 43.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9ab3bf3ab67ba4edfb68cf",
+      "status": "pago",
+      "total": 22.9,
+      "comandaId": "6a9ab3333ab67ba4edfb68ad",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 22.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9abb263ab67ba4edfb6d0c",
+      "status": "pago",
+      "total": 34.8,
+      "comandaId": "6a9ab10a3ab67ba4edfb686e",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 34.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9abb573ab67ba4edfb6d29",
+      "status": "pago",
+      "total": 10,
+      "comandaId": "6a9ab9db3ab67ba4edfb6cef",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 10,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9abd423ab67ba4edfb6f65",
+      "status": "pago",
+      "total": 43.7,
+      "comandaId": "6a9ab0213ab67ba4edfb683a",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 43.7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9abd913ab67ba4edfb6f7e",
+      "status": "pago",
+      "total": 17.78,
+      "comandaId": "6a9ab28d3ab67ba4edfb688b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 17.78,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9abd9c3ab67ba4edfb6f96",
+      "status": "pago",
+      "total": 43.7,
+      "comandaId": "6a9ab01f3ab67ba4edfb6829",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 43.7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9abdb23ab67ba4edfb6fab",
+      "status": "pago",
+      "total": 28.9,
+      "comandaId": "6a9ab0753ab67ba4edfb6852",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 28.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9ac31413d26a863aab3931",
+      "status": "pago",
+      "total": 0.06,
+      "comandaId": "6a9ac31413d26a863aab3927",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 0.06,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9ad25b00d5556ac3e1cd79",
+      "status": "pago",
+      "total": 70.5,
+      "comandaId": "6a9ad02f00d5556ac3e1cd5b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 70.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9ad70800d5556ac3e1d045",
+      "status": "pago",
+      "total": 42,
+      "comandaId": "6a9ad47e00d5556ac3e1cda5",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 42,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9ad71500d5556ac3e1d05c",
+      "status": "pago",
+      "total": 58,
+      "comandaId": "6a9ad40400d5556ac3e1cd91",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 58,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9ae039cdb584214b9f7949",
+      "status": "pago",
+      "total": 24,
+      "comandaId": "6a9adfd8cdb584214b9f7936",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 24,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9ae0fecdb584214b9f7969",
+      "status": "pago",
+      "total": 70,
+      "comandaId": "6a9adb3c8902da472d1e596a",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 70,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9aeb66b759819926850996",
+      "status": "pago",
+      "total": 51,
+      "comandaId": "6a9aeb5ab759819926850981",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 51,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9aeb99b7598199268509cc",
+      "status": "pago",
+      "total": 70,
+      "comandaId": "6a9aeb8bb7598199268509b2",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 70,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9b0c376badb204d17d4b0a",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6a9ac95b54fe5db2906c924c",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9b142c6badb204d17d510d",
+      "status": "pago",
+      "total": 9.6,
+      "comandaId": "6a9b0d926badb204d17d4b22",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 9.6,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9b1d129d73dc369fc38100",
+      "status": "pago",
+      "total": 12.56,
+      "comandaId": "6a9b1d069d73dc369fc380f3",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 12.56,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9b21069d73dc369fc38124",
+      "status": "pago",
+      "total": 7.9,
+      "comandaId": "6a9b20fe9d73dc369fc38119",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 7.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9b2cbb86751c9e8efdad02",
+      "status": "pago",
+      "total": 23.9,
+      "comandaId": "6a9b2bf586751c9e8efdaceb",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9b2e1486751c9e8efdb099",
+      "status": "pago",
+      "total": 96.7,
+      "comandaId": "6a9b25ee9d73dc369fc38157",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 96.7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9b319286751c9e8efdb0f3",
+      "status": "pago",
+      "total": 78.8,
+      "comandaId": "6a9b2cff86751c9e8efdad1c",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 78.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9b31a186751c9e8efdb10f",
+      "status": "pago",
+      "total": 56,
+      "comandaId": "6a9b21849d73dc369fc38135",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 56,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9bf5547f3209e8379857b8",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6a9bf54d7f3209e8379857a9",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c00b8c5bc6dc58526b5ed",
+      "status": "pago",
+      "total": 7.9,
+      "comandaId": "6a9bfc9d7f3209e837985aa5",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 7.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c0af239c7d15c7778d341",
+      "status": "pago",
+      "total": 115.4,
+      "comandaId": "6a9c0192c5bc6dc58526b612",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 115.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c0cf039c7d15c7778d360",
+      "status": "pago",
+      "total": 73.5,
+      "comandaId": "6a9c0284c5bc6dc58526b62b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 73.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c0ef239c7d15c7778d392",
+      "status": "pago",
+      "total": 17.02,
+      "comandaId": "6a9c09e739c7d15c7778d2fe",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 17.02,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c135874cf3e0b7692b602",
+      "status": "pago",
+      "total": 45.8,
+      "comandaId": "6a9c0e0039c7d15c7778d37f",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 45.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c1b6be72d119d7c732312",
+      "status": "pago",
+      "total": 24,
+      "comandaId": "6a9c1943e72d119d7c7322f5",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 24,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c20a6e72d119d7c732366",
+      "status": "pago",
+      "total": 40.66,
+      "comandaId": "6a9c17c807ab4492621b88c2",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 40.66,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c20cde72d119d7c73237c",
+      "status": "pago",
+      "total": 14.9,
+      "comandaId": "6a9c1f1de72d119d7c732336",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 14.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c21e8e72d119d7c73239a",
+      "status": "pago",
+      "total": 45.6,
+      "comandaId": "6a9c1fb3e72d119d7c73234e",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 45.6,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c5e50c2b6714650a7d58f",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6a9c5e44c2b6714650a7d582",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c68efde50e853cad80f04",
+      "status": "pago",
+      "total": 6,
+      "comandaId": "6a9c676dde50e853cad80efb",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 6,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c71d5de50e853cad80faa",
+      "status": "pago",
+      "total": 68.2,
+      "comandaId": "6a9c6988de50e853cad80f16",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 68.2,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c7fc1e561640770872f93",
+      "status": "pago",
+      "total": 48,
+      "comandaId": "6a9c7e9be561640770872f7a",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 48,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c8401e561640770872fd5",
+      "status": "pago",
+      "total": 48,
+      "comandaId": "6a9c8315e561640770872fb1",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 48,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c8707e56164077087342f",
+      "status": "pago",
+      "total": 59.1,
+      "comandaId": "6a9c7cd4e561640770872f5b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 59.1,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c89ace561640770873494",
+      "status": "pago",
+      "total": 44.7,
+      "comandaId": "6a9c8433e561640770872ff0",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 44.7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c8dabe561640770873512",
+      "status": "pago",
+      "total": 60,
+      "comandaId": "6a9c8c91e5616407708734e9",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 60,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9c8e85e56164077087352d",
+      "status": "pago",
+      "total": 52.8,
+      "comandaId": "6a9c87f2e561640770873457",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 52.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9d5b16666ed0dc05b8173c",
+      "status": "pago",
+      "total": 8,
+      "comandaId": "6a9d59c4666ed0dc05b81723",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9d5b1e666ed0dc05b8174a",
+      "status": "pago",
+      "total": 23.5,
+      "comandaId": "6a9d5ad7666ed0dc05b81731",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9d65eae834a4ed25138e33",
+      "status": "pago",
+      "total": 23.5,
+      "comandaId": "6a9d659ae834a4ed25138e26",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9d74a223d745cc2178c36f",
+      "status": "pago",
+      "total": 23.9,
+      "comandaId": "6a9d738c23d745cc2178c329",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9d8115011ce79b0c872053",
+      "status": "pago",
+      "total": 49,
+      "comandaId": "6a9d7f22011ce79b0c872006",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 49,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9d824c011ce79b0c872078",
+      "status": "pago",
+      "total": 56,
+      "comandaId": "6a9d81c5011ce79b0c872068",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 56,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9d8caa4effe90735dcdfe0",
+      "status": "pago",
+      "total": 48,
+      "comandaId": "6a9d88895475afd359abb493",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 48,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9d93744effe90735dce059",
+      "status": "pago",
+      "total": 53,
+      "comandaId": "6a9d8dcc4effe90735dcdff3",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 53,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9da8aa49c0a2297854f08b",
+      "status": "pago",
+      "total": 41.7,
+      "comandaId": "6a9d90f74effe90735dce003",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 41.7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9da92849c0a2297854f0b9",
+      "status": "pago",
+      "total": 122.6,
+      "comandaId": "6a9d91f04effe90735dce021",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 122.6,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9da96049c0a2297854f0e1",
+      "status": "pago",
+      "total": 23.5,
+      "comandaId": "6a9da95449c0a2297854f0d1",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9dabff49c0a2297854fb92",
+      "status": "pago",
+      "total": 30.4,
+      "comandaId": "6a9dabe749c0a2297854fb7d",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 30.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9db410c10cb2d92cc008ee",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6a9db38ac10cb2d92cc008df",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9dbce3b1d3eed76626d21b",
+      "status": "pago",
+      "total": 31.3,
+      "comandaId": "6a9db37cc10cb2d92cc008cd",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 31.3,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9dcbc7c7d3eea607bf4caf",
+      "status": "pago",
+      "total": 23,
+      "comandaId": "6a9dcba7c7d3eea607bf4c9b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9dccb1c7d3eea607bf4cd5",
+      "status": "pago",
+      "total": 56,
+      "comandaId": "6a9dcc7ec7d3eea607bf4cc6",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 0,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9dd7c1b36cce37bc9b03be",
+      "status": "pago",
+      "total": 96.8,
+      "comandaId": "6a9dbfdfb1d3eed76626d231",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 96.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9e9c8615bfa7955b6ced31",
+      "status": "pago",
+      "total": 16.9,
+      "comandaId": "6a9e9b3015bfa7955b6ced23",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9e9f6c15bfa7955b6ced66",
+      "status": "pago",
+      "total": 53.8,
+      "comandaId": "6a9e9e7615bfa7955b6ced46",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 53.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9eacd678ba1d4f95f8dcf8",
+      "status": "pago",
+      "total": 147.9,
+      "comandaId": "6a9e9fa315bfa7955b6ced7b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 147.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9ead2b78ba1d4f95f8dd2e",
+      "status": "pago",
+      "total": 10,
+      "comandaId": "6a9ead1678ba1d4f95f8dd1b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 10,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9eb32078ba1d4f95f8ddbe",
+      "status": "pago",
+      "total": 83.4,
+      "comandaId": "6a9eab2e78ba1d4f95f8dc7d",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 83.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9eb49978ba1d4f95f8dddf",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6a9eb34178ba1d4f95f8ddd5",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9eb76078ba1d4f95f8de05",
+      "status": "pago",
+      "total": 15.9,
+      "comandaId": "6a9eb4ec78ba1d4f95f8ddf8",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 15.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9ebef878ba1d4f95f8de73",
+      "status": "pago",
+      "total": 10.9,
+      "comandaId": "6a9ebb4178ba1d4f95f8de17",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 10.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9ebf1a78ba1d4f95f8de8a",
+      "status": "pago",
+      "total": 11.9,
+      "comandaId": "6a9ebb6a78ba1d4f95f8de3d",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 11.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9ebf4978ba1d4f95f8de9f",
+      "status": "pago",
+      "total": 8,
+      "comandaId": "6a9ebb4f78ba1d4f95f8de29",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9ec3c6e4e2f25a7bb1eb85",
+      "status": "pago",
+      "total": 62.9,
+      "comandaId": "6a9ebd4b78ba1d4f95f8de57",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 62.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9f06cdd974dc497cb28bf7",
+      "status": "pago",
+      "total": 83.8,
+      "comandaId": "6a9f04a2d974dc497cb28ba4",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 83.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9f0cc3d974dc497cb28c70",
+      "status": "pago",
+      "total": 55.2,
+      "comandaId": "6a9f0544d974dc497cb28bda",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 55.2,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9f130bd974dc497cb28ce7",
+      "status": "pago",
+      "total": 131.7,
+      "comandaId": "6a9f099bd974dc497cb28c3a",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 131.7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9f13a7d974dc497cb28d00",
+      "status": "pago",
+      "total": 25.8,
+      "comandaId": "6a9f0e62d974dc497cb28c9f",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 25.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9f222eaa2074405fe66827",
+      "status": "pago",
+      "total": 25.8,
+      "comandaId": "6a9f14a5d974dc497cb28d18",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 25.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9f2263aa2074405fe6684e",
+      "status": "pago",
+      "total": 38.7,
+      "comandaId": "6a9f14f1d974dc497cb28d36",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 38.7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9f228faa2074405fe66873",
+      "status": "pago",
+      "total": 15.9,
+      "comandaId": "6a9f152ad974dc497cb28d4d",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 15.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9f2452aa2074405fe66896",
+      "status": "pago",
+      "total": 23,
+      "comandaId": "6a9f1d98aa2074405fe66685",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9f27b1aa2074405fe6699c",
+      "status": "pago",
+      "total": 69.8,
+      "comandaId": "6a9f1f18aa2074405fe666bd",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 69.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9f2d3aaa2074405fe66a36",
+      "status": "pago",
+      "total": 200.4,
+      "comandaId": "6a9f1d85aa2074405fe66668",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 200.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9f2e79aa2074405fe66a67",
+      "status": "pago",
+      "total": 84,
+      "comandaId": "6a9f2aaeaa2074405fe66a09",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 84,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9ff0860269eef9d65ff97b",
+      "status": "pago",
+      "total": 9,
+      "comandaId": "6a9ff04f0269eef9d65ff96d",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6a9ff12d0269eef9d65ff98c",
+      "status": "pago",
+      "total": 12.9,
+      "comandaId": "6a9fed0b0269eef9d65ff95b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 12.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa0026e396cbc7b980962d3",
+      "status": "pago",
+      "total": 47.6,
+      "comandaId": "6a9ff96b0269eef9d65ff9e1",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 47.6,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa002a0396cbc7b9809630a",
+      "status": "pago",
+      "total": 45.8,
+      "comandaId": "6aa00298396cbc7b980962f8",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 45.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa0176ea7b1165277d4a601",
+      "status": "pago",
+      "total": 70,
+      "comandaId": "6aa016f4a7b1165277d4a5e8",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 70,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa01a55a7b1165277d4a663",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aa019cfa7b1165277d4a64c",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa01b05a7b1165277d4a67c",
+      "status": "pago",
+      "total": 28.4,
+      "comandaId": "6aa0110198bd8386d417c912",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 28.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa02042d2139c81924086b1",
+      "status": "pago",
+      "total": 50.6,
+      "comandaId": "6aa0184fa7b1165277d4a631",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 50.6,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa0289ff0473f1b79641ae9",
+      "status": "pago",
+      "total": 14,
+      "comandaId": "6aa02868f0473f1b79641ade",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 14,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa056a6f0d441a214832b83",
+      "status": "pago",
+      "total": 22,
+      "comandaId": "6aa054b5f0d441a214832b73",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 22,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa060577febac171c051bf5",
+      "status": "pago",
+      "total": 93.7,
+      "comandaId": "6aa05a8df0d441a214832baa",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 93.7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa062ea7febac171c051c44",
+      "status": "pago",
+      "total": 41.8,
+      "comandaId": "6aa05a4cf0d441a214832b9a",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 41.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa063347febac171c051c69",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aa0631c7febac171c051c5b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa0754deaabcaafd6a60be1",
+      "status": "pago",
+      "total": 20.8,
+      "comandaId": "6aa06d546bfd0054b6528631",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 20.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa07aa43d8248cb8f51cb22",
+      "status": "pago",
+      "total": 36,
+      "comandaId": "6aa075a3eaabcaafd6a60bf6",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 36,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa13fe04070a9069ee5e92a",
+      "status": "pago",
+      "total": 22.5,
+      "comandaId": "6aa13f9d4070a9069ee5e91d",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 22.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa149cae822a1dfdc6c2ce0",
+      "status": "pago",
+      "total": 56,
+      "comandaId": "6aa149abe822a1dfdc6c2cd3",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 56,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa14e43e822a1dfdc6c32d0",
+      "status": "pago",
+      "total": 33.9,
+      "comandaId": "6aa14d1fe822a1dfdc6c2cf4",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 33.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa15cfd583abededccbb65b",
+      "status": "pago",
+      "total": 62.8,
+      "comandaId": "6aa157fb583abededccbb62d",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 62.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa16ae90820a7f2361f41e9",
+      "status": "pago",
+      "total": 12,
+      "comandaId": "6aa165cb0820a7f2361f41a0",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 12,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa17ef3e696f93aa8e0fd72",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aa17bd3e696f93aa8e0fd44",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa1a82a24b740fcdfc43b37",
+      "status": "pago",
+      "total": 7,
+      "comandaId": "6aa1a7ae24b740fcdfc43b24",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa1a8b124b740fcdfc43b4c",
+      "status": "pago",
+      "total": 57.7,
+      "comandaId": "6aa1a18224b740fcdfc432ed",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 57.7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa1ab7b24b740fcdfc43b5e",
+      "status": "pago",
+      "total": 47.8,
+      "comandaId": "6aa1a0cf24b740fcdfc432d7",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 47.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa1af8224b740fcdfc4447b",
+      "status": "pago",
+      "total": 8.9,
+      "comandaId": "6aa1aec324b740fcdfc44471",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 8.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa1bb9d4fd498561f008112",
+      "status": "pago",
+      "total": 14.4,
+      "comandaId": "6aa1b25b24b740fcdfc44492",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 14.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa1c3c78301492b9b9c6e36",
+      "status": "pago",
+      "total": 15.8,
+      "comandaId": "6aa1c3738301492b9b9c6e1f",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 15.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa1c4d08301492b9b9c6e78",
+      "status": "pago",
+      "total": 7,
+      "comandaId": "6aa1c4a08301492b9b9c6e66",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa1c73c8301492b9b9c6ebb",
+      "status": "pago",
+      "total": 30.9,
+      "comandaId": "6aa1c2b58301492b9b9c6e11",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 30.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa1cb518301492b9b9c6ef7",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6aa1cabf8301492b9b9c6ee6",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa1cc238301492b9b9c6f1d",
+      "status": "pago",
+      "total": 47,
+      "comandaId": "6aa1c6488301492b9b9c6e9b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 47,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa1cd118301492b9b9c6f3f",
+      "status": "pago",
+      "total": 102.8,
+      "comandaId": "6aa1c48a8301492b9b9c6e54",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 102.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa1d2c08301492b9b9c6f6f",
+      "status": "pago",
+      "total": 20,
+      "comandaId": "6aa1d1e28301492b9b9c6f60",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 20,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa1d3a38301492b9b9c6f84",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aa1ca0e8301492b9b9c6ed2",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa1d9da8301492b9b9c78dd",
+      "status": "pago",
+      "total": 7,
+      "comandaId": "6aa1d9be8301492b9b9c78cc",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa29b56934d31dffed18e45",
+      "status": "pago",
+      "total": 16.9,
+      "comandaId": "6aa29b15934d31dffed18e39",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa2a23a7f896fe2e2fdb433",
+      "status": "pago",
+      "total": 23.5,
+      "comandaId": "6aa2a15a7f896fe2e2fdb423",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa2a3d57f896fe2e2fdb46a",
+      "status": "pago",
+      "total": 16.4,
+      "comandaId": "6aa2a14b7f896fe2e2fdb413",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa2ba2ca4cdda0830e5880b",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aa2b923a4cdda0830e587fe",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa2bd72a4cdda0830e5885c",
+      "status": "pago",
+      "total": 70,
+      "comandaId": "6aa2bd1ca4cdda0830e58849",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 70,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa2c53a65d6599a875ce6d7",
+      "status": "pago",
+      "total": 80,
+      "comandaId": "6aa2c4f365d6599a875ce6c2",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 80,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa30206568ae58557c5b993",
+      "status": "pago",
+      "total": 51.8,
+      "comandaId": "6aa2faf7568ae58557c5a752",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 51.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa30419568ae58557c5b9e0",
+      "status": "pago",
+      "total": 15.9,
+      "comandaId": "6aa30401568ae58557c5b9ca",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 15.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa304a7568ae58557c5ba06",
+      "status": "pago",
+      "total": 29,
+      "comandaId": "6aa2f998568ae58557c5a73d",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 29,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa308e7568ae58557c5baaf",
+      "status": "pago",
+      "total": 101.7,
+      "comandaId": "6aa30236568ae58557c5b9af",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 101.7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa30f155783932394c47d18",
+      "status": "pago",
+      "total": 8,
+      "comandaId": "6aa30f0c5783932394c47d0d",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa3198f30e6f623c9080584",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aa3187a30e6f623c9080554",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa31a3130e6f623c90805a6",
+      "status": "pago",
+      "total": 8,
+      "comandaId": "6aa319e630e6f623c9080598",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa31bac30e6f623c90805ea",
+      "status": "pago",
+      "total": 52.8,
+      "comandaId": "6aa3169c30e6f623c908053e",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 52.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa31f7930e6f623c9080fda",
+      "status": "pago",
+      "total": 15.9,
+      "comandaId": "6aa31e3930e6f623c9080fa4",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 15.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa3201930e6f623c9080ffe",
+      "status": "pago",
+      "total": 39.3,
+      "comandaId": "6aa3197f30e6f623c9080573",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 39.3,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa3261c30e6f623c9081037",
+      "status": "pago",
+      "total": 66.8,
+      "comandaId": "6aa31e6e30e6f623c9080fb8",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 66.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa32dc7dff02e7ccd830262",
+      "status": "pago",
+      "total": 46,
+      "comandaId": "6aa32da3dff02e7ccd830250",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 46,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa3fd2cbb7f75341fad93a2",
+      "status": "pago",
+      "total": 8,
+      "comandaId": "6aa3fc8bbb7f75341fad9391",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa3fd32bb7f75341fad93b3",
+      "status": "pago",
+      "total": 25,
+      "comandaId": "6aa3fbb2bb7f75341fad937c",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 25,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa40b881b92e894273b84fb",
+      "status": "pago",
+      "total": 15,
+      "comandaId": "6aa40b801b92e894273b84ee",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 15,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa40f381b92e894273b8540",
+      "status": "pago",
+      "total": 10,
+      "comandaId": "6aa40f301b92e894273b8535",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 10,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa412c21b92e894273b8560",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aa4125b1b92e894273b8552",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa412d61b92e894273b8582",
+      "status": "pago",
+      "total": 24,
+      "comandaId": "6aa412cc1b92e894273b8573",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 24,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa419941b92e894273b85d8",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aa4178c1b92e894273b85ca",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa424876a7902acf7c0f052",
+      "status": "pago",
+      "total": 42,
+      "comandaId": "6aa420731b92e894273b8639",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 42,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa4410505522895dc4d4764",
+      "status": "pago",
+      "total": 14,
+      "comandaId": "6aa40bc81b92e894273b8528",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 14,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa44ac53493fd38a402f0c2",
+      "status": "pago",
+      "total": 56,
+      "comandaId": "6aa4445905522895dc4d477f",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 56,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa44d4d8955d418cc5a9b64",
+      "status": "pago",
+      "total": 42,
+      "comandaId": "6aa44d438955d418cc5a9113",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 42,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa44d878955d418cc5ab6f1",
+      "status": "pago",
+      "total": 66.3,
+      "comandaId": "6aa449a33493fd38a402f0b2",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 66.3,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa456a0936225c0ec6bc4d6",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aa4561a936225c0ec6bc4b0",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa459ec7db7d50a95d53157",
+      "status": "pago",
+      "total": 64,
+      "comandaId": "6aa454424beb6fb3b21c1741",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 64,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa45c6e7db7d50a95d5317e",
+      "status": "pago",
+      "total": 54.4,
+      "comandaId": "6aa456ec936225c0ec6bc4f0",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 54.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa460177db7d50a95d53ed0",
+      "status": "pago",
+      "total": 15.9,
+      "comandaId": "6aa45fd27db7d50a95d53196",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 15.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa4683cc8747bd554a49262",
+      "status": "pago",
+      "total": 20,
+      "comandaId": "6aa467dec8747bd554a49251",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 20,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa4693bc8747bd554a49294",
+      "status": "pago",
+      "total": 36,
+      "comandaId": "6aa468a8c8747bd554a49277",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 36,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa469d6c8747bd554a492b4",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6aa46949c8747bd554a492a8",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa46a86c8747bd554a492e3",
+      "status": "pago",
+      "total": 42,
+      "comandaId": "6aa469f2c8747bd554a492c8",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 42,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa4703878b9a44896265f40",
+      "status": "pago",
+      "total": 43.7,
+      "comandaId": "6aa46bd7c8747bd554a492f9",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 43.7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa471c278b9a44896266d06",
+      "status": "pago",
+      "total": 14,
+      "comandaId": "6aa471ab78b9a44896266cf9",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 14,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa474d478b9a44896266d28",
+      "status": "pago",
+      "total": 18.9,
+      "comandaId": "6aa474b178b9a44896266d1b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 18.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa53e629985aec494b83f61",
+      "status": "pago",
+      "total": 14.9,
+      "comandaId": "6aa53e289985aec494b83f4f",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 14.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa545679985aec494b88f78",
+      "status": "pago",
+      "total": 195.4,
+      "comandaId": "6aa535f12c0d6cc2807a0ae9",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 195.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa552650702383af332e7e8",
+      "status": "pendente",
+      "total": 22.5,
+      "comandaId": "6aa552520702383af332e7db",
+      "comandaStatus": null,
+      "pagoNoPedido": 0,
+      "pagoNaComanda": null,
+      "saldo": 22.5,
+      "motivos": [
+        "comanda_ausente"
+      ]
+    },
+    {
+      "pedidoId": "6aa556490702383af3330912",
+      "status": "pago",
+      "total": 20.9,
+      "comandaId": "6aa551670702383af332e7cb",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 20.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa561580702383af3335cc2",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aa561510702383af3335ca9",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa567a50702383af3337b87",
+      "status": "pago",
+      "total": 18.9,
+      "comandaId": "6aa564b10702383af3337b74",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 18.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa595b0e78f5a107cc13008",
+      "status": "pago",
+      "total": 56,
+      "comandaId": "6aa59577e78f5a107cc12ff7",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 56,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa59646e78f5a107cc1302b",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aa59631e78f5a107cc1301c",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa5a47423b7e3153e9ad86b",
+      "status": "pago",
+      "total": 50,
+      "comandaId": "6aa5a32023b7e3153e9ad848",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 50,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa5ab3b23b7e3153e9ae423",
+      "status": "pago",
+      "total": 28.3,
+      "comandaId": "6aa5a4e223b7e3153e9ad87f",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 28.3,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa5b681a7bc658fd3fa4564",
+      "status": "pago",
+      "total": 23.9,
+      "comandaId": "6aa5b667a7bc658fd3fa4552",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa5bb28a7bc658fd3fa45a5",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6aa5bb1aa7bc658fd3fa4593",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa5bdf5a7bc658fd3fa45fa",
+      "status": "pago",
+      "total": 61.8,
+      "comandaId": "6aa5b652a7bc658fd3fa453f",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 61.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa5c33a389ff25274c59f67",
+      "status": "pago",
+      "total": 26.79,
+      "comandaId": "6aa5babca7bc658fd3fa457e",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 26.79,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa5c3d8389ff25274c59f8c",
+      "status": "pago",
+      "total": 15.9,
+      "comandaId": "6aa5bc60a7bc658fd3fa45ce",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 15.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa5c7ab389ff25274c59fa9",
+      "status": "pago",
+      "total": 23.5,
+      "comandaId": "6aa5c51a389ff25274c59f9e",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa69b997ef369dd725eb05f",
+      "status": "pago",
+      "total": 53.8,
+      "comandaId": "6aa6927c78fd53521cde6b22",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 53.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa6b200c5cb034fb843ff89",
+      "status": "pago",
+      "total": 94,
+      "comandaId": "6aa6b1e6c5cb034fb843ff70",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 94,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa6b9db42236d42537ce28b",
+      "status": "pago",
+      "total": 74.3,
+      "comandaId": "6aa6b38bc5cb034fb843ffa7",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 74.3,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa6bb9f42236d42537ce2c5",
+      "status": "pago",
+      "total": 42,
+      "comandaId": "6aa6ba9c42236d42537ce2a5",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 42,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa6d821b3e84a34b97f8579",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6aa6d7fdb3e84a34b97f8555",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa6d829b3e84a34b97f8588",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6aa6d7c9b3e84a34b97f8547",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa6e4e963e38dbee85822d0",
+      "status": "pago",
+      "total": 42,
+      "comandaId": "6aa6d952b3e84a34b97f8597",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 42,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa6ecd4678a7b57edc693c7",
+      "status": "pago",
+      "total": 33,
+      "comandaId": "6aa6eb79678a7b57edc6938f",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 33,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa6ee76678a7b57edc693f2",
+      "status": "pago",
+      "total": 56,
+      "comandaId": "6aa6ed04678a7b57edc693de",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 56,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa6f2ca678a7b57edc69436",
+      "status": "pago",
+      "total": 68.8,
+      "comandaId": "6aa6ec24678a7b57edc693b0",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 68.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa6f573678a7b57edc6947f",
+      "status": "pago",
+      "total": 68.9,
+      "comandaId": "6aa6ef33678a7b57edc6940a",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 68.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa6f9f2678a7b57edc694eb",
+      "status": "pago",
+      "total": 48.7,
+      "comandaId": "6aa6f28c678a7b57edc69420",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 48.7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa6ff4a678a7b57edc6959c",
+      "status": "pago",
+      "total": 29.8,
+      "comandaId": "6aa6fae4678a7b57edc69508",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 29.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa70017678a7b57edc695d7",
+      "status": "pago",
+      "total": 23.8,
+      "comandaId": "6aa6fffd678a7b57edc695be",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa70043678a7b57edc695f1",
+      "status": "pago",
+      "total": 17.4,
+      "comandaId": "6aa6f65d678a7b57edc694ab",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 17.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa700f0678a7b57edc6960d",
+      "status": "pago",
+      "total": 61.7,
+      "comandaId": "6aa6f48a678a7b57edc69456",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 61.7,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa7038c678a7b57edc69621",
+      "status": "pago",
+      "total": 9.9,
+      "comandaId": "6aa6fd71678a7b57edc6956a",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 9.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa93045802c6abcef403ad5",
+      "status": "pago",
+      "total": 22.5,
+      "comandaId": "6aa9303d802c6abcef403acb",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 22.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa940eb5b35ba363ba075fb",
+      "status": "pago",
+      "total": 80,
+      "comandaId": "6aa940b45b35ba363ba07107",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 80,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9671cec458fdb942b7069",
+      "status": "pago",
+      "total": 14,
+      "comandaId": "6aa966f1ec458fdb942b6f6b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 14,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa98daf498cedb1a8a1d3e5",
+      "status": "pago",
+      "total": 18.8,
+      "comandaId": "6aa98a64498cedb1a8a1c5c2",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 18.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa98ddf498cedb1a8a1d3f8",
+      "status": "pago",
+      "total": 19.8,
+      "comandaId": "6aa98add498cedb1a8a1c5d8",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 19.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9905d498cedb1a8a21b63",
+      "status": "pago",
+      "total": 22.5,
+      "comandaId": "6aa98ee6498cedb1a8a1d40d",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 22.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9907b498cedb1a8a21b87",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aa9906c498cedb1a8a21b79",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9940b498cedb1a8a253f4",
+      "status": "pago",
+      "total": 15,
+      "comandaId": "6aa99403498cedb1a8a253e5",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 15,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9a80a00f82be8870efea9",
+      "status": "pago",
+      "total": 13,
+      "comandaId": "6aa996e5498cedb1a8a25427",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 13,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9a81100f82be8870efec4",
+      "status": "pago",
+      "total": 21.8,
+      "comandaId": "6aa99776498cedb1a8a25457",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 21.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9a81700f82be8870efeda",
+      "status": "pago",
+      "total": 21.8,
+      "comandaId": "6aa99740498cedb1a8a25437",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 21.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9a88e00f82be8870eff02",
+      "status": "pago",
+      "total": 23.9,
+      "comandaId": "6aa9a86400f82be8870efef2",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9b193abf981da903d2e8f",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aa9b09babf981da903d2e74",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9b587abf981da903d3e90",
+      "status": "pago",
+      "total": 8,
+      "comandaId": "6aa9b52dabf981da903d3e74",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9bbc7bb19c90f068c6936",
+      "status": "pago",
+      "total": 44.9,
+      "comandaId": "6aa9b66eabf981da903d3eb7",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 44.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9bbd1bb19c90f068c6958",
+      "status": "pago",
+      "total": 10.9,
+      "comandaId": "6aa9b296abf981da903d2f33",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 10.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9bbe1bb19c90f068c6981",
+      "status": "pago",
+      "total": 133,
+      "comandaId": "6aa9a9c300f82be8870eff1b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 133,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9c0b45209d3b7a71f5a53",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6aa9c0ac5209d3b7a71f5a3e",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9c19b5209d3b7a71f5a74",
+      "status": "pago",
+      "total": 57.8,
+      "comandaId": "6aa9b1e5abf981da903d2eac",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 57.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aa9c1a25209d3b7a71f5a8b",
+      "status": "pago",
+      "total": 45.8,
+      "comandaId": "6aa9b1fbabf981da903d2ec8",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 45.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aaa99bf4e9f5378f025842e",
+      "status": "pago",
+      "total": 23,
+      "comandaId": "6aaa99b74e9f5378f0258420",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aaaa8e4edd440e7a135e875",
+      "status": "pago",
+      "total": 64,
+      "comandaId": "6aaaa899edd440e7a135e85f",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 64,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aaab242fe54e5f13ffb655a",
+      "status": "pago",
+      "total": 44.9,
+      "comandaId": "6aaab118b0fa26f2149c662b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 44.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aaab629fe54e5f13ffb65c8",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6aaab603fe54e5f13ffb65b8",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aaab641fe54e5f13ffb65dd",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6aaab5f4fe54e5f13ffb65a1",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aaaba00fe54e5f13ffb6603",
+      "status": "pago",
+      "total": 10,
+      "comandaId": "6aaab9c3fe54e5f13ffb65f4",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 10,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aaac192e239c7892a05fdf9",
+      "status": "pago",
+      "total": 42,
+      "comandaId": "6aaab29afe54e5f13ffb6588",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 42,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aaaf0428c49d765f61d3ade",
+      "status": "pago",
+      "total": 14.9,
+      "comandaId": "6aaaf01a8c49d765f61d3ace",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 14.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aaaf7218c49d765f61d4d98",
+      "status": "pago",
+      "total": 24.4,
+      "comandaId": "6aaaefeb8c49d765f61d3672",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 24.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aaafe568c49d765f61d4fec",
+      "status": "pago",
+      "total": 94.4,
+      "comandaId": "6aaafa10a1858420564a59aa",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 94.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aab04008c49d765f61d5095",
+      "status": "pago",
+      "total": 23,
+      "comandaId": "6aaafebc8c49d765f61d501a",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aab09c48c49d765f61d5165",
+      "status": "pago",
+      "total": 42,
+      "comandaId": "6aab091c8c49d765f61d5130",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 42,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aab0b558c49d765f61d5190",
+      "status": "pago",
+      "total": 85.8,
+      "comandaId": "6aab06758c49d765f61d50c6",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 85.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aab0bb78c49d765f61d51a8",
+      "status": "pago",
+      "total": 57.8,
+      "comandaId": "6aaafef58c49d765f61d5035",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 57.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aab2795ce04118dd0042b34",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6aab278ace04118dd0042b26",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aabee2f22bd4175432a7a35",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6aabee2822bd4175432a7a29",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aabf5669f1f049f7007fed7",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aabf48e9f1f049f7007fec8",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aabf9ab9f1f049f7007ff63",
+      "status": "pago",
+      "total": 72,
+      "comandaId": "6aabf71b9f1f049f7007fef7",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 72,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac2f0bb05b525250cb5ce2",
+      "status": "pago",
+      "total": 14,
+      "comandaId": "6aac09103b68f82aad6874e7",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 14,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac3142b05b525250cb5d25",
+      "status": "pago",
+      "total": 30.9,
+      "comandaId": "6aac2e4db05b525250cb5ca6",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 30.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac35883466ebe98482db59",
+      "status": "pago",
+      "total": 74,
+      "comandaId": "6aac2ea4b05b525250cb5cca",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 74,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac391c3466ebe98482dbe6",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aac38923466ebe98482dbb1",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac3a853466ebe98482dc4d",
+      "status": "pago",
+      "total": 10,
+      "comandaId": "6aac3a7e3466ebe98482dc3b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 10,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac3b2e3466ebe98482dc62",
+      "status": "pago",
+      "total": 19,
+      "comandaId": "6aac392e3466ebe98482dbfe",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 19,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac3c373466ebe98482dc9d",
+      "status": "pago",
+      "total": 10,
+      "comandaId": "6aac3c143466ebe98482dc7c",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 10,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac3ec33466ebe98482dd09",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aac3e353466ebe98482dcf2",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac40e73466ebe98482dd44",
+      "status": "pago",
+      "total": 29.8,
+      "comandaId": "6aac39f23466ebe98482dc24",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 29.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac4e703466ebe98482ddf3",
+      "status": "pago",
+      "total": 10,
+      "comandaId": "6aac4e473466ebe98482ddd7",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 10,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac4f533466ebe98482de30",
+      "status": "pago",
+      "total": 46.4,
+      "comandaId": "6aac47763466ebe98482dd7c",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 46.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac50cd3466ebe98482de68",
+      "status": "pago",
+      "total": 61.9,
+      "comandaId": "6aac4bda3466ebe98482ddb4",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 61.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac50e13466ebe98482de83",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aac368b3466ebe98482db9c",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac5b506651e11409e7ef1a",
+      "status": "pago",
+      "total": 22,
+      "comandaId": "6aac3c593466ebe98482dcb5",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 22,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aac5b776651e11409e7ef2d",
+      "status": "pago",
+      "total": 21.95,
+      "comandaId": "6aac5b2a6651e11409e7eef0",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 21.95,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aad3eb5efa540bd75660698",
+      "status": "pago",
+      "total": 53.9,
+      "comandaId": "6aad3ddeefa540bd7565f53b",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 53.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aad401cefa540bd75660d12",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6aad3f07efa540bd75660748",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aad47791283316660ddfc8b",
+      "status": "pago",
+      "total": 55.9,
+      "comandaId": "6aad4251efa540bd75660d98",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 55.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aad4b081283316660de3507",
+      "status": "pago",
+      "total": 158,
+      "comandaId": "6aad4023efa540bd75660d22",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 158,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aad524b1283316660de4aad",
+      "status": "pago",
+      "total": 46.9,
+      "comandaId": "6aad50e91283316660de4a83",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 46.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aad8846db2a4bbfcd1011dd",
+      "status": "pago",
+      "total": 16,
+      "comandaId": "6aad8830db2a4bbfcd1011cd",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 16,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aad8b8e41a6b95caabe8c5f",
+      "status": "pago",
+      "total": 23.9,
+      "comandaId": "6aad8732db2a4bbfcd0ff2c7",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23.9,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aad910c41a6b95caabe9521",
+      "status": "pago",
+      "total": 23.5,
+      "comandaId": "6aad90e541a6b95caabe9514",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 23.5,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aad957a41a6b95caabeac61",
+      "status": "pago",
+      "total": 38.4,
+      "comandaId": "6aad914241a6b95caabe9538",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 38.4,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aae7ed9bcc7af3a5091ed8c",
+      "status": "pago",
+      "total": 36.3,
+      "comandaId": "6aae7987daeb9a230c09a203",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 36.3,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aaef904d94bea88344ec7c1",
+      "status": "pago",
+      "total": 28.8,
+      "comandaId": "6aaef21990a89358275d63d8",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 28.8,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6aaefaa7d94bea88344ec7dd",
+      "status": "pago",
+      "total": 45.8,
+      "comandaId": "6aaeefc1788f77725f1f81b4",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 45.8,
+      "pagoNaComanda": 0,
+      "saldo": 35.9,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6ab5757c93a455ade64b8b5b",
+      "status": "pago",
+      "total": 53.7,
+      "comandaId": "6ab57266599177fce8195cab",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 53.7,
+      "pagoNaComanda": 0,
+      "saldo": 44.8,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6ab58dff299e51ef3096e326",
+      "status": "pago",
+      "total": 32,
+      "comandaId": "6ab5857497929396a028189f",
+      "comandaStatus": "fechada",
+      "pagoNoPedido": 32,
+      "pagoNaComanda": 0,
+      "saldo": 0,
+      "motivos": [
+        "totais_divergentes"
+      ]
+    },
+    {
+      "pedidoId": "6ac03e027548c23a52d34852",
+      "status": "pago",
+      "total": 18.9,
+      "comandaId": "6ac03d8b7548c23a52d3482f",
+      "comandaStatus": null,
+      "pagoNoPedido": 0,
+      "pagoNaComanda": null,
+      "saldo": 18.9,
+      "motivos": [
+        "comanda_ausente"
+      ]
+    }
+  ],
+  "verificacaoAposRegularizacao": {
+    "data": "2026-10-13T14:13:01.714Z",
+    "pedidos": 616,
+    "comandas": 626,
+    "referenciasAusentes": [
+      {
+        "pedidoId": "6aa552650702383af332e7e8",
+        "status": "cancelado",
+        "total": 22.5
+      },
+      {
+        "pedidoId": "6ac03e027548c23a52d34852",
+        "status": "pago",
+        "total": 18.9
+      }
+    ],
+    "pendentesComReferenciaAusente": 0,
+    "divergenciasHistoricasPorSituacao": {
+      "pago / comanda fechada / total da comanda 0": 300,
+      "pago / comanda fechada / total da comanda 35.9": 1,
+      "pago / comanda fechada / total da comanda 44.8": 1
+    }
+  },
+  "regularizacaoConfirmada": {
+    "pedidoId": "6aa552650702383af332e7e8",
+    "status": "cancelado",
+    "movimentacaoEstoque": false,
+    "confirmacao": "Usuario confirmou comanda previamente cancelada"
+  }
+}

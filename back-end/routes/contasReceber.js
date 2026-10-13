@@ -28,7 +28,7 @@ router.get('/resumo', async (req, res) => {
     const idsComandasVinculadas = [...new Set(pedidos.map((pedido) => pedido.comandaId).filter(Boolean).map(String))];
     const comandasVinculadas = idsComandasVinculadas.length
       ? await Comanda.find({ _id: { $in: idsComandasVinculadas } })
-        .select('_id valorTotal historicoPagamentos')
+        .select('_id valorTotal historicoPagamentos status utilizacaoInterna')
         .lean()
       : [];
     const comandasPorId = new Map(comandasVinculadas.map((comanda) => [String(comanda._id), comanda]));
@@ -54,6 +54,7 @@ router.get('/resumo', async (req, res) => {
 
     pedidos.forEach((pedido) => {
       const comanda = pedido.comandaId ? comandasPorId.get(String(pedido.comandaId)) : null;
+      if (comanda?.status === 'cancelada' || comanda?.utilizacaoInterna) return;
       const totaisCorrespondem = comanda && dinheiro(comanda.valorTotal) === dinheiro(pedido.total);
       const pagamentos = totaisCorrespondem ? comanda.historicoPagamentos : normalizarPagamentos(pedido.pagamentos);
 
