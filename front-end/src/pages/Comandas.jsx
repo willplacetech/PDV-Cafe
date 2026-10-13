@@ -652,7 +652,7 @@ export default function Comandas() {
       {/* ── MODAL DE FECHAMENTO ───────────────────────────────────────────── */}
       {modalFechamento && selected && (
         <div onClick={() => { if (!fechandoRef.current) setModalFechamento(false); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000, padding: 16 }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 18, padding: 24, boxShadow: 'var(--shadow-lg)', color: 'var(--text-primary)' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 576, maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 18, padding: 24, boxShadow: 'var(--shadow-lg)', color: 'var(--text-primary)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
               <div>
                 <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent-primary)', letterSpacing: '.08em' }}>FECHAR COMANDA</span>
@@ -664,7 +664,7 @@ export default function Comandas() {
             {/* itens resumo */}
             <div style={{ background: 'var(--bg-tertiary)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, maxHeight: 200, overflowY: 'auto' }}>
               {selected.itens.map(item => (
-                <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
+                <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border-light)', fontSize: 16 }}>
                   <span>{item.quantidade}× {item.nome}{item.modificadores?.length ? <span style={{ color: 'var(--accent-primary)', fontSize: 11 }}> ({item.modificadores.join(', ')})</span> : ''}</span>
                   <span style={{ fontWeight: 700 }}>{formatMoney(item.quantidade * item.precoUnitario)}</span>
                 </div>
