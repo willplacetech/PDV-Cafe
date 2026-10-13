@@ -27,6 +27,53 @@ beforeEach(async () => {
 });
 afterEach(() => jest.restoreAllMocks());
 
+test.each(['pagar', 'quitar'])('orphan pending order accepts %s using its own ledger without duplicate receipts', async (action) => {
+  await Comanda.deleteOne({ _id: source.id });
+  await Order.updateOne({ _id: order.id }, { $set: { status: 'pendente', total: 22.5, subtotal: 22.5, pagamentos: [] } });
+  const receive = () => request(app).patch(`/api/orders/${order.id}/${action}`)
+    .set('Authorization', `Bearer ${token}`).set('Idempotency-Key', `orphan-${action}`)
+    .send({ tipo: 'pix', valorRecebido: 22.5 });
+  expect((await receive()).status).toBe(200);
+  expect((await receive()).status).toBe(200);
+  const updated = await Order.findById(order.id);
+  expect(updated.status).toBe('pago');
+  expect(updated.pagamentos).toHaveLength(1);
+  expect(updated.pagamentos[0].valorRecebido).toBe(22.5);
+  expect(String(updated.comandaId)).toBe(source.id);
+  const receipts = await carregarPagamentosDoPeriodo({ inicio: new Date('2000-01-01'), fim: new Date('2100-01-01') });
+  expect(receipts.reduce((sum, receipt) => sum + receipt.valorRecebido, 0)).toBe(22.5);
+});
+
+test('orphan partial order preserves its own previous receipts', async () => {
+  await Comanda.deleteOne({ _id: source.id });
+  await Order.updateOne({ _id: order.id }, { $set: { pagamentos: [{ tipo: 'dinheiro', valorRecebido: 5, dataPagamento: receiptDate }] } });
+  expect((await pay(order.id, 'orphan-partial')).status).toBe(200);
+  const updated = await Order.findById(order.id);
+  expect(updated.status).toBe('parcial');
+  expect(updated.pagamentos).toHaveLength(2);
+  expect(updated.pagamentos.reduce((sum, receipt) => sum + receipt.valorRecebido, 0)).toBe(10);
+});
+
+test('orphan partial order with missing receipt history remains blocked', async () => {
+  await Comanda.deleteOne({ _id: source.id });
+  const response = await pay(order.id, 'orphan-missing-history');
+  expect(response.status).toBe(400);
+  expect(response.body.msg).toMatch(/histórico/i);
+  expect((await Order.findById(order.id)).pagamentos).toHaveLength(0);
+});
+
+test.each(['cancelada', 'interno'])('existing %s comanda still refuses receipts', async (kind) => {
+  await Comanda.updateOne({ _id: source.id }, { $set: kind === 'cancelada' ? { status: 'cancelada' } : { utilizacaoInterna: true } });
+  expect((await pay(order.id, `blocked-${kind}`)).status).toBe(400);
+  expect((await Order.findById(order.id)).pagamentos).toHaveLength(0);
+});
+
+test('orphan internal consumption order refuses receipts', async () => {
+  await Comanda.deleteOne({ _id: source.id });
+  await Order.updateOne({ _id: order.id }, { $set: { status: 'pendente', utilizacaoInterna: true } });
+  expect((await pay(order.id, 'orphan-internal')).status).toBe(400);
+});
+
 test('transfer preserves debt, historical receipts and period revenue, then accepts another receipt', async () => {
   const before = await carregarPagamentosDoPeriodo(period);
   expect(before.filter(p => p.tipo !== 'credito_loja').reduce((sum, p) => sum + p.valorRecebido, 0)).toBe(5);

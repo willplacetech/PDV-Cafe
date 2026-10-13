@@ -331,6 +331,7 @@ export default function Products() {
 
   const filtrarEstoqueBaixo = searchParams.get('filtro') === 'estoque-baixo';
   const abaixoDoMinimo = (produto) => {
+    if (produto.ativo === false) return false;
     if (produto.tipoProduto === 'coz' || produto.aFazer || produto.categoria === 'Pratos na Hora') return false;
     if (produto.tipo === 'insumo') {
       const conteudo = Number(produto.conteudoPorEmbalagem || 0);
@@ -507,7 +508,7 @@ export default function Products() {
                       Ativar este desconto
                     </label>
                     <div className="product-discount-group-grid">
-                      <label>Nome do grupo <input type="text" placeholder="Ex.: Cookies" value={form.grupoDesconto?.nome || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { quantidadeMinima: '', precoPromocional: '', ativo: false }), nome: e.target.value } })} /></label>
+                      <label><FieldLabel hint={form.grupoDesconto?.nome && <>? Produtos do grupo "{form.grupoDesconto.nome}" participar?o deste desconto.</>}>Nome do grupo</FieldLabel><input type="text" placeholder="Ex.: Cookies" value={form.grupoDesconto?.nome || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { quantidadeMinima: '', precoPromocional: '', ativo: false }), nome: e.target.value } })} /></label>
                       <label>Quantidade mínima <input type="number" min={1} step={1} value={form.grupoDesconto?.quantidadeMinima || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', precoPromocional: '', ativo: false }), quantidadeMinima: e.target.value } })} /></label>
                       <label>Preço promocional (R$) <input type="number" min={0} step="0.01" value={form.grupoDesconto?.precoPromocional || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', quantidadeMinima: '', ativo: false }), precoPromocional: e.target.value } })} /></label>
                     </div>

@@ -1,3 +1,4 @@
+import FieldLabel from '../components/FieldLabel.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { useCallback, useState, useEffect, useRef } from 'react';
@@ -1060,7 +1061,7 @@ export default function PDV() {
               <button type="button" className={comandaAtual.tipo === 'delivery' ? 'active' : ''} onClick={() => selecionarComandaPainel({ tipoAtendimento: 'delivery' })}>🛵 Delivery</button>
             </div>
             <div className="pdv-command-current"><span>{comandaAtual._id ? `Adicionando à ${rotuloComandaAtual} · #${comandaAtual.numero}` : rotuloComandaAtual}</span><button type="button" onClick={iniciarNovaComanda} disabled={enviando}>+ Novo pedido</button></div>
-            <label className="pdv-command-name">{comandaAtual.tipo === 'delivery' ? 'Nome' : 'Nome (opcional)'}<input value={clienteNome} onChange={event => { setClienteNome(event.target.value); setComandaAtual(atual => ({ ...atual, clienteNome: event.target.value, status: 'rascunho' })); }} maxLength={160} required={comandaAtual.tipo === 'delivery'} /></label>
+            <label className="pdv-command-name"><FieldLabel hint={<> {!(comandaAtual.tipo === 'delivery') && "(opcional)"} </>}> {comandaAtual.tipo === 'delivery' ? 'Nome' : 'Nome'} </FieldLabel><input value={clienteNome} onChange={event => { setClienteNome(event.target.value); setComandaAtual(atual => ({ ...atual, clienteNome: event.target.value, status: 'rascunho' })); }} maxLength={160} required={comandaAtual.tipo === 'delivery'} /></label>
             {comandaAtual.tipo === 'delivery' && <DeliveryPDV value={entregaPDV} onChange={setEntregaPDV} customer={clienteSelecionado} showToggle={false} />}
             <label className="pdv-command-name">Observação<textarea value={comandaAtual.observacao || ''} maxLength={500} onChange={event => setComandaAtual(atual => ({ ...atual, observacao: event.target.value, status: 'rascunho' }))} /></label>
             <label className="pdv-mobile-product-select">
@@ -1230,8 +1231,7 @@ export default function PDV() {
                 {modalSucesso.nfce?.chaveAcesso && <small>Chave: {modalSucesso.nfce.chaveAcesso}</small>}
               </div>
               <div className="pdv-receipt-contact">
-                <label>Nome do cliente (opcional)
-                  <input type="text" value={modalSucesso.comprovanteNome ?? modalSucesso.clienteNome ?? ''} disabled={comprovanteEnviando || nfceLoading} onChange={event => setModalSucesso(atual => ({ ...atual, comprovanteNome: event.target.value }))} />
+                <label><FieldLabel hint={<> (opcional) </>}> Nome do cliente </FieldLabel><input type="text" value={modalSucesso.comprovanteNome ?? modalSucesso.clienteNome ?? ''} disabled={comprovanteEnviando || nfceLoading} onChange={event => setModalSucesso(atual => ({ ...atual, comprovanteNome: event.target.value }))} />
                 </label>
                 <label>WhatsApp para enviar comprovante
                   <input type="tel" placeholder="(00) 00000-0000" value={modalSucesso.comprovanteTelefone ?? modalSucesso.clienteTelefone ?? ''} disabled={comprovanteEnviando || nfceLoading} onChange={event => setModalSucesso(atual => ({ ...atual, comprovanteTelefone: event.target.value }))} />
@@ -1295,11 +1295,9 @@ export default function PDV() {
               {FORMAS_PAGAMENTO.map(forma => <option value={forma.value} key={forma.value}>{forma.label}</option>)}
             </SearchableSelect>
           </label>
-          <label>Nome do cliente (opcional)
-            <input type="text" placeholder="Nome do cliente" disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={nomeFechamento} onChange={event => setNomeFechamento(event.target.value)} />
+          <label><FieldLabel hint={<> (opcional) </>}> Nome do cliente </FieldLabel><input type="text" placeholder="Nome do cliente" disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={nomeFechamento} onChange={event => setNomeFechamento(event.target.value)} />
           </label>
-          <label>Telefone para WhatsApp (opcional)
-            <input type="tel" placeholder="DDD + número" disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={telefoneFechamento} onChange={event => setTelefoneFechamento(event.target.value)} />
+          <label><FieldLabel hint={<> (opcional) </>}> Telefone para WhatsApp </FieldLabel><input type="tel" placeholder="DDD + número" disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={telefoneFechamento} onChange={event => setTelefoneFechamento(event.target.value)} />
           </label>
           <div className="pdv-payment-actions">
             <button type="button" onClick={() => setPaymentOpen(false)} disabled={enviando}>Voltar</button>

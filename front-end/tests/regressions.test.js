@@ -8,6 +8,22 @@ const source = (name) => readFileSync(new URL(`../src/pages/${name}.jsx`, import
 const section = (name, from, to) => source(name).split(from)[1].split(to)[0];
 const evaluate = (code, bindings, result) => new Function(...Object.keys(bindings), `${code}; return ${result};`)(...Object.values(bindings));
 
+test('recebimento individual apresenta o motivo retornado pelo servidor e libera nova tentativa', async () => {
+  let aviso;
+  const recebendoRef = { current: false };
+  const code = 'const registrarPagamento = ' + section('ContasReceber', 'const registrarPagamento = ', 'const quitarTotalCliente');
+  const fn = evaluate(code, {
+    formPagamento: { tipo: 'pix', valorRecebido: '5', observacao: '' }, saldoPagamentoIndividual: 10,
+    pagamentoModal: { _id: 'pedido' }, recebendoRef, setRecebendo() {},
+    operacoesRef: { current: { enviar: async () => { throw { response: { data: { msg: 'Comanda não aceita recebimentos' } } }; } } },
+    showToast: (msg, tipo) => { aviso = { msg, tipo }; },
+    setPagamentoModal() {}, setPagamentoConcluido() {}, setFormPagamento() {}, carregarPedidos() {},
+  }, 'registrarPagamento');
+  await fn();
+  assert.deepEqual(aviso, { msg: 'Comanda não aceita recebimentos', tipo: 'error' });
+  assert.equal(recebendoRef.current, false);
+});
+
 test('relatório de clientes imprime nome e telefone como texto', () => {
   let html = '';
   const code = 'const imprimirRelatorioClientes = ' + section('Dashboard', 'const imprimirRelatorioClientes = ', 'const exportarClientesMailing');

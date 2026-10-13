@@ -38,7 +38,7 @@ const ehProdutoCozNaHora = (produto) => (
 );
 
 const listarEstoqueBaixo = (produtos) => produtos
-  .filter((produto) => !ehProdutoCozNaHora(produto))
+  .filter((produto) => produto.ativo !== false && !ehProdutoCozNaHora(produto))
   .map((produto) => ({ produto, ...resumirEstoque(produto) }))
   .filter(({ qtdAtual, minimo }) => qtdAtual <= minimo)
   .sort((a, b) => a.qtdAtual - b.qtdAtual || a.produto.nome.localeCompare(b.produto.nome, 'pt-BR'));

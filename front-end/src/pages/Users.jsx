@@ -183,7 +183,7 @@ export default function Users() {
             </SearchableSelect>
           </label>
           <label style={labelStyle}><input type="checkbox" checked={edit.ativo} onChange={event => setEdit({ ...edit, ativo: event.target.checked })} /> Acesso ativo</label>
-          <label style={labelStyle}><FieldLabel hintId="reset-password-policy" hint={<> {policyMessage} </>}> Nova senha (deixe vazio para manter a atual) </FieldLabel><input type="password" value={edit.password} onChange={event => setEdit({ ...edit, password: event.target.value })} minLength={12} autoComplete="new-password" aria-describedby="reset-password-policy" style={inputStyle} />
+          <label style={labelStyle}><FieldLabel hintId="reset-password-policy" hint={<>Deixe vazio para manter a atual. {policyMessage}</>}>Nova senha</FieldLabel><input type="password" value={edit.password} onChange={event => setEdit({ ...edit, password: event.target.value })} minLength={12} autoComplete="new-password" aria-describedby="reset-password-policy" style={inputStyle} />
           </label>
           
           <div className="users-actions">
@@ -220,7 +220,7 @@ export default function Users() {
           <h3>Editar entregador: {courierEdit.nome}</h3>
           <label style={labelStyle}>Nome<input name="nome" required maxLength={160} defaultValue={courierEdit.nome} style={inputStyle} /></label>
           <label style={labelStyle}>Telefone<input name="telefone" type="tel" required maxLength={30} defaultValue={courierEdit.telefone} style={inputStyle} /></label>
-          <label style={labelStyle}><FieldLabel hintId="courier-password-policy" hint={<> {policyMessage} </>}> Nova senha (opcional) </FieldLabel><input name="senha" type="password" minLength={12} maxLength={72} autoComplete="new-password" aria-describedby="courier-password-policy" style={inputStyle} /></label>
+          <label style={labelStyle}><FieldLabel hintId="courier-password-policy" hint={<>Opcional. {policyMessage}</>}>Nova senha</FieldLabel><input name="senha" type="password" minLength={12} maxLength={72} autoComplete="new-password" aria-describedby="courier-password-policy" style={inputStyle} /></label>
           
           <label style={labelStyle}><input name="ativo" type="checkbox" defaultChecked={courierEdit.ativo !== false} /> Cadastro ativo</label>
           <div className="users-actions">

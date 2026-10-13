@@ -1,9 +1,9 @@
 .field-label-line {
-  display: flex;
+  display: flex !important;
   align-items: baseline;
   gap: 6px;
   min-width: 0;
-  line-height: 1.4;
+  line-height: inherit;
 }
 .field-label-caption { flex: 0 0 auto; }
 .field-label-line > .field-hint-inline {

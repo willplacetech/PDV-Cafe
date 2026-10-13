@@ -37,5 +37,23 @@ describe('Ajuda dos campos', () => {
     cy.viewport(1280, 720);
     cy.contains('label', 'Código').find('input').focus();
     cy.get('[role="tooltip"]').should('not.exist');
+    cy.viewport(390, 844);
+    cy.contains('label', 'Insumo / Matéria-prima').find('input').check();
+    cy.contains('label', 'Tipo de embalagem *').find('[role="combobox"]').focus();
+    cy.get('[role="tooltip"]').should('be.visible').and('contain', 'Unidade em que você compra');
+    cy.contains('label', 'Tipo de embalagem *').find('[role="combobox"]').type('{esc}');
+    cy.get('[role="tooltip"]').should('not.exist');
+  });
+
+  it('vincula a ajuda ao campo em cadastros com label separado do input', () => {
+    cy.viewport(390, 844);
+    cy.visit('/clientes', { onBeforeLoad(win) { win.localStorage.setItem('pdv_user', JSON.stringify(profile)); } });
+    cy.contains('label', 'CPF').next('input').focus();
+    cy.get('[role="tooltip"]').should('be.visible').and('contain', '(opcional/único)');
+    cy.contains('label', 'CPF').next('input').invoke('attr', 'aria-describedby').then(id => {
+      cy.get(`[id="${id}"]`).should('contain', '(opcional/único)');
+    });
+    cy.contains('label', 'Telefone *').next('input').focus();
+    cy.get('[role="tooltip"]').should('have.length', 1).and('contain', '(obrigatório)');
   });
 });

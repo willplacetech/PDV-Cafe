@@ -9,6 +9,13 @@ test('uses the default minimum of five units for a sale product', () => {
   assert.equal(listarEstoqueBaixo([produto]).length, 1);
 });
 
+test('does not report inactive products but keeps legacy products active by default', () => {
+  const inativo = { _id: 'p-inactive', nome: 'Produto desativado', tipo: 'venda', estoque: 0, ativo: false };
+  const legado = { _id: 'p-legacy', nome: 'Produto legado', tipo: 'venda', estoque: 0 };
+
+  assert.deepEqual(listarEstoqueBaixo([inativo, legado]).map(({ produto }) => produto._id), ['p-legacy']);
+});
+
 test('calculates low stock for supplies in base content units', () => {
   const produto = {
     _id: 'p2',
