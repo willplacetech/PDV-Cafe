@@ -357,7 +357,7 @@ export default function ContasReceber() {
       setPagamentoConcluido(pedidoAtualizado);
       setFormPagamento({ tipo: 'dinheiro', valorRecebido: '', observacao: '' });
       carregarPedidos();
-    } catch { showToast('Erro ao registrar pagamento', 'error'); } finally { recebendoRef.current = false; setRecebendo(false); }
+    } catch (error) { showToast(error.response?.data?.msg || error.response?.data?.error || error.message || 'Erro ao registrar pagamento', 'error'); } finally { recebendoRef.current = false; setRecebendo(false); }
   };
 
 

@@ -32,10 +32,11 @@ const statusPedidoDe = (statusPagamento) => (statusPagamento === 'quitado' ? 'pa
 
 const aplicarRecebimentoPedido = async ({ order, tipo, valorRecebido, observacao, taxas, session, dataRecebimento, quitar = false }) => {
   if (!formaPagamentoValida(tipo) || tipo === 'credito_loja') throw new Error('Forma de pagamento inválida');
+  if (order.utilizacaoInterna) throw new Error('Consumo interno não aceita recebimentos');
 
-  if (order.comandaId) {
-    const comanda = await Comanda.findById(order.comandaId).session(session);
-    if (!comanda || comanda.status === 'cancelada' || comanda.utilizacaoInterna) throw new Error('Comanda não aceita recebimentos');
+  const comanda = order.comandaId ? await Comanda.findById(order.comandaId).session(session) : null;
+  if (comanda) {
+    if (comanda.status === 'cancelada' || comanda.utilizacaoInterna) throw new Error('Comanda não aceita recebimentos');
     const situacao = calcularStatusPagamento(comanda);
     const saldo = situacao.saldoDevedor;
     if (saldo <= 0) throw new Error('Pedido já está quitado');
@@ -65,6 +66,9 @@ const aplicarRecebimentoPedido = async ({ order, tipo, valorRecebido, observacao
   const pagos = normalizarPagamentos(order.pagamentos)
     .filter((pagamento) => pagamento.tipo !== 'credito_loja')
     .reduce((soma, pagamento) => soma + pagamento.valorRecebido, 0);
+  // A missing comanda uses the same order ledger as the receivables listing.
+  // Partial orders without their previous receipts cannot safely be collected.
+  if (order.comandaId && order.status === 'parcial' && pagos <= 0) throw new Error('Histórico de recebimentos da comanda ausente. Revise os pagamentos anteriores antes de receber');
   const saldo = money(order.total - pagos);
   if (saldo <= 0) throw new Error('Pedido já está quitado');
   const valor = quitar ? saldo : money(valorRecebido);

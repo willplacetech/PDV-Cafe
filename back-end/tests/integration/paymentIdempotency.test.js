@@ -101,10 +101,10 @@ test('closing comanda replays order without another payment or order', async () 
   expect(await Order.countDocuments({})).toBe(1);
   expect((await Comanda.findById(comanda.id)).historicoPagamentos).toHaveLength(1);
 });
-test('failed customer batch rolls back earlier receipts and the operation ledger', async () => {
+test('customer batch with missing partial-payment history rolls back earlier receipts and the operation ledger', async () => {
   const customerId = new (require('mongoose').Types.ObjectId)();
   const valid = await Order.create({ numero: '0001', subtotal: 20, total: 20, clienteId: customerId, atendente: 'payment-admin', itens: comanda.itens });
-  await Order.create({ numero: '0002', subtotal: 20, total: 20, clienteId: customerId, atendente: 'payment-admin', itens: comanda.itens, comandaId: new (require('mongoose').Types.ObjectId)() });
+  await Order.create({ numero: '0002', subtotal: 20, total: 20, status: 'parcial', clienteId: customerId, atendente: 'payment-admin', itens: comanda.itens, comandaId: new (require('mongoose').Types.ObjectId)() });
   const response = await request(app).patch(`/api/orders/cliente/${customerId}/quitar`).set('Authorization', `Bearer ${token}`).set('Idempotency-Key', 'failed-batch').send({ tipo: 'pix' });
   expect(response.status).toBe(400);
   expect((await Order.findById(valid.id)).pagamentos).toHaveLength(0);
