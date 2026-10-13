@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api.jsx';
 import { useToast } from '../useToast.js';
+import AlertasModal from './AlertasModal.jsx';
 
 const dinheiro = (valor) => `R$ ${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const mensagemCobranca = (nome) => `Olá${nome ? `, ${nome}` : ''}! Passando para lembrar sobre o saldo pendente que consta aqui. Quando puder, entre em contato para combinarmos o pagamento. Obrigado!`;
@@ -11,6 +12,7 @@ export default function CentralDoDia() {
   const [erro, setErro] = useState('');
   const [tentativa, setTentativa] = useState(0);
   const [reporProduto, setReporProduto] = useState(null);
+  const [alertasOpen, setAlertasOpen] = useState(false);
   const [quantidade, setQuantidade] = useState('');
   const [salvando, setSalvando] = useState(false);
   const { showToast } = useToast();
@@ -92,7 +94,7 @@ export default function CentralDoDia() {
           {dados.urgencias.slice(0, 8).map((item, index) => <li className={`urgency-${item.severidade}`} key={`${item.tipo}-${item.titulo}-${index}`}>
             <i aria-hidden="true" /><Link to={item.link || '/dashboard'}><strong>{item.titulo}</strong><small>{item.valor ? dinheiro(item.valor) : item.subtitulo}</small></Link>
           </li>)}
-          {dados.urgencias.length > 8 && <li><Link to="/dashboard">Ver mais {dados.urgencias.length - 8} alertas</Link></li>}
+          {dados.urgencias.length > 8 && <li><button type="button" className="day-alerts-trigger" onClick={() => setAlertasOpen(true)}>Ver mais {dados.urgencias.length - 8} alertas</button></li>}
         </ul> : <p className="day-center-clear">✓ Tudo em dia — nenhuma ação pendente.</p>}
       </article>
 
@@ -130,6 +132,7 @@ export default function CentralDoDia() {
         <Link className="day-center-footer" to="/financeiro">Gerir contas a pagar →</Link>
       </article>
     </div>
+    {alertasOpen && <AlertasModal alertas={dados.urgencias} onClose={() => setAlertasOpen(false)} />}
     {reporProduto && <div className="day-replenish-overlay" onClick={() => setReporProduto(null)}>
       <form className="day-replenish-modal" onSubmit={salvarReposicao} onClick={(event) => event.stopPropagation()}>
         <h3>Repor estoque</h3><p>{reporProduto.nome} · atual: {Number(reporProduto.estoqueReposicao).toLocaleString('pt-BR')} {reporProduto.unidadeReposicao}</p>
@@ -155,6 +158,7 @@ const estilos = `
   .day-urgency-list .urgency-atrasado i{background:#c94637}.day-urgency-list .urgency-hoje i{background:#d89420}
   .day-urgency-list a,.day-urgency-list li>a{display:grid;gap:3px;color:var(--text-primary);font-size:11px;text-decoration:none}.day-urgency-list a:hover strong{text-decoration:underline}
   .day-urgency-list small,.day-stock-list small,.day-debtor-list small{color:var(--text-secondary);font-size:10px}
+  .day-alerts-trigger{min-height:44px;padding:8px 10px;border:1px solid var(--accent-border);border-radius:8px;background:var(--accent-light);color:var(--accent-primary);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
   .day-stock-list li,.day-debtor-list li{display:flex;align-items:center;justify-content:space-between;gap:7px;padding:7px 0;border-bottom:1px solid var(--border-light)}
   .day-stock-list li>span,.day-debtor-list li>span{display:grid;gap:3px;overflow:hidden}.day-stock-list strong,.day-debtor-list strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
   .day-stock-list .stock-empty strong,.day-stock-list .stock-empty small{color:var(--error-text,#b42318)}

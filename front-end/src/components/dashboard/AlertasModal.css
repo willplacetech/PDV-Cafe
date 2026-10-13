@@ -1,0 +1,38 @@
+.day-alerts-dialog {
+  box-sizing: border-box;
+  width: min(640px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  padding: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-lg);
+}
+.day-alerts-dialog[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 16px; }
+.day-alerts-dialog::backdrop { background: rgba(25, 20, 16, .58); }
+.day-alerts-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.day-alerts-heading h2 { margin: 0; font-size: 20px; }
+.day-alerts-heading p { margin: 6px 0 0; color: var(--text-secondary); font-size: 13px; }
+.day-alerts-close {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 28px;
+  cursor: pointer;
+}
+.day-alerts-dialog .day-alerts-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; }
+.day-alerts-dialog .day-alerts-list li { padding: 12px 0; }
+.day-alerts-dialog .day-alerts-list a { min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+.day-alerts-dialog .day-alerts-list small { font-size: 12px; }
+@media (max-width: 640px) {
+  .day-alerts-dialog { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 14px; }
+  .day-alerts-heading h2 { font-size: 18px; }
+}
