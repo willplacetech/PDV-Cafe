@@ -1,4 +1,4 @@
-import { useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { filterOptions, selectOptions } from '../utils/selectOptions.js';
 import './SearchableSelect.css';
@@ -22,13 +22,35 @@ export default function SearchableSelect({ children, ref, onChange, onInvalid, c
 
   useImperativeHandle(ref, () => inputRef.current);
 
+  const updatePosition = useCallback(() => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    const viewport = window.visualViewport;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportWidth = viewport?.width ?? window.innerWidth;
+    const viewportHeight = viewport?.height ?? window.innerHeight;
+    const rect = input.getBoundingClientRect();
+    const left = rect.left - viewportLeft;
+    const top = rect.top - viewportTop;
+    const below = viewportHeight - top - rect.height - 8;
+    const above = top - 8;
+    const upwards = below < 180 && above > below;
+
+    setPosition({
+      left: Math.max(4, Math.min(left, viewportWidth - rect.width - 4)),
+      width: Math.min(rect.width, viewportWidth - 8),
+      maxHeight: Math.max(80, Math.min(280, upwards ? above : below)),
+      ...(upwards
+        ? { bottom: viewportHeight - top + 4 }
+        : { top: top + rect.height + 4 }),
+    });
+  }, []);
+
   const showOptions = () => {
     if (disabled) return;
-    const rect = inputRef.current.getBoundingClientRect();
-    const below = window.innerHeight - rect.bottom - 8;
-    const above = rect.top - 8;
-    const upwards = below < 180 && above > below;
-    setPosition({ left: Math.max(4, Math.min(rect.left, window.innerWidth - rect.width - 4)), width: Math.min(rect.width, window.innerWidth - 8), maxHeight: Math.max(80, Math.min(280, upwards ? above : below)), ...(upwards ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }) });
+    updatePosition();
     setQuery('');
     setActive(-1);
     setOpen(true);
@@ -49,14 +71,18 @@ export default function SearchableSelect({ children, ref, onChange, onInvalid, c
       if (!listRef.current?.contains(event.target) && event.target !== inputRef.current) setOpen(false);
     };
     document.addEventListener('pointerdown', close);
-    window.addEventListener('resize', close);
-    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    window.visualViewport?.addEventListener('resize', updatePosition);
+    window.visualViewport?.addEventListener('scroll', updatePosition);
     return () => {
       document.removeEventListener('pointerdown', close);
-      window.removeEventListener('resize', close);
-      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+      window.visualViewport?.removeEventListener('resize', updatePosition);
+      window.visualViewport?.removeEventListener('scroll', updatePosition);
     };
-  }, [expanded]);
+  }, [expanded, updatePosition]);
 
   useEffect(() => {
     if (expanded && active >= 0) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' });
@@ -85,7 +111,9 @@ export default function SearchableSelect({ children, ref, onChange, onInvalid, c
       ref={inputRef} id={id} type="text" role="combobox" disabled={disabled}
       className={`searchable-select-input ${className}`} style={style}
       value={expanded ? query : selected?.label || ''}
-      placeholder={selected?.label || 'Digite para buscar...'} autoComplete="off"
+      placeholder={expanded ? 'Digite para buscar...' : selected?.label || 'Digite para buscar...'}
+      autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
+      inputMode="search" enterKeyHint="search"
       aria-label={props['aria-label']} aria-labelledby={props['aria-labelledby']}
       aria-describedby={props['aria-describedby']} aria-required={props.required || undefined}
       aria-expanded={expanded} aria-controls={expanded ? listId : undefined} aria-autocomplete="list"
