@@ -46,6 +46,28 @@ describe('Barra de comanda no mobile', () => {
     cy.get('.pdv-mobile-cart-trigger, .pdv-cart-panel, .pdv-mobile-cart-backdrop').should('not.exist');
   });
 
+  it('fecha o painel após salvar em aberto e deixa a navegação de comandas acessível', () => {
+    cy.get('.product-card').contains(product.nome).click();
+    cy.get('.pdv-cart-panel').contains('button', 'Salvar em aberto').click();
+    cy.wait('@save');
+    cy.get('.pdv-cart-panel').should('not.be.visible');
+    cy.get('.pdv-mobile-cart-backdrop').should('not.exist');
+    cy.get('.pdv-mobile-mesas-trigger').should('be.visible');
+    cy.get('.pdv-mobile-cart-trigger').should('be.visible').and('contain', '1 item');
+    cy.get('.pdv-mobile-cart-trigger').click();
+    cy.get('.pdv-cart-panel').should('be.visible').and('contain', product.nome);
+  });
+
+  it('mantém o painel aberto se não conseguir salvar a comanda', () => {
+    cy.intercept('POST', '**/api/comandas', { statusCode: 500, body: { msg: 'Falha ao salvar.' } }).as('saveFailed');
+    cy.get('.product-card').contains(product.nome).click();
+    cy.get('.pdv-cart-panel').contains('button', 'Salvar em aberto').click();
+    cy.wait('@saveFailed');
+    cy.get('.pdv-cart-panel').should('be.visible').and('contain', product.nome);
+    cy.get('.pdv-cart-items').contains(product.nome).should('be.visible');
+    cy.get('.pdv-mobile-cart-backdrop').should('be.visible');
+  });
+
   it('fecha o painel e remove o fundo ao cancelar uma comanda ainda não salva', () => {
     cy.on('window:confirm', () => true);
     cy.get('.product-card').contains(product.nome).click();
@@ -63,6 +85,7 @@ describe('Barra de comanda no mobile', () => {
     cy.get('.product-card').contains(product.nome).click();
     cy.get('.pdv-cart-panel').contains('button', 'Salvar em aberto').click();
     cy.wait('@save');
+    cy.get('.pdv-mobile-cart-trigger').click();
     cy.get('.pdv-cart-panel').contains('button', 'Cancelar comanda').click();
     cy.wait('@cancel');
     cy.get('.pdv-cart-panel').should('not.be.visible');
@@ -79,6 +102,7 @@ describe('Barra de comanda no mobile', () => {
     cy.get('.pdv-cart-items').contains(product.nome).should('be.visible');
     cy.get('.pdv-cart-panel').contains('button', 'Salvar em aberto').click();
     cy.wait('@save');
+    cy.get('.pdv-mobile-cart-trigger').click();
     cy.then(() => { confirmar = true; });
     cy.get('.pdv-cart-panel').contains('button', 'Cancelar comanda').click();
     cy.wait('@cancelFailed');

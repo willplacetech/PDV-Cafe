@@ -515,6 +515,11 @@ export default function PDV() {
     }
   };
 
+  const salvarComandaEmAberto = async () => {
+    const comanda = await salvarComandaAtual();
+    if (comanda) setMobileCartOpen(false);
+  };
+
   const validarDadosEntrega = () => {
     if (!entregaPDV) return true;
     const enderecoEntrega = entregaPDV.usarEnderecoCadastrado ? clienteSelecionado?.enderecoEntrega : entregaPDV.endereco;
@@ -1170,7 +1175,7 @@ export default function PDV() {
                   </div>
                   
                   <div className="pdv-command-actions">
-                  <button type="button" onClick={salvarComandaAtual} disabled={enviando} style={{
+                  <button type="button" onClick={salvarComandaEmAberto} disabled={enviando} style={{
                     width: '100%', padding: '13px', background: 'var(--bg-tertiary)', color: 'var(--accent-primary)',
                     border: '1px solid var(--accent-border)', borderRadius: 12, fontSize: 14, fontWeight: 700,
                     cursor: 'pointer', minHeight: 48
