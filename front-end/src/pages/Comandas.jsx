@@ -536,7 +536,7 @@ export default function Comandas() {
             const info = statusPagamentoInfo(command.statusPagamento);
             const saldo = saldoDevedor(command.valorTotal, command.historicoPagamentos);
             return (
-              <button className="comanda-select-button" key={command._id} onClick={() => { setSelected(command); setMobileView('detail'); }} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
+            <button className="comanda-select-button" key={command._id} onClick={() => { setSelected(command); setSelectedItemIds([]); setMobileView('detail'); }} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
                 <b>{command.tipoAtendimento === 'delivery' ? '🛵' : command.tipoAtendimento === 'balcao' ? '📦' : '🪑'} #{command.numero}</b>
                 {command.statusPagamento === 'parcial' && <span className="comanda-status-pill" style={{ background: info.bg, color: info.txt }}>{info.label}</span>}
                 <br />
@@ -561,11 +561,11 @@ export default function Comandas() {
 
             {selected.itens.length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                {selectedItemIds.length > 0 && (
-                  <button type="button" onClick={moverParaNovaComanda} className="comandas-secondary-button" style={{ flex: 1, minWidth: 180 }}>
-                    📦 Criar nova comanda com {selectedItemIds.length} item{selectedItemIds.length > 1 ? 'ns' : ''}
-                  </button>
-                )}
+                <button type="button" onClick={moverParaNovaComanda} disabled={!selectedItemIds.length} className="comandas-secondary-button" style={{ flex: 1, minWidth: 220 }}>
+                  📦 {selectedItemIds.length
+                    ? `Separar pagamento · nova comanda (${selectedItemIds.length} item${selectedItemIds.length > 1 ? 'ns' : ''})`
+                    : 'Selecione itens para separar o pagamento'}
+                </button>
                 {selectedItemIds.length > 0 && (
                   <button type="button" onClick={() => setSelectedItemIds([])} className="comandas-cancel-button" style={{ flex: 1, minWidth: 140 }}>
                     Limpar seleção
@@ -728,9 +728,9 @@ export default function Comandas() {
         <div onClick={() => setModalMoverComanda(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9002, padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 18, padding: 24, boxShadow: 'var(--shadow-lg)', color: 'var(--text-primary)' }}>
             <div style={{ width: 62, height: 62, borderRadius: '50%', margin: '0 auto 12px', background: 'rgba(124,75,30,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30 }}>📦</div>
-            <h3 style={{ margin: '0 0 8px', textAlign: 'center', fontSize: 20 }}>Criar nova comanda?</h3>
+            <h3 style={{ margin: '0 0 8px', textAlign: 'center', fontSize: 20 }}>Separar pagamento?</h3>
             <p style={{ margin: '0 0 16px', textAlign: 'center', fontSize: 14, color: 'var(--text-secondary)' }}>
-              Você vai mover <strong>{modalMoverComanda.quantidade}</strong> item{modalMoverComanda.quantidade > 1 ? 'ns' : ''} da comanda <strong>#{modalMoverComanda.origem}</strong> para uma nova comanda.
+              <strong>{modalMoverComanda.quantidade}</strong> item{modalMoverComanda.quantidade > 1 ? 'ns' : ''} sairão da comanda <strong>#{modalMoverComanda.origem}</strong> e serão movidos para uma nova comanda, com pagamento separado.
             </p>
             <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
               <label style={{ display: 'grid', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>

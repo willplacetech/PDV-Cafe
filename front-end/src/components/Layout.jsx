@@ -12,7 +12,8 @@ const gruposMenu = [
     items: [
       { label: 'PDV · Nova venda', icon: '🛒', to: '/pdv' },
       { label: 'Entregas', icon: '🛵', to: '/entregas', roles: ['admin', 'operador'], badge: true },
-      { label: 'Mesas / Comandas', icon: '🪑', to: '/atendimento/mesas', badge: 'comandas' },
+      { label: 'Mesas — Visão geral', icon: '🪑', to: '/atendimento/mesas' },
+      { label: 'Comandas abertas', icon: '📋', to: '/comandas', badge: 'comandas' },
       { label: 'A Receber', icon: '💰', to: '/contas-receber', admin: true },
     ],
   },
@@ -72,6 +73,7 @@ const gruposMenu = [
 const pageIcons = {
   '/pdv': { icon: '🛒', title: 'Atendimento' },
   '/entregas': { icon: '🛵', title: 'Entregas' },
+  '/atendimento/mesas': { icon: '🪑', title: 'Mesas — Visão geral' },
   '/produtos': { icon: '📦', title: 'Produtos' },
   '/clientes': { icon: '👤', title: 'Clientes' },
   '/comandas': { icon: '📋', title: 'Comandas' },

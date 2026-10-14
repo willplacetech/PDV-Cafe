@@ -39,7 +39,7 @@ describe('Barra de comanda no mobile', () => {
     cy.get('.pdv-cart-panel').should('be.visible');
     cy.get('.pdv-mobile-cart-backdrop').click('topLeft');
     cy.window().then(win => {
-      win.history.pushState({}, '', '/comandas');
+      win.history.pushState({}, '', '/atendimento/mesas');
       win.dispatchEvent(new win.PopStateEvent('popstate'));
     });
     cy.location('pathname').should('equal', '/atendimento/mesas');
