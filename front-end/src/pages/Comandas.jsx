@@ -4,6 +4,7 @@ import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { criarOperacoesFinanceiras } from '../utils/operacaoFinanceira';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useComanda } from '../context/ComandaContext.jsx';
 import api from '../services/api.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/useToast.js';
@@ -33,6 +34,7 @@ const produtoPorPeso = (product) => Number(product?.pesoPorUnidade) > 0 && produ
 
 export default function Comandas() {
   const { formasPagamento: FORMAS_PAGAMENTO, rotuloPagamento } = useFormasPagamento();
+  const { comandaAtual, salvarComandaAberta, carregarComanda, limparComanda, setMesa, setTipo } = useComanda();
   const navigate = useNavigate();
   const [comandas, setComandas] = useState([]);
   const [products, setProducts] = useState([]);
@@ -49,6 +51,13 @@ export default function Comandas() {
   const [quantidadesRascunho, setQuantidadesRascunho] = useState({});
   const operacoesItemRef = useRef(new Set());
   const adicionandoItemRef = useRef(false);
+  const selecionandoAtendimentoRef = useRef(false);
+  const [agora, setAgora] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setAgora(Date.now()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const [configuracaoMesas, setConfiguracaoMesas] = useState({ mesas: [], oferecerBalcao: true });
   const mesasAtivas = configuracaoMesas.mesas.filter((mesa) => mesa.ativa);
@@ -217,11 +226,37 @@ export default function Comandas() {
 
   const createMesa = async (mesa) => {
     const existente = comandas.find((comanda) => comanda.tipoAtendimento !== 'balcao' && String(comanda.mesa || '') === String(mesa));
-    if (existente) { setSelected(existente); setMobileView('detail'); return; }
+    if (existente) { setSelected(existente); setSelectedItemIds([]); setMobileView('detail'); return; }
+    const configuracaoMesa = mesasAtivas.find((item) => String(item.numero) === String(mesa));
+    if (!configuracaoMesa) {
+      showToast(`A mesa ${mesa} não está disponível. Atualize a página e tente novamente.`, 'error');
+      return;
+    }
+    await iniciarAtendimentoNoPdv('mesa', null, configuracaoMesa);
+  };
+
+  const iniciarAtendimentoNoPdv = async (tipoAtendimento, comanda = null, mesa = null) => {
+    if (comandaAtual.pagamentoPendente || comandaAtual.consumoInternoPendente) {
+      showToast('Retome o fechamento pendente antes de trocar de comanda.', 'warning');
+      navigate('/pdv');
+      return;
+    }
+    if (selecionandoAtendimentoRef.current) return;
+    selecionandoAtendimentoRef.current = true;
     try {
-      const { data } = await api.post('/comandas', { tipoAtendimento: 'mesa', mesa, clienteNome: 'Mesa ' + mesa });
-      setMobileView('detail'); showToast(`Mesa ${mesa} aberta`, 'success'); await load(data._id);
-    } catch (error) { showToast(error.response?.data?.msg || 'Erro ao abrir mesa', 'error'); }
+      if (comandaAtual.itens.length) await salvarComandaAberta(comandaAtual);
+      if (comanda) await carregarComanda(comanda._id);
+      else {
+        limparComanda();
+        if (mesa) setMesa(mesa.id, mesa.numero);
+        else setTipo(tipoAtendimento);
+      }
+      navigate('/pdv');
+    } catch (error) {
+      showToast(error.response?.data?.msg || error.message || 'Não foi possível abrir o atendimento.', 'error');
+    } finally {
+      selecionandoAtendimentoRef.current = false;
+    }
   };
 
   const updateBalcaoStatus = async (status) => {
@@ -520,8 +555,30 @@ export default function Comandas() {
 
   return (
     <div className="comandas-page">
-      <div className="page-heading"><div><h1>🪑 Mesas / Comandas</h1><p>Abra comandas, lance consumos e feche no caixa.</p></div><button type="button" className="comandas-primary-button" onClick={() => void createBalcao()}>➕ Novo Pedido</button></div>
-      <section className="service-mode-panel"><div className="service-mode-heading"><h2>🪑 Mesas ({mesasAtivas.length})</h2><span>Escolha a mesa ou prossiga em balcão quando todas estiverem ocupadas</span></div><div className="table-shortcuts">{mesasAtivas.map((configuracaoMesa) => { const mesa = configuracaoMesa.numero; const aberta = comandas.find((comanda) => comanda.tipoAtendimento !== 'balcao' && String(comanda.mesa || '') === String(mesa)); return <button type="button" key={mesa} className={aberta ? 'table-shortcut occupied' : 'table-shortcut'} onClick={() => createMesa(mesa)}><strong>{configuracaoMesa.nome || mesa}</strong><span>{aberta ? '🟡 Ocupada' : '🟢 Livre'}</span></button>; })}</div><div className="counter-service"><div><strong>📦 Pague e leve — Balcão</strong><span>{comandas.filter((comanda) => comanda.tipoAtendimento === 'balcao').length} pedidos em andamento</span></div>{todasMesasOcupadas && configuracaoMesas.oferecerBalcao && <div style={{ fontSize: 12, color: 'var(--warning-bg)', fontWeight: 700, marginTop: 6 }}>⚠️ Todas as mesas estão em uso. Prosseguir em balcão.</div>}</div></section>
+      <div className="page-heading"><div><h1>🪑 Mesas / Comandas</h1><p>Consulte mesas, edite comandas abertas e separe pagamentos em uma única tela.</p></div><button type="button" className="comandas-primary-button" onClick={() => void createBalcao()}>➕ Novo Pedido</button></div>
+      <section className="service-mode-panel">
+        <div className="service-mode-heading"><h2>🪑 Mesas ({mesasAtivas.length})</h2><span>Selecione uma mesa para abrir ou editar a comanda.</span></div>
+        <div className="table-shortcuts">{mesasAtivas.map((configuracaoMesa) => {
+          const mesa = configuracaoMesa.numero;
+          const aberta = comandas.find((comanda) => comanda.tipoAtendimento === 'mesa' && String(comanda.mesa || '') === String(mesa));
+          const quantidadeItens = (aberta?.itens || []).reduce((soma, item) => soma + Number(item.quantidade || 0), 0);
+          const minutosAberta = aberta?.createdAt ? Math.max(0, Math.floor((agora - new Date(aberta.createdAt).getTime()) / 60000)) : null;
+          return <button type="button" key={mesa} className={aberta ? 'table-shortcut occupied' : 'table-shortcut'} onClick={() => createMesa(mesa)} aria-label={`${configuracaoMesa.nome || `Mesa ${mesa}`} ${aberta ? 'ocupada' : 'livre'}`}>
+            <strong>{configuracaoMesa.nome || mesa}</strong>
+            <span>{aberta ? `🟡 Ocupada · ${formatMoney(aberta.valorTotal)}` : '🟢 Livre'}</span>
+            {aberta && <small>{quantidadeItens} {quantidadeItens === 1 ? 'item' : 'itens'} · Comanda #{aberta.numero}{minutosAberta !== null ? ` · ${minutosAberta} min` : ''}</small>}
+          </button>;
+        })}</div>
+        <div className="counter-service">
+          <div><strong>📦 Pague e leve — Balcão</strong><span>{comandas.filter((comanda) => comanda.tipoAtendimento === 'balcao').length} pedidos em andamento</span></div>
+          <div className="service-mode-actions">
+            <button type="button" onClick={() => void iniciarAtendimentoNoPdv('balcao')}>Balcão no PDV</button>
+            <button type="button" onClick={() => void iniciarAtendimentoNoPdv('retirada')}>Retirada no PDV</button>
+            <button type="button" onClick={() => void iniciarAtendimentoNoPdv('delivery')}>Delivery no PDV</button>
+          </div>
+          {todasMesasOcupadas && configuracaoMesas.oferecerBalcao && <div style={{ fontSize: 12, color: 'var(--warning-bg)', fontWeight: 700, marginTop: 6 }}>⚠️ Todas as mesas estão em uso. Prosseguir em balcão.</div>}
+        </div>
+      </section>
       <form onSubmit={create} className="comandas-open-form">
         <input className="comandas-field" placeholder="Nome do cliente" value={newCommand.clienteNome} onChange={(e) => setNewCommand({ ...newCommand, clienteNome: e.target.value })} />
         <input className="comandas-field" placeholder="Observação" value={newCommand.observacao} onChange={(e) => setNewCommand({ ...newCommand, observacao: e.target.value })} />
@@ -540,7 +597,7 @@ export default function Comandas() {
                 <b>{command.tipoAtendimento === 'delivery' ? '🛵' : command.tipoAtendimento === 'balcao' ? '📦' : '🪑'} #{command.numero}</b>
                 {command.statusPagamento === 'parcial' && <span className="comanda-status-pill" style={{ background: info.bg, color: info.txt }}>{info.label}</span>}
                 <br />
-                <small>{command.tipoAtendimento === 'delivery' ? 'Delivery' : command.tipoAtendimento === 'balcao' ? `Balcão · ${command.statusBalcao || 'aguardando'}` : 'Mesa'} · {command.clienteNome} · {command.itens.length} itens</small>
+                <small>{command.tipoAtendimento === 'delivery' ? 'Delivery' : command.tipoAtendimento === 'balcao' ? `Balcão · ${command.statusBalcao || 'aguardando'}` : command.tipoAtendimento === 'retirada' ? 'Retirada' : `Mesa ${command.mesa || ''}`} · {command.clienteNome} · {command.itens.length} itens</small>
                 {saldo > 0 && <small style={{ display: 'block', marginTop: 4, fontWeight: 700 }}>A receber: {formatMoney(saldo)}</small>}
               </button>
             );
@@ -549,7 +606,10 @@ export default function Comandas() {
 
         <section className={`comandas-card comandas-detail-card ${mobileView === 'list' ? 'mobile-hidden' : ''}`}>
           {!selected ? <p>Selecione ou abra uma comanda.</p> : <>
-            <button type="button" className="comandas-mobile-back" onClick={() => setMobileView('list')}>← Voltar para comandas</button>
+            <div className="comandas-detail-actions">
+              <button type="button" className="comandas-mobile-back" onClick={() => setMobileView('list')}>← Voltar para comandas</button>
+              <button type="button" className="comandas-secondary-button" onClick={() => void iniciarAtendimentoNoPdv(selected.tipoAtendimento, selected)}>Abrir no PDV</button>
+            </div>
             <h2 style={{ marginTop: 0 }}>{selected.tipoAtendimento === 'delivery' ? '🛵 Delivery' : selected.tipoAtendimento === 'balcao' ? '📦 Balcão' : '🪑 Mesa'} #{selected.numero} <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}>— {selected.clienteNome}</small></h2>
             {selected.tipoAtendimento === 'balcao' && <div className="balcao-status-bar"><span>Status: <strong>{selected.statusBalcao || 'aguardando'}</strong></span><div>{['aguardando', 'preparando', 'pronto', 'pago', 'entregue'].map((status) => <button type="button" key={status} className={selected.statusBalcao === status ? 'active' : ''} onClick={() => updateBalcaoStatus(status)}>{status}</button>)}</div></div>}
             <form onSubmit={addItem} className="comandas-add-form">
@@ -862,7 +922,7 @@ export default function Comandas() {
 
       <style>{`
         .comandas-page { width: 100%; max-width: 1180px; margin: 0 auto; }
-        .service-mode-panel { display:grid; gap:12px; margin-bottom:16px; padding:18px; border:1px solid var(--border-color); border-radius:16px; background:var(--bg-secondary); box-shadow:var(--shadow-sm); }.service-mode-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.service-mode-heading h2{margin:0;font-size:17px}.service-mode-heading span{color:var(--text-secondary);font-size:12px}.table-shortcuts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.table-shortcut{display:grid;gap:6px;min-height:76px;padding:12px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-tertiary);color:var(--text-primary);cursor:pointer;text-align:left}.table-shortcut strong{font-size:20px}.table-shortcut span{color:var(--success-bg);font-size:11px;font-weight:700}.table-shortcut.occupied{border-color:var(--warning-bg)}.table-shortcut.occupied span{color:var(--warning-bg)}.counter-service{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;border-top:1px solid var(--border-light)}.counter-service>div{display:grid;gap:3px}.counter-service span{color:var(--text-secondary);font-size:12px}.counter-service strong{color:var(--accent-primary);font-size:13px}
+        .service-mode-panel { display:grid; gap:12px; margin-bottom:16px; padding:18px; border:1px solid var(--border-color); border-radius:16px; background:var(--bg-secondary); box-shadow:var(--shadow-sm); }.service-mode-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.service-mode-heading h2{margin:0;font-size:17px}.service-mode-heading span{color:var(--text-secondary);font-size:12px}.table-shortcuts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.table-shortcut{display:grid;gap:6px;min-height:76px;padding:12px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-tertiary);color:var(--text-primary);cursor:pointer;text-align:left}.table-shortcut strong{font-size:20px}.table-shortcut span{color:var(--success-bg);font-size:11px;font-weight:700}.table-shortcut small{color:var(--text-secondary);font-size:11px}.table-shortcut.occupied{border-color:var(--warning-bg)}.table-shortcut.occupied span{color:var(--warning-bg)}.counter-service{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;border-top:1px solid var(--border-light)}.counter-service>div{display:grid;gap:3px}.counter-service span{color:var(--text-secondary);font-size:12px}.counter-service strong{color:var(--accent-primary);font-size:13px}.service-mode-actions{display:flex;flex-wrap:wrap;gap:8px}.service-mode-actions button{min-height:38px;padding:8px 12px;border:1px solid var(--border-color);border-radius:9px;background:var(--bg-tertiary);color:var(--text-primary);font:inherit;font-size:12px;font-weight:700;cursor:pointer}.comandas-detail-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}
         .page-heading { margin-bottom: 20px; }
         .comanda-status-pill { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
         .page-heading p, .comandas-card-heading p { margin: 0; color: var(--text-secondary); font-size: 13px; }

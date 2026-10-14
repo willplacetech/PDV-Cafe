@@ -42,7 +42,7 @@ describe('Barra de comanda no mobile', () => {
       win.history.pushState({}, '', '/atendimento/mesas');
       win.dispatchEvent(new win.PopStateEvent('popstate'));
     });
-    cy.location('pathname').should('equal', '/atendimento/mesas');
+    cy.location('pathname').should('equal', '/comandas');
     cy.get('.pdv-mobile-cart-trigger, .pdv-cart-panel, .pdv-mobile-cart-backdrop').should('not.exist');
   });
 

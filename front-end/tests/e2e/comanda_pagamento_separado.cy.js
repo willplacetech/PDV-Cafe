@@ -28,7 +28,10 @@ describe('Pagamento separado por itens da comanda', () => {
     cy.intercept('POST', '**/api/auth/refresh', { token: 'test-token', user: profile });
     cy.intercept('GET', '**/api/**', req => {
       const path = new URL(req.url).pathname;
-      if (path.endsWith('/mesas')) return req.reply({ mesas: [] });
+      if (path.endsWith('/mesas')) return req.reply({ mesas: [
+        { id: 'mesa-1', numero: '1', nome: 'Mesa 1', ativa: true },
+        { id: 'mesa-2', numero: '2', nome: 'Mesa 2', ativa: true },
+      ] });
       if (path.endsWith('/comandas')) return req.reply(comandas);
       if (path.endsWith('/products') || path.endsWith('/products/pdv')) return req.reply([]);
       if (path.endsWith('/entregas/estatisticas')) return req.reply({ prontos: 0, despachados: 0 });
@@ -54,8 +57,9 @@ describe('Pagamento separado por itens da comanda', () => {
   });
 
   it('permite selecionar itens, cria a comanda de destino e mantém o restante na origem', () => {
-    cy.get('#sidebar-desktop').contains('a', 'Comandas abertas').should('have.attr', 'href', '/comandas');
-    cy.get('.comanda-select-button').contains('Cliente original').click();
+    cy.get('#sidebar-desktop').contains('a', 'Mesas / Comandas').should('have.attr', 'href', '/comandas');
+    cy.get('.table-shortcut').contains('Mesa 1').click();
+    cy.get('.comandas-detail-card').contains('Mesa #10').should('be.visible');
     cy.get('.comandas-detail-card').contains('button', 'Selecione itens para separar o pagamento').should('be.disabled');
     cy.get('[aria-label="Selecionar Café"]').check();
     cy.get('.comandas-detail-card').contains('button', 'Separar pagamento').should('be.enabled').click();
@@ -78,5 +82,18 @@ describe('Pagamento separado por itens da comanda', () => {
       expect(comandaOrigem.valorTotal).to.equal(12);
       expect(comandaDestino.valorTotal).to.equal(6);
     });
+  });
+
+  it('redireciona a rota antiga de mesas para a página unificada', () => {
+    cy.visit('/atendimento/mesas', { onBeforeLoad(win) { win.localStorage.setItem('pdv_user', JSON.stringify(profile)); } });
+    cy.location('pathname').should('equal', '/comandas');
+    cy.get('.table-shortcut').contains('Mesa 1').should('be.visible');
+    cy.get('.comanda-select-button').contains('Cliente original').should('be.visible');
+  });
+
+  it('abre mesa livre no PDV preservando a mesa selecionada', () => {
+    cy.get('.table-shortcut').contains('Mesa 2').click();
+    cy.location('pathname').should('equal', '/pdv');
+    cy.get('.pdv-command-current').should('contain', 'Mesa 2');
   });
 });
