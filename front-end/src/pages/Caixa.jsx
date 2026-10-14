@@ -97,7 +97,10 @@ export default function Caixa() {
     if (bloqueado) return;
     try {
       const { data: atualizado } = await api.post(`/caixa/${caixa._id}/movimentos`, movimento);
-      setCaixa(atualizado); setSistema(atualizado.sistema); setMovimento({ tipo: movimento.tipo, valor: '', responsavel: '', motivo: '' }); showToast('Movimento registrado', 'success');
+      setCaixa((atual) => ({ ...atual, sistema: atualizado.sistema }));
+      setSistema(atualizado.sistema);
+      setMovimento({ tipo: movimento.tipo, valor: '', responsavel: '', motivo: '' });
+      showToast('Movimento registrado', 'success');
     } catch (error) { showToast(error.response?.data?.msg || 'Não foi possível registrar o movimento', 'error'); }
   };
 
@@ -122,11 +125,12 @@ export default function Caixa() {
 
       <section className={`caixa-panel caixa-conference ${situacao}`}><div><span>Esperado</span><strong>{dinheiro(esperado)}</strong></div><div><span>Contado</span><strong>{dinheiro(totalDinheiro)}</strong></div><div><span>Diferença</span><strong>{diferenca >= 0 ? '+' : ''}{dinheiro(diferenca)}</strong></div><b>{situacao === 'conferido' ? '✅ Conferido' : situacao === 'sobrando' ? '✅ Sobrando' : '⚠️ Faltante'}</b>{Math.abs(diferenca) > 5 && <label className="caixa-observacao">⚠️ Diferença acima de R$ 5,00 — justifique<input disabled={bloqueado} value={observacao} onChange={(event) => setObservacao(event.target.value)} placeholder="Informe o motivo" /></label>}</section>
 
-      {!bloqueado && <><section className="caixa-panel"><div className="caixa-panel-heading"><div><span className="dashboard-eyebrow">MOVIMENTAÇÃO</span><h2>Sangria ou suplementação</h2></div></div><form className="caixa-movement-form" onSubmit={registrarMovimento}><SearchableSelect value={movimento.tipo} onChange={(event) => setMovimento({ ...movimento, tipo: event.target.value })}><option value="sangria">Sangria</option><option value="suplementacao">Suplementação</option></SearchableSelect><input type="number" min="0.01" step="0.01" placeholder="Valor" value={movimento.valor} onChange={(event) => setMovimento({ ...movimento, valor: event.target.value })} required /><input placeholder="Responsável" value={movimento.responsavel} onChange={(event) => setMovimento({ ...movimento, responsavel: event.target.value })} required /><input placeholder="Motivo" value={movimento.motivo} onChange={(event) => setMovimento({ ...movimento, motivo: event.target.value })} required /><button type="submit">Registrar</button></form></section><div className="caixa-actions"><button type="button" onClick={salvarParcial} disabled={salvando}>Salvar Parcial</button><button type="button" onClick={fecharCaixa} disabled={salvando}>Confirmar Fechamento</button></div></>}
+      {!bloqueado && <><section className="caixa-panel"><div className="caixa-panel-heading"><div><span className="dashboard-eyebrow">MOVIMENTAÇÃO</span><h2>Sangria ou suplementação</h2><p>Afeta somente o saldo em dinheiro físico; Pix e cartões não são alterados.</p></div></div><form className="caixa-movement-form" onSubmit={registrarMovimento}><SearchableSelect value={movimento.tipo} onChange={(event) => setMovimento({ ...movimento, tipo: event.target.value })}><option value="sangria">Sangria</option><option value="suplementacao">Suplementação</option></SearchableSelect><input type="number" min="0.01" step="0.01" placeholder="Valor" value={movimento.valor} onChange={(event) => setMovimento({ ...movimento, valor: event.target.value })} required /><input placeholder="Responsável" value={movimento.responsavel} onChange={(event) => setMovimento({ ...movimento, responsavel: event.target.value })} required /><input placeholder="Motivo" value={movimento.motivo} onChange={(event) => setMovimento({ ...movimento, motivo: event.target.value })} required /><button type="submit">Registrar</button></form></section><div className="caixa-actions"><button type="button" onClick={salvarParcial} disabled={salvando}>Salvar Parcial</button><button type="button" onClick={fecharCaixa} disabled={salvando}>Confirmar Fechamento</button></div></>}
       {bloqueado && <div className="caixa-locked">🔒 Fechamento realizado em {new Date(caixa.conferencia?.conferidoEm || caixa.updatedAt).toLocaleString('pt-BR')}. Este registro está bloqueado para edição.</div>}
 
       <section className="caixa-panel caixa-other">
         <h2>Resumo por meio de pagamento</h2>
+        <p>Os valores de Pix e cartões são independentes das movimentações de dinheiro físico.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 12 }}>
           {[
             ['Entradas em dinheiro', dinheiro(sistema.entradasDinheiro)],
