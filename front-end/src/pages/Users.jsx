@@ -30,25 +30,19 @@ export default function Users() {
   const [edit, setEdit] = useState(emptyEdit);
   const [courierEdit, setCourierEdit] = useState(null);
 
-  const loadUsers = useCallback(async () => {
-    setListLoading(true);
-    setListError('');
-    try { setUsers((await api.get('/auth/users')).data); }
-    catch (error) { setListError(errorMessage(error)); }
-    finally { setListLoading(false); }
-  }, []);
+  const loadUsers = useCallback(() => api.get('/auth/users')
+    .then(({ data }) => { setUsers(data); setListError(''); })
+    .catch(error => { setListError(errorMessage(error)); })
+    .finally(() => { setListLoading(false); }), []);
 
-  const loadCouriers = useCallback(async () => {
-    setCouriersLoading(true);
-    setCouriersError('');
-    try { setCouriers((await api.get('/entregas/entregadores')).data || []); }
-    catch (error) {
+  const loadCouriers = useCallback(() => api.get('/entregas/entregadores')
+    .then(({ data }) => { setCouriers(data || []); setCouriersError(''); })
+    .catch(error => {
       setCouriers([]);
       setCouriersError(error.response?.status === 403
         ? 'Associe este usuário administrador a um comércio do Delivery para consultar os entregadores.'
         : errorMessage(error));
-    } finally { setCouriersLoading(false); }
-  }, []);
+    }).finally(() => { setCouriersLoading(false); }), []);
 
   useEffect(() => {
     if (user?.role !== 'admin') return;
@@ -66,6 +60,7 @@ export default function Users() {
       await api.post('/auth/register', { username: form.username.trim().toLowerCase(), password: form.password, role: form.role });
       setForm(emptyForm);
       showToast('Usuário criado com sucesso!', 'success');
+      setListLoading(true);
       await loadUsers();
     } catch (error) { showToast(errorMessage(error), 'error'); }
     finally { setLoading(false); }
@@ -116,6 +111,7 @@ export default function Users() {
       await api.put(`/entregas/entregadores/${courierEdit._id}`, body);
       setCourierEdit(null);
       showToast('Entregador atualizado.', 'success');
+      setCouriersLoading(true);
       await loadCouriers();
     } catch (error) { showToast(errorMessage(error), 'error'); }
     finally { setBusy(false); }
@@ -128,6 +124,7 @@ export default function Users() {
       await api.delete(`/entregas/entregadores/${courier._id}`);
       if (courierEdit?._id === courier._id) setCourierEdit(null);
       showToast('Entregador excluído.', 'success');
+      setCouriersLoading(true);
       await loadCouriers();
     } catch (error) { showToast(errorMessage(error), 'error'); }
     finally { setBusy(false); }
@@ -159,7 +156,7 @@ export default function Users() {
         <h2>Acessos da equipe</h2>
         <p>Alterar perfil, bloquear ou redefinir senha encerra as sessões anteriores desse usuário.</p>
         {listLoading && <p role="status">Carregando usuários...</p>}
-        {listError && <div role="alert" className="users-error"><p>{listError}</p><button type="button" className="users-secondary-button" onClick={() => void loadUsers()}>Tentar novamente</button></div>}
+        {listError && <div role="alert" className="users-error"><p>{listError}</p><button type="button" className="users-secondary-button" onClick={() => { setListLoading(true); setListError(''); void loadUsers(); }}>Tentar novamente</button></div>}
         {!listLoading && !listError && users.length === 0 && <p>Nenhum usuário cadastrado.</p>}
         {!listLoading && !listError && users.length > 0 && <div style={{ overflowX: 'auto' }}>
           <table style={tableStyle}>
@@ -197,7 +194,7 @@ export default function Users() {
         <h2>Entregadores cadastrados</h2>
         <p>Entregadores com pedidos associados não podem ser excluídos; desative o cadastro para preservar o histórico.</p>
         {couriersLoading && <p role="status">Carregando entregadores...</p>}
-        {couriersError && <div role="alert" className="users-error"><p>{couriersError}</p><button type="button" className="users-secondary-button" onClick={() => void loadCouriers()}>Tentar novamente</button></div>}
+        {couriersError && <div role="alert" className="users-error"><p>{couriersError}</p><button type="button" className="users-secondary-button" onClick={() => { setCouriersLoading(true); setCouriersError(''); void loadCouriers(); }}>Tentar novamente</button></div>}
         {!couriersLoading && !couriersError && couriers.length === 0 && <p>Nenhum entregador cadastrado para este comércio.</p>}
         {!couriersLoading && !couriersError && couriers.length > 0 && <div style={{ overflowX: 'auto' }}>
           <table style={tableStyle}>

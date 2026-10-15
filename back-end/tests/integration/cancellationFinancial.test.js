@@ -83,6 +83,23 @@ test('legacy cancelled comanda receipts remain in their original period exactly 
   expect(String(receipts[0].comandaId)).toBe(comanda.id);
 });
 
+test('period receipts ignore stale order mirrors when canonical comanda has no receipt in that period', async () => {
+  comanda.historicoPagamentos = [{ valor: 10, formaPagamento: 'pix', data: new Date('2026-09-01T12:00:00Z') }];
+  await comanda.save();
+  await makeOrder({ comandaId: comanda.id, pagamentos: [{ tipo: 'pix', valorRecebido: 10, dataPagamento: receiptDate }] });
+  expect(await carregarPagamentosDoPeriodo(period)).toHaveLength(0);
+});
+
+test.each(['pagar', 'quitar'])('cancelled order cannot receive through %s even with an active linked comanda', async path => {
+  const order = await makeOrder({ comandaId: comanda.id, status: 'cancelado' });
+  const response = await request(app).patch(`/api/orders/${order.id}/${path}`)
+    .set('Authorization', `Bearer ${token}`).set('Idempotency-Key', `cancelled-${path}`)
+    .send({ tipo: 'pix', valorRecebido: 10 });
+  expect(response.status).toBe(400);
+  expect((await Comanda.findById(comanda.id)).historicoPagamentos).toHaveLength(0);
+  expect((await Order.findById(order.id)).status).toBe('cancelado');
+});
+
 test('store credit comanda without receipts cancels and restores stock only once', async () => {
   comanda.historicoPagamentos = [{ valor: 20, formaPagamento: 'credito_loja' }];
   await comanda.save();

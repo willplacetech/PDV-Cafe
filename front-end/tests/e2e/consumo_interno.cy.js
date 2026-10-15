@@ -37,7 +37,7 @@ describe('Consumo da equipe', () => {
     }).as('close');
     cy.visit('/pdv', { onBeforeLoad(win) { win.localStorage.setItem('pdv_user', JSON.stringify(profile)); cy.stub(win, 'open'); } });
     cy.get('.product-card').contains(product.nome).click();
-    cy.get('select').filter((_, element) => [...element.options].some(option => option.value === customer._id)).select(customer._id);
+    cy.get('.pdv-cart-panel [role="combobox"]').first().type(`${customer.nome}{enter}`);
   });
 
   const panel = () => cy.get('.pdv-cart-panel');

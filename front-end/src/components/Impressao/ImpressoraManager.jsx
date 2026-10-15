@@ -17,6 +17,7 @@ import { useToast } from '../useToast.js';
 
 const panelStyle = { padding: 18, border: '1px solid var(--border-color)', borderRadius: 14, background: 'var(--bg-secondary)', marginBottom: 16 };
 const buttonStyle = { minHeight: 42, padding: '9px 14px', border: '1px solid var(--border-color)', borderRadius: 9, cursor: 'pointer', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: 700 };
+const emptySectors = [];
 
 export default function ImpressoraManager() {
   const [config, setConfig] = useState(null);
@@ -103,7 +104,7 @@ export default function ImpressoraManager() {
     };
   }, []);
 
-  const sectors = config?.setores || [];
+  const sectors = config?.setores || emptySectors;
   const categoryOptions = useMemo(() => [...new Set([...categories, ...sectors.flatMap((sector) => sector.categorias || [])])].sort(), [categories, sectors]);
 
   const connect = async (type) => {

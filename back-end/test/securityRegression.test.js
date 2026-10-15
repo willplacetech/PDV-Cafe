@@ -53,11 +53,11 @@ const fiscalEnv = [
   'NFCE_CERTIFICATE_PASSWORD', 'NFCE_PROVIDER_URL',
 ];
 
-const withProvider = async (body, run) => {
+const withProvider = async (body, run, status = 200) => {
   const previous = Object.fromEntries(fiscalEnv.map((key) => [key, process.env[key]]));
   const previousFetch = global.fetch;
   fiscalEnv.forEach((key) => { process.env[key] = 'test-placeholder'; });
-  global.fetch = async () => ({ ok: true, status: 200, json: async () => body });
+  global.fetch = async () => ({ ok: status >= 200 && status < 300, status, json: async () => body });
   try { await run(); } finally {
     global.fetch = previousFetch;
     fiscalEnv.forEach((key) => {
@@ -90,4 +90,22 @@ test('resposta fiscal completa continua sendo aceita', async () => {
     assert.equal(result.numero, '1');
     assert.equal(result.protocolo, '123456789012345');
   });
+});
+
+for (const status of [408, 409, 500, 502, 503, 504]) {
+  test(`HTTP ${status} do provedor fiscal conserva resultado indeterminado`, async () => {
+    const { emitirNfce } = require('../utils/nfce');
+    await withProvider({ message: 'Falha ao confirmar resultado' }, async () => {
+      await assert.rejects(emitirNfce({ order: { _id: 'test', itens: [] }, products: [] }),
+        (error) => error.code === 'INVALID_PROVIDER_RESPONSE');
+    }, status);
+  });
+}
+
+test('HTTP 422 continua representando rejeicao explicita do provedor', async () => {
+  const { emitirNfce } = require('../utils/nfce');
+  await withProvider({ status: 'rejeitada', motivo: 'Dados invalidos' }, async () => {
+    await assert.rejects(emitirNfce({ order: { _id: 'test', itens: [] }, products: [] }),
+      (error) => error.code === 'SEFAZ_REJECTED');
+  }, 422);
 });

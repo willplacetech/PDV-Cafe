@@ -31,6 +31,7 @@ const normalizarStatusFiltro = (status) => {
 const statusPedidoDe = (statusPagamento) => (statusPagamento === 'quitado' ? 'pago' : statusPagamento);
 
 const aplicarRecebimentoPedido = async ({ order, tipo, valorRecebido, observacao, taxas, session, dataRecebimento, quitar = false }) => {
+  if (order.status === 'cancelado') throw new Error('Este pedido não aceita novos pagamentos');
   if (!formaPagamentoValida(tipo) || tipo === 'credito_loja') throw new Error('Forma de pagamento inválida');
   if (order.utilizacaoInterna) throw new Error('Consumo interno não aceita recebimentos');
 

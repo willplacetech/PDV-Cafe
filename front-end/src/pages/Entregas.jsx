@@ -81,10 +81,11 @@ export default function Entregas() {
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
   const [carregando, setCarregando] = useState(true);
-  const [agora, setAgora] = useState(Date.now());
+  const [agora, setAgora] = useState(Date.now);
   const [ocupado, setOcupado] = useState(false);
   const [despachando, setDespachando] = useState('');
   const carregamentoAtivo = useRef(false);
+  const pedidoFocado = useRef(null);
 
   const carregar = useCallback(async (silencioso = false) => {
     if (carregamentoAtivo.current) return;
@@ -129,15 +130,22 @@ export default function Entregas() {
   }, [carregar]);
 
   useEffect(() => {
-    if (!pedidoDestacado) return undefined;
+    if (!pedidoDestacado || pedidoFocado.current === pedidoDestacado) return undefined;
     const pedido = pedidos.find(item => item._id === pedidoDestacado);
     if (!pedido) return undefined;
-    setAba('fila');
-    setFilaAba(pedido.status === 'pronto' ? 'prontos' : pedido.status === 'pendente' ? 'preparo' : 'em-entrega');
+    let rolagem;
     const quadro = window.requestAnimationFrame(() => {
-      document.getElementById(`pedido-${pedido._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      pedidoFocado.current = pedidoDestacado;
+      setAba('fila');
+      setFilaAba(pedido.status === 'pronto' ? 'prontos' : pedido.status === 'pendente' ? 'preparo' : 'em-entrega');
+      rolagem = window.requestAnimationFrame(() => {
+        document.getElementById(`pedido-${pedido._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
     });
-    return () => window.cancelAnimationFrame(quadro);
+    return () => {
+      window.cancelAnimationFrame(quadro);
+      if (rolagem !== undefined) window.cancelAnimationFrame(rolagem);
+    };
   }, [pedidoDestacado, pedidos]);
 
   const prontos = useMemo(() => pedidos.filter(pedido => pedido.status === 'pronto'), [pedidos]);

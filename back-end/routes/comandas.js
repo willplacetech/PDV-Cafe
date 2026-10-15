@@ -318,7 +318,11 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
       : [];
     comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: vendaPorPeso ? money(pesoVendidoKg * Number(product.preco || 0)) : precoPorUnidade(product), quantidade, quantidadePecas: vendaPorPeso ? 0 : quantidade, pesoVendidoKg: vendaPorPeso ? pesoVendidoKg : undefined, tipoVenda: vendaPorPeso ? 'peso' : (produtoControlaPeso(product) ? 'inteiro' : 'unidade'), unidadeVenda: product.unidadeVenda, pesoPorUnidade: product.pesoPorUnidade, unidadePeso: product.unidadePeso, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
     aplicarPrecoManual(comanda.itens[comanda.itens.length - 1], req.body.precoUnitarioManual);
-    if (comanda.estoqueBaixado) await ajustarEstoque([comanda.itens[comanda.itens.length - 1]], 'baixar', session);
+    if (comanda.estoqueBaixado || comanda.status === 'aberta') {
+      const itensParaBaixar = comanda.estoqueBaixado ? [comanda.itens[comanda.itens.length - 1]] : comanda.itens;
+      await ajustarEstoque(itensParaBaixar, 'baixar', session);
+      comanda.estoqueBaixado = true;
+    }
     await recalcularPrecosComanda(comanda, session);
     comanda.valorTotal = comanda.utilizacaoInterna ? 0 : money(calcularSubtotalComanda(comanda.itens) + Number(comanda.taxaEntrega || 0));
     comanda.saldoDevedor = Math.max(0, comanda.valorTotal - Number(comanda.valorPago || 0));

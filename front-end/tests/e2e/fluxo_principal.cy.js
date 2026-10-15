@@ -1,23 +1,28 @@
-describe('Fluxo Principal do Usuário', () => {
-  beforeEach(() => {
-    cy.login('admin', 'SaborAbra26');
-  });
+﻿describe('Fluxo principal do usuário', () => {
+  beforeEach(() => cy.login());
 
-  it('Login → Novo Pedido → Adicionar item → Abrir Comanda', () => {
-    cy.contains('Novo Pedido').click();
-    cy.contains('Área de Pedidos').should('exist');
+  it('adiciona item e persiste uma comanda aberta', () => {
+    cy.intercept('POST', '**/api/comandas', req => {
+      expect(req.body.itens).to.have.length(1);
+      expect(req.body.itens[0].quantidade).to.equal(1);
+      req.reply({ statusCode: 201, body: { ...req.body, _id: 'fluxo-1', numero: '1', status: 'aberta', valorTotal: 16 } });
+    }).as('abrirComanda');
     cy.addToCart('Café');
-    cy.get('button').contains(/Abrir Comanda|Fechar Comanda|Adicionar/).first().click();
-    cy.url().should('include', '/comandas');
+    cy.get('.pdv-cart-panel').contains('button', 'Salvar em aberto').click();
+    cy.wait('@abrirComanda');
+    cy.get('.pdv-cart-panel').should('contain', 'Café');
   });
 
-  it('Botão de instalação PWA visível no login', () => {
+  it('mostra instruções de instalação quando o navegador não oferece instalação', () => {
+    cy.clearLocalStorage();
     cy.visit('/login');
-    cy.get('button[title*="Instalar"], button[title*="instalar"]').should('exist');
+    cy.contains('Para instalar, use o menu do navegador').should('be.visible');
   });
 
-  it('Tema claro/escuro alterna corretamente', () => {
-    cy.get('button[title*="Modo"]').click();
-    cy.get('body').should('have.css', 'background-color');
+  it('alterna o tema claro/escuro', () => {
+    cy.get('html').invoke('attr', 'data-theme').then(theme => {
+      cy.get('#sidebar-desktop button[title^="Modo"]').click();
+      cy.get('html').should('not.have.attr', 'data-theme', theme);
+    });
   });
 });

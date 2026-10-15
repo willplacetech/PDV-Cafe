@@ -13,6 +13,7 @@ const User = require('../models/User');
 const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
 const Despesa = require('../models/Despesa');
 const { listarEstoqueBaixo } = require('../utils/estoqueBaixo');
+const { custoUnitarioDoItem } = require('../utils/custo');
 
 const router = express.Router();
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -32,6 +33,7 @@ const dataSaoPaulo = (value = new Date()) => {
 const formatarDataPtBr = (value) => {
   const data = new Date(value);
   return data.toLocaleDateString('pt-BR', {
+    timeZone: TIME_ZONE,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -80,32 +82,29 @@ const periodoHistorico = (semanaInicio) => {
 
 const inicioDoPeriodo = (periodo) => {
   if (periodo === 'dia') return inicioHojeSaoPaulo();
-  const agora = new Date();
-  const inicio = new Date(agora);
+  const inicio = inicioHojeSaoPaulo();
   if (periodo === 'semana') {
-    inicio.setHours(0, 0, 0, 0);
-    inicio.setDate(inicio.getDate() - inicio.getDay());
+    inicio.setUTCDate(inicio.getUTCDate() - inicio.getUTCDay());
   }
   if (periodo === 'mes') {
-    inicio.setHours(0, 0, 0, 0);
-    inicio.setDate(1);
+    inicio.setUTCDate(1);
   }
   return inicio;
 };
 
 const fimDoMesAtual = () => {
-  const agora = new Date();
-  return new Date(agora.getFullYear(), agora.getMonth() + 1, 1);
+  const { year, month } = partesDataSaoPaulo();
+  return new Date(Date.UTC(year, month, 1, 3));
 };
 
 const inicioDoMesAnterior = () => {
-  const agora = new Date();
-  return new Date(agora.getFullYear(), agora.getMonth() - 1, 1);
+  const { year, month } = partesDataSaoPaulo();
+  return new Date(Date.UTC(year, month - 2, 1, 3));
 };
 
 const fimDoMesAnterior = () => {
-  const agora = new Date();
-  return new Date(agora.getFullYear(), agora.getMonth(), 1);
+  const { year, month } = partesDataSaoPaulo();
+  return new Date(Date.UTC(year, month - 1, 1, 3));
 };
 
 router.use(auth);
@@ -448,7 +447,7 @@ router.get('/', async (req, res) => {
       carregarPagamentosDoPeriodo({ inicio: inicioDoPeriodo('mes'), fim: fimDoMesAtual() }),
       Customer.countDocuments(),
       Customer.find().sort({ createdAt: -1 }).limit(8).select('nome telefone createdAt cafesFidelidade'),
-      Product.find({ tipo: 'venda' }).select('nome codigo preco custo estoque categoria'),
+      Product.find({ tipo: 'venda' }).select('nome codigo preco tipoProduto producaoPropria custoUnitario custoUnitarioBase precoCompra unidade unidadeCompra unidadeVenda pesoPorUnidade rendimento rendimentoPorUnidadeCompra estoque categoria'),
       Order.find({ createdAt: { $gte: inicioInsights }, utilizacaoInterna: { $ne: true } }).select('createdAt status total itens clienteId clienteNome'),
       Comanda.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status'),
     ]);
@@ -473,7 +472,7 @@ router.get('/', async (req, res) => {
     const vendasPorDia = new Map();
     vendasMes.forEach((pedido) => {
       if (pedido.clienteNome) clientesMes.add(pedido.clienteNome);
-      const dia = new Date(pedido.createdAt).toLocaleDateString('pt-BR');
+      const dia = formatarDataPtBr(pedido.createdAt);
       vendasPorDia.set(dia, (vendasPorDia.get(dia) || 0) + valorLiquidoPedido(comandasPorId, pedido));
       (pedido.itens || []).forEach((item) => {
         const atual = produtosMes.get(item.nome) || { nome: item.nome, quantidade: 0, total: 0 };
@@ -517,9 +516,17 @@ router.get('/', async (req, res) => {
     todosClientes.forEach((cliente) => {
       if (!clientesRelatorio.has(String(cliente._id))) clientesRelatorio.set(String(cliente._id), { id: cliente._id, nome: cliente.nome, telefone: cliente.telefone || '', pedidos: 0, total: 0, recebido: 0, ultimaCompra: null });
     });
+    vendasMes.forEach((pedido) => {
+      const cliente = clientesRelatorio.get(String(pedido.clienteId));
+      if (!cliente) return;
+      cliente.pedidos += 1;
+      cliente.total += Number(pedido.total || 0);
+      cliente.recebido += pagamentosDe(comandasPorId, pedido).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((total, pagamento) => total + pagamento.valorRecebido, 0);
+      if (!cliente.ultimaCompra || pedido.createdAt > cliente.ultimaCompra) cliente.ultimaCompra = pedido.createdAt;
+    });
     const relatorioClientes = [...clientesRelatorio.values()].map((cliente) => ({ ...cliente, pendente: Math.max(0, cliente.total - cliente.recebido) })).sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome));
     const relatorioMes = {
-      periodo: `${inicioDoPeriodo('mes').toLocaleDateString('pt-BR')} a ${new Date(fimDoMesAtual().getTime() - 1).toLocaleDateString('pt-BR')}`,
+      periodo: `${formatarDataPtBr(inicioDoPeriodo('mes'))} a ${formatarDataPtBr(new Date(fimDoMesAtual().getTime() - 1))}`,
       pedidos: pedidosMes.length,
       vendas: vendasMes.length,
       itens: vendasMes.reduce((total, pedido) => total + (pedido.itens || []).reduce((soma, item) => soma + quantidadeNaUnidadeBase(item), 0), 0),
@@ -537,24 +544,29 @@ router.get('/', async (req, res) => {
       descontosQuantidade: { total: descontosQuantidadeMes, produtos: [...rankingDescontos.values()].sort((a, b) => b.total - a.total).slice(0, 10) },
     };
     const vendasPorProduto = new Map();
+    const produtosPorId = new Map(produtosCatalogo.map((produto) => [String(produto._id), produto]));
     const inicioEstoqueParado = new Date();
     inicioEstoqueParado.setDate(inicioEstoqueParado.getDate() - 60);
     const vendasUltimos60Dias = new Set();
     const vendasPorHora = Array.from({ length: 13 }, (_, indice) => ({ hora: indice + 8, pedidos: 0, itens: 0, total: 0 }));
     pedidosInsights.filter((pedido) => pedido.status !== 'cancelado').forEach((pedido) => {
       const hora = horaSaoPaulo(pedido.createdAt);
-      if (hora < 8 || hora > 20) return;
       const vendaHora = vendasPorHora[hora - 8];
-      vendaHora.pedidos += 1;
-      vendaHora.total += Number(pedido.total || 0);
+      if (vendaHora) {
+        vendaHora.pedidos += 1;
+        vendaHora.total += Number(pedido.total || 0);
+      }
       (pedido.itens || []).forEach((item) => {
         const produtoId = String(item.produtoId || '');
         if (new Date(pedido.createdAt) >= inicioEstoqueParado) vendasUltimos60Dias.add(produtoId);
-        const atual = vendasPorProduto.get(produtoId) || { produtoId, nome: item.nome, quantidade: 0, receita: 0 };
+        const atual = vendasPorProduto.get(produtoId) || { produtoId, nome: item.nome, quantidade: 0, receita: 0, custoTotal: 0 };
         atual.quantidade += quantidadeNaUnidadeBase(item);
         atual.receita += Number(item.quantidade || 0) * Number(item.precoUnitario || 0);
+        const produto = produtosPorId.get(produtoId);
+        const custoUnitario = custoUnitarioDoItem(item, produto);
+        atual.custoTotal += quantidadeNaUnidadeBase(item) * custoUnitario;
         vendasPorProduto.set(produtoId, atual);
-        vendaHora.itens += quantidadeNaUnidadeBase(item);
+        if (vendaHora) vendaHora.itens += quantidadeNaUnidadeBase(item);
       });
     });
     const produtosABC = [...vendasPorProduto.values()].sort((a, b) => b.receita - a.receita);
@@ -566,9 +578,9 @@ router.get('/', async (req, res) => {
       return { ...produto, classe: acumulado <= 0.8 ? 'A' : acumulado <= 0.95 ? 'B' : 'C', percentualReceita: receitaABC ? (produto.receita / receitaABC) * 100 : 0 };
     });
     const margemProdutos = produtosCatalogo.map((produto) => {
-      const venda = vendasPorProduto.get(String(produto._id)) || { quantidade: 0, receita: 0 };
-      const lucro = venda.receita - venda.quantidade * Number(produto.custo || 0);
-      return { produtoId: produto._id, nome: produto.nome, preco: Number(produto.preco || 0), custo: Number(produto.custo || 0), quantidade: venda.quantidade, receita: venda.receita, lucro, margemPercentual: venda.receita ? (lucro / venda.receita) * 100 : 0 };
+      const venda = vendasPorProduto.get(String(produto._id)) || { quantidade: 0, receita: 0, custoTotal: 0 };
+      const lucro = venda.receita - venda.custoTotal;
+      return { produtoId: produto._id, nome: produto.nome, preco: Number(produto.preco || 0), custo: venda.quantidade ? venda.custoTotal / venda.quantidade : 0, quantidade: venda.quantidade, receita: venda.receita, lucro, margemPercentual: venda.receita ? (lucro / venda.receita) * 100 : 0 };
     }).sort((a, b) => b.lucro - a.lucro);
     const estoqueParado = produtosCatalogo.filter((produto) => Number(produto.estoque || 0) > 0 && !vendasUltimos60Dias.has(String(produto._id))).map((produto) => ({ produtoId: produto._id, nome: produto.nome, categoria: produto.categoria, estoque: Number(produto.estoque || 0), diasSemVenda: 60 }));
     const comandasCanceladas = comandasInsights.filter((comanda) => comanda.status === 'cancelada').length;

@@ -41,12 +41,28 @@ test('acrescentar e editar fatia conserva peças', async () => {
   const created = await api('post', '/api/comandas', { itens: [] });
   const added = await api('post', `/api/comandas/${created.body._id}/itens`, fatia(produto));
   expect(added.status).toBe(200);
+  expect(added.body.estoqueBaixado).toBe(true);
+  expect((await Product.findById(produto.id)).estoquePesoKg).toBeCloseTo(2.3);
   const changed = await api('patch', `/api/comandas/${created.body._id}/itens/${added.body.itens[0]._id}`, { quantidade: 1, pesoVendidoKg: 0.3 });
   expect(changed.status).toBe(200);
   expect(changed.body.valorTotal).toBe(12);
   const after = await Product.findById(produto.id);
   expect(after.estoque).toBe(5);
   expect(after.estoquePesoKg).toBeCloseTo(2.2);
+});
+
+test('adicionar fatia ao rascunho adia a baixa ate o fechamento', async () => {
+  const produto = await bolo();
+  const created = await api('post', '/api/comandas', { rascunho: true, itens: [] });
+  const added = await api('post', `/api/comandas/${created.body._id}/itens`, fatia(produto));
+  expect(added.status).toBe(200);
+  expect(added.body.estoqueBaixado).toBe(false);
+  expect((await Product.findById(produto.id)).estoquePesoKg).toBe(2.5);
+  const closed = await request(app).post(`/api/comandas/${created.body._id}/fechar`)
+    .set('Authorization', `Bearer ${token}`).set('Idempotency-Key', 'close-draft-slice')
+    .send({ metodoPagamento: 'credito_loja' });
+  expect(closed.status).toBe(200);
+  expect((await Product.findById(produto.id)).estoquePesoKg).toBeCloseTo(2.3);
 });
 
 test('dividir comanda preserva estoque e recalcula origem e destino', async () => {

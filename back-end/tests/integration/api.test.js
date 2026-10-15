@@ -463,7 +463,7 @@ describe('API Endpoints', () => {
   test('vendas delivery são classificadas como Delivery no dashboard, inclusive comandas antigas vinculadas', async () => {
     const venda = await request(app)
       .post('/api/comandas')
-      .set('Authorization', `******
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({
         clienteNome: 'Pedido Delivery',
         itens: [{ produtoId: produtoVenda._id, quantidade: 1 }],
@@ -476,6 +476,7 @@ describe('API Endpoints', () => {
 
     await Order.create([
       {
+        numero: '900001',
         itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, precoUnitario: 8.5, quantidade: 1 }],
         subtotal: 8.5,
         total: 8.5,
@@ -484,6 +485,7 @@ describe('API Endpoints', () => {
         comandaId: venda.body._id,
       },
       {
+        numero: '900002',
         itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, precoUnitario: 12, quantidade: 1 }],
         subtotal: 12,
         total: 12,
@@ -495,10 +497,10 @@ describe('API Endpoints', () => {
 
     const dashboard = await request(app)
       .get('/api/dashboard')
-      .set('Authorization', `******;
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(dashboard.statusCode).toBe(200);
-    expect(dashboard.body.vendasPorTipo).toEqual({ mesa: 0, balcao: 0, delivery: 20.5 });
+    expect(dashboard.body.relatorioMes.vendasPorTipo).toEqual({ mesa: 0, balcao: 0, delivery: 20.5 });
   });
 
   test('POST /api/comandas preserva conflito de idempotencia ao reenviar venda offline alterada', async () => {

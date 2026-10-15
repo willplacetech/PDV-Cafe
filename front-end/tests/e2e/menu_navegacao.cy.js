@@ -1,32 +1,34 @@
-describe('Navegação e Grupos de Menu', () => {
-  beforeEach(() => {
-    cy.login('admin', 'SaborAbra26');
+describe('Navegação e grupos de menu', () => {
+  beforeEach(() => cy.login());
+
+  it('expande Produção e mostra seus destinos', () => {
+    cy.get('#sidebar-desktop').contains('button', 'PRODUÇÃO').click();
+    cy.get('#sidebar-desktop a[href="/producao"]').should('be.visible');
   });
 
-  it('Menu lateral contém Produção com emoji', () => {
-    cy.get('a').contains('🧪 Produção').should('exist');
+  it('exibe os destinos de Atendimento', () => {
+    cy.get('#sidebar-desktop').contains('button', 'ATENDIMENTO').should('have.attr', 'aria-expanded', 'true');
+    cy.get('#sidebar-desktop a[href="/pdv"]').should('be.visible');
   });
 
-  it('Menu lateral contém Atendimento', () => {
-    cy.get('a').contains('🏪 Atendimento').should('exist');
-  });
-
-  it('Botão hamburguer funciona no mobile', () => {
+  it('abre e fecha o menu no celular', () => {
     cy.viewport(375, 812);
-    cy.get('button[aria-label="Toggle menu"], button svg').first().click();
-    cy.get('[data-menu="mobile"], .mobile-menu').should('exist');
+    cy.get('button[aria-label="Abrir menu"]').click();
+    cy.get('.mobile-menu-nav').should('be.visible');
+    cy.get('button[aria-label="Fechar menu"]').click();
+    cy.get('.mobile-menu-nav').should('not.exist');
   });
 
-  it('Todos os grupos de menu estão presentes', () => {
-    cy.get('a').contains('COMPRAS').parent().should('exist');
-    cy.get('a').contains('PRODUÇÃO').parent().should('exist');
-    cy.get('a').contains('PESSOAS').parent().should('exist');
-    cy.get('a').contains('DASHBOARD').parent().should('exist');
+  it('apresenta os grupos de administração', () => {
+    for (const group of ['COMPRAS', 'PRODUÇÃO', 'PESSOAS', 'GESTÃO']) {
+      cy.get('#sidebar-desktop').contains('.nav-group-header', group).should('be.visible');
+    }
   });
 
-  it('Dashboard → navega até a página', () => {
-    cy.get('a[href="/dashboard"]').click();
-    cy.url().should('include', '/dashboard');
-    cy.contains('Painel de Controle').should('exist');
+  it('navega para o dashboard pelo menu', () => {
+    cy.get('#sidebar-desktop').contains('button', 'GESTÃO').click();
+    cy.get('#sidebar-desktop a[href="/dashboard"]').click();
+    cy.location('pathname').should('equal', '/dashboard');
+    cy.get('.dashboard-heading h1').should('be.visible');
   });
 });

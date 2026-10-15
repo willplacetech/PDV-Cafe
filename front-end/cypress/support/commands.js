@@ -1,10 +1,15 @@
 
-Cypress.Commands.add('login', (username, password) => {
+Cypress.Commands.add('login', (username = 'admin-e2e', password = 'isolated-test-password') => {
+  const user = { id: 'user-e2e', username, role: 'admin' };
+  cy.intercept('POST', '**/api/auth/login', { user, token: 'isolated-access-token' }).as('login');
   cy.visit('/login');
-  cy.get('input[placeholder*="usuário"], input[name="usuario"]').type(username);
-  cy.get('input[placeholder*="senha"], input[name="senha"]').type(password);
+  cy.get('input[autocomplete="username"]').type(username);
+  cy.get('input[autocomplete="current-password"]').type(password);
   cy.get('button[type="submit"]').click();
-  cy.url().should('include', '/pdv');
+  cy.wait('@login').its('request.body').should('deep.equal', { username, password });
+  cy.location('pathname').should('equal', '/dashboard');
+  cy.visit('/pdv');
+  cy.get('.product-card').should('be.visible');
 });
 
 Cypress.Commands.add('navigateTo', (path) => {
@@ -17,6 +22,11 @@ Cypress.Commands.add('searchProduct', (name) => {
 });
 
 Cypress.Commands.add('addToCart', (productName) => {
-  cy.contains(productName).click();
-  cy.get('.carrinho, [data-cy="carrinho"]').should('contain', productName);
+  cy.contains('.product-card', productName).click();
+  cy.get('.pdv-cart-items').should('contain', productName);
+});
+
+Cypress.Commands.add('chooseOption', (selector, label) => {
+  cy.get(selector).click();
+  cy.contains('[role="option"]', label).click();
 });

@@ -125,10 +125,12 @@ const carregarPagamentosDoPeriodo = async ({ inicio, fim }) => {
   const janela = { $gte: inicio, $lt: fim };
   const dentroDoPeriodo = (data) => data && new Date(data) >= inicio && new Date(data) < fim;
 
-  const [pedidos, comandas] = await Promise.all([
-    Order.find({ 'pagamentos.dataPagamento': janela }).select('comandaId pagamentos').lean(),
-    Comanda.find({ 'historicoPagamentos.data': janela }).select('historicoPagamentos').lean(),
-  ]);
+  const pedidos = await Order.find({ 'pagamentos.dataPagamento': janela }).select('comandaId pagamentos').lean();
+  const comandaIds = pedidos.map(pedido => pedido.comandaId).filter(Boolean);
+  const comandas = await Comanda.find({ $or: [
+    { 'historicoPagamentos.data': janela },
+    { _id: { $in: comandaIds } },
+  ] }).select('historicoPagamentos').lean();
   const comandasPorId = indexarComandasPorId(comandas);
   const pagamentos = [];
   const comandasConsumidas = new Set();

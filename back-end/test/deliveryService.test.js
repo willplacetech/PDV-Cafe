@@ -1,3 +1,5 @@
+const { describe, test, afterEach } = require('node:test');
+const assert = require('node:assert/strict');
 const { urlPublicaDelivery } = require('../utils/deliveryService');
 
 describe('URL pública do DeliveryLink', () => {
@@ -21,7 +23,7 @@ describe('URL pública do DeliveryLink', () => {
     process.env.DELIVERY_PUBLIC_URL = 'http://localhost:5173';
     process.env.FRONTEND_URL = 'http://localhost:5173';
 
-    expect(urlPublicaDelivery()).toBe('https://pdv-delivery-9j0a.onrender.com');
+    assert.equal(urlPublicaDelivery(), 'https://pdv-delivery-9j0a.onrender.com');
   });
 
   test('produção prefere a URL pública configurada', () => {
@@ -29,7 +31,7 @@ describe('URL pública do DeliveryLink', () => {
     process.env.DELIVERY_PUBLIC_URL = 'https://pdv-delivery-9j0a.onrender.com/';
     process.env.FRONTEND_URL = 'http://localhost:5173';
 
-    expect(urlPublicaDelivery()).toBe('https://pdv-delivery-9j0a.onrender.com');
+    assert.equal(urlPublicaDelivery(), 'https://pdv-delivery-9j0a.onrender.com');
   });
 
   test('desenvolvimento continua usando localhost', () => {
@@ -37,6 +39,6 @@ describe('URL pública do DeliveryLink', () => {
     delete process.env.DELIVERY_PUBLIC_URL;
     process.env.FRONTEND_URL = 'http://localhost:5173';
 
-    expect(urlPublicaDelivery()).toBe('http://localhost:5173');
+    assert.equal(urlPublicaDelivery(), 'http://localhost:5173');
   });
 });

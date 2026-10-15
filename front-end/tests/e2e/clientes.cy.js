@@ -1,27 +1,24 @@
-describe('Clientes e Aniversário', () => {
-  beforeEach(() => {
-    cy.login('admin', 'SaborAbra26');
+﻿describe('Clientes e aniversário', () => {
+  beforeEach(() => { cy.login(); cy.visit('/clientes'); });
+
+  it('cadastra e apresenta aniversário no formato DD/MM/AAAA', () => {
+    cy.intercept('POST', '**/api/customers').as('cliente');
+    cy.get('input[placeholder="Nome completo"]').type('Cliente E2E');
+    cy.contains('label', 'Telefone *').next('input').type('11999887766');
+    cy.get('input[placeholder="DD/MM/AAAA"]').type('15061990').should('have.value', '15/06/1990');
+    cy.contains('button', 'Cadastrar').click();
+    cy.wait('@cliente').its('request.body').should('deep.include', { nome: 'Cliente E2E', aniversario: '15/06/1990' });
+    cy.get('tbody').should('contain', 'Cliente E2E').and('contain', '15/06/1990');
   });
 
-  it('Cadastrar cliente com aniversário no formato DD/MM', () => {
-    cy.visit('/clientes');
-    cy.contains('Novo Cliente').click();
-    cy.get('input[name="nome"], input[placeholder*="nome"]').type('_cliente_teste_e2e');
-    cy.get('input[name="telefone"], input[placeholder*="telefone"]').type('11999887766');
-    cy.get('input[name="aniversario"], input[placeholder="DD/MM/AAAA"]').type('15061990');
-    cy.get('button[type="submit"]').click();
-    cy.url().should('include', '/clientes');
+  it('mantém o aniversário e os campos estruturados de entrega', () => {
+    cy.contains('label', 'Aniversário').should('exist');
+    cy.get('input[placeholder="DD/MM/AAAA"]').should('be.visible');
+    cy.contains('label', 'Rua').should('exist');
   });
 
-  it('Campo Endereço foi substituído por Aniversário', () => {
-    cy.visit('/clientes');
-    cy.contains('Novo Cliente').click();
-    cy.get('label').contains('Aniversário').should('exist');
-    cy.get('label').contains('Endereço').should('not.exist');
-  });
-
-  it('Clientes exibem coluna Aniv. no invés de Endereço', () => {
-    cy.get('th').contains('Aniv.').should('exist');
-    cy.get('th').contains('Endereço').should('not.exist');
+  it('apresenta aniversário na listagem', () => {
+    cy.contains('th', 'Aniv.').should('exist');
+    cy.contains('th', 'Endereço').should('not.exist');
   });
 });

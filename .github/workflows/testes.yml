@@ -10,31 +10,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    services:
-      mongodb:
-        image: mongo:7
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongod --eval 'db.adminCommand(\"ping\")'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
+          cache-dependency-path: back-end/package-lock.json
 
       - name: Install backend dependencies
-        run: npm install
+        run: npm ci
         working-directory: back-end
 
-      - name: Run unit tests
+      - name: Run backend tests
         run: npm test
 
       - name: Run coverage
@@ -49,16 +39,28 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     needs: test
+    env:
+      VITE_API_URL: http://127.0.0.1:5000/api
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: front-end/package-lock.json
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
+        working-directory: front-end
+
+      - name: Lint frontend
+        run: npm run lint
+        working-directory: front-end
+
+      - name: Run frontend unit tests
+        run: npm run test:unit
         working-directory: front-end
 
       - name: Build frontend
@@ -69,6 +71,6 @@ jobs:
         uses: cypress-io/github-action@v6
         with:
           working-directory: front-end
-          browser: chromium
+          browser: chrome
           start: npm run dev
           wait-on: http://localhost:5173

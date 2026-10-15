@@ -2,6 +2,16 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { converterCustoBase, calcularCustoReceita, calcularVariacaoPercentual, calcularMargem } = require('../utils/custo');
 
+test('custo do item respeita snapshot e converte legado pesado para kg', () => {
+  const { custoUnitarioDoItem } = require('../utils/custo');
+  const produto = { tipoProduto: 'revenda', unidadeVenda: 'kg', pesoPorUnidade: 0.5, precoCompra: 5 };
+  assert.equal(custoUnitarioDoItem({ custoUnitarioHistorico: 3 }, produto), 3);
+  assert.equal(custoUnitarioDoItem({ custoUnitarioHistorico: 0 }, produto), 0);
+  assert.equal(custoUnitarioDoItem({}, produto), 10);
+  assert.equal(custoUnitarioDoItem({}, { ...produto, producaoPropria: true, custoUnitario: 7 }), 14);
+  assert.equal(custoUnitarioDoItem({}, null), 0);
+});
+
 test('converte preco de compra para custo unitario base', () => {
   assert.equal(converterCustoBase(8, 'kg', 'g'), 0.008);
   assert.equal(converterCustoBase(12, 'l', 'ml'), 0.012);

@@ -54,6 +54,18 @@ test('cookie logout requires CSRF protection and prevents refresh and access', a
   expect((await refresh(original)).status).toBe(401);
   expect((await request(app).get('/api/auth/me').set('Authorization', `Bearer ${login.body.token}`)).status).toBe(401);
 });
+test('logout revokes the refresh cookie when the in-memory access token has expired', async () => {
+  const claims = jwt.verify(login.body.token, process.env.JWT_SECRET);
+  delete claims.exp;
+  delete claims.iat;
+  const expired = jwt.sign(claims, process.env.JWT_SECRET, { expiresIn: -1 });
+  const response = await request(app).post('/api/auth/logout')
+    .set('Authorization', `Bearer ${expired}`).set('Cookie', cookie(login))
+    .set('Origin', 'http://localhost:5173').set('X-CSRF-Protection', '1');
+  expect(response.status).toBe(204);
+  expect((await refresh(cookie(login))).status).toBe(401);
+  expect((await request(app).get('/api/auth/me').set('Authorization', `Bearer ${login.body.token}`)).status).toBe(401);
+});
 test('login without Origin stays Bearer compatible and hostile login Origin cannot set cookies', async () => {
   const credentials = { username: 'session-test', password: 'session-password-123' };
   const bearer = await request(app).post('/api/auth/login').send(credentials);

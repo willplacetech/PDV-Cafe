@@ -9,7 +9,7 @@ const Despesa = require('../models/Despesa');
 const PaymentSettings = require('../models/PaymentSettings');
 const Purchase = require('../models/Purchase');
 const { ROTULOS_PAGAMENTO, normalizarNome, catalogoDaConfiguracao } = require('../utils/formasPagamento');
-const { calcularCustoUnitarioVenda } = require('../utils/estoqueInsumo');
+const { custoUnitarioDoItem } = require('../utils/custo');
 const { carregarPagamentosDoPeriodo, dinheiro: dinheiroPagamento } = require('../utils/pagamento');
 
 const router = express.Router();
@@ -159,7 +159,7 @@ router.get('/dre', async (req, res) => {
     const produtoIds = [...new Set(periodoVendas.flatMap((pedido) => (pedido.itens || []).map((item) => String(item.produtoId || ''))))]
       .filter((produtoId) => mongoose.isValidObjectId(produtoId));
     const produtos = await Product.find({ _id: { $in: produtoIds } })
-      .select('nome tipoProduto custoUnitario custoUnitarioBase precoCompra unidade unidadeCompra unidadeVenda rendimento rendimentoPorUnidadeCompra')
+      .select('nome tipoProduto producaoPropria custoUnitario custoUnitarioBase precoCompra unidade unidadeCompra unidadeVenda pesoPorUnidade rendimento rendimentoPorUnidadeCompra')
       .lean();
     const produtoPorId = new Map(produtos.map((produto) => [String(produto._id), produto]));
 
@@ -175,16 +175,7 @@ router.get('/dre', async (req, res) => {
         const produtoId = String(item.produtoId || '');
         const quantidade = quantidadeNaUnidadeBase(item);
         const produto = produtoPorId.get(produtoId);
-        // Vendas novas preservam o custo na data da venda. Legados mantem
-        // o calculo anterior porque nao ha informacao historica para reconstruir.
-        const custoHistorico = item.custoUnitarioHistorico;
-        const temCustoHistorico = custoHistorico !== undefined && custoHistorico !== null
-          && Number.isFinite(Number(custoHistorico)) && Number(custoHistorico) >= 0;
-        const custoUnitario = temCustoHistorico
-          ? Number(custoHistorico)
-          : ['coz', 'producao'].includes(produto?.tipoProduto)
-            ? Number(produto?.custoUnitario || produto?.custoUnitarioBase || 0)
-            : calcularCustoUnitarioVenda(produto);
+        const custoUnitario = custoUnitarioDoItem(item, produto);
         if (custoUnitario > 0) {
           if (pedido.utilizacaoInterna) custoConsumoInterno += quantidade * custoUnitario;
           else cmv += quantidade * custoUnitario;

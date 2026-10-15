@@ -27,7 +27,7 @@ describe('Fechamento completo da comanda', () => {
       cy.contains('label', 'Desconto (R$)').find('input').clear().type('1');
       cy.contains('label', 'Nome do cliente').find('input').clear().type('Maria');
       cy.contains('label', 'Telefone').find('input').clear().type('11988887777');
-      cy.contains('label', 'Forma de pagamento').find('select').select('dinheiro');
+      cy.contains('label', 'Forma de pagamento').find('[role="combobox"]').type('Dinheiro{enter}');
       cy.contains('Total a cobrar').parent().should('contain', '5,00');
       cy.contains(/UTILIZAÇÃO INTERNA/i).should('not.exist');
     });
@@ -111,7 +111,7 @@ describe('Fechamento completo da comanda', () => {
   });
 
   it('exige escolher a forma de pagamento antes de salvar e fechar', () => {
-    cy.get('.pdv-payment-dialog').contains('label', 'Forma de pagamento').find('select').select('');
+    cy.get('.pdv-payment-dialog').contains('label', 'Forma de pagamento').find('[role="combobox"]').type('Selecione{enter}');
     cy.get('.pdv-payment-dialog').contains('button', 'Confirmar Fechamento').click();
     cy.contains('Escolha a forma de pagamento.').should('be.visible');
     cy.get('.pdv-payment-dialog').should('be.visible');
@@ -130,7 +130,7 @@ describe('Fechamento completo da comanda', () => {
       cy.contains('label', 'Desconto').find('input').clear().type('1');
       cy.contains('Saldo em aberto').parent().should('contain', '2,00').and('contain', 'já recebido R$ 3,00');
       cy.contains('label', 'Desconto').find('input').clear().type('5');
-      cy.contains('label', 'Forma de pagamento').find('select').select('dinheiro');
+      cy.contains('label', 'Forma de pagamento').find('[role="combobox"]').type('Dinheiro{enter}');
       cy.contains('button', 'Confirmar Fechamento').click();
     });
     cy.contains('O desconto não pode reduzir o total abaixo do valor já recebido.').should('be.visible');
@@ -156,7 +156,7 @@ describe('Fechamento completo da comanda', () => {
     cy.get('.pdv-success-dialog').contains('button', /^Fechar$/).click();
     cy.get('.product-card').contains(product.nome).click();
     cy.get('.pdv-cart-panel').contains('button', 'Fechar venda').click();
-    cy.get('.pdv-payment-dialog').contains('label', 'Forma de pagamento').find('select').select('dinheiro');
+    cy.get('.pdv-payment-dialog').contains('label', 'Forma de pagamento').find('[role="combobox"]').type('Dinheiro{enter}');
     cy.get('.pdv-payment-dialog').contains('button', 'Confirmar Fechamento').click();
     cy.get('.pdv-success-dialog').should('contain', '#20');
     cy.then(() => liberarFiscal());

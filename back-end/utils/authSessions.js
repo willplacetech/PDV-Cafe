@@ -68,7 +68,9 @@ const revokeAccessSession = async claims => {
   return true;
 };
 const logoutAuth = (scope, bearerAuth) => async (req, res, next) => {
-  if (req.headers.authorization) return bearerAuth(req, res, next);
+  // O cookie autenticado permite sair mesmo depois de expirar o token de acesso.
+  const cookieLogout = readCookie(req, scope) && trustedOrigin(req) && req.get('X-CSRF-Protection') === '1';
+  if (req.headers.authorization && !cookieLogout) return bearerAuth(req, res, next);
   const [id, secret, extra] = (readCookie(req, scope) || '').split('.');
   if (!secret) return res.status(401).json({ msg: 'Sessão inválida ou expirada' });
   return cookieProtection(req, res, async () => {

@@ -186,7 +186,9 @@ const emitirNfce = async ({ order, products }) => {
 
   if (!response.ok) {
     const motivo = normalizarResposta(body).mensagemSeErro || body.message || `Provedor fiscal respondeu HTTP ${response.status}`;
-    throw new NfceProviderError(motivo, 'SEFAZ_REJECTED', {
+    // Falha HTTP pode ocorrer depois da autorizacao; conflito tambem pode indicar documento existente.
+    const indeterminado = response.status >= 500 || [408, 409].includes(response.status);
+    throw new NfceProviderError(motivo, indeterminado ? 'INVALID_PROVIDER_RESPONSE' : 'SEFAZ_REJECTED', {
       providerStatus: response.status,
       response: body,
       regime: config.regime

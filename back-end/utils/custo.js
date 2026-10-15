@@ -1,3 +1,17 @@
+const { calcularCustoUnitarioVenda } = require('./estoqueInsumo');
+const { produtoControlaPeso } = require('./estoqueProduto');
+
+const custoUnitarioDoItem = (item, produto) => {
+  const historico = item.custoUnitarioHistorico;
+  if (historico != null && Number.isFinite(Number(historico)) && Number(historico) >= 0) return Number(historico);
+  if (!produto) return 0;
+  // shortcut: sem snapshot so existe custo atual; reconstruir historico exige dados da epoca.
+  const custo = ['coz', 'producao'].includes(produto.tipoProduto) || produto.producaoPropria
+    ? Number(produto.custoUnitario || produto.custoUnitarioBase || 0)
+    : calcularCustoUnitarioVenda(produto);
+  return produtoControlaPeso(produto) ? custo / Number(produto.pesoPorUnidade) : custo;
+};
+
 const converterCustoBase = (precoCompra, unidadeCompra, unidadeReferencia = 'g') => {
   if (!Number.isFinite(Number(precoCompra)) || Number(precoCompra) <= 0) return 0;
   const ratios = { kg: 1000, g: 1, L: 1000, l: 1000, ml: 1, un: 1, dz: 12 };
@@ -39,4 +53,4 @@ const calcularMargem = (custo, venda) => {
   return Number(percentual.toFixed(2));
 };
 
-module.exports = { converterCustoBase, quantidadeNaBase, arredondar, calcularCustoReceita, calcularCustoReceitaDireta, calcularVariacaoPercentual, calcularMargem };
+module.exports = { custoUnitarioDoItem, converterCustoBase, quantidadeNaBase, arredondar, calcularCustoReceita, calcularCustoReceitaDireta, calcularVariacaoPercentual, calcularMargem };

@@ -10,22 +10,20 @@ const mensagemCobranca = (nome) => `Olá${nome ? `, ${nome}` : ''}! Passando par
 export default function CentralDoDia() {
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState('');
-  const [tentativa, setTentativa] = useState(0);
   const [reporProduto, setReporProduto] = useState(null);
   const [alertasOpen, setAlertasOpen] = useState(false);
   const [quantidade, setQuantidade] = useState('');
   const [salvando, setSalvando] = useState(false);
   const { showToast } = useToast();
 
-  const carregar = useCallback(async () => {
-    setErro('');
-    try {
-      const [urgencias, estoque, recebiveis, despesas] = await Promise.all([
-        api.get('/dashboard/urgencias'),
-        api.get('/estoque/baixo', { params: { limite: 5 } }),
-        api.get('/contas-receber/resumo'),
-        api.get('/despesas/central-resumo'),
-      ]);
+  const carregar = useCallback(() => {
+    return Promise.all([
+      api.get('/dashboard/urgencias'),
+      api.get('/estoque/baixo', { params: { limite: 5 } }),
+      api.get('/contas-receber/resumo'),
+      api.get('/despesas/central-resumo'),
+    ]).then(([urgencias, estoque, recebiveis, despesas]) => {
+      setErro('');
       setDados({
         urgencias: urgencias.data || [],
         estoque: estoque.data || [],
@@ -33,14 +31,14 @@ export default function CentralDoDia() {
         recebiveis: recebiveis.data,
         despesas: despesas.data,
       });
-    } catch (error) {
+    }).catch((error) => {
       setErro(error.response?.data?.msg || 'Não foi possível carregar a Central do Dia.');
-    }
+    });
   }, []);
 
   useEffect(() => {
     carregar();
-  }, [carregar, tentativa]);
+  }, [carregar]);
 
   const salvarReposicao = async (event) => {
     event.preventDefault();
@@ -69,7 +67,7 @@ export default function CentralDoDia() {
 
   if (erro) return <section className="day-center day-center-error" aria-labelledby="day-center-title">
     <div><span className="dashboard-eyebrow">GESTÃO OPERACIONAL</span><h2 id="day-center-title">Central do Dia</h2><p role="alert">{erro}</p></div>
-    <button type="button" onClick={() => setTentativa((valor) => valor + 1)}>Tentar novamente</button>
+    <button type="button" onClick={() => { setErro(''); void carregar(); }}>Tentar novamente</button>
     <style>{estilos}</style>
   </section>;
 

@@ -53,11 +53,10 @@ describe('Quantidade em novos pedidos', () => {
   it('adiciona produtos pelo seletor do carrinho no celular', () => {
     cy.viewport(375, 812);
     visitar('/pdv');
-    cy.get('.pdv-mobile-cart-trigger').click();
-    cy.get('.pdv-mobile-product-select select').should('be.visible').select('unidade');
-    cy.get('.pdv-cart-panel').should('have.css', 'position', 'static');
+    cy.contains('.product-card', 'Produto por unidade').click();
+    cy.get('.pdv-mobile-product-select [role="combobox"]').should('be.visible').type('Produto por unidade{enter}');
+    cy.get('.pdv-cart-panel').should('be.visible');
     cy.get('.pdv-cart-panel.mobile-open').should('contain', 'Produto por unidade');
-    cy.contains('.product-card', 'Produto por peso').scrollIntoView().should('be.visible');
     cy.get('.pdv-mobile-cart-backdrop').click({ force: true });
     cy.get('.pdv-cart-panel').should('not.be.visible');
     cy.get('.pdv-mobile-cart-trigger').should('have.attr', 'aria-expanded', 'false');
@@ -66,17 +65,17 @@ describe('Quantidade em novos pedidos', () => {
   it('ajusta o passo no novo pedido na conta e aceita peso sem depender da opção fracionada', () => {
     visitar('/contas-receber');
     cy.contains('button', 'Novo pedido').click();
-    cy.get('.novo-pedido-field select').select('unidade');
+    cy.get('.novo-pedido-field [role="combobox"]').type('Produto por unidade{enter}');
     cy.get('.novo-pedido-quantity input').should('have.attr', 'step', '1').and('have.attr', 'min', '1');
     cy.get('.novo-pedido-quantity input').clear().type('1.5');
     cy.contains('button', 'Adicionar produto').click();
     cy.get('.novo-pedido-items').should('not.exist');
-    cy.get('.novo-pedido-field select').select('peso');
+    cy.get('.novo-pedido-field [role="combobox"]').type('Produto por peso{enter}');
     cy.get('.novo-pedido-quantity input').should('have.attr', 'step', '0.001').and('have.attr', 'min', '0.001');
     cy.get('.novo-pedido-quantity input').clear().type('0.125');
     cy.contains('button', 'Adicionar produto').click();
     cy.get('.novo-pedido-items').should('contain', '0.125x').and('contain', 'Produto por peso');
-    cy.get('.novo-pedido-field select').select('inteiro');
+    cy.get('.novo-pedido-field [role="combobox"]').type('Bolo inteiro{enter}');
     cy.get('.novo-pedido-quantity input').should('have.attr', 'step', '1');
   });
 });

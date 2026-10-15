@@ -1,34 +1,29 @@
-describe('Produtos e Grupo de Desconto', () => {
-  beforeEach(() => {
-    cy.login('admin', 'SaborAbra26');
-  });
+﻿describe('Produtos e grupo de desconto', () => {
+  beforeEach(() => cy.login());
 
-  it('Cadastro de produto com grupo de desconto', () => {
+  it('persiste os campos do grupo de desconto no cadastro', () => {
+    cy.intercept('POST', '**/api/products').as('produto');
     cy.visit('/produtos');
-    cy.contains('Novo Produto').click();
-    cy.get('.product-form-collapsible > summary').should('contain', 'VENDA');
+    cy.contains('label', 'Nome *').find('input').type('Bolinho de Carne');
+    cy.contains('label', 'Preço de venda').find('input').clear().type('16');
     cy.contains('.product-discount-panel summary', 'Desconto por Grupo').click();
-    cy.get('.product-discount-panel').last().should('have.attr', 'open');
-    cy.get('input[name="nome"], input[placeholder*="nome"]').type('Bolinho de Carne');
-    cy.get('input[name="preco"], input[placeholder*="preço"]').type('16');
-    cy.get('input[name="categoria"], select[name="categoria"]').then(($el) => {
-      if ($el.is('select')) cy.wrap($el).select('Salgados');
+    cy.contains('label', 'Nome do grupo').find('input').type('Salgados Especiais');
+    cy.contains('label', 'Quantidade mínima').find('input').type('3');
+    cy.contains('label', 'Preço promocional').find('input').type('14');
+    cy.get('.product-discount-active input').check();
+    cy.get('.product-submit-button').click();
+    cy.wait('@produto').its('request.body.grupoDesconto').should('deep.equal', {
+      nome: 'Salgados Especiais', quantidadeMinima: 3, precoPromocional: 14, ativo: true,
     });
-    cy.get('input[name="grupoDesconto.nome"], input[placeholder*="Cookies"]').type('Salgados Especiais');
-    cy.get('input[name="grupoDesconto.quantidadeMinima"]').type('3');
-    cy.get('input[name="grupoDesconto.precoPromocional"]').type('14');
-    cy.get('input[name="grupoDesconto.ativo"]').check();
-    cy.get('button[type="submit"]').click();
-    cy.url().should('include', '/produtos');
+    cy.contains('.product-card', 'Bolinho de Carne').should('be.visible');
   });
 
-  it('PDV aplica desconto por grupo ao adicionar 3+ unidades do mesmo grupo', () => {
-    cy.visit('/pdv');
-    cy.contains('Café').first().click();
-    cy.contains('Café').first().click();
-    cy.contains('Café').first().click();
-    cy.get('.carrinho').should(($carrinho) => {
-      expect($carrinho.text()).to.match(/DESCONTO POR GRUPO|GROUP DISCOUNT|r\$ 14/);
-    });
+  it('aplica desconto ao atingir três unidades do grupo', () => {
+    cy.addToCart('Café');
+    cy.addToCart('Café');
+    cy.addToCart('Café');
+    cy.get('.pdv-cart-items input[type="number"]').should('have.value', '3');
+    cy.get('.pdv-cart-panel').should('contain', '42,00');
+    cy.get('.pdv-cart-items').should('contain', '14,00');
   });
 });

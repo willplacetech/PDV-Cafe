@@ -53,7 +53,7 @@ describe('Formas de pagamento cadastradas', () => {
     cy.get('#sidebar-desktop').contains('PDV · Nova venda').click();
     cy.get('.product-card').contains(product.nome).click();
     cy.get('.pdv-cart-panel').contains('button', 'Fechar venda').click();
-    cy.get('.pdv-payment-dialog').contains('label', 'Forma de pagamento').find('select').should('not.be.disabled').select(custom.value);
+    cy.get('.pdv-payment-dialog').contains('label', 'Forma de pagamento').find('[role="combobox"]').should('not.be.disabled').type(`${custom.label}{enter}`);
     cy.intercept('POST', '**/api/comandas/*/fechar', req => {
       expect(req.body.metodoPagamento).to.equal(custom.value);
       receipts = [{ tipo: custom.value, rotuloPagamento: custom.label, bruto: 100, taxa: 3, total: 97 }];
@@ -77,7 +77,7 @@ describe('Formas de pagamento cadastradas', () => {
     cy.visit('/contas-receber');
     cy.contains('button', 'Comandas').click();
     cy.contains('button', /^💰 Receber$/).click();
-    cy.get('select').filter((_, element) => [...element.options].some(option => option.value === custom.value)).last().select(custom.value);
+    cy.get('[role="combobox"]').last().type(`${custom.label}{enter}`);
     cy.intercept('PATCH', '**/api/comandas/*/receber-parcial', req => {
       expect(req.body.formaPagamento).to.equal(custom.value);
       req.reply({ ...commands[0], statusPagamento: 'quitado', saldoDevedor: 0, historicoPagamentos: [{ formaPagamento: custom.value, valor: 100, taxaValor: 3, valorLiquido: 97 }] });

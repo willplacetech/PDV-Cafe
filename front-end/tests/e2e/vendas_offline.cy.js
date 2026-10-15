@@ -58,7 +58,7 @@ describe('Vendas offline', () => {
       window.dispatchEvent(new Event('offline'));
     });
 
-    cy.contains('button', 'Abrir Comanda').click();
+    cy.contains('button', 'Salvar em aberto').click();
     cy.contains('venda salva! Envia automaticamente quando voltar.').should('be.visible');
     verificarFila((fila) => {
       expect(fila).to.have.length(1);
@@ -107,7 +107,7 @@ describe('Vendas offline', () => {
     });
 
     cy.contains('.product-card', 'Café offline').should('be.visible').click();
-    cy.contains('button', 'Abrir Comanda').click();
+    cy.contains('button', 'Salvar em aberto').click();
     cy.contains('Limite de 50 vendas pendentes atingido').should('be.visible');
     verificarFila((fila) => {
       expect(fila).to.have.length(50);
@@ -132,13 +132,11 @@ describe('Vendas offline', () => {
     });
 
     for (let indice = 0; indice < 2; indice += 1) {
-      cy.get('.pdv-mobile-cart-trigger').click();
-      cy.get('.pdv-mobile-product-select select').select(produto._id);
-      cy.contains('.pdv-cart-panel button', 'Abrir Comanda').click();
+      cy.contains('.product-card', produto.nome).click();
+      cy.contains('.pdv-cart-panel button', 'Salvar em aberto').click();
       verificarFila((fila) => {
         expect(fila).to.have.length(indice + 1);
       });
-      cy.get('.pdv-mobile-cart-backdrop').click({ force: true });
     }
 
     cy.reload();
