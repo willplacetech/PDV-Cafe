@@ -1,0 +1,186 @@
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+
+const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLimite }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [limitOptions] = useState([10, 25, 50, 100]);
+  const totalPaginas = Math.ceil(total / limiteAtual);
+  const paginaAtualNum = parseInt(paginaAtual, 10) || 1;
+  const limiteAtualNum = parseInt(limiteAtual, 10) || 25;
+
+  const handlePageChange = (novaPagina) => {
+    if (novaPagina < 1 || novaPagina > totalPaginas || novaPagina === paginaAtualNum) return;
+    onChangePagina(novaPagina);
+    // Update URL without pushing to history? We'll use replace to avoid back button issues
+    setSearchParams(prev => {
+      prev.set('pagina', novaPagina.toString());
+      return prev;
+    }, { replace: true });
+    // Scroll to top
+    window.scrollTo(0, 0);
+  };
+
+  const handleLimitChange = (novoLimite) => {
+    if (novoLimite === limiteAtualNum) return;
+    onChangeLimite(novoLimite);
+    // Reset to page 1 when changing limit
+    onChangePagina(1);
+    setSearchParams(prev => {
+      prev.set('pagina', '1');
+      prev.set('limite', novoLimite.toString());
+      return prev;
+    }, { replace: true });
+    // Scroll to top
+    window.scrollTo(0, 0);
+  };
+
+  if (total === 0) return null;
+
+  const renderPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    let startPage, endPage;
+
+    if (totalPaginas <= maxVisiblePages) {
+      startPage = 1;
+      endPage = totalPaginas;
+    } else {
+      if (paginaAtualNum <= Math.ceil(maxVisiblePages / 2)) {
+        startPage = 1;
+        endPage = maxVisiblePages;
+      } else if (paginaAtualNum >= totalPaginas - Math.floor(maxVisiblePages / 2)) {
+        startPage = totalPaginas - maxVisiblePages + 1;
+        endPage = totalPaginas;
+      } else {
+        startPage = paginaAtualNum - Math.floor(maxVisiblePages / 2);
+        endPage = paginaAtualNum + Math.floor(maxVisiblePages / 2);
+      }
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+
+    return pages;
+  };
+
+  return (
+    <div className=\"paginacao\">
+      <style>{
+        .paginacao {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: space-between;
+          padding: 16px 0;
+          margin-top: 24px;
+          border-top: 1px solid var(--border-color);
+          font-size: 14px;
+          color: var(--text-secondary);
+        }
+        .paginacao-info {
+          font-size: 14px;
+          color: var(--text-secondary);
+        }
+        .paginacao-controles {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+        .paginacao-limite-select {
+          padding: 4px 8px;
+          border: 1px solid var(--border-color);
+          border-radius: 4px;
+          background: var(--input-bg);
+          color: var(--input-text);
+          font-size: 14px;
+        }
+        .paginacao-botao {
+          padding: 4px 12px;
+          border: 1px solid var(--border-color);
+          background: var(--bg-secondary);
+          color: var(--text-primary);
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 14px;
+        }
+        .paginacao-botao:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        .paginacao-pagina-atual {
+          margin: 0 8px;
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+        .paginacao-pagina-numero {
+          padding: 4px 8px;
+          border-radius: 4px;
+          cursor: pointer;
+          display: inline-block;
+        }
+        .paginacao-pagina-numero:hover:not(.paginacao-pagina-atual) {
+          background: var(--bg-tertiary);
+        }
+        .paginacao-pagina-atual {
+          background: var(--accent-primary);
+          color: #fff;
+        }
+      }</style>
+      <div className=\"paginacao-info\">
+        Mostrando 
+        {total === 0 ? 0 : (paginaAtualNum - 1) * limiteAtualNum + 1} 
+        – 
+        {Math.min(paginaAtualNum * limiteAtualNum, total)} 
+        de 
+        {total} 
+        itens.
+      </div>
+      <div className=\"paginacao-controles\">
+        <div>
+          <label htmlFor=\"limite-select\">Itens por página:</label>
+          <select 
+            id=\"limite-select\" 
+            className=\"paginacao-limite-select\" 
+            value={limiteAtualNum} 
+            onChange={(e) => handleLimitChange(parseInt(e.target.value, 10))}
+          >
+            {limitOptions.map(opt => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </div>
+        <div className=\"paginacao-navegacao\">
+          <button 
+            className=\"paginacao-botao\" 
+            onClick={() => handlePageChange(paginaAtualNum - 1)}
+            disabled={paginaAtualNum <= 1}
+          >
+            « Anterior
+          </button>
+          <div className=\"paginacao-paginas\">
+            {renderPageNumbers().map(pagina => (
+              <button
+                key={pagina}
+                className={paginacao-pagina-numero }
+                onClick={() => handlePageChange(pagina)}
+              >
+                {pagina}
+              </button>
+            ))}
+          </div>
+          <button 
+            className=\"paginacao-botao\" 
+            onClick={() => handlePageChange(paginaAtualNum + 1)}
+            disabled={paginaAtualNum >= totalPaginas}
+          >
+            Próximo »
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Paginacao;
