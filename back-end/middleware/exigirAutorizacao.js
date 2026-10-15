@@ -36,8 +36,8 @@ const getExigirAutorizacao = async () => {
 
 const detalhesAuditoria = (req, acao) => {
   const parts = [];
-  if (req.params?.id) parts.push(id:\${req.params.id});
-  if (req.params?.itemId) parts.push(itemId:\${req.params.itemId});
+  if (req.params?.id) parts.push(`id:${req.params.id}`);
+  if (req.params?.itemId) parts.push(`itemId:${req.params.itemId}`);
   return \`\${acao} — \${parts.join(', ')} \${req.originalUrl}\`;
 };
 
