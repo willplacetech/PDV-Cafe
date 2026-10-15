@@ -4,7 +4,14 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { execFileSync } from 'node:child_process'
 import { env } from 'node:process'
 
-const appVersion = env.RENDER_GIT_COMMIT || execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+let appVersion = 'dev'
+try {
+  const fullHash = env.RENDER_GIT_COMMIT || execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+  appVersion = (fullHash || 'dev').slice(0, 7)
+} catch (_) {
+  // If we are not in a git repo or git fails, we keep 'dev'
+  appVersion = 'dev'
+}
 
 const appVersionPlugin = {
   name: 'app-version',

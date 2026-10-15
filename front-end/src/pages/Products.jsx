@@ -5,7 +5,7 @@ import api from '../services/api.jsx';
 import { useToast } from '../components/useToast.js';
 import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
-import SkeletonLista from '../components/SkeletonLista.jsx';
+import SkeletonCard from "../components/SkeletonCard.jsx";
 import Paginacao from '../components/Paginacao.jsx';
 
 const vazio = {
@@ -303,7 +303,7 @@ export default function Products() {
         {carregandoProdutos && (
           <div className=\"product-admin-grid\">
             {/* Show skeleton loading - we'll show 6 skeleton items by default */}
-            <SkeletonLista itemCount={6} itemHeight={170} />
+{[...Array(6)].map((_, i) => (<SkeletonCard key={i} />))}
           </div>
         )}
         {!carregandoProdutos && erroProdutos && (
