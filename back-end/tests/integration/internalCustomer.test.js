@@ -23,7 +23,10 @@ test('cadastro disponibiliza um único Cliente Interno sem telefone e protege su
   await api('get', '/api/customers');
   expect(await Customer.countDocuments({ clienteInterno: true })).toBe(1);
   expect((await api('put', `/api/customers/${cliente._id}`, { nome: 'Venda comum' })).status).toBe(409);
-  expect((await api('delete', `/api/customers/${cliente._id}`)).status).toBe(409);
+  const autorizacao = jwt.sign({ id: jwt.decode(token).id, acao: 'excluir_cliente' }, process.env.JWT_SECRET);
+  const removido = await request(app).delete(`/api/customers/${cliente._id}`)
+    .set('Authorization', `Bearer ${token}`).set('X-Autorizacao-Gerente', autorizacao);
+  expect(removido.status).toBe(409);
 });
 
 test('consumo interno fecha sem pagamento, não gera dívida e baixa estoque uma vez', async () => {

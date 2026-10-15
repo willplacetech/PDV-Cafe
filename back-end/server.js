@@ -114,6 +114,10 @@ app.get('/api', (req, res) => {
   });
 });
 
+app.use('/api', (req, res) => {
+  res.status(404).json({ msg: 'Rota da API não encontrada' });
+});
+
 // ============================================================
 // ↓↓↓ CORREÇÃO DOS 404 — Frontend SPA (Vite/React) ↓↓↓
 // ============================================================

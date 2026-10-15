@@ -303,6 +303,7 @@ describe('API Endpoints', () => {
     const alterado = await request(app)
       .put(`/api/products/${criado.body._id}`)
       .set('Authorization', `Bearer ${adminToken}`)
+      .set('X-Autorizacao-Gerente', jwt.sign({ id: jwt.decode(adminToken).id, acao: 'alterar_preco' }, jwtSecret))
       .send({ tipoProduto: 'revenda', precoCompra: 100, conteudoPorEmbalagem: 10, unidade: 'un', unidadeCompra: 'un', unidadeVenda: 'un' });
     expect(alterado.statusCode).toBe(200);
     expect(alterado.body.custoUnitarioBase).toBe(10);
