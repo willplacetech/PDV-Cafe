@@ -88,7 +88,6 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/despesas', require('./routes/despesas'));
 app.use('/api/contabil', require('./routes/contabil'));
 app.use('/api/payment-settings', require('./routes/paymentSettings'));
-app.use('/api/configuracoes', require('./routes/configuracoes'));
 app.use('/api/insumos', require('./routes/insumos'));
 app.use('/api/compras', require('./routes/purchases'));
 app.use('/api/receitas', require('./routes/receitas'));
@@ -112,10 +111,6 @@ app.get('/api', (req, res) => {
       fiscal: '/api/fiscal'
     }
   });
-});
-
-app.use('/api', (req, res) => {
-  res.status(404).json({ msg: 'Rota da API não encontrada' });
 });
 
 // ============================================================

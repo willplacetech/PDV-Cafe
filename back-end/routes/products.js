@@ -93,39 +93,25 @@ const validations = [
 
 router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom', 'cozinha'), async (req, res) => {
   try {
-    const { search, busca, categoria, tipo, sort } = req.query;
-    if ([search, busca, categoria, tipo, sort].some(value => value !== undefined && typeof value !== 'string')) {
-      return res.status(400).json({ msg: 'Filtros de produtos inválidos' });
-    }
-    // Dashboard e outros consumidores esperam uma lista sem parâmetros de paginação.
-    const paginado = req.query.pagina !== undefined || req.query.limite !== undefined;
-    const pagina = Math.max(parseInt(req.query.pagina, 10) || 1, 1);
-    const limite = Math.min(Math.max(parseInt(req.query.limite, 10) || 25, 1), 100);
-    const texto = search || busca;
+    const { search, categoria, tipo } = req.query;
     const query = {};
-    if (texto) query.$or = [{ nome: { $regex: texto, $options: 'i' } }, { codigo: { $regex: texto, $options: 'i' } }, { categoria: { $regex: texto, $options: 'i' } }];
+    if (search) query.$or = [{ nome: { $regex: search, $options: 'i' } }, { codigo: { $regex: search, $options: 'i' } }];
     if (categoria) query.categoria = categoria;
     if (tipo === 'venda' || tipo === 'insumo') query.tipo = tipo;
-    if (req.query.estoqueBaixo === 'true') query.$expr = { $lte: ['$estoque', 5] };
-    if (req.query.disponivel === 'true') query.estoque = { $gt: 0 };
-    const consulta = Product.find(query).sort(sort || (paginado ? '-createdAt' : 'nome'));
-    if (paginado) consulta.skip((pagina - 1) * limite).limit(limite);
-    const [produtos, receitas, total] = await Promise.all([
-      consulta,
+    const [produtos, receitas] = await Promise.all([
+      Product.find(query).sort({ nome: 1 }),
       Recipe.find({ ativa: true }).select('_id produtoId').lean(),
-      paginado ? Product.countDocuments(query) : null,
     ]);
     const receitaPorProduto = new Map(receitas.map((receita) => [String(receita.produtoId), receita._id]));
-    const dados = produtos.map((produto) => ({
+    res.json(produtos.map((produto) => ({
       ...produto.toObject(),
       ...(produto.tipo === 'insumo' && produto.unidadeCompra ? { unidadeVenda: produto.unidadeCompra } : {}),
       ...dadosEstoqueProduto(produto),
       tipoProduto: produto.tipo === 'venda' ? (produto.tipoProduto || (produto.aFazer ? 'coz' : produto.producaoPropria ? 'producao' : 'revenda')) : null,
       receitaId: receitaPorProduto.get(String(produto._id)) || null,
       temReceita: receitaPorProduto.has(String(produto._id)),
-      resumoInsumo: produto.tipo === 'insumo' ? calcularResumoCompleto(produto) : null,
-    }));
-    res.json(paginado ? { dados, total, pagina, limite, totalPaginas: Math.ceil(total / limite) } : dados);
+       resumoInsumo: produto.tipo === 'insumo' ? calcularResumoCompleto(produto) : null,
+    })));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
@@ -439,7 +425,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
       return res.status(201).json(updatedProduct);
     }
     if (tipo === 'insumo' && data.precoCompra !== undefined) enfileirarRecalculoPorInsumo(product._id);
-
+    
     res.status(201).json(product);
   } catch (err) {
     const message = err.code === 11000 ? 'Código duplicado' : err.message;
@@ -547,7 +533,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), exigirAutorizacao('alterar_pr
         const resultadoCusto = await calcularCustoDaFichaTecnica(novaFicha);
         const custoAnterior = Number(produtoAtual.custoCalculado || produtoAtual.custo || produtoAtual.custoUnitario || 0);
         const custoNovo = resultadoCusto.fonte === 'insumo' ? resultadoCusto.custoTotal : null;
-
+        
         // Verificar divergência > 5%
         if (custoAnterior > 0 && custoNovo > 0) {
           const variacao = Math.abs(((custoNovo - custoAnterior) / custoAnterior) * 100);
@@ -560,7 +546,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), exigirAutorizacao('alterar_pr
             };
           }
         }
-
+        
         if (!divergenciaAviso) {
           custoRecalculado = {
             ...camposCustoCalculado(resultadoCusto),
@@ -577,7 +563,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), exigirAutorizacao('alterar_pr
     const product = await Product.findByIdAndUpdate(req.params.id, { $set: { ...fields, ...custoRecalculado } }, { new: true, runValidators: true });
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
     if (tipo === 'insumo' && data.precoCompra !== undefined) enfileirarRecalculoPorInsumo(product._id);
-
+    
     res.json({ ...product.toObject(), ...dadosEstoqueProduto(product), resumoInsumo: product.tipo === 'insumo' ? calcularResumoCompleto(product) : null });
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });

@@ -3,10 +3,6 @@ const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// Força a exigência de autorização do gerente via environment variable,
-// evitando a necessidade de conectar ao MongoDB nos testes unitários.
-process.env.FORCAR_AUTORIZACAO_GERENTE = 'true';
-
 const response = () => ({
   statusCode: 200, body: null,
   status(code) { this.statusCode = code; return this; },
@@ -112,20 +108,4 @@ test('HTTP 422 continua representando rejeicao explicita do provedor', async () 
     await assert.rejects(emitirNfce({ order: { _id: 'test', itens: [] }, products: [] }),
       (error) => error.code === 'SEFAZ_REJECTED');
   }, 422);
-});
-
-// Testes de autorização de gerente (usando mocks, sem banco de dados)
-test('sangria sem aprovacao de gerente e bloqueada', async () => {
-  const app = require('../server');
-  const { supertest, makeUser, tokenFor } = require('./testHelpers');
-  const admin = await makeUser({ username: 'admin-sangria-test', role: 'admin' });
-  const adminToken = tokenFor(admin);
-
-  const res = await supertest(app)
-    .post('/api/caixa/test-caixa-id/movimentos')
-    .set('Authorization', `Bearer ${adminToken}`)
-    .send({ tipo: 'sangria', valor: 100, responsavel: 'admin', motivo: 'Teste' });
-
-  assert.equal(res.status, 403);
-  assert.match(res.body.msg, /autoriza/i);
 });

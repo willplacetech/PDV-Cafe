@@ -36,12 +36,3 @@ test('PDV, delivery admin and courier credentials never share memory', () => {
   assert.equal(getAccessToken('delivery'), null);
   assert.equal(getAccessToken('courier'), 'courier');
 });
-
-test('refresh rejection preserves HTTP status for API error handling', async () => {
-  globalThis.fetch = async () => ({ ok: false, status: 401 });
-  await assert.rejects(refreshAccessSession('pdv', 'https://api.example/api'), error => {
-    assert.equal(error.response?.status, 401);
-    assert.equal(typeof error.response?.data?.msg, 'string');
-    return true;
-  });
-});

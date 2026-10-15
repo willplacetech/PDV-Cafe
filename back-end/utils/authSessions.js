@@ -14,30 +14,18 @@ const hash = token => crypto.createHash('sha256').update(token).digest('hex');
 // Deterministic successor lets concurrent tabs receive the same rotated value;
 // neither the old nor the new plaintext credential is persisted.
 const successor = token => crypto.createHmac('sha384', getJwtSecret()).update(`refresh-rotation:${token}`).digest('base64url');
-const cookieOptions = scope => {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const options = { httpOnly: true, secure: isProduction, sameSite: isProduction ? 'none' : 'strict', path: scopes[scope].path };
-  console.log('[authSessions] cookieOptions - secure:', options.secure, 'sameSite:', options.sameSite, 'path:', options.path);
-  return options;
-};
+const cookieOptions = scope => ({ httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict', path: scopes[scope].path });
 const readCookie = (req, scope) => {
-  const cookieHeader = req.headers.cookie || '';
-  console.log('[authSessions] readCookie - scope:', scope, 'cookieHeader:', cookieHeader ? 'present' : 'absent');
-  const value = cookieHeader.split(';').map(part => part.trim()).find(part => part.startsWith(`${scopes[scope].cookie}=`));
+  const value = (req.headers.cookie || '').split(';').map(part => part.trim()).find(part => part.startsWith(`${scopes[scope].cookie}=`));
   return value?.slice(scopes[scope].cookie.length + 1);
 };
 const publicUser = subject => ({ id: subject.id || String(subject._id), username: subject.username, role: subject.role, ...(subject.tenantId ? { tenantId: String(subject.tenantId) } : {}) });
 const access = (user, session) => jwt.sign({ ...user, sid: String(session._id), tokenVersion: session.tokenVersion }, getJwtSecret(), { algorithm: 'HS256', expiresIn: '15m' });
-const emit = (res, scope, session, secret) => {
-  console.log('[authSessions] Emitting cookie for scope:', scope, 'origin:', res.req?.headers?.origin);
-  return res.cookie(scopes[scope].cookie, `${session._id}.${secret}`, { ...cookieOptions(scope), maxAge: Math.max(0, session.expiresAt.getTime() - Date.now()) });
-};
+const emit = (res, scope, session, secret) => res.cookie(scopes[scope].cookie, `${session._id}.${secret}`, { ...cookieOptions(scope), maxAge: Math.max(0, session.expiresAt.getTime() - Date.now()) });
 const issue = async (req, res, subject, scope, user = publicUser(subject)) => {
   const secret = crypto.randomBytes(48).toString('base64url');
   const session = await AuthSession.create({ subjectId: subject._id, kind: scope === 'courier' ? 'courier' : 'user', scope, tokenVersion: subject.tokenVersion ?? 0, tokenHash: hash(secret), expiresAt: new Date(Date.now() + duration) });
-  const isTrusted = trustedOrigin(req);
-  console.log('[authSessions] issue - trustedOrigin:', isTrusted, 'origin:', req?.headers?.origin);
-  if (isTrusted) emit(res, scope, session, secret);
+  if (trustedOrigin(req)) emit(res, scope, session, secret);
   return { user, token: access(user, session) };
 };
 const loadSubject = async session => {
@@ -57,7 +45,6 @@ const loadSubject = async session => {
 const refresh = scope => [cookieProtection, async (req, res, next) => {
   try {
     const [id, secret, extra] = (readCookie(req, scope) || '').split('.');
-    console.log('[authSessions] refresh - scope:', scope, 'cookie present:', !!readCookie(req, scope), 'origin:', req?.headers?.origin);
     if (extra || !mongoose.isObjectIdOrHexString(id) || !/^[A-Za-z0-9_-]{64}$/.test(secret || '')) return res.status(401).json({ msg: 'Sessão inválida ou expirada' });
     const now = new Date();
     const session = await AuthSession.findOne({ _id: id, scope, revokedAt: null, expiresAt: { $gt: now } });
@@ -72,7 +59,7 @@ const refresh = scope => [cookieProtection, async (req, res, next) => {
     if (concurrent) { emit(res, scope, concurrent, nextSecret); return res.json({ user, token: access(user, concurrent) }); }
     await AuthSession.updateOne({ _id: id, scope, previousHash: incomingHash }, { $set: { revokedAt: now } });
     return res.status(401).json({ msg: 'Sessão revogada' });
-  } catch (error) { return next(error) }
+  } catch (error) { return next(error); }
 }];
 const clearCookie = (res, scope) => res.clearCookie(scopes[scope].cookie, cookieOptions(scope));
 const revokeAccessSession = async claims => {

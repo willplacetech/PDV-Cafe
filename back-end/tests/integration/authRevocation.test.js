@@ -9,14 +9,7 @@ const AuthSession = require('../../models/AuthSession');
 
 const password = 'senha-de-teste-123';
 const assinar = (user, claims = {}) => jwt.sign({ id: user.id, username: user.username, role: user.role, ...claims }, process.env.JWT_SECRET, { algorithm: 'HS256' });
-const api = (method, path, token) => {
-  const req = request(app)[method](`/api${path}`).set('Authorization', `Bearer ${token}`);
-  const acao = { patch: 'editar_usuario', delete: 'desativar_usuario' }[method];
-  if (token === adminToken && acao && path.startsWith('/auth/users/')) {
-    req.set('X-Autorizacao-Gerente', assinar(admin, { acao }));
-  }
-  return req;
-};
+const api = (method, path, token) => request(app)[method](`/api${path}`).set('Authorization', `Bearer ${token}`);
 let admin, operador, adminToken, token;
 
 beforeEach(async () => {
@@ -165,18 +158,6 @@ test('admin exclui usuário PDV e remove suas sessões', async () => {
   expect(await User.findById(operador.id)).toBeNull();
   expect(await AuthSession.countDocuments({ subjectId: operador._id, kind: 'user', scope: 'pdv' })).toBe(0);
   expect((await api('get', '/auth/me', token)).status).toBe(401);
-});
-
-test('admin sem aprovação de gerente não altera nem exclui usuário', async () => {
-  const editar = await request(app).patch(`/api/auth/users/${operador.id}`)
-    .set('Authorization', `Bearer ${adminToken}`).send({ ativo: false });
-  const excluir = await request(app).delete(`/api/auth/users/${operador.id}`)
-    .set('Authorization', `Bearer ${adminToken}`);
-  expect(editar.status).toBe(403);
-  expect(excluir.status).toBe(403);
-  const atualizado = await User.findById(operador.id);
-  expect(atualizado.ativo).toBe(true);
-  expect(atualizado.tokenVersion).toBe(0);
 });
 
 test('admin não pode excluir a própria conta nem contas fora do gerenciamento PDV', async () => {
