@@ -8,7 +8,8 @@ const registrarMovimento = new Function(
   'bloqueado',
   'caixa',
   'movimento',
-  'api',
+  'requestAutorizado',
+  'solicitarSangria',
   'setCaixa',
   'setSistema',
   'setMovimento',
@@ -27,11 +28,17 @@ test('registrar sangria atualiza dinheiro físico e preserva os meios eletrônic
   const caixa = { _id: 'caixa-1', outrosMeios: meiosPagamento };
   let caixaAtualizado = caixa;
   let sistemaAtualizado;
+  const solicitarSangria = () => {};
+  const requests = [];
   const handler = registrarMovimento(
     false,
     caixa,
     { tipo: 'sangria', valor: '20', responsavel: 'Ana', motivo: 'Troco' },
-    { post: async () => ({ data: { ...caixa, outrosMeios: { pix: 55, credito: 100, debito: 70 }, sistema: { saldoEsperado: 30 } } }) },
+    async (...args) => {
+      requests.push(args);
+      return { data: { ...caixa, outrosMeios: { pix: 55, credito: 100, debito: 70 }, sistema: { saldoEsperado: 30 } } };
+    },
+    solicitarSangria,
     (update) => { caixaAtualizado = typeof update === 'function' ? update(caixaAtualizado) : update; },
     (sistema) => { sistemaAtualizado = sistema; },
     () => {},
@@ -40,6 +47,11 @@ test('registrar sangria atualiza dinheiro físico e preserva os meios eletrônic
 
   await handler({ preventDefault() {} });
 
+  assert.deepEqual(requests, [[
+    'post', '/caixa/caixa-1/movimentos',
+    { tipo: 'sangria', valor: '20', responsavel: 'Ana', motivo: 'Troco' },
+    'sangria_suprimento', solicitarSangria,
+  ]]);
   assert.deepEqual(caixaAtualizado.outrosMeios, meiosPagamento);
   assert.deepEqual(caixaAtualizado.sistema, { saldoEsperado: 30 });
   assert.deepEqual(sistemaAtualizado, { saldoEsperado: 30 });

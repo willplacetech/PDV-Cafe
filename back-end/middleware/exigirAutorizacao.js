@@ -140,4 +140,5 @@ module.exports = {
   exigirAutorizacao,
   registrarAuditoria,
   getExigirAutorizacao,
+  limparCache: () => { cachedValor = null; cacheTimestamp = 0; },
 };
