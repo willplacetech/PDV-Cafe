@@ -8,7 +8,7 @@ let appVersion = 'dev'
 try {
   // Try to get git hash from Render environment variable first, then fallback to local git
   const fullHash = env.RENDER_GIT_COMMIT || 
-    execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim() ||
+    execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim() || 
     'dev'
   appVersion = (fullHash || 'dev').slice(0, 7)
 } catch (_) {
@@ -75,16 +75,6 @@ export default defineConfig({
           },
           {
             urlPattern: ({ request }) => 
-              request.destination === 'document' || 
-              request.mode === 'navigate',
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'app-shell',
-              networkTimeoutSeconds: 3,
-            },
-          },
-          {
-            urlPattern: ({ request }) => 
               ['style', 'script', 'font', 'image', 'worker'].includes(request.destination),
             handler: 'CacheFirst',
             options: {
@@ -93,7 +83,7 @@ export default defineConfig({
           },
         ],
       },
-      // No iOS, cache pode ser limpo após ~7 dias sem uso.
+      // No iOS, cache pode ser limpo apÃ³s ~7 dias sem uso.
     })
   ],
 })

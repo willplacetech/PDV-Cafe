@@ -50,7 +50,7 @@ function AppVersionGuard() {
         const publishedVersion = await fetchPublishedAppVersion();
         if (!active || publishedVersion === APP_VERSION) return;
 
-        const reloadKey = \`pdv:version-reload:\${publishedVersion}\`;
+        const reloadKey = 'pdv:version-reload:';
         try {
           if (sessionStorage.getItem(reloadKey) === "1") {
             showToast("Há uma nova versão disponível. Feche e reabra o aplicativo para tentar atualizar.", "warning");
