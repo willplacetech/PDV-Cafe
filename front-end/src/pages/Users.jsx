@@ -7,7 +7,7 @@ import { useToast } from '../components/useToast.js';
 import AreaTabs from '../components/AreaTabs.jsx';
 import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
-import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.js';
+import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 
 const roles = { operador: 'Operador', cozinha: 'Cozinha', garcom: 'Garçom', gerente: 'Gerente', admin: 'Administrador' };
 const policyMessage = 'Use pelo menos 12 caracteres e no máximo 72 bytes UTF-8 (acentos e emojis usam mais bytes).';
