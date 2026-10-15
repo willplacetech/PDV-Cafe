@@ -2,7 +2,7 @@ import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useCallback, useEffect, useState } from 'react';
 import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
-import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.js';
+import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
 
 const dinheiro = (value) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
