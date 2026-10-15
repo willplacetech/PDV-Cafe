@@ -48,7 +48,7 @@ const sincronizarCustoReceita = async (recipeId) => {
 };
 
 router.use(auth);
-router.use(auth.allowRoles('admin', 'cozinha'));
+router.use(auth.allowRoles('admin', 'gerente', 'cozinha'));
 const onlyManager = auth.allowRoles('admin');
 
 const validate = (req, res) => {

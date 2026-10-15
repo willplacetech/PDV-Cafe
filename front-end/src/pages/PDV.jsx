@@ -4,6 +4,8 @@ import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
+import { requestAutorizado } from '../services/apiAutorizada.js';
+import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.js';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { estoqueDisponivelComanda } from '../utils/estoqueComanda.js';
 import { useToast } from '../components/useToast.js';
@@ -78,8 +80,10 @@ const precoComDescontoGrupo = (produto, quantidade, cartItens, precoBase) => {
 export default function PDV() {
   const { formasPagamento: FORMAS_PAGAMENTO } = useFormasPagamento();
   const { comandaAtual, setComandaAtual, setTipo, setMesa, salvarComandaAberta, fecharComanda, carregarComanda, limparComanda } = useComanda();
+  const { solicitar: solicitarAutorizacao, renderizarModal: renderizarAutorizacao } = useAutorizacaoGerente('cancelar_venda');
   const carrinho = comandaAtual.itens;
   const [produtos, setProdutos] = useState([]);
+  const [carregandoProdutos, setCarregandoProdutos] = useState(true);
   const [maisVendidos, setMaisVendidos] = useState([]);
   const [quantidadesRascunho, setQuantidadesRascunho] = useState({});
   const [precosRascunho, setPrecosRascunho] = useState({});
@@ -175,6 +179,7 @@ export default function PDV() {
     if (resultados.every((resultado) => resultado.status === 'rejected') && !temCatalogoOffline) {
       showToast('Sem conexão e sem catálogo salvo neste dispositivo', 'warning');
     }
+    setCarregandoProdutos(false);
   }, [showToast]);
 
   useEffect(() => {
@@ -517,7 +522,7 @@ export default function PDV() {
 
   const salvarComandaEmAberto = async () => {
     const comanda = await salvarComandaAtual();
-    if (comanda) setMobileCartOpen(false);
+    if (comanda) limparFormularioComanda();
   };
 
   const validarDadosEntrega = () => {
@@ -543,7 +548,7 @@ export default function PDV() {
     envioRef.current = true;
     setEnviando(true);
     try {
-      if (comandaAtual._id) await api.patch(`/comandas/${comandaAtual._id}/cancelar`);
+      if (comandaAtual._id) await requestAutorizado('patch', `/comandas/${comandaAtual._id}/cancelar`, null, 'cancelar_venda', solicitarAutorizacao);
       limparComanda();
       idempotenciaRef.current = null;
       pagamentoPreparadoRef.current = null;
@@ -773,6 +778,10 @@ export default function PDV() {
   const iniciarNovaComanda = async () => {
     if (envioRef.current) return;
     if (carrinho.length && !await salvarComandaAtual()) return;
+    limparFormularioComanda();
+  };
+
+  const limparFormularioComanda = () => {
     pagamentoPreparadoRef.current = null;
     setComandaPagamento(null);
     limparComanda();
@@ -881,6 +890,7 @@ export default function PDV() {
 
   return (
     <div>
+      {renderizarAutorizacao()}
       {/* Cabeçalho PDV */}
       <div className="pdv-header-desktop page-heading">
         <div>
@@ -983,7 +993,17 @@ export default function PDV() {
                 padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600
               }}>{filtrados.length}</span>
             </div>
-            {filtrados.length === 0 ? (
+            {carregandoProdutos ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10, maxHeight: 420, overflowY: 'auto', padding: 2 }}>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} style={{ background: 'var(--bg-tertiary)', borderRadius: 14, padding: 12, minHeight: 120, animation: 'pulse 1.5s ease-in-out infinite' }}>
+                    <div style={{ background: 'var(--border-color)', borderRadius: 4, height: 16, width: '60%', marginBottom: 8 }}></div>
+                    <div style={{ background: 'var(--border-color)', borderRadius: 4, height: 12, width: '40%', marginBottom: 8 }}></div>
+                    <div style={{ background: 'var(--border-color)', borderRadius: 4, height: 12, width: '80%' }}></div>
+                  </div>
+                ))}
+              </div>
+            ) : filtrados.length === 0 ? (
               <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px 20px', fontSize: 14 }}>
                 {grupoAtivo === 'Todos'
                   ? (termoBusca ? 'Nenhum produto encontrado para esta busca.' : 'Nenhum produto cadastrado.')

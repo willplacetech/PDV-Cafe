@@ -12,7 +12,7 @@ services:
     healthCheckPath: /api
     envVars:
       - key: NODE_VERSION
-        value: "22"
+        value: '22'
       - key: NODE_ENV
         value: production
       - key: MONGO_URI
@@ -31,6 +31,12 @@ services:
         value: https://pdv-delivery-9j0a.onrender.com
       - key: DELIVERY_PUBLIC_URL
         value: https://pdv-delivery-9j0a.onrender.com
+      - key: EXIGIR_AUTORIZACAO_GERENTE
+        value: 'false'
+      - key: JWT_SECRET
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
 
   - type: web
     runtime: static
@@ -46,6 +52,6 @@ services:
         destination: /index.html
     envVars:
       - key: NODE_VERSION
-        value: "22"
+        value: '22'
       - key: API_PUBLIC_URL
         value: https://pdv-completo-z6ly.onrender.com

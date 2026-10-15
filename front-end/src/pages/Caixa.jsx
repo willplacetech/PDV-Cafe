@@ -1,6 +1,8 @@
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useCallback, useEffect, useState } from 'react';
 import api from '../services/api.jsx';
+import { requestAutorizado } from '../services/apiAutorizada.js';
+import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.js';
 import { useToast } from '../components/useToast.js';
 
 const dinheiro = (value) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -18,6 +20,8 @@ export default function Caixa() {
   const [atualizando, setAtualizando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const { showToast } = useToast();
+  const { solicitar: solicitarSangria, renderizarModal: renderizarAutorizacaoSangria } = useAutorizacaoGerente('sangria_suprimento');
+  const { solicitar: solicitarFechar, renderizarModal: renderizarAutorizacaoFechar } = useAutorizacaoGerente('fechar_caixa');
 
   const carregar = useCallback(async () => {
     try {
@@ -86,7 +90,7 @@ export default function Caixa() {
     }
     setSalvando(true);
     try {
-      const { data: fechado } = await api.post(`/caixa/${caixa._id}/fechar`, { ...payloadContagem, observacao });
+      const { data: fechado } = await requestAutorizado('post', `/caixa/${caixa._id}/fechar`, { ...payloadContagem, observacao }, 'fechar_caixa', solicitarFechar);
       setCaixa(fechado); setSistema(fechado.sistema); showToast('Caixa fechado e bloqueado', 'success');
     } catch (error) { showToast(error.response?.data?.msg || 'Não foi possível fechar o caixa', 'error'); }
     finally { setSalvando(false); }
@@ -96,7 +100,8 @@ export default function Caixa() {
     event.preventDefault();
     if (bloqueado) return;
     try {
-      const { data: atualizado } = await api.post(`/caixa/${caixa._id}/movimentos`, movimento);
+      const { data: atualizado } = await requestAutorizado('post', `/caixa/${caixa._id}/movimentos`, movimento, 'sangria_suprimento', solicitarSangria);
+      setCaixa((atual) => ({ ...atual, sistema: atualizado.sistema }));
       setCaixa((atual) => ({ ...atual, sistema: atualizado.sistema }));
       setSistema(atualizado.sistema);
       setMovimento({ tipo: movimento.tipo, valor: '', responsavel: '', motivo: '' });
@@ -108,6 +113,8 @@ export default function Caixa() {
 
   return (
     <div className="caixa-page">
+      {renderizarAutorizacaoSangria()}
+      {renderizarAutorizacaoFechar()}
       <header className="page-heading caixa-heading">
         <div><span className="dashboard-eyebrow">CONFERÊNCIA DIÁRIA</span><h1>Fechamento de Caixa</h1><p>Compare o esperado pelo sistema com o dinheiro físico contado.</p></div>
         <div className="caixa-filters"><label>Data<input type="date" value={data} disabled={bloqueado} onChange={(event) => setData(event.target.value)} /></label><label>Turno<input value={turno} disabled={bloqueado} onChange={(event) => setTurno(event.target.value)} /></label><button type="button" onClick={atualizarValores} disabled={atualizando} style={{ minHeight: 40, alignSelf: 'end', padding: '8px 12px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 700, cursor: atualizando ? 'wait' : 'pointer' }}>{atualizando ? 'Atualizando...' : 'Atualizar valores'}</button></div>

@@ -32,7 +32,15 @@ api.interceptors.response.use(undefined, err => {
     err.message = 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.';
     err.response = { status: 0, data: { msg: err.message } };
   }
+  err.autorizacaoNecessaria = err.response?.status === 403 && err.response?.data?.msg === 'Autorização do gerente necessária';
   return Promise.reject(err);
 });
+
+export const setHeaderAutorizacao = (config = {}, token) => {
+  if (token) {
+    config.headers = { ...(config.headers || {}), 'X-Autorizacao-Gerente': token };
+  }
+  return config;
+};
 
 export default api;

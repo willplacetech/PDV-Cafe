@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useComanda } from '../context/ComandaContext.jsx';
 import api from '../services/api.jsx';
+import { requestAutorizado } from '../services/apiAutorizada.js';
+import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.js';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/useToast.js';
 import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
@@ -386,7 +388,7 @@ export default function Comandas() {
 
   const cancel = async () => {
     if (!selected || !window.confirm(`Cancelar a comanda #${selected.numero}?`)) return;
-    try { await api.patch(`/comandas/${selected._id}/cancelar`); showToast('Comanda cancelada', 'warning'); load(); }
+    try { await requestAutorizado('patch', `/comandas/${selected._id}/cancelar`, null, 'cancelar_venda', solicitarAutorizacao); showToast('Comanda cancelada', 'warning'); load(); }
     catch (error) { showToast(error.response?.data?.msg || 'Erro ao cancelar comanda', 'error'); }
   };
 
@@ -553,8 +555,11 @@ export default function Comandas() {
     }
   };
 
+  const { solicitar: solicitarAutorizacao, renderizarModal: renderizarAutorizacao } = useAutorizacaoGerente('cancelar_venda');
+
   return (
     <div className="comandas-page">
+      {renderizarAutorizacao()}
       <div className="page-heading"><div><h1>🪑 Mesas / Comandas</h1><p>Consulte mesas, edite comandas abertas e separe pagamentos em uma única tela.</p></div><button type="button" className="comandas-primary-button" onClick={() => void createBalcao()}>➕ Novo Pedido</button></div>
       <section className="service-mode-panel">
         <div className="service-mode-heading"><h2>🪑 Mesas ({mesasAtivas.length})</h2><span>Selecione uma mesa para abrir ou editar a comanda.</span></div>

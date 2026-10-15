@@ -8,6 +8,7 @@ const path = require('path'); // ← ADICIONADO
 const connectDB = require('./db');
 const { initializeAuth } = require('./utils/authConfig');
 const provisionarAdmin = require('./utils/provisionarAdmin');
+const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
@@ -129,12 +130,7 @@ app.get('*', (req, res) => {
 // ============================================================
 
 // Tratamento de erro global
-app.use((err, req, res, next) => {
-  if (res.headersSent) return next(err);
-  const status = Number(err.status || err.statusCode) || 500;
-  if (status >= 500) console.error(err.stack || err.message);
-  res.status(status).json({ msg: status >= 500 && status !== 503 ? 'Erro interno do servidor' : err.message });
-});
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 

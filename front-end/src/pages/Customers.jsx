@@ -1,9 +1,12 @@
 import FieldLabel from '../components/FieldLabel.jsx';
 import { useState, useEffect } from 'react';
 import api from '../services/api.jsx';
+import { requestAutorizado } from '../services/apiAutorizada.js';
+import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.js';
 import { useToast } from '../components/useToast.js';
 import AreaTabs from '../components/AreaTabs.jsx';
 import { criarXmlClientes } from '../utils/customersXml.js';
+import { exportarCSV, colunasCSV } from '../utils/exportarCsv.js';
 import { calcularMultiplicadorFidelidade } from '../utils/fidelidade.js';
 
 // 🎯 Máscaras
@@ -39,6 +42,7 @@ export default function Customers() {
   const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '' }, cpf: '', aniversario: '', cafesFidelidade: '0' });
   const [editing, setEditing] = useState(null);
   const { showToast } = useToast();
+  const { solicitar: solicitarExcluir, renderizarModal: renderizarAutorizacaoExcluir } = useAutorizacaoGerente('excluir_cliente');
 
 
   const carregar = async () => {
@@ -130,7 +134,7 @@ export default function Customers() {
   const remover = async (id) => {
     if (!window.confirm('Excluir este cliente?')) return;
     try {
-      await api.delete(`/customers/${id}`);
+      await requestAutorizado('delete', `/customers/${id}`, null, 'excluir_cliente', solicitarExcluir);
       showToast('Cliente removido', 'warning');
       carregar();
     } catch (err) {
@@ -165,13 +169,15 @@ export default function Customers() {
 
   return (
     <div>
+      {renderizarAutorizacaoExcluir()}
       <AreaTabs area="pessoas" />
-      <div className="page-heading">
-        <div>
-          <h1>👤 Cadastro de Clientes</h1>
-          <p>Gerencie sua base de clientes</p>
-        </div>
-      </div>
+       <div className="page-heading">
+         <div>
+           <h1>👤 Cadastro de Clientes</h1>
+           <p>Gerencie sua base de clientes</p>
+         </div>
+         <button type="button" className="customers-secondary-button" onClick={() => exportarCSV(clientes, colunasCSV.clientes, 'clientes.csv')}>⬇️ CSV</button>
+       </div>
 
 
       <div style={{

@@ -1,5 +1,6 @@
 const express = require('express');
 const auth = require('../middleware/auth');
+const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
 const FechamentoCaixa = require('../models/FechamentoCaixa');
 const {
   DENOMINACOES_CEDULAS,
@@ -16,7 +17,7 @@ const {
 
 const router = express.Router();
 router.use(auth);
-router.use(auth.allowRoles('admin', 'operador'));
+router.use(auth.allowRoles('admin', 'operador', 'gerente'));
 
 const normalizarItens = (items, denominacoes, obrigatorio = false) => {
   if (!Array.isArray(items)) throw new Error('Preencha a contagem física');
@@ -95,7 +96,7 @@ router.post('/abrir', async (req, res) => {
   }
 });
 
-router.post('/:id/movimentos', async (req, res) => {
+router.post('/:id/movimentos', exigirAutorizacao('sangria_suprimento'), async (req, res) => {
   try {
     const fechamento = await FechamentoCaixa.findById(req.params.id);
     if (!fechamento) return res.status(404).json({ msg: 'Fechamento não encontrado' });
@@ -126,7 +127,7 @@ router.post('/:id/contagem-parcial', async (req, res) => {
   } catch (error) { res.status(400).json({ msg: error.message }); }
 });
 
-router.post('/:id/fechar', async (req, res) => {
+router.post('/:id/fechar', exigirAutorizacao('fechar_caixa'), async (req, res) => {
   try {
     const fechamento = await FechamentoCaixa.findById(req.params.id);
     if (!fechamento) return res.status(404).json({ msg: 'Fechamento não encontrado' });

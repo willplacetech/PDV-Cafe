@@ -25,9 +25,14 @@ describe('Cancelar comanda no PDV', () => {
     panel().contains('button', 'Salvar em aberto').click();
     cy.wait('@save');
   };
+  const reopenSavedCommand = () => {
+    cy.get('.pdv-mesas-trigger').click();
+    cy.get('.mesas-drawer-orders').contains('button', '#1').click();
+  };
 
   it('cancela comanda salva na API e limpa o atendimento', () => {
     save();
+    reopenSavedCommand();
     cy.intercept('PATCH', '**/api/comandas/comanda-1/cancelar', req => {
       req.reply({ ...command, status: 'cancelada' });
       command = null;
@@ -41,6 +46,7 @@ describe('Cancelar comanda no PDV', () => {
 
   it('preserva a comanda quando o servidor rejeita o cancelamento', () => {
     save();
+    reopenSavedCommand();
     cy.intercept('PATCH', '**/api/comandas/comanda-1/cancelar', { statusCode: 409, body: { msg: 'Comanda possui pagamentos' } }).as('cancel');
     cy.on('window:confirm', () => true);
     panel().contains('button', 'Cancelar comanda').click();

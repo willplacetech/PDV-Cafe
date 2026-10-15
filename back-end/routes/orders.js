@@ -5,6 +5,7 @@ const Comanda = require('../models/Comanda');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const auth = require('../middleware/auth');
+const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
 const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
 const { precoPorUnidade } = require('../utils/pesoProduto');
 const { produtoControlaPeso } = require('../utils/estoqueProduto');
@@ -374,7 +375,7 @@ router.patch('/cliente/:clienteId/quitar', auth, auth.allowRoles('admin'), async
   }
 });
 
-router.patch('/:id/cancelar', auth, auth.allowRoles('admin'), async (req, res) => {
+router.patch('/:id/cancelar', auth, auth.allowRoles('admin'), exigirAutorizacao('cancelar_venda'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();

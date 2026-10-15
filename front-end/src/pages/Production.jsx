@@ -3,6 +3,8 @@ import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
+import { requestAutorizado } from '../services/apiAutorizada.js';
+import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.js';
 import { useToast } from '../components/useToast.js';
 import FichasTecnicas from './FichasTecnicas.jsx';
 
@@ -37,6 +39,7 @@ export default function Production() {
   const [movPreview, setMovPreview] = useState(null);
   const [movimentos, setMovimentos] = useState([]);
   const { showToast } = useToast();
+  const { solicitar: solicitarPreco, renderizarModal: renderizarAutorizacaoPreco } = useAutorizacaoGerente('alterar_preco');
 
   const load = useCallback(async () => {
     try {
@@ -247,13 +250,14 @@ export default function Production() {
   const applyCostPrice = async () => {
     if (!costResult?.produto?._id || Number(costForm.precoVenda) < 0) return;
     try {
-      await api.put(`/produtos/${costResult.produto._id}/aplicar-preco`, { preco: Number(costForm.precoVenda) });
+      await requestAutorizado('put', `/produtos/${costResult.produto._id}/aplicar-preco`, { preco: Number(costForm.precoVenda) }, 'alterar_preco', solicitarPreco);
       showToast('Preço de venda aplicado ao produto', 'success');
       await load();
     } catch (error) { showToast(error.response?.data?.msg || 'Não foi possível aplicar o preço', 'error'); }
   };
 
   return <div className="production-page">
+    {renderizarAutorizacaoPreco()}
     <header className="production-heading page-heading"><div><span className="production-eyebrow">GESTÃO DE INSUMOS</span><h1>Produção</h1><p>Controle ingredientes, fichas técnicas e produtos produzidos na casa.</p></div><div className="production-header-actions"><button type="button" className="production-alert" onClick={() => setTab('custos')}><strong>{produtosSemCusto.length}</strong><span>produtos sem custo</span></button><button type="button" className="production-alert" onClick={() => setTab('custos')}><strong>{produtosReajuste.length}</strong><span>reajustes recomendados</span></button><div className="production-kpi"><strong>{productionDashboard?.receitasPossiveis?.filter((recipe) => recipe.producoesPossiveis > 0).length || 0}</strong><span>fichas possíveis</span></div></div></header>
     <nav className="production-tabs" aria-label="Seções da produção">
       {[['estoque', '📦 Estoque de insumos'], ['fichas', '📋 Ficha técnica'], ['produzir', '🔄 Nova produção'], ['transferir', '⚖️ Ajuste de inventário'], ['historico', '📜 Histórico de movimentos'], ['custos', 'Custo da ficha técnica']].map(([key, label]) => <button key={key} className={tab === key || (key === 'fichas' && tab === 'fichas-atual') ? 'active' : ''} onClick={() => alterarTab(key)}>{label}</button>)}

@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
+const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
@@ -265,7 +266,7 @@ router.get('/sem-custo', auth, auth.allowRoles('admin'), async (req, res) => {
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
-router.put('/:id/aplicar-preco', auth, auth.allowRoles('admin'), [body('preco').isFloat({ min: 0 })], async (req, res) => {
+router.put('/:id/aplicar-preco', auth, auth.allowRoles('admin'), exigirAutorizacao('alterar_preco'), [body('preco').isFloat({ min: 0 })], async (req, res) => {
   try {
     const produto = await Product.findByIdAndUpdate(req.params.id, { $set: { preco: Number(req.body.preco), reajusteRecomendado: false } }, { new: true, runValidators: true });
     if (!produto) return res.status(404).json({ msg: 'Produto não encontrado' });
@@ -306,7 +307,7 @@ router.get('/:id/historico-custo', auth, auth.allowRoles('admin'), async (req, r
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
-router.put('/:id/aplicar-preco', auth, auth.allowRoles('admin'), async (req, res) => {
+router.put('/:id/aplicar-preco', auth, auth.allowRoles('admin'), exigirAutorizacao('alterar_preco'), async (req, res) => {
   try {
     const { precoVenda } = req.body;
     const produto = await Product.findById(req.params.id);
@@ -432,7 +433,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
   }
 });
 
-router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoque').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoquePesoKg').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueMinimo').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueEmbalagens').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueConteudoAberto').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueMinimoEmbalagens').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('unidade').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade deve ser kg, L ou un'), body('quantidade').optional().custom((value, { req }) => casasDecimaisValidas(value, req.body.unidade)).withMessage('Quantidade inválida para a unidade selecionada'), body('rendimento').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0.01 }), body('unidadeConteudo').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade do conteúdo deve ser kg, L ou un'), body('estoqueMaximo').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade de venda deve ser kg, L ou un'), body('unidadeCompra').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade de compra deve ser kg, L ou un'), body('pesoPorUnidade').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('unidadePeso').optional().isIn(['kg']).withMessage('Unidade de peso deve ser kg'), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('tipoProduto').optional().isIn(['revenda', 'coz', 'producao']), body('rendimentoPorReceita').optional().isFloat({ min: 0.001 }), body('permitirVendaSemInsumo').optional().isBoolean(), body('fichaTecnica').optional().isArray()], async (req, res) => {
+router.put('/:id', auth, auth.allowRoles('admin'), exigirAutorizacao('alterar_preco'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoque').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoquePesoKg').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueMinimo').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueEmbalagens').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueConteudoAberto').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueMinimoEmbalagens').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('unidade').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade deve ser kg, L ou un'), body('quantidade').optional().custom((value, { req }) => casasDecimaisValidas(value, req.body.unidade)).withMessage('Quantidade inválida para a unidade selecionada'), body('rendimento').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0.01 }), body('unidadeConteudo').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade do conteúdo deve ser kg, L ou un'), body('estoqueMaximo').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade de venda deve ser kg, L ou un'), body('unidadeCompra').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade de compra deve ser kg, L ou un'), body('pesoPorUnidade').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('unidadePeso').optional().isIn(['kg']).withMessage('Unidade de peso deve ser kg'), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('tipoProduto').optional().isIn(['revenda', 'coz', 'producao']), body('rendimentoPorReceita').optional().isFloat({ min: 0.001 }), body('permitirVendaSemInsumo').optional().isBoolean(), body('fichaTecnica').optional().isArray()], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
@@ -567,7 +568,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
-router.delete('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
+router.delete('/:id', auth, auth.allowRoles('admin'), exigirAutorizacao('excluir_produto'), async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });

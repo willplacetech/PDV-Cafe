@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const auth = require('../middleware/auth');
+const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
 const Product = require('../models/Product');
@@ -67,7 +68,7 @@ const resumoComparativo = async (mes) => {
 router.use(auth);
 router.use(auth.allowRoles('admin'));
 
-router.patch('/taxas-cartao', async (req, res) => {
+router.patch('/taxas-cartao', exigirAutorizacao('alterar_taxas_cartao'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     const mes = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.body.mes || '')) ? req.body.mes : null;

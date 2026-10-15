@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
+const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
 const Customer = require('../models/Customer');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
@@ -157,7 +158,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
 // @route   DELETE api/customers/:id
 // @desc    Deletar cliente
 // @access  Privado
-router.delete('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
+router.delete('/:id', auth, auth.allowRoles('admin'), exigirAutorizacao('excluir_cliente'), async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id);
     if (!customer) {

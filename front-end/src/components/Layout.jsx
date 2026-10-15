@@ -4,6 +4,8 @@ import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { ThemeContext } from '../context/ThemeContextDefinition.js';
 import StatusConexao from './StatusConexao.jsx';
 import api from '../services/api.jsx';
+import { APP_VERSION } from '../services/appVersion.js';
+import NovidadesModal from './NovidadesModal.jsx';
 
 const gruposMenu = [
   {
@@ -20,7 +22,7 @@ const gruposMenu = [
     chave: 'cadastro',
     label: '📦 CADASTRO',
     items: [
-      { label: 'Produtos', icon: '📦', to: '/produtos', admin: true },
+      { label: 'Produtos', icon: '📦', to: '/produtos', roles: ['admin', 'gerente'] },
       { label: 'Mesas', icon: '🪑', to: '/cadastro/mesas', admin: true },
     ],
   },
@@ -36,7 +38,7 @@ const gruposMenu = [
     chave: 'producao',
     label: '🧪 PRODUÇÃO',
     items: [
-      { label: 'Estoque de Insumos', icon: '📦', to: '/producao', admin: true },
+      { label: 'Estoque de Insumos', icon: '📦', to: '/producao', roles: ['admin', 'gerente'] },
       { label: 'Lançar Produção', icon: '🔄', to: '/producao', admin: true },
       { label: 'Histórico de Movimentação', icon: '📜', to: '/producao', admin: true },
       { label: 'Cozinha', icon: '🍳', to: '/cozinha', roles: ['admin', 'operador', 'cozinha'] },
@@ -47,7 +49,7 @@ const gruposMenu = [
     label: '💰 GESTÃO',
     items: [
       { label: 'Dashboard', icon: '📊', to: '/dashboard', admin: true },
-      { label: 'Fechamento de Caixa', icon: '💵', to: '/caixa', admin: true },
+      { label: 'Fechamento de Caixa', icon: '💵', to: '/caixa', roles: ['admin', 'gerente'] },
       { label: 'DRE / Demonstrativo', icon: '📈', to: '/financeiro', admin: true },
     ],
   },
@@ -55,7 +57,7 @@ const gruposMenu = [
     chave: 'pessoas',
     label: '👥 PESSOAS',
     items: [
-      { label: 'Clientes', icon: '👤', to: '/clientes', admin: true },
+      { label: 'Clientes', icon: '👤', to: '/clientes', roles: ['admin', 'gerente'] },
       { label: 'Usuários', icon: '👥', to: '/usuarios', admin: true },
     ],
   },
@@ -234,10 +236,10 @@ export default function Layout({ children }) {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', fontFamily: 'var(--font-body)', color: 'var(--text-primary)', transition: 'background-color 0.3s ease, color 0.3s ease' }}>
-
+      <NovidadesModal />
       {/* ==========================================
             HEADER MOBILE
-            ========================================== */}
+      ========================================== */}
       <header id="header-mobile">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
           <button
@@ -755,8 +757,12 @@ export default function Layout({ children }) {
           background: rgba(239, 68, 68, 0.05);
         }
 
-        input, :is(select, .searchable-select-input), textarea { font-size: 16px !important; }
-      `}</style>
+         input, :is(select, .searchable-select-input), textarea { font-size: 16px !important; }
+       `}</style>
+
+      <footer style={{ padding: '8px 16px', fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center' }}>
+        Sabor de Abraço · v{APP_VERSION}
+      </footer>
     </div>
   );
 }

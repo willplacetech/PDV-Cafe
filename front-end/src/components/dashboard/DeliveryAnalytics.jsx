@@ -46,7 +46,7 @@ export default function DeliveryAnalytics({ section = 'both' }) {
   return <div className="delivery-analytics">
     {(section === 'chart' || section === 'both') && <section className="delivery-chart-card">
       <div className="delivery-analytics-heading"><div><span>ÚLTIMOS 7 DIAS</span><h2>Receita e ticket médio</h2></div><small>Barras: receita · linha: ticket médio</small></div>
-      {erroGrafico ? <p role="alert" className="delivery-analytics-error">{erroGrafico}</p> : <div className="delivery-chart">
+       {erroGrafico ? <p role="alert" className="delivery-analytics-error">{erroGrafico}</p> : (!dias.length && !erroGrafico) ? <p role="status" className="delivery-analytics-empty">Nenhum dado de receita nos últimos 7 dias.</p> : <div className="delivery-chart">
         <svg className="delivery-chart-line" viewBox="0 0 700 140" preserveAspectRatio="none" role="img" aria-label="Linha de ticket médio nos últimos sete dias">
           {pontosTicket && <polyline points={pontosTicket} fill="none" stroke="var(--accent-secondary)" strokeWidth="3" vectorEffect="non-scaling-stroke" />}
         </svg>
@@ -109,6 +109,7 @@ export default function DeliveryAnalytics({ section = 'both' }) {
       .delivery-table-wrap th,.delivery-table-wrap td{padding:10px;border-bottom:1px solid var(--border-light);white-space:nowrap}
       .delivery-table-wrap th{color:var(--text-secondary);font-size:10px;text-transform:uppercase}
       .delivery-analytics-error{color:var(--danger-bg);font-size:13px}
+      .delivery-analytics-empty{color:var(--text-secondary);font-size:12px;text-align:center;padding:20px}
       @media(max-width:760px){.delivery-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.delivery-chart{gap:3px}.delivery-chart-value{font-size:8px}.delivery-analytics-heading{align-items:flex-start;flex-direction:column}.delivery-period-selector{width:100%}.delivery-period-selector button{flex:1}}
     `}</style>
   </div>;

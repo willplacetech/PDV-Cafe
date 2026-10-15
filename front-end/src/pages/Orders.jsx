@@ -1,5 +1,7 @@
 import { useCallback, useState, useEffect, useMemo } from 'react';
 import api from '../services/api.jsx';
+import { requestAutorizado } from '../services/apiAutorizada.js';
+import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.js';
 import { useToast } from '../components/useToast.js';
 
 export default function Orders() {
@@ -9,6 +11,7 @@ export default function Orders() {
   const [carregando, setCarregando] = useState(true);
   const [cancelando, setCancelando] = useState(false);
   const { showToast } = useToast();
+  const { solicitar: solicitarAutorizacao, renderizarModal: renderizarAutorizacao } = useAutorizacaoGerente('cancelar_venda');
 
   const carregar = useCallback(async () => {
     try {
@@ -38,8 +41,7 @@ export default function Orders() {
 
     setCancelando(true);
     try {
-      // ✅ Rota correta: /orders/:id/cancelar
-      await api.patch(`/orders/${pedidoId}/cancelar`);
+      await requestAutorizado('patch', `/orders/${pedidoId}/cancelar`, null, 'cancelar_venda', solicitarAutorizacao);
       showToast('Pedido cancelado com sucesso. Estoque devolvido.', 'success');
       setSelecionado(null);
       carregar(); // Recarrega a lista para atualizar o status
@@ -87,6 +89,7 @@ export default function Orders() {
 
   return (
     <div>
+      {renderizarAutorizacao()}
       <div className="page-heading">
         <div>
           <h1>📋 Histórico de Pedidos</h1>

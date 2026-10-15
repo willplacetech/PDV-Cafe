@@ -37,7 +37,7 @@ const loadSubject = async session => {
   }
   const user = await User.findById(session.subjectId);
   if (!user || user.ativo === false || (user.tokenVersion ?? 0) !== session.tokenVersion) return null;
-  if (session.scope === 'pdv' && !['admin', 'operador', 'cozinha', 'garcom'].includes(user.role)) return null;
+  if (session.scope === 'pdv' && !['admin', 'gerente', 'operador', 'cozinha', 'garcom'].includes(user.role)) return null;
   if (session.scope === 'delivery' && !['tenant_admin', 'admin_plataforma'].includes(user.role)) return null;
   if (user.role === 'tenant_admin' && !await Tenant.exists({ _id: user.tenantId, ativo: true })) return null;
   return publicUser(user);

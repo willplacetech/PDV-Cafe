@@ -9,10 +9,11 @@ const Production = require('./models/Production');
 const StockMovement = require('./models/StockMovement');
 const Despesa = require('./models/Despesa');
 const HistoricoCusto = require('./models/HistoricoCusto');
+const Auditoria = require('./models/Auditoria');
 const migrarCreditosLoja = require('./utils/migrarCreditosLoja');
 const databaseOptions = require('./utils/databaseOptions');
 
-const models = [User, Product, Customer, Order, Comanda, Recipe, Production, StockMovement, Despesa, HistoricoCusto];
+const models = [User, Product, Customer, Order, Comanda, Recipe, Production, StockMovement, Despesa, HistoricoCusto, Auditoria];
 
 const connectDB = async () => {
   try {

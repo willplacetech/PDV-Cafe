@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
+const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
 const Product = require('../models/Product');
 const Recipe = require('../models/Recipe');
 const HistoricoCusto = require('../models/HistoricoCusto');
@@ -70,7 +71,7 @@ const recalcularReceitasAfetadas = async (produtoId) => {
 router.use(auth);
 router.use(auth.allowRoles('admin'));
 
-router.put('/:id/preco-compra', [body('precoCompra').isFloat({ min: 0 }), body('unidadeCompra').optional().custom((value) => ['kg', 'L', 'un'].includes(value) || value === 'l')], async (req, res) => {
+router.put('/:id/preco-compra', exigirAutorizacao('alterar_preco'), [body('precoCompra').isFloat({ min: 0 }), body('unidadeCompra').optional().custom((value) => ['kg', 'L', 'un'].includes(value) || value === 'l')], async (req, res) => {
   try {
     const produto = await Product.findById(req.params.id);
     if (!produto) return res.status(404).json({ msg: 'Insumo não encontrado' });

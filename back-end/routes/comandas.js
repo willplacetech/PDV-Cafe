@@ -7,6 +7,7 @@ const Order = require('../models/Order');
 const Customer = require('../models/Customer');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
+const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
 const { obterTaxasCartao } = require('../utils/taxasCartao');
 const { calcularStatusPagamento, construirPagamento, formaPagamentoValida, normalizarFormaPagamento, normalizarPagamentos, saldoDevedor, totalPago, validarCancelamentoFinanceiro } = require('../utils/pagamento');
 const { precoPorUnidade } = require('../utils/pesoProduto');
@@ -439,7 +440,7 @@ router.post('/:id/mover', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
   } finally { await session.endSession(); }
 });
 
-router.patch('/:id/cancelar', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.patch('/:id/cancelar', auth, auth.allowRoles('admin', 'operador', 'gerente', 'garcom'), exigirAutorizacao('cancelar_venda'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();

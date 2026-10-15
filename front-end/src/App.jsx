@@ -5,6 +5,7 @@ import { ComandaProvider } from './context/ComandaContext.jsx';
 import { FormasPagamentoProvider } from './context/FormasPagamentoContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import { ToastProvider } from './components/Toast.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 import PrivateRoute from './components/PrivateRoute.jsx';
 import RoleRoute from './components/RoleRoute.jsx';
 import Layout from './components/Layout.jsx';
@@ -108,6 +109,7 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <ToastProvider>
+          <ErrorBoundary>
           <AppVersionGuard />
           <Router>
             <Suspense fallback={<p role="status" style={{ padding: 24 }}>Carregando…</p>}>
@@ -151,8 +153,9 @@ export default function App() {
             </Routes>
             </Suspense>
           </Router>
-        </ToastProvider>
-      </AuthProvider>
-    </ThemeProvider>
+          </ErrorBoundary>
+         </ToastProvider>
+       </AuthProvider>
+     </ThemeProvider>
   );
 }

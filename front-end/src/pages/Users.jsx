@@ -6,8 +6,10 @@ import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { useToast } from '../components/useToast.js';
 import AreaTabs from '../components/AreaTabs.jsx';
 import api from '../services/api.jsx';
+import { requestAutorizado } from '../services/apiAutorizada.js';
+import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.js';
 
-const roles = { operador: 'Operador', cozinha: 'Cozinha', garcom: 'Garçom', admin: 'Administrador' };
+const roles = { operador: 'Operador', cozinha: 'Cozinha', garcom: 'Garçom', gerente: 'Gerente', admin: 'Administrador' };
 const policyMessage = 'Use pelo menos 12 caracteres e no máximo 72 bytes UTF-8 (acentos e emojis usam mais bytes).';
 const validPassword = password => Array.from(password).length >= 12 && new TextEncoder().encode(password).length <= 72;
 const errorMessage = error => error.response?.data?.msg || error.response?.data?.errors?.[0]?.msg || 'Não foi possível concluir a operação';
@@ -17,6 +19,8 @@ const emptyEdit = { role: 'operador', ativo: true, password: '' };
 export default function Users() {
   const { user } = useContext(AuthContext);
   const { showToast } = useToast();
+  const { solicitar: solicitarExcluir, renderizarModal: renderizarAutorizacaoExcluir } = useAutorizacaoGerente('desativar_usuario');
+  const { solicitar: solicitarEditar, renderizarModal: renderizarAutorizacaoEditar } = useAutorizacaoGerente('editar_usuario');
   const [form, setForm] = useState(emptyForm);
   const [users, setUsers] = useState([]);
   const [couriers, setCouriers] = useState([]);
@@ -72,7 +76,7 @@ export default function Users() {
     setBusy(true);
     try {
       const body = { role: edit.role, ativo: edit.ativo, ...(edit.password ? { password: edit.password } : {}) };
-      const { data } = await api.patch(`/auth/users/${editingId}`, body);
+      const { data } = await requestAutorizado('patch', `/auth/users/${editingId}`, body, 'editar_usuario', solicitarEditar);
       setUsers(previous => previous.map(account => account.id === data.id ? data : account));
       setEditingId(null);
       setEdit(emptyEdit);
@@ -86,7 +90,7 @@ export default function Users() {
     if (!window.confirm(`Excluir permanentemente o usuário ${account.username}? Esta ação não pode ser desfeita.`)) return;
     setBusy(true);
     try {
-      await api.delete(`/auth/users/${account.id}`);
+      await requestAutorizado('delete', `/auth/users/${account.id}`, null, 'desativar_usuario', solicitarExcluir);
       setUsers(previous => previous.filter(item => item.id !== account.id));
       if (editingId === account.id) { setEditingId(null); setEdit(emptyEdit); }
       showToast('Usuário excluído.', 'success');
@@ -134,6 +138,8 @@ export default function Users() {
 
   return (
     <section className="users-page" style={{ maxWidth: 1000, margin: '0 auto' }}>
+      {renderizarAutorizacaoExcluir()}
+      {renderizarAutorizacaoEditar()}
       <AreaTabs area="pessoas" />
       <div className="page-heading"><div><h1>Usuários</h1><p>Cadastre e gerencie os acessos da equipe e os entregadores do comércio.</p></div></div>
       <form onSubmit={handleSubmit} style={panelStyle}>

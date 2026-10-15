@@ -3,6 +3,8 @@ import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
+import { requestAutorizado } from '../services/apiAutorizada.js';
+import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.js';
 import { useToast } from '../components/useToast.js';
 
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Outros'];
@@ -316,13 +318,15 @@ export default function Products() {
   const remover = async (id) => {
     if (!window.confirm('Excluir este produto?')) return;
     try {
-      await api.delete(`/products/${id}`);
+      await requestAutorizado('delete', `/products/${id}`, null, 'excluir_produto', solicitarExcluir);
       showToast('Produto removido', 'warning');
       carregar();
     } catch (error) {
       showToast(error.response?.data?.msg || 'Não foi possível excluir o produto', 'error');
     }
   };
+
+  const { solicitar: solicitarExcluir, renderizarModal: renderizarAutorizacaoExcluir } = useAutorizacaoGerente('excluir_produto');
 
   const cancelar = () => {
     setEditing(null);
@@ -362,6 +366,7 @@ export default function Products() {
 
   return (
     <div className="products-page">
+      {renderizarAutorizacaoExcluir()}
       <div className="page-heading">
         <div>
           <h1>📦 Cadastro de Produtos</h1>
