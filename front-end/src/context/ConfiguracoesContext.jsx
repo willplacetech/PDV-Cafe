@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api.jsx';
+import { AuthContext } from './AuthContextDefinition.jsx';
 
 const ConfiguracoesContext = createContext();
 
@@ -12,28 +13,40 @@ export const useConfiguracoes = () => {
 };
 
 export const ConfiguracoesProvider = ({ children }) => {
+  const { user, loading: authLoading } = useContext(AuthContext);
   const [exigirAutorizacaoGerente, setExigirAutorizacaoGerente] = useState(true);
   const [bloqueadoPorSuporte, setBloqueadoPorSuporte] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     const fetchConfiguracoes = async () => {
+      setExigirAutorizacaoGerente(true);
+      setBloqueadoPorSuporte(false);
+      if (authLoading || user?.role !== 'admin') {
+        setLoading(authLoading);
+        return;
+      }
+      setLoading(true);
       try {
         const { data } = await api.get('/configuracoes');
+        if (!active) return;
         setExigirAutorizacaoGerente(data.exigirAutorizacaoGerente);
         setBloqueadoPorSuporte(data.bloqueadoPorSuporte);
       } catch (error) {
+        if (!active) return;
         console.error('Erro ao buscar configurações:', error);
         // Default to true (safe side)
         setExigirAutorizacaoGerente(true);
         setBloqueadoPorSuporte(false);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     fetchConfiguracoes();
-  }, []);
+    return () => { active = false; };
+  }, [authLoading, user?.id, user?.role]);
 
   const updateConfiguracoes = async (valor, motivo) => {
     try {

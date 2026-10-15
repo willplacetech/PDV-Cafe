@@ -73,6 +73,7 @@ export const refreshAccessSession = (scope, baseURL) => {
     if (!response.ok) {
       const error = new Error('Sessão inválida ou expirada');
       error.status = response.status;
+      error.response = { status: response.status, data: { msg: error.message } };
       if (response.status === 401) clearAccessSession(scope, generation);
       throw error;
     }
