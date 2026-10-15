@@ -1,7 +1,28 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import api from '../services/api.jsx';
-import { setAutorizacaoCache } from '../utils/autorizacaoGerenteCache.js';
+
+const EXIGIR_LOCAL = typeof import.meta !== 'undefined' && import.meta.env?.VITE_EXIGIR_AUTORIZACAO_GERENTE !== 'false';
+
+const autorizacaoCache = new Map();
+const CACHE_MS = 4 * 60 * 1000;
+
+export function limparCacheAutorizacao(acao) {
+  if (acao) autorizacaoCache.delete(acao);
+  else autorizacaoCache.clear();
+}
+
+export function getAutorizacaoCache(acao, userRole) {
+  if (!EXIGIR_LOCAL) return { token: null, reaproveitado: true };
+  const entry = autorizacaoCache.get(acao);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_MS) {
+    autorizacaoCache.delete(acao);
+    return null;
+  }
+  if (entry.role === 'operador' && userRole !== entry.userRole) return null;
+  return entry;
+}
 
 export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCancelar, onConfirmado }) {
   const { user } = useContext(AuthContext);
@@ -11,7 +32,6 @@ export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCa
   const [tentativas, setTentativas] = useState(0);
   const [bloqueado, setBloqueado] = useState(false);
   const inputRef = useRef(null);
-  const estadoAnteriorAbertoRef = useRef(false);
 
   const eGerenteOuAdmin = user?.role === 'admin' || user?.role === 'gerente';
   const hint = eGerenteOuAdmin
@@ -19,18 +39,12 @@ export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCa
     : 'Peça para um gerente/admin digitar a senha.';
 
   useEffect(() => {
-    if (aberto && !estadoAnteriorAbertoRef.current) {
-      estadoAnteriorAbertoRef.current = true;
+    if (aberto) {
+      setSenha('');
+      setErro('');
+      setTentativas(0);
+      setBloqueado(false);
       setTimeout(() => inputRef.current?.focus(), 100);
-    }
-    if (!aberto && estadoAnteriorAbertoRef.current) {
-      estadoAnteriorAbertoRef.current = false;
-      setTimeout(() => {
-        setSenha('');
-        setErro('');
-        setTentativas(0);
-        setBloqueado(false);
-      }, 0);
     }
   }, [aberto]);
 
@@ -52,11 +66,14 @@ export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCa
       if (!data.tokenAutorizacao && !data.autorizado) {
         throw new Error('Autorização rejeitada');
       }
-      if (data.tokenAutorizacao) {
-        setAutorizacaoCache(acao, data.tokenAutorizacao, eGerenteOuAdmin ? user.role : user.role, user.role);
-      }
+      autorizacaoCache.set(acao, {
+        token: data.tokenAutorizacao,
+        timestamp: Date.now(),
+        role: eGerenteOuAdmin ? user.role : user.role,
+        userRole: user.role,
+      });
       onConfirmado(data.tokenAutorizacao);
-    } catch {
+    } catch (error) {
       const proximas = tentativas + 1;
       setTentativas(proximas);
       if (proximas >= 3) {
@@ -121,4 +138,24 @@ export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCa
       </form>
     </div>
   );
+}
+
+export function useAutorizacao(acao) {
+  const { user } = useContext(AuthContext);
+  const [autorizado, setAutorizado] = useState(null);
+
+  useEffect(() => {
+    const cached = getAutorizacaoCache(acao, user?.role);
+    setAutorizado(cached ? { token: cached.token, reaproveitado: true } : null);
+  }, [acao, user?.role]);
+
+  const solicitar = () => new Promise((resolve, reject) => {
+    setAutorizado({ token: null, aberto: true, resolver: resolve, rejeitar: reject });
+  });
+
+  const confirmado = (token) => {
+    setAutorizado(token ? { token } : null);
+  };
+
+  return { autorizado, solicitar, confirmado };
 }

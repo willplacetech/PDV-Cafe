@@ -1,9 +1,9 @@
 import { useCallback, useContext, useState } from 'react';
-import AutorizarGerente from '../components/AutorizarGerente.jsx';
-import { getAutorizacaoCache } from '../utils/autorizacaoGerenteCache.js';
+import AutorizarGerente, { getAutorizacaoCache } from '../components/AutorizarGerente.jsx';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { useToast } from '../components/useToast.js';
-import { EXIGIR_LOCAL } from '../utils/autorizacaoGerenteCache.js';
+
+const EXIGIR_LOCAL = typeof import.meta !== 'undefined' && import.meta.env?.VITE_EXIGIR_AUTORIZACAO_GERENTE !== 'false';
 
 export function useAutorizacaoGerente(acao) {
   const { user } = useContext(AuthContext);
@@ -58,4 +58,17 @@ export function useAutorizacaoGerente(acao) {
   ), [modalAberto, acao, cancelado, confirmado]);
 
   return { solicitar, renderizarModal };
+}
+
+export function AutorizarGerenteWrapper({ acao, children }) {
+  const hook = useAutorizacaoGerente(acao);
+  const childProps = typeof children === 'function'
+    ? children(hook)
+    : null;
+  return (
+    <>
+      {typeof children === 'function' ? childProps : children}
+      {hook.renderizarModal()}
+    </>
+  );
 }

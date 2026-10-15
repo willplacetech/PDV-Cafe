@@ -5,7 +5,7 @@ import { useCallback, useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
-import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
+import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.js';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { estoqueDisponivelComanda } from '../utils/estoqueComanda.js';
 import { useToast } from '../components/useToast.js';

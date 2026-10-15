@@ -1,7 +1,7 @@
 import { useCallback, useState, useEffect, useMemo } from 'react';
 import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
-import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
+import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.js';
 import { useToast } from '../components/useToast.js';
 
 export default function Orders() {
