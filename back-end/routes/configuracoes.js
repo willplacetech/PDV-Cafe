@@ -13,12 +13,12 @@ router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
       // Create default if not exists
       configuracao = await Configuracoes.create({ _id: 'principal', exigirAutorizacaoGerente: true });
     }
-    res.json({ 
+    res.json({
       exigirAutorizacaoGerente: configuracao.exigirAutorizacaoGerente,
       bloqueadoPorSuporte: process.env.FORCAR_AUTORIZACAO_GERENTE === 'true'
     });
   } catch (error) {
-    res.status(500).json({ msg: 'Erro ao buscar configurações' });
+    res.status(500).json({ msg: 'Erro ao buscar configuracoes' });
   }
 });
 
@@ -34,7 +34,7 @@ router.patch('/autorizacao-gerente', auth, auth.allowRoles('admin'), async (req,
     return res.status(400).json({ msg: 'O campo valor deve ser booleano' });
   }
   if (!valor && (!motivo || motivo.trim().length < 10)) {
-    return res.status(400).json({ msg: 'Motivo obrigátorio com no mínimo 10 caracteres ao desligar' });
+    return res.status(400).json({ msg: 'Motivo obrigatorio com no minimo 10 caracteres ao desligar' });
   }
 
   try {
@@ -52,15 +52,15 @@ router.patch('/autorizacao-gerente', auth, auth.allowRoles('admin'), async (req,
       usuarioSolicitante: req.user.id,
       usuarioAutorizou: req.user.id, // same as solicitant for this action
       acao: 'toggle_autorizacao_gerente',
-      detalhes: motivo ? alor: , motivo:  : alor: ,
+      detalhes: { valor, motivo: motivo || '' },
       ip: req.ip,
       sucesso: true,
     });
 
-    res.json({ msg: 'Configuração atualizada com sucesso', exigirAutorizacaoGerente: valor });
+    res.json({ msg: 'Configuracao atualizada com sucesso', exigirAutorizacaoGerente: valor });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ msg: 'Erro ao atualizar configuração' });
+    res.status(500).json({ msg: 'Erro ao atualizar configuracao' });
   }
 });
 
