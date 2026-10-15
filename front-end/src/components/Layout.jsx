@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { Outlet } from 'react-router-dom';
 import { useConfiguracoes } from '../context/ConfiguracoesContext.jsx';
 
 export default function Layout({ children }) {
@@ -12,7 +12,7 @@ export default function Layout({ children }) {
         </div>
       )}
       <div className="layout-content">
-        {children}
+        {children ?? <Outlet />}
       </div>
       <style>{`
         .app-layout {
