@@ -1,40 +1,46 @@
 import { useContext } from 'react';
 import { useConfiguracoes } from '../context/ConfiguracoesContext.jsx';
-import { Header } from './Header.jsx';
-import { Sidebar } from './Sidebar.jsx';
 
 export default function Layout({ children }) {
   const { exigirAutorizacaoGerente } = useConfiguracoes();
 
   return (
-    <>
+    <div className="app-layout">
       {!exigirAutorizacaoGerente && (
-        <div className=\"banner-aviso\">
-          ?? Autorização de gerente DESLIGADA � risco de fraude. Reative em Configurações.
+        <div className="banner-aviso">
+          Autorizacao de gerente DESLIGADA - risco de fraude. Reative em Configuracoes.
         </div>
       )}
-      <Header />
-      <div className=\"layout-body\">
-        <Sidebar />
-        <main className=\"layout-main\">{children}</main>
+      <div className="layout-content">
+        {children}
       </div>
-      <style>{
-        .banner-aviso{
-          background:#ffeb3b;
-          color:#000;
-          padding:8px;
-          text-align:center;
-          font-weight:600;
-          position:fixed;
-          top:0;
-          left:0;
-          right:0;
-          z-index:1000;
-          box-shadow:0 2px 4px rgba(0,0,0,0.1);
+      <style>{`
+        .app-layout {
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
         }
-        .layout-body{display:flex;height:calc(100vh - 64px);} /* 64px is header height */
-        .layout-main{flex:1;padding:24px;overflow-y:auto;}
-      }</style>
-    </>
+        .banner-aviso {
+          background: #ffeb3b;
+          color: #000;
+          padding: 8px;
+          text-align: center;
+          font-weight: 600;
+          font-size: 14px;
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          z-index: 1000;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .layout-content {
+          flex: 1;
+          padding: 24px;
+          margin-top: 40px;
+          overflow-y: auto;
+        }
+      `}</style>
+    </div>
   );
 }

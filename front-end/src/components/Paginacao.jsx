@@ -11,26 +11,22 @@ const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLi
   const handlePageChange = (novaPagina) => {
     if (novaPagina < 1 || novaPagina > totalPaginas || novaPagina === paginaAtualNum) return;
     onChangePagina(novaPagina);
-    // Update URL without pushing to history? We'll use replace to avoid back button issues
     setSearchParams(prev => {
       prev.set('pagina', novaPagina.toString());
       return prev;
     }, { replace: true });
-    // Scroll to top
     window.scrollTo(0, 0);
   };
 
   const handleLimitChange = (novoLimite) => {
     if (novoLimite === limiteAtualNum) return;
     onChangeLimite(novoLimite);
-    // Reset to page 1 when changing limit
     onChangePagina(1);
     setSearchParams(prev => {
       prev.set('pagina', '1');
       prev.set('limite', novoLimite.toString());
       return prev;
     }, { replace: true });
-    // Scroll to top
     window.scrollTo(0, 0);
   };
 
@@ -65,8 +61,8 @@ const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLi
   };
 
   return (
-    <div className=\"paginacao\">
-      <style>{
+    <div className="paginacao">
+      <style>{`
         .paginacao {
           display: flex;
           flex-wrap: wrap;
@@ -127,23 +123,23 @@ const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLi
           background: var(--accent-primary);
           color: #fff;
         }
-      }</style>
-      <div className=\"paginacao-info\">
-        Mostrando 
-        {total === 0 ? 0 : (paginaAtualNum - 1) * limiteAtualNum + 1} 
-        – 
-        {Math.min(paginaAtualNum * limiteAtualNum, total)} 
-        de 
-        {total} 
+      `}</style>
+      <div className="paginacao-info">
+        Mostrando
+        {total === 0 ? 0 : (paginaAtualNum - 1) * limiteAtualNum + 1}
+        -
+        {Math.min(paginaAtualNum * limiteAtualNum, total)}
+        de
+        {total}
         itens.
       </div>
-      <div className=\"paginacao-controles\">
+      <div className="paginacao-controles">
         <div>
-          <label htmlFor=\"limite-select\">Itens por página:</label>
-          <select 
-            id=\"limite-select\" 
-            className=\"paginacao-limite-select\" 
-            value={limiteAtualNum} 
+          <label htmlFor="limite-select">Itens por pagina:</label>
+          <select
+            id="limite-select"
+            className="paginacao-limite-select"
+            value={limiteAtualNum}
             onChange={(e) => handleLimitChange(parseInt(e.target.value, 10))}
           >
             {limitOptions.map(opt => (
@@ -151,31 +147,31 @@ const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLi
             ))}
           </select>
         </div>
-        <div className=\"paginacao-navegacao\">
-          <button 
-            className=\"paginacao-botao\" 
+        <div className="paginacao-navegacao">
+          <button
+            className="paginacao-botao"
             onClick={() => handlePageChange(paginaAtualNum - 1)}
             disabled={paginaAtualNum <= 1}
           >
-            « Anterior
+            {"<"} Anterior
           </button>
-          <div className=\"paginacao-paginas\">
+          <div className="paginacao-paginas">
             {renderPageNumbers().map(pagina => (
               <button
                 key={pagina}
-                className={paginacao-pagina-numero }
+                className={pagina === paginaAtualNum ? 'paginacao-pagina-atual' : 'paginacao-pagina-numero'}
                 onClick={() => handlePageChange(pagina)}
               >
                 {pagina}
               </button>
             ))}
           </div>
-          <button 
-            className=\"paginacao-botao\" 
+          <button
+            className="paginacao-botao"
             onClick={() => handlePageChange(paginaAtualNum + 1)}
             disabled={paginaAtualNum >= totalPaginas}
           >
-            Próximo »
+            Proximo {">"}
           </button>
         </div>
       </div>

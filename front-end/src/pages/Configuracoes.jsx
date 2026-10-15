@@ -17,18 +17,16 @@ const ConfiguracoesPage = () => {
     }
 
     if (valor === false) {
-      // Turning off: open modal for reason
-      setValorToggle(false); // temporarily set the toggle to false? We'll keep the toggle state until confirmed.
+      setValorToggle(false);
       setModalAberto(true);
       setMotivo('');
     } else {
-      // Turning on: simple confirmation via toast
       try {
         setLoading(true);
         await updateConfiguracoes(true);
-        showToast('Autorização de gerente ativada com sucesso', 'success');
+        showToast('Autorizacao de gerente ativada com sucesso', 'success');
       } catch (error) {
-        showToast(error.response?.data?.msg || 'Erro ao atualizar configuração', 'error');
+        showToast(error.response?.data?.msg || 'Erro ao atualizar configuracao', 'error');
       } finally {
         setLoading(false);
       }
@@ -37,69 +35,69 @@ const ConfiguracoesPage = () => {
 
   const handleConfirmarDesligar = async () => {
     if (!motivo || motivo.trim().length < 10) {
-      showToast('O motivo deve ter no mínimo 10 caracteres', 'warning');
+      showToast('O motivo deve ter no minimo 10 caracteres', 'warning');
       return;
     }
     try {
       setLoading(true);
       await updateConfiguracoes(false, motivo.trim());
-      showToast('Autorização de gerente desativada com sucesso', 'success');
+      showToast('Autorizacao de gerente desativada com sucesso', 'success');
     } catch (error) {
-      showToast(error.response?.data?.msg || 'Erro ao atualizar configuração', 'error');
+      showToast(error.response?.data?.msg || 'Erro ao atualizar configuracao', 'error');
     } finally {
       setLoading(false);
       setModalAberto(false);
     }
   };
 
-  const handleCancelar = () => {
+  const handleCancelamento = () => {
     setModalAberto(false);
-    setValorToggle(exigirAutorizacaoGerente); // revert toggle to current state
+    setValorToggle(exigirAutorizacaoGerente);
   };
 
   return (
-    <main className=\"configuracoes-page\">
-      <header className=\"page-heading\">
+    <main className="configuracoes-page">
+      <header className="page-heading">
         <div>
-          <span>CONFIGURAÇÕES</span>
-          <h1>Autorização de Gerente</h1>
-          <p>Ative ou desative a exigência de autorização do gerente em ações críticas.</p>
+          <span>CONFIGURACOES</span>
+          <h1>Autorizacao de Gerente</h1>
+          <p>Ative ou desative a exigencia de autorizacao do gerente emacoes criticas.</p>
         </div>
       </header>
       {loading ? (
-        <p role=\"status\">Carregando configurações...</p>
+        <p role="status">Carregando configuracoes...</p>
       ) : (
         <>
-          <div className=\"configuracoes-toggle\">
+          <div className="configuracoes-toggle">
             <label>
               <input
-                type=\"checkbox\"
+                type="checkbox"
                 checked={valorToggle}
                 onChange={e => handleChange(e.target.checked)}
                 disabled={bloqueadoPorSuporte || loading}
               />
-              Exigir autorização de gerente em ações críticas
+              Exigir autorizacao de gerente em acoes criticas
             </label>
             {bloqueadoPorSuporte && (
-              <p className=\"configuracoes-bloqueado\">Bloqueado pelo suporte</p>
+              <p className="configuracoes-bloqueado">Bloqueado pelo suporte</p>
             )}
           </div>
           {modalAberto && (
-            <div className=\"modal-backdrop\" onClick={handleCancelar}>
-              <div className=\"modal-content\" onClick={e => e.stopPropagation()}>
-                <h2>Desativar Autorização de Gerente</h2>
-                <p>Por favor, informe o motivo para desativar a autorização do gerente em ações críticas.</p>
+            <div className="modal-backdrop" onClick={handleCancelamento}>
+              <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <h2>Desativar Autorizacao de Gerente</h2>
+                <p>Por favor, informe o motivo para desativar a autorizacao do gerente em acoes criticas.</p>
                 <textarea
                   value={motivo}
                   onChange={e => setMotivo(e.target.value)}
-                  placeholder=\"Digite o motivo (mínimo 10 caracteres)\"
+                  placeholder="Digite o motivo (minimo 10 caracteres)"
                   maxLength={200}
                 />
-                <div className=\"modal-actions\">
-                  <button type=\"button\" onClick={handleCancelar} disabled={loading}>
+                <div className="modal-actions">
+                  <button type="button" onClick={handleCancelamento} disabled={loading}>
                     Cancelar
                   </button>
-                  <button type=\"button\" onClick={handleConfirmarDesligar} disabled={loading || !motivo || motivo.trim().length < 10}>
+                  <button type="button" onClick={handleConfirmarDesligar} disabled={loading || !motivo || motivo.trim().length < 10}>
                     {loading ? 'Desativando...' : 'Desativar'}
                   </button>
                 </div>
@@ -108,7 +106,7 @@ const ConfiguracoesPage = () => {
           )}
         </>
       )}
-      <style>{
+      <style>{`
         .configuracoes-page{max-width:960px;margin:0 auto;padding:8px 0 32px;color:var(--text-primary)}
         .configuracoes-page .page-heading>div>span{font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--accent-primary)}
         .configuracoes-page .page-heading h1{margin:5px 0}
@@ -131,7 +129,7 @@ const ConfiguracoesPage = () => {
           .configuracoes-toggle{flex-direction:column;align-items:flex-start}
           .modal-content{width:95%}
         }
-      }</style>
+      `}</style>
     </main>
   );
 };

@@ -5,7 +5,7 @@ import api from '../services/api.jsx';
 import { useToast } from '../components/useToast.js';
 import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
-import SkeletonCard from "../components/SkeletonCard.jsx";
+import SkeletonCard from "../components/Skeleton.jsx";
 import Paginacao from '../components/Paginacao.jsx';
 
 const vazio = {
@@ -203,7 +203,7 @@ export default function Products() {
         categoria: filtroCategoria === 'Todos' ? '' : filtroCategoria,
         ficha: filtroFicha === 'Todos' ? '' : filtroFicha,
       });
-      const { data } = await api.get(/products?);
+      const { data } = await api.get(`/products?${query.toString()}`);
       setProdutos(data.dados);
       setTotalProdutos(data.total);
       setTotalPaginas(data.totalPaginas);
@@ -270,9 +270,9 @@ export default function Products() {
 
   // We'll now render based on loading, error, and data
   return (
-    <div className=\"products-page\">
+<div className="products-page">
       {renderizarAutorizacaoExcluir()}
-      <div className=\"page-heading\">
+      <div className="page-heading">
         <div>
           <h1>📦 Cadastro de Produtos</h1>
           <p>Produtos à venda e insumos ficam em grupos diferentes.</p>
@@ -281,7 +281,7 @@ export default function Products() {
 
       {/* Form section remains the same */}
 
-      <section className=\"product-form-card\">
+      <section className="product-form-card">
         {/* ... existing form code ... */}
       </section>
 
@@ -292,24 +292,24 @@ export default function Products() {
           {/* ... existing filter controls ... */}
         </div>
 
-        <div className=\"product-list-controls\">
+        <div className="product-list-controls">
           <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>{filtrarEstoqueBaixo ? 'Produtos abaixo do mínimo' : 'Produtos'}</h3>
-          <div className=\"product-list-filters">
+          <div className="product-list-filters">
             {/* ... existing filter controls ... */}
           </div>
         </div>
 
         {/* Conditional rendering based on state */}
         {carregandoProdutos && (
-          <div className=\"product-admin-grid\">
+          <div className="product-admin-grid">
             {/* Show skeleton loading - we'll show 6 skeleton items by default */}
-{[...Array(6)].map((_, i) => (<SkeletonCard key={i} />))}
+            {[...Array(6)].map((_, i) => (<SkeletonCard key={i} />))}
           </div>
         )}
         {!carregandoProdutos && erroProdutos && (
           <div style={{ textAlign: 'center', padding: 36, color: 'var(--text-secondary)', fontSize: 13 }}>
             {erroProdutos}
-            <button type=\"button\" onClick={carregar}>Tentar novamente</button>
+            <button type="button" onClick={carregar}>Tentar novamente</button>
           </div>
         )}
         {!carregandoProdutos && !erroProdutos && (
@@ -320,10 +320,10 @@ export default function Products() {
               </div>
             )}
             {totalProdutos > 0 && (
-              <div className=\"product-admin-grid\">
+              <div className="product-admin-grid">
                 {/* ... existing product mapping ... */}
                 {produtos.map((produto) => (
-                  <article key={produto._id} className=\"product-admin-card\">
+                  <article key={produto._id} className="product-admin-card">
                     {/* ... existing product card content ... */}
                   </article>
                 ))}

@@ -6,7 +6,7 @@ const SkeletonLista = ({ itemCount, itemHeight }) => {
   ));
 
   return (
-    <div className=\"skeleton-lista\">
+    <div className="skeleton-lista">
       {skeletonItems}
       <style>{
         .skeleton-lista {
