@@ -3,14 +3,42 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const { getJwtSecret } = require('../utils/authConfig');
 const Auditoria = require('../models/Auditoria');
+const Configuracoes = require('../models/Configuracoes');
 
-const EXIGIR_AUTORIZACAO = process.env.EXIGIR_AUTORIZACAO_GERENTE !== 'false';
+let cachedValor = null;
+let cacheTimestamp = 0;
+const CACHE_DURATION_MS = 30 * 1000; // 30 seconds
+
+const getExigirAutorizacao = async () => {
+  // Check for override environment variable
+  if (process.env.FORCAR_AUTORIZACAO_GERENTE === 'true') {
+    return true;
+  }
+
+  // Use cache if valid
+  const now = Date.now();
+  if (cachedValor !== null && (now - cacheTimestamp) < CACHE_DURATION_MS) {
+    return cachedValor;
+  }
+
+  try {
+    const configuracao = await Configuracoes.findOne({ _id: 'principal' });
+    const valor = configuracao ? configuracao.exigirAutorizacaoGerente : true; // default to true
+    cachedValor = valor;
+    cacheTimestamp = now;
+    return valor;
+  } catch (error) {
+    console.error('Erro ao ler configuração de autorização do gerente:', error);
+    // In case of error, default to true (safe side)
+    return true;
+  }
+};
 
 const detalhesAuditoria = (req, acao) => {
   const parts = [];
-  if (req.params?.id) parts.push(`id:${req.params.id}`);
-  if (req.params?.itemId) parts.push(`itemId:${req.params.itemId}`);
-  return `${acao} — ${parts.join(', ')} ${req.originalUrl}`;
+  if (req.params?.id) parts.push(id:);
+  if (req.params?.itemId) parts.push(itemId:);
+  return ${acao} —  ;
 };
 
 const registrarAuditoria = async (usuarioSolicitante, usuarioAutorizou, acao, detalhes, sucesso, ip, motivoFalha = null) => {
@@ -28,7 +56,8 @@ const registrarAuditoria = async (usuarioSolicitante, usuarioAutorizou, acao, de
 };
 
 const exigirAutorizacao = (acao) => async (req, res, next) => {
-  if (!EXIGIR_AUTORIZACAO) return next();
+  const exigirAutorizacaoGerente = await getExigirAutorizacao();
+  if (!exigirAutorizacaoGerente) return next();
 
   const token = req.headers['x-autorizacao-gerente'];
 
@@ -56,4 +85,4 @@ const exigirAutorizacao = (acao) => async (req, res, next) => {
   }
 };
 
-module.exports = { exigirAutorizacao, registrarAuditoria, EXIGIR_AUTORIZACAO };
+module.exports = { exigirAutorizacao, registrarAuditoria, getExigirAutorizacao };

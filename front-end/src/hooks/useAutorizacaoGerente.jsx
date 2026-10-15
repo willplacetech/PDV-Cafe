@@ -4,13 +4,19 @@ import { getAutorizacaoCache } from '../utils/autorizacaoGerenteCache.js';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { useToast } from '../components/useToast.js';
 import { EXIGIR_LOCAL } from '../utils/autorizacaoGerenteCache.js';
+import { useConfiguracoes } from '../context/ConfiguracoesContext.jsx';
 
 export function useAutorizacaoGerente(acao) {
   const { user } = useContext(AuthContext);
+  const { exigirAutorizacaoGerente } = useConfiguracoes();
   const [modalAberto, setModalAberto] = useState(false);
   const { showToast } = useToast();
 
   const solicitar = useCallback(async () => {
+    // If the configuration is false, we don't require authorization
+    if (!exigirAutorizacaoGerente) {
+      return null;
+    }
     if (!EXIGIR_LOCAL) return null;
 
     const cached = getAutorizacaoCache(acao, user?.role);
@@ -30,7 +36,7 @@ export function useAutorizacaoGerente(acao) {
         reject(err);
       };
     });
-  }, [acao, user?.role, showToast]);
+  }, [acao, user?.role, showToast, exigirAutorizacaoGerente]);
 
   const confirmado = useCallback((token) => {
     if (window.__pdv_resolve_autorizacao_gerente) {
@@ -48,14 +54,20 @@ export function useAutorizacaoGerente(acao) {
     }
   }, []);
 
-  const renderizarModal = useCallback(() => (
-    <AutorizarGerente
-      acao={acao}
-      aberto={modalAberto}
-      onCancelar={cancelado}
-      onConfirmado={confirmado}
-    />
-  ), [modalAberto, acao, cancelado, confirmado]);
+  const renderizarModal = useCallback(() => {
+    // If the configuration is false, we don't show the modal
+    if (!exigirAutorizacaoGerente) {
+      return null;
+    }
+    return (
+      <AutorizarGerente
+        acao={acao}
+        aberto={modalAberto}
+        onCancelar={cancelado}
+        onConfirmado={confirmado}
+      />
+    );
+  }, [modalAberto, acao, cancelado, confirmado, exigirAutorizacaoGerente]);
 
   return { solicitar, renderizarModal };
 }
