@@ -111,7 +111,7 @@ export default function Caixa() {
   const reabrirCaixa = async () => {
     if (!window.confirm('Reabrir o caixa? O fechamento anterior será preservado no histórico.')) return;
     setSalvando(true);
-    try { await api.post(`/caixa/${caixa._id}/reabrir`); await carregar(); }
+    try { await api.post(`/caixa/${caixa._id}/reabrir`); await carregar(); showToast('Caixa reaberto.', 'success'); }
     catch (error) { showToast(error.response?.data?.msg || error.message, 'error'); }
     finally { setSalvando(false); }
   };

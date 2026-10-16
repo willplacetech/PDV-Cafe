@@ -5,6 +5,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
+import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
+import { useToast } from '../components/useToast.js';
 import { imprimirEntrega } from '../utils/imprimirEntrega.js';
 import '../styles/delivery.css';
 
@@ -65,6 +67,7 @@ function FormularioPedidoManual({ onSubmit, ocupado, taxaPadrao }) {
 
 export default function Entregas() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [searchParams] = useSearchParams();
   const pedidoDestacado = searchParams.get('pedido');
   const [pedidos, setPedidos] = useState([]);
@@ -163,11 +166,16 @@ export default function Entregas() {
     setAviso('');
     try {
       await acao();
-      if (sucesso) setAviso(sucesso);
+      if (sucesso) {
+        setAviso(sucesso);
+        showToast(sucesso, 'success');
+      }
       await carregar(true);
       return true;
     } catch (error) {
-      setErro(error.response?.data?.msg || 'Não foi possível concluir a operação.');
+      const mensagem = error.response?.data?.msg || 'Não foi possível concluir a operação.';
+      setErro(mensagem);
+      showToast(mensagem, 'error');
       return false;
     } finally {
       setOcupado(false);
@@ -241,22 +249,22 @@ export default function Entregas() {
       ativo: form.get('ativo') === 'on',
     };
     if (form.get('senha')) body.senha = form.get('senha');
+    const mensagemSucesso = entregadorEdicao
+      ? 'Entregador atualizado.'
+      : 'Entregador cadastrado. Compartilhe a senha temporária com ele.';
     void executar(async () => {
       if (entregadorEdicao) {
         await api.put(`/entregas/entregadores/${entregadorEdicao._id}`, body);
-        setAviso('Entregador atualizado.');
       } else {
         body.senha = form.get('senha');
         await api.post('/entregas/entregadores', body);
-        setAviso('Entregador cadastrado. Compartilhe a senha temporária com ele.');
       }
       setEntregadorEdicao(null);
       formElement.reset();
-    });
+    }, mensagemSucesso);
   };
 
   const excluirEntregador = entregador => {
-    if (!window.confirm(`Excluir ${entregador.nome}? Se houver pedidos associados, o cadastro deverá ser desativado.`)) return;
     void executar(() => api.delete(`/entregas/entregadores/${entregador._id}`), 'Entregador excluído.');
   };
 
@@ -351,7 +359,7 @@ export default function Entregas() {
           return <article className="delivery-card" key={entregador._id}>
           <span className="delivery-badge">{!pertenceAoComercio ? 'Livre · compartilhado' : entregador.ativo === false ? 'Desativado' : entregador.status}</span>
           <h2>{entregador.nome}</h2><p><a href={`tel:${entregador.telefone}`}>{entregador.telefone}</a></p>
-          {pertenceAoComercio && <div className="delivery-actions"><button type="button" className="delivery-secondary" onClick={() => setEntregadorEdicao(entregador)}>Editar</button><button type="button" className="delivery-danger" disabled={ocupado} onClick={() => excluirEntregador(entregador)}>Excluir</button></div>}
+          {pertenceAoComercio && <div className="delivery-actions"><button type="button" className="delivery-secondary" onClick={() => setEntregadorEdicao(entregador)}>Editar</button><ConfirmarAcao titulo="Excluir entregador" mensagem={`Excluir ${entregador.nome}? Se houver pedidos associados, o cadastro deverá ser desativado.`} acaoTexto="Excluir entregador" onConfirmar={() => excluirEntregador(entregador)}>{({ onClick }) => <button type="button" className="delivery-danger" disabled={ocupado} onClick={onClick}>Excluir</button>}</ConfirmarAcao></div>}
         </article>;
         })}
         {!entregadores.length && <p className="delivery-empty">Nenhum entregador cadastrado.</p>}
@@ -402,7 +410,7 @@ export default function Entregas() {
                 if (!imprimirEntrega(pedido, comercio?.nome)) setErro('Permita janelas pop-up para imprimir o pedido.');
               }}>Reimprimir</button>}
               <button type="button" className="delivery-secondary" disabled={ocupado} onClick={() => void enviarWhatsApp(pedido)}>WhatsApp</button>
-              {podeCancelar && <button type="button" className="delivery-danger" disabled={ocupado} onClick={() => cancelar(pedido)}>Cancelar</button>}
+              {podeCancelar && <ConfirmarAcao titulo="Cancelar pedido de entrega" mensagem={`Cancelar o pedido de ${pedido.origem.nomeCliente}?`} acaoTexto="Cancelar pedido" onConfirmar={() => cancelar(pedido)}>{({ onClick }) => <button type="button" className="delivery-danger" disabled={ocupado} onClick={onClick}>Cancelar</button>}</ConfirmarAcao>}
             </div>
           </article>;
         })}

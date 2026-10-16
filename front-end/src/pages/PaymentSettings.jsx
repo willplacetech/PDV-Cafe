@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/useToast.js';
+import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 
 const mesAtual = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
@@ -56,7 +57,7 @@ export default function PaymentSettings() {
   };
 
   const excluir = async forma => {
-    if (bloqueado || !window.confirm(`Excluir a forma de pagamento "${forma.label}"? Os pagamentos já registrados serão preservados.`)) return;
+    if (bloqueado) return;
     try {
       setSalvando(`excluir-${forma.value}`);
       const { data } = await api.delete(`/payment-settings/${forma.value}`);
@@ -94,7 +95,14 @@ export default function PaymentSettings() {
           <p className="payment-settings-rate">Taxa: <strong>{forma.taxaPercentual}%</strong></p>
           <div className="payment-settings-actions">
             <button type="button" disabled={bloqueado} onClick={() => setEdicao({ tipo: forma.value, nome: forma.label, taxaPercentual: String(forma.taxaPercentual) })}>Editar</button>
-            <button type="button" className="payment-settings-danger" disabled={bloqueado} onClick={() => void excluir(forma)}>{salvando === `excluir-${forma.value}` ? 'Excluindo...' : 'Excluir'}</button>
+            <ConfirmarAcao
+              titulo="Excluir forma de pagamento"
+              mensagem={`Excluir a forma de pagamento "${forma.label}"? Os pagamentos já registrados serão preservados.`}
+              acaoTexto="Excluir forma de pagamento"
+              onConfirmar={() => excluir(forma)}
+            >
+              {({ onClick }) => <button type="button" className="payment-settings-danger" disabled={bloqueado} onClick={onClick}>{salvando === `excluir-${forma.value}` ? 'Excluindo...' : 'Excluir'}</button>}
+            </ConfirmarAcao>
           </div>
         </> : <>
           <label htmlFor={`taxa-${forma.value}`}>Taxa (%)</label>

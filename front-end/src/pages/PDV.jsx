@@ -10,6 +10,7 @@ import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { estoqueDisponivelComanda } from '../utils/estoqueComanda.js';
 import { useToast } from '../components/useToast.js';
+import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 import useFilaOffline from '../hooks/useFilaOffline.js';
 import DeliveryPDV from '../components/DeliveryPDV.jsx';
@@ -558,10 +559,6 @@ export default function PDV() {
 
   const cancelarComandaAtual = async () => {
     if (envioRef.current || fechamentoPendente) return;
-    const confirmacao = comandaAtual._id
-      ? `Cancelar a comanda #${comandaAtual.numero}?`
-      : 'Cancelar esta comanda e descartar os itens?';
-    if (!window.confirm(confirmacao)) return;
     envioRef.current = true;
     setEnviando(true);
     try {
@@ -1237,7 +1234,14 @@ export default function PDV() {
               </>
             )}
             {(comandaAtual._id || carrinho.length > 0) && <div className="pdv-command-actions" style={{ marginTop: 8 }}>
-              <button type="button" onClick={cancelarComandaAtual} disabled={enviando || fechamentoPendente} style={{ color: 'var(--error-bg)', borderColor: 'var(--error-bg)' }}>🔒 Cancelar comanda</button>
+              <ConfirmarAcao
+                titulo="Cancelar comanda"
+                mensagem={comandaAtual._id ? `Cancelar a comanda #${comandaAtual.numero}?` : 'Cancelar esta comanda e descartar os itens?'}
+                acaoTexto="Cancelar comanda"
+                onConfirmar={cancelarComandaAtual}
+              >
+                {({ onClick }) => <button type="button" onClick={onClick} disabled={enviando || fechamentoPendente} style={{ color: 'var(--error-bg)', borderColor: 'var(--error-bg)' }}>🔒 Cancelar comanda</button>}
+              </ConfirmarAcao>
             </div>}
           </div>
         </div>

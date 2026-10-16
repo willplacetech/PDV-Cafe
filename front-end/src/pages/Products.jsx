@@ -7,6 +7,7 @@ import { exportarCSV, colunasCSV, dataArquivoCSV } from '../utils/exportarCsv.js
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
+import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
 
@@ -319,10 +320,9 @@ export default function Products() {
   };
 
   const remover = async (id) => {
-    if (!window.confirm('Excluir este produto?')) return;
     try {
       await requestAutorizado('delete', `/products/${id}`, null, 'excluir_produto', solicitarExcluir);
-      showToast('Produto removido', 'warning');
+      showToast('Produto removido', 'success');
       carregar();
     } catch (error) {
       showToast(error.response?.data?.msg || 'Não foi possível excluir o produto', 'error');
@@ -675,7 +675,9 @@ export default function Products() {
                   </div>
                   <div className="product-card-actions">
                     <button type="button" className="product-card-edit" onClick={() => editarProduto(produto)}>Editar</button>
-                    <button type="button" className="product-card-delete" onClick={() => remover(produto._id)}>🔒 Excluir</button>
+                    <ConfirmarAcao titulo="Excluir produto" mensagem="Excluir este produto?" acaoTexto="Excluir" onConfirmar={() => remover(produto._id)}>
+                      {({ onClick }) => <button type="button" className="product-card-delete" onClick={onClick}>🔒 Excluir</button>}
+                    </ConfirmarAcao>
                   </div>
                 </div>
               </article>

@@ -4,6 +4,7 @@ import { Navigate } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { exportarCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { useToast } from '../components/useToast.js';
+import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import AreaTabs from '../components/AreaTabs.jsx';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import DateInput from '../components/DateInput.jsx';
@@ -251,7 +252,6 @@ export default function Financeiro() {
   };
 
   const excluirDespesa = async (despesa) => {
-    if (!window.confirm(`Deseja excluir a despesa "${despesa.descricao}"?`)) return;
     try {
       await api.delete(`/despesas/${despesa._id}`);
       if (despesaEmEdicao?._id === despesa._id) cancelarEdicaoDespesa();
@@ -432,9 +432,9 @@ export default function Financeiro() {
                             <button type="button" className="financeiro-secondary-button financeiro-action-button" onClick={() => editarDespesa(item)}>
                               Editar
                             </button>
-                            <button type="button" className="financeiro-delete-button financeiro-action-button" onClick={() => excluirDespesa(item)}>
-                              Excluir
-                            </button>
+                            <ConfirmarAcao titulo="Excluir despesa" mensagem={`Deseja excluir a despesa "${item.descricao}"?`} acaoTexto="Excluir despesa" onConfirmar={() => excluirDespesa(item)}>
+                              {({ onClick }) => <button type="button" className="financeiro-delete-button financeiro-action-button" onClick={onClick}>Excluir</button>}
+                            </ConfirmarAcao>
                           </div>
                         </td>
                       </tr>

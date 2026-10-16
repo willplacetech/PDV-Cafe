@@ -1,14 +1,19 @@
 import useFilaOffline from '../hooks/useFilaOffline.js';
+import { useToast } from './useToast.js';
 
 export default function StatusConexao({ compacto = false }) {
+  const { showToast } = useToast();
   const { pendentes, online, armazenamentoCheio, origensPendentes, resolverOrigem } = useFilaOffline();
   const confirmarOrigem = async id => {
     const reason = window.prompt('Informe como conferiu a origem desta venda legada. Ela sera vinculada ao seu operador e comercio atuais:');
     if (!reason || reason.trim().length < 3) return;
     const confirmed = window.confirm(`Confirmar a origem da venda ${id} para seu operador e comercio atuais? Motivo: ${reason}`);
     if (!confirmed) return;
-    try { await resolverOrigem(id, reason, true); }
-    catch (error) { window.alert(error.message); }
+    try {
+      await resolverOrigem(id, reason, true);
+      showToast('Origem da venda confirmada e sincronizada.', 'success');
+    }
+    catch (error) { showToast(error.message || 'Não foi possível confirmar a origem da venda.', 'error'); }
   };
   const cor = online ? 'var(--success-bg)' : 'var(--error-bg)';
   const statusTexto = online ? 'Conectado' : 'Desconectado';

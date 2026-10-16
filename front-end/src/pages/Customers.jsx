@@ -4,6 +4,7 @@ import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
+import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import AreaTabs from '../components/AreaTabs.jsx';
 import { criarXmlClientes } from '../utils/customersXml.js';
 import { exportarCSV, colunasCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
@@ -135,10 +136,9 @@ export default function Customers() {
 
 
   const remover = async (id) => {
-    if (!window.confirm('Excluir este cliente?')) return;
     try {
       await requestAutorizado('delete', `/customers/${id}`, null, 'excluir_cliente', solicitarExcluir);
-      showToast('Cliente removido', 'warning');
+      showToast('Cliente removido', 'success');
       carregar();
     } catch (err) {
       showToast(err.response?.data?.msg || 'Erro ao excluir cliente', 'error');
@@ -333,7 +333,9 @@ export default function Customers() {
                   <td style={{ padding: '10px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {c.clienteInterno ? <span>Cliente do sistema</span> : <>
                       <button onClick={() => alterar(c)} style={btnTable}>Editar</button>
-                      <button onClick={() => remover(c._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>🔒 Excluir</button>
+                      <ConfirmarAcao titulo="Excluir cliente" mensagem="Excluir este cliente?" acaoTexto="Excluir" onConfirmar={() => remover(c._id)}>
+                        {({ onClick }) => <button onClick={onClick} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>🔒 Excluir</button>}
+                      </ConfirmarAcao>
                     </>}
                   </td>
                 </tr>

@@ -10,6 +10,7 @@ import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/useToast.js';
+import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 import { dataBR, normalizarPagamentos, saldoDevedor, statusPagamentoInfo, totalPago } from '../utils/formasPagamento.jsx';
 import Paginacao from '../components/Paginacao.jsx';
@@ -295,6 +296,7 @@ export default function Comandas() {
       const { data } = await api.post(`/comandas/${selected._id}/itens`, { produtoId: productId, quantidade: Number(quantity), tipoVenda: produtoPorPeso(produtoSelecionado) ? tipoVenda : 'unidade', pesoVendidoKg: tipoVenda === 'peso' ? Number(pesoVendidoKg) : undefined });
       atualizarComandaLocal(data);
       setProductId(''); setQuantity('1'); setTipoVenda('inteiro'); setPesoVendidoKg('');
+      showToast('Item adicionado à comanda.', 'success');
     }
     catch (error) { showToast(error.response?.data?.msg || 'Erro ao adicionar item', 'error'); }
     finally { adicionandoItemRef.current = false; setAdicionandoItem(false); }
@@ -309,6 +311,7 @@ export default function Comandas() {
       atualizarComandaLocal(data);
       setSelectedItemIds((atuais) => atuais.filter((id) => id !== itemId));
       setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[itemId]; return proximas; });
+      showToast('Item removido da comanda.', 'success');
     } catch (error) {
       showToast(error.response?.data?.msg || 'Erro ao remover item', 'error');
     } finally {
@@ -339,6 +342,7 @@ export default function Comandas() {
     try {
       const { data } = await api.patch(`/comandas/${selected._id}/itens/${itemId}`, { quantidade });
       atualizarComandaLocal(data);
+      showToast('Quantidade do item atualizada.', 'success');
     } catch (error) {
       setSelected((atual) => atual?._id === selected._id ? { ...atual, itens: atual.itens.map((item) => item._id === itemId ? { ...item, quantidade: quantidadeAnterior } : item) } : atual);
       showToast(error.response?.data?.msg || 'Erro ao atualizar quantidade', 'error');
@@ -390,8 +394,8 @@ export default function Comandas() {
   };
 
   const cancel = async () => {
-    if (!selected || !window.confirm(`Cancelar a comanda #${selected.numero}?`)) return;
-    try { await requestAutorizado('patch', `/comandas/${selected._id}/cancelar`, null, 'cancelar_venda', solicitarAutorizacao); showToast('Comanda cancelada', 'warning'); load(); }
+    if (!selected) return;
+    try { await requestAutorizado('patch', `/comandas/${selected._id}/cancelar`, null, 'cancelar_venda', solicitarAutorizacao); showToast('Comanda cancelada', 'success'); load(); }
     catch (error) { showToast(error.response?.data?.msg || 'Erro ao cancelar comanda', 'error'); }
   };
 
@@ -462,11 +466,14 @@ export default function Comandas() {
         ...atual,
         entregaDelivery: { ...atual.entregaDelivery, pedido: data, despachando: false, whatsapp: data.whatsapp || null, erro: '' },
       }) : atual);
+      showToast('Entrega despachada.', 'success');
     } catch (error) {
+      const mensagem = error.response?.data?.msg || 'Não foi possível despachar. A venda continua concluída.';
       setModalSucesso(atual => atual ? ({
         ...atual,
-        entregaDelivery: { ...atual.entregaDelivery, despachando: false, erro: error.response?.data?.msg || 'Não foi possível despachar. A venda continua concluída.' },
+        entregaDelivery: { ...atual.entregaDelivery, despachando: false, erro: mensagem },
       }) : atual);
+      showToast(mensagem, 'error');
     }
   };
 
@@ -714,7 +721,14 @@ export default function Comandas() {
                 )}
               </div>
               <button onClick={abrirModalFechamento} className="comandas-primary-button">{jaRecebido > 0 ? 'Receber / Fechar' : 'Fechar comanda'}</button>
-              <button onClick={cancel} className="comandas-cancel-button">🔒 Cancelar</button>
+              <ConfirmarAcao
+                titulo="Cancelar comanda"
+                mensagem={`Cancelar a comanda #${selected.numero}?`}
+                acaoTexto="Cancelar comanda"
+                onConfirmar={cancel}
+              >
+                {({ onClick }) => <button onClick={onClick} className="comandas-cancel-button">🔒 Cancelar</button>}
+              </ConfirmarAcao>
             </div>
           </>}
         </section>

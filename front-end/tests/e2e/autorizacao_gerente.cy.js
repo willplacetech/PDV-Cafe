@@ -60,6 +60,8 @@ describe('Autorização de gerente', () => {
     cy.intercept('POST', '**/api/auth/autorizar', { tokenAutorizacao: approved, autorizado: true });
     cy.visit('/clientes');
     cy.contains('tbody tr', 'Cliente teste').contains('button', 'Excluir').click();
+    cy.get('[role="dialog"]').should('contain', 'Excluir este cliente?');
+    cy.get('[role="dialog"]').contains('button', 'Excluir').click();
     cy.wait('@delete');
     cy.get('[role="dialog"]').should('contain', 'excluir cliente');
     cy.get('[role="dialog"] input[type="password"]').type('senha-gerente');

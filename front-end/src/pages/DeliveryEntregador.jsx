@@ -3,8 +3,10 @@ import DeliveryPortal from '../components/DeliveryPortal.jsx';
 import { courierApi, erroDelivery } from '../services/deliveryApi.js';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
+import { useToast } from '../components/useToast.js';
 
 function PainelEntregador() {
+  const { showToast } = useToast();
   const [dados, setDados] = useState({ pedidos: [], status: 'offline' });
   const [dadosCarregados, setDadosCarregados] = useState(false);
   const [erro, setErro] = useState('');
@@ -100,8 +102,18 @@ function PainelEntregador() {
   const agir = async (url, body, mensagem, aposSucesso) => {
     if (ocupado) return;
     setOcupado(true); setErro('');
-    try { const { data } = await courierApi.post(url, body); aposSucesso?.(data); setAviso(mensagem); await carregar(); }
-    catch (error) { setErro(erroDelivery(error)); }
+    try {
+      const { data } = await courierApi.post(url, body);
+      aposSucesso?.(data);
+      setAviso(mensagem);
+      showToast(mensagem, 'success');
+      await carregar();
+    }
+    catch (error) {
+      const mensagemErro = erroDelivery(error);
+      setErro(mensagemErro);
+      showToast(mensagemErro, 'error');
+    }
     finally { setOcupado(false); }
   };
   return <><p className="delivery-eyebrow">SEU DIA NA RUA</p><h1>Vamos entregar?</h1><p>Você tem {dados.pedidos.length} entrega(s) atribuída(s).</p>

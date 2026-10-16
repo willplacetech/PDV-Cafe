@@ -4,6 +4,7 @@ import { exportarCSV, colunasCSV, dataArquivoCSV } from '../utils/exportarCsv.js
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
+import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
 import { useNavigate } from 'react-router-dom';
@@ -49,10 +50,6 @@ export default function Orders() {
 
   // ✅ Função de cancelamento - AJUSTADA PARA SUA ROTA
   const cancelarPedido = async (pedidoId) => {
-    if (!window.confirm('Tem certeza que deseja cancelar este pedido? O estoque será devolvido automaticamente.')) {
-      return;
-    }
-
     setCancelando(true);
     try {
       await requestAutorizado('patch', `/orders/${pedidoId}/cancelar`, null, 'cancelar_venda', solicitarAutorizacao);
@@ -75,6 +72,7 @@ export default function Orders() {
     try {
       await api.post(`/comandas/${selecionado.comandaId}/reabrir`);
       await carregarComanda(selecionado.comandaId);
+      showToast('Comanda reaberta. Recebimentos preservados.', 'success');
       navigate('/pdv');
     } catch (error) { showToast(error.response?.data?.msg || error.message, 'error'); }
     finally { setCancelando(false); }
@@ -295,24 +293,33 @@ export default function Orders() {
             {/* ✅ BOTÃO CANCELAR — SÓ APARECE SE PENDENTE OU PARCIAL */}
             {podeCancelar(selecionado.status) && (
               <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border-light)' }}>
-                <button
-                  onClick={() => cancelarPedido(selecionado._id)}
-                  disabled={cancelando}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    background: cancelando ? 'var(--bg-tertiary)' : 'var(--error-bg)',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 10,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: cancelando ? 'not-allowed' : 'pointer',
-                    transition: 'background 0.2s'
-                  }}
+                <ConfirmarAcao
+                  titulo="Cancelar pedido"
+                  mensagem="Tem certeza que deseja cancelar este pedido? O estoque será devolvido automaticamente."
+                  acaoTexto="Cancelar pedido"
+                  onConfirmar={() => cancelarPedido(selecionado._id)}
                 >
-                  {cancelando ? '⏳ Cancelando...' : '❌ Cancelar Pedido'}
-                </button>
+                  {({ onClick }) => (
+                    <button
+                      onClick={onClick}
+                      disabled={cancelando}
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        background: cancelando ? 'var(--bg-tertiary)' : 'var(--error-bg)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 10,
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: cancelando ? 'not-allowed' : 'pointer',
+                        transition: 'background 0.2s'
+                      }}
+                    >
+                      {cancelando ? '⏳ Cancelando...' : '❌ Cancelar Pedido'}
+                    </button>
+                  )}
+                </ConfirmarAcao>
               </div>
             )}
           </div>

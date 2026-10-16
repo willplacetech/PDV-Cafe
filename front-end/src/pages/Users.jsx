@@ -4,6 +4,7 @@ import { useCallback, useContext, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { useToast } from '../components/useToast.js';
+import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import AreaTabs from '../components/AreaTabs.jsx';
 import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
@@ -91,7 +92,6 @@ export default function Users() {
 
   const deleteUser = async account => {
     if (account.id === user?.id) return;
-    if (!window.confirm(`Excluir permanentemente o usuário ${account.username}? Esta ação não pode ser desfeita.`)) return;
     setBusy(true);
     try {
       await requestAutorizado('delete', `/auth/users/${account.id}`, null, 'desativar_usuario', solicitarExcluir);
@@ -126,7 +126,6 @@ export default function Users() {
   };
 
   const deleteCourier = async courier => {
-    if (!window.confirm(`Excluir permanentemente ${courier.nome}? Se houver pedidos associados, o cadastro deverá ser desativado para preservar o histórico.`)) return;
     setBusy(true);
     try {
       await api.delete(`/entregas/entregadores/${courier._id}`);
@@ -178,7 +177,14 @@ export default function Users() {
               <td style={cellStyle}>{account.ativo ? 'Ativo' : 'Bloqueado'}</td>
               <td style={cellStyle}><div className="users-actions">
                 <button type="button" className="users-secondary-button" disabled={busy} aria-label={`Editar ${account.username}`} onClick={() => { setEditingId(account.id); setEdit({ role: account.role, ativo: account.ativo, password: '' }); }}>Editar</button>
-                <button type="button" className="users-danger-button" disabled={busy || account.id === user?.id} title={account.id === user?.id ? 'Não é possível excluir o usuário conectado' : undefined} aria-label={`Excluir ${account.username}`} onClick={() => void deleteUser(account)}>🔒 Excluir</button>
+                <ConfirmarAcao
+                  titulo="Excluir usuário"
+                  mensagem={`Excluir permanentemente o usuário ${account.username}? Esta ação não pode ser desfeita.`}
+                  acaoTexto="Excluir usuário"
+                  onConfirmar={() => deleteUser(account)}
+                >
+                  {({ onClick }) => <button type="button" className="users-danger-button" disabled={busy || account.id === user?.id} title={account.id === user?.id ? 'Não é possível excluir o usuário conectado' : undefined} aria-label={`Excluir ${account.username}`} onClick={onClick}>🔒 Excluir</button>}
+                </ConfirmarAcao>
               </div></td>
               </tr>)}</tbody>
             </table>
@@ -221,7 +227,14 @@ export default function Users() {
                 <td style={cellStyle}>{courier.ativo === false ? 'Desativado' : courier.status === 'offline' ? 'Offline' : courier.status === 'em_entrega' ? 'Em entrega' : 'Disponível'}</td>
                 <td style={cellStyle}>{canManage ? <div className="users-actions">
                   <button type="button" className="users-secondary-button" disabled={busy} aria-label={`Editar ${courier.nome}`} onClick={() => setCourierEdit(courier)}>Editar</button>
-                  <button type="button" className="users-danger-button" disabled={busy} aria-label={`Excluir ${courier.nome}`} onClick={() => void deleteCourier(courier)}>🔒 Excluir</button>
+                  <ConfirmarAcao
+                    titulo="Excluir entregador"
+                    mensagem={`Excluir permanentemente ${courier.nome}? Se houver pedidos associados, o cadastro deverá ser desativado para preservar o histórico.`}
+                    acaoTexto="Excluir entregador"
+                    onConfirmar={() => deleteCourier(courier)}
+                  >
+                    {({ onClick }) => <button type="button" className="users-danger-button" disabled={busy} aria-label={`Excluir ${courier.nome}`} onClick={onClick}>🔒 Excluir</button>}
+                  </ConfirmarAcao>
                 </div> : <span className="users-muted">Gerenciado pelo cadastro de origem</span>}</td>
               </tr>;
               })}</tbody>
