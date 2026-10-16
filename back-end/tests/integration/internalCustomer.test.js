@@ -14,7 +14,7 @@ beforeEach(async () => {
   token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET);
   product = await Product.create({ codigo: 'cafe-interno', nome: 'Café', categoria: 'Bebidas Quentes', tipo: 'venda', preco: 6, precoCompra: 2, estoque: 20, unidadeVenda: 'un' });
 });
-const api = (method, url, body) => request(app)[method](url).set('Authorization', `Bearer ${token}`).send(body);
+const api = (method, url, body) => request(app)[method](url).set('Authorization', `Bearer ${token}`).set(require('../approvalFixture').headers(method, url, token, body)).send(body);
 const interno = async () => (await api('get', '/api/customers')).body.find(c => c.clienteInterno);
 
 test('cadastro disponibiliza um único Cliente Interno sem telefone e protege sua identidade', async () => {

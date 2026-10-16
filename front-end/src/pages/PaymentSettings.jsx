@@ -87,7 +87,7 @@ export default function PaymentSettings() {
           <label htmlFor={`taxa-${forma.value}`}>Taxa (%)</label>
           <input id={`taxa-${forma.value}`} type="number" min="0" max="100" step="0.01" required value={edicao.taxaPercentual} disabled={bloqueado} onChange={event => setEdicao(atual => ({ ...atual, taxaPercentual: event.target.value }))} />
           <div className="payment-settings-actions">
-            <button type="submit" disabled={bloqueado}>{salvando === forma.value ? 'Salvando...' : 'Salvar alterações'}</button>
+            <button type="submit" disabled={bloqueado}>{salvando === forma.value ? 'Salvando...' : '🔒 Salvar alterações'}</button>
             <button type="button" className="payment-settings-secondary" disabled={bloqueado} onClick={() => setEdicao(null)}>Cancelar</button>
           </div>
         </form> : <>

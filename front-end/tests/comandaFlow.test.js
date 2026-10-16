@@ -43,3 +43,21 @@ test('fechamento envia identificador financeiro e limpa a comanda só após conf
   assert.equal(result.pedido.total, 6);
   assert.equal(cleared, true);
 });
+
+test('reabrir comanda inicia outro fechamento sem reutilizar resultado anterior', async () => {
+  const context = readFileSync(new URL('../src/context/ComandaContext.jsx', import.meta.url), 'utf8');
+  const code = context.slice(context.indexOf('  const fecharComanda = '), context.indexOf('  const limparComanda = '));
+  const requests = [];
+  const api = { post: async (_url, payload) => { requests.push(payload); return { data: { pedido: { total: 6 } } }; } };
+  const operations = criarOperacoesFinanceiras(api, { storage: null });
+  const close = new Function('useCallback', 'comandaAtual', 'salvarComandaAberta', 'operacoesFinanceiras', 'setComandaAtual', 'novaComanda', `${code}; return fecharComanda;`)(
+    fn => fn, {}, () => {}, operations, () => {}, () => ({ itens: [] }),
+  );
+  const payment = { metodoPagamento: 'dinheiro', desconto: 0 };
+  await close(payment, { _id: 'comanda-1', cicloFechamento: 0 });
+  await close(payment, { _id: 'comanda-1', cicloFechamento: 0 });
+  assert.equal(requests.length, 1, 'mesmo ciclo continua idempotente');
+  await close(payment, { _id: 'comanda-1', cicloFechamento: 1 });
+  assert.equal(requests.length, 2, 'reabertura deve chegar ao servidor');
+  assert.notEqual(requests[0].operacaoId, requests[1].operacaoId);
+});

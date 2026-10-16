@@ -19,7 +19,7 @@ beforeEach(async () => {
   token = jwt.sign({ id: user.id, username: user.username, role: user.role, tenantId: tenant.id }, process.env.JWT_SECRET);
   product = await Product.create({ codigo: 'cafe', nome: 'Café', categoria: 'Bebidas Quentes', tipo: 'venda', preco: 6, estoque: 20, unidadeVenda: 'un' });
 });
-const api = (method, url, payload) => request(app)[method](url).set('Authorization', `Bearer ${token}`).send(payload);
+const api = (method, url, payload) => request(app)[method](url).set('Authorization', `Bearer ${token}`).set(require('../approvalFixture').headers(method, url, token, payload)).send(payload);
 
 test('preço editado persiste ao salvar, alterar quantidade e fechar venda', async () => {
   const created = await api('post', '/api/comandas', { tipoAtendimento: 'balcao', rascunho: true, itens: [{ produtoId: product.id, quantidade: 1, precoUnitarioManual: 5 }] });

@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import api from '../services/api.jsx';
 import { guardarAutorizacao } from '../services/managerApproval.js';
+import { getSessionGeneration } from '../services/accessSession.js';
 
 export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCancelar, onConfirmado }) {
   const { user } = useContext(AuthContext);
@@ -11,6 +12,11 @@ export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCa
   const [bloqueadoAte, setBloqueadoAte] = useState(0);
   const bloqueado = bloqueadoAte > 0;
   const inputRef = useRef(null);
+  const active = useRef(false);
+  useEffect(() => {
+    active.current = true;
+    return () => { active.current = false; };
+  }, []);
 
   const eGerenteOuAdmin = user?.role === 'admin' || user?.role === 'gerente';
   const hint = eGerenteOuAdmin
@@ -19,8 +25,9 @@ export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCa
 
   useEffect(() => {
     if (aberto) {
-      const timer = setTimeout(() => { setSenha(''); setErro(''); inputRef.current?.focus(); }, 0);
-      return () => clearTimeout(timer);
+      const previous = document.activeElement;
+      inputRef.current?.focus();
+      return () => previous?.focus();
     }
   }, [aberto]);
 
@@ -36,8 +43,10 @@ export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCa
 
     setCarregando(true);
     setErro('');
+    const generation = getSessionGeneration();
     try {
       const { data } = await api.post('/auth/autorizar', { senha, acao });
+      if (!active.current || generation !== getSessionGeneration()) return;
       if (!data.tokenAutorizacao) {
         throw new Error('Autorização rejeitada');
       }
@@ -60,11 +69,19 @@ export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCa
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       zIndex: 99999, padding: 20,
-    }} onClick={onCancelar}>
+    }} onClick={() => { if (!carregando) onCancelar(); }}>
       <form onSubmit={confirmar} onClick={(e) => e.stopPropagation()} style={{
         background: 'var(--bg-secondary)', borderRadius: 16, padding: 24,
         width: '100%', maxWidth: 360, boxShadow: 'var(--shadow-lg)',
-      }} role="dialog" aria-modal="true" aria-label="Autorização de gerente" onKeyDown={event => { if (event.key === 'Escape') onCancelar(); }}>
+      }} role="dialog" aria-modal="true" aria-label="Autorização de gerente" onKeyDown={event => {
+        if (event.key === 'Escape' && !carregando) onCancelar();
+        if (event.key === 'Tab') {
+          const controls = [...event.currentTarget.querySelectorAll('input:not(:disabled), button:not(:disabled)')];
+          const first = controls[0], last = controls.at(-1);
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        }
+      }}>
         <h3 style={{ margin: '0 0 8px', fontSize: 18, color: 'var(--text-primary)' }}>🔒 Confirmação necessária</h3>
         <p style={{ margin: '0 0 16px', fontSize: 14, color: 'var(--text-secondary)' }}>{titulo || descricao || acao.replaceAll('_', ' ')}</p>
         <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>{hint}</p>

@@ -141,7 +141,7 @@ const pauseCashRead = () => {
 test('receipt winning race invalidates stale cash closing snapshot', async () => {
   const id = await openCash();
   const pause = pauseCashRead();
-  const close = request(app).post(`/api/caixa/${id}/fechar`).set('Authorization', `Bearer ${token}`).send({ valorContado: 0 }).then(r => r);
+  const close = request(app).post(`/api/caixa/${id}/fechar`).set('Authorization', `Bearer ${token}`).set('X-Autorizacao-Gerente', require('../approvalFixture')(token, 'fechar_caixa')).send({ valorContado: 0 }).then(r => r);
   await pause.reached;
   let receipt;
   try { receipt = await partial('race-receipt'); } finally { pause.release(); }
@@ -155,7 +155,7 @@ test('cash closing winning race aborts receipt and ledger together', async () =>
   const receipt = partial('race-closing').then(r => r);
   await pause.reached;
   let close;
-  try { close = await request(app).post(`/api/caixa/${id}/fechar`).set('Authorization', `Bearer ${token}`).send({ valorContado: 0 }); } finally { pause.release(); }
+  try { close = await request(app).post(`/api/caixa/${id}/fechar`).set('Authorization', `Bearer ${token}`).set('X-Autorizacao-Gerente', require('../approvalFixture')(token, 'fechar_caixa')).send({ valorContado: 0 }); } finally { pause.release(); }
   expect(close.status).toBe(200);
   expect((await receipt).status).toBe(409);
   expect((await Comanda.findById(comanda.id)).valorPago).toBe(0);
@@ -163,7 +163,7 @@ test('cash closing winning race aborts receipt and ledger together', async () =>
 });
 test('receipt after completed closing never changes its frozen snapshot', async () => {
   const id = await openCash();
-  const close = await request(app).post(`/api/caixa/${id}/fechar`).set('Authorization', `Bearer ${token}`).send({ valorContado: 0 });
+  const close = await request(app).post(`/api/caixa/${id}/fechar`).set('Authorization', `Bearer ${token}`).set('X-Autorizacao-Gerente', require('../approvalFixture')(token, 'fechar_caixa')).send({ valorContado: 0 });
   expect(close.status).toBe(200);
   expect((await partial('after-closing')).status).toBe(200);
   expect((await FechamentoCaixa.findById(id).lean()).__v).toBe(close.body.__v);

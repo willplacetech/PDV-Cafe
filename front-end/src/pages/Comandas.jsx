@@ -680,7 +680,7 @@ export default function Comandas() {
                       <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => atualizarQuantidadeItem(item._id, Number(quantidadeExibida || 0) + step)} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: itemOcupado ? 'wait' : 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>+</button>
                     </div>
                     <span style={{ minWidth: 78, textAlign: 'right', fontWeight: 700 }}>{formatMoney(Number(quantidadeExibida || 0) * item.precoUnitario)}</span>
-                    <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`} style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', cursor: itemOcupado ? 'wait' : 'pointer', fontSize: 20 }}>×</button>
+                    <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`} style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', cursor: itemOcupado ? 'wait' : 'pointer', fontSize: 20 }}>🔒 ×</button>
                   </div>
                 </div>
               );
@@ -714,7 +714,7 @@ export default function Comandas() {
                 )}
               </div>
               <button onClick={abrirModalFechamento} className="comandas-primary-button">{jaRecebido > 0 ? 'Receber / Fechar' : 'Fechar comanda'}</button>
-              <button onClick={cancel} className="comandas-cancel-button">Cancelar</button>
+              <button onClick={cancel} className="comandas-cancel-button">🔒 Cancelar</button>
             </div>
           </>}
         </section>
@@ -747,7 +747,7 @@ export default function Comandas() {
             {/* desconto */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Desconto (R$)</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>🔒 Desconto (R$) — autorização acima de 10%</label>
                 <input disabled={fechando} type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={e => setDiscount(e.target.value)}
                   className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
               </div>

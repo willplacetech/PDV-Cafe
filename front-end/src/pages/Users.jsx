@@ -159,7 +159,7 @@ export default function Users() {
             {Object.entries(roles).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </SearchableSelect>
         </label>
-        <button type="submit" disabled={loading || busy} style={buttonStyle}>{loading ? 'Criando...' : 'Criar usuário'}</button>
+        <button type="submit" disabled={loading || busy} style={buttonStyle}>{loading ? 'Criando...' : '🔒 Criar usuário'}</button>
       </form>
 
       <div className="users-panel" style={{ ...panelStyle, marginTop: 24 }}>
@@ -197,7 +197,7 @@ export default function Users() {
           </label>
           
           <div className="users-actions">
-            <button type="submit" disabled={busy} style={buttonStyle}>{busy ? 'Salvando...' : 'Salvar alterações'}</button>
+            <button type="submit" disabled={busy} style={buttonStyle}>{busy ? 'Salvando...' : '🔒 Salvar alterações'}</button>
             <button type="button" className="users-secondary-button" disabled={busy} onClick={() => { setEditingId(null); setEdit(emptyEdit); }}>Cancelar</button>
           </div>
         </form>}

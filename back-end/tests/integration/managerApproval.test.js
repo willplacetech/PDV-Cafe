@@ -6,6 +6,7 @@ const Auditoria = require('../../models/Auditoria');
 const Product = require('../../models/Product');
 const Comanda = require('../../models/Comanda');
 const Order = require('../../models/Order');
+const Customer = require('../../models/Customer');
 const FechamentoCaixa = require('../../models/FechamentoCaixa');
 const approval = require('../approvalFixture');
 
@@ -26,6 +27,8 @@ test('operador solicita senha de gerente, JWT dura 5min e não serve como login'
   expect(claims.solicitante).toBe(operator.id);
   expect(claims.username).toBeUndefined();
   expect((await request(app).get('/api/auth/me').set('Authorization', `Bearer ${response.body.tokenAutorizacao}`)).status).toBe(401);
+  const legacy = jwt.sign({ id: manager.id, role: 'gerente', acao: 'fechar_caixa' }, process.env.JWT_SECRET);
+  expect((await request(app).get('/api/auth/me').set('Authorization', `Bearer ${legacy}`)).status).toBe(401);
 });
 
 test('três erros bloqueiam no servidor por 60s, mesmo com senha correta, e auditam', async () => {
@@ -81,7 +84,7 @@ test('desconto de 10% passa; acima exige JWT antes de criar pedido', async () =>
 test('preço manual e redução de peso vendido exigem autorização sem alterar estoque', async () => {
   const product = await Product.create({ codigo: 'peso', nome: 'Bolo', preco: 100, estoque: 10 });
   expect((await call('/comandas', { itens: [{ produtoId: product.id, quantidade: 1, precoUnitarioManual: 1 }] })).status).toBe(403);
-  const comanda = await Comanda.create({ atendente: 'operador', itens: [{ produtoId: product.id, quantidade: 1, tipoVenda: 'peso', pesoVendidoKg: 1, precoUnitario: 100 }], valorTotal: 100 });
+  const comanda = await Comanda.create({ atendente: 'operador', itens: [{ produtoId: product.id, nome: 'Bolo', quantidade: 1, tipoVenda: 'peso', pesoVendidoKg: 1, precoUnitario: 100 }], valorTotal: 100 });
   const response = await request(app).patch(`/api/comandas/${comanda.id}/itens/${comanda.itens[0].id}`).set('Authorization', `Bearer ${bearer}`).send({ quantidade: 1, pesoVendidoKg: 0.001 });
   expect(response.status).toBe(403);
   expect(response.body.acao).toBe('excluir_item');
@@ -90,14 +93,16 @@ test('preço manual e redução de peso vendido exigem autorização sem alterar
 
 test('reabrir/fechar comanda preserva recebimentos, pedido único, fidelidade e estoque', async () => {
   const product = await Product.create({ codigo: 'coffee', nome: 'Cafe', preco: 10, estoque: 9 });
-  const itens = [{ produtoId: product.id, quantidade: 1, precoUnitario: 10 }];
-  const comanda = await Comanda.create({ atendente: 'operador', itens, status: 'fechada', estoqueBaixado: true, valorTotal: 10, historicoPagamentos: [{ formaPagamento: 'dinheiro', valor: 10, valorLiquido: 10 }] });
+  const itens = [{ produtoId: product.id, nome: 'Cafe', quantidade: 1, precoUnitario: 10 }];
+  const customer = await Customer.create({ nome: 'Cliente teste', cafesFidelidade: 1 });
+  const comanda = await Comanda.create({ atendente: 'operador', clienteId: customer.id, itens, status: 'fechada', estoqueBaixado: true, valorTotal: 10, historicoPagamentos: [{ formaPagamento: 'dinheiro', valor: 10, valorLiquido: 10 }] });
   const order = await Order.create({ itens, subtotal: 10, total: 10, status: 'pago', atendente: 'operador', comandaId: comanda._id });
   comanda.pedidoId = order._id;
   await comanda.save();
   expect((await call(`/comandas/${comanda.id}/reabrir`, {})).status).toBe(403);
   const reopened = await call(`/comandas/${comanda.id}/reabrir`, {}).set('X-Autorizacao-Gerente', approval(bearer, 'reabrir_comanda', manager.id));
   expect(reopened.status).toBe(200);
+  expect(reopened.body.cicloFechamento).toBe(1);
   expect(reopened.body.historicoPagamentos).toHaveLength(1);
   const closed = await call(`/comandas/${comanda.id}/fechar`, { metodoPagamento: 'dinheiro', desconto: 0 }).set('Idempotency-Key', 'approval-reclose-123456');
   expect(closed.status).toBe(200);
@@ -105,6 +110,7 @@ test('reabrir/fechar comanda preserva recebimentos, pedido único, fidelidade e 
   expect(closed.body.comanda.historicoPagamentos).toHaveLength(1);
   expect(await Order.countDocuments()).toBe(1);
   expect((await Product.findById(product.id)).estoque).toBe(9);
+  expect((await Customer.findById(customer.id)).cafesFidelidade).toBe(1);
 });
 
 test('reabertura de caixa exige JWT e preserva snapshot anterior', async () => {

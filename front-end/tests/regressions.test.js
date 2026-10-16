@@ -71,15 +71,15 @@ for (const valor of ['', '0', '0,00']) {
   });
 }
 
-test('remover linha retira desconto quando grupo perde mínimo', () => {
+test('remover linha retira desconto quando grupo perde mínimo', async () => {
   const functions = source('PDV').split('const precoPorUnidade = ')[1].split('export default function PDV')[0];
   const recalculate = section('PDV', 'const recalcularPrecosCarrinho = ', 'const setCarrinho');
   const remove = section('PDV', 'const removerItem = ', 'const clienteSelecionado');
   const produtos = ['a', 'b'].map(_id => ({ _id, preco: 10, grupoDesconto: { nome: 'combo', ativo: true, quantidadeMinima: 2, precoPromocional: 8 } }));
   const carrinho = produtos.map(p => ({ produtoId: p._id, quantidade: 1, precoUnitario: 8, precoUnitarioOriginal: 10 }));
   let updated;
-  const removerItem = evaluate(`const precoPorUnidade = ${functions}; const recalcularPrecosCarrinho = ${recalculate}; const removerItem = ${remove}`, { produtos, carrinho, setCarrinho: value => { updated = typeof value === 'function' ? value(carrinho) : value; }, setQuantidadesRascunho: () => {}, setPrecosRascunho: () => {} }, 'removerItem');
-  removerItem(0);
+  const removerItem = evaluate(`const precoPorUnidade = ${functions}; const recalcularPrecosCarrinho = ${recalculate}; const removerItem = ${remove}`, { produtos, carrinho, solicitarAcaoGerente: async acao => { assert.equal(acao, 'excluir_item'); }, setCarrinho: value => { updated = typeof value === 'function' ? value(carrinho) : value; }, setQuantidadesRascunho: () => {}, setPrecosRascunho: () => {} }, 'removerItem');
+  await removerItem(0);
   assert.equal(updated[0].precoUnitario, 10);
 });
 

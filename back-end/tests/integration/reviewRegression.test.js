@@ -14,7 +14,7 @@ beforeEach(async () => {
   token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET);
 });
 
-const api = (method, path, body) => request(app)[method](path).set('Authorization', `Bearer ${token}`).send(body);
+const api = (method, path, body) => request(app)[method](path).set('Authorization', `Bearer ${token}`).set(require('../approvalFixture').headers(method, path, token, body)).send(body);
 const bolo = async (extra = {}) => Product.create({
   codigo: 'peso', nome: 'Bolo', categoria: 'Doces', tipo: 'venda', preco: 40,
   estoque: 5, estoquePesoKg: 2.5, unidadeVenda: 'kg', pesoPorUnidade: 0.5,

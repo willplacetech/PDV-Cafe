@@ -15,7 +15,7 @@ beforeEach(async () => {
   const admin = await User.create({ username: 'admin-politica', password, role: 'admin' });
   adminToken = jwt.sign({ id: admin.id, role: 'admin' }, process.env.JWT_SECRET);
 });
-const create = password => request(app).post('/api/auth/register').set('Authorization', `Bearer ${adminToken}`).send({ username: 'novo-politica', password });
+const create = password => request(app).post('/api/auth/register').set('Authorization', `Bearer ${adminToken}`).set('X-Autorizacao-Gerente', require('../approvalFixture')(adminToken, 'criar_usuario')).send({ username: 'novo-politica', password });
 
 test.each(['a'.repeat(11), 'é'.repeat(37), '🙂'.repeat(19), '🙂'.repeat(11), 123456789012])('cadastro rejeita senha inválida sem persistir: %s', async value => {
   expect((await create(value)).status).toBe(400);
@@ -39,7 +39,7 @@ test('senha de 12 caracteres ASCII é aceita', async () => {
 
 test.each(['a'.repeat(11), 'é'.repeat(37)])('reset rejeita senha fraca ou mais de 72 bytes sem revogar sessão', async value => {
   const user = await User.create({ username: 'reset-politica', password });
-  const response = await request(app).patch(`/api/auth/users/${user.id}`).set('Authorization', `Bearer ${adminToken}`).send({ password: value });
+  const response = await request(app).patch(`/api/auth/users/${user.id}`).set('Authorization', `Bearer ${adminToken}`).set('X-Autorizacao-Gerente', require('../approvalFixture')(adminToken, 'editar_usuario')).send({ password: value });
   expect(response.status).toBe(400);
   const persisted = await User.findById(user.id).select('+password');
   expect(persisted.tokenVersion).toBe(0);
@@ -49,7 +49,7 @@ test.each(['a'.repeat(11), 'é'.repeat(37)])('reset rejeita senha fraca ou mais 
 test('reset com texto que parece hash também recebe hash, sem rehash posterior', async () => {
   const user = await User.create({ username: 'hash-politica', password });
   const hashLookingPassword = await bcrypt.hash('uma-senha-para-hash', 4);
-  const response = await request(app).patch(`/api/auth/users/${user.id}`).set('Authorization', `Bearer ${adminToken}`).send({ password: hashLookingPassword });
+  const response = await request(app).patch(`/api/auth/users/${user.id}`).set('Authorization', `Bearer ${adminToken}`).set('X-Autorizacao-Gerente', require('../approvalFixture')(adminToken, 'editar_usuario')).send({ password: hashLookingPassword });
   expect(response.status).toBe(200);
   expect(response.body.password).toBeUndefined();
   const persisted = await User.findById(user.id).select('+password');
@@ -111,7 +111,7 @@ test('login de entregador legado preserva espaços e senha curta persistida', as
 });
 
 test('cadastro limita nome de usuário e e-mail é validado no modelo', async () => {
-  expect((await request(app).post('/api/auth/register').set('Authorization', `Bearer ${adminToken}`).send({ username: 'a'.repeat(255), password })).status).toBe(400);
+  expect((await request(app).post('/api/auth/register').set('Authorization', `Bearer ${adminToken}`).set('X-Autorizacao-Gerente', require('../approvalFixture')(adminToken, 'criar_usuario')).send({ username: 'a'.repeat(255), password })).status).toBe(400);
   await expect(User.create({ username: 'email-politica', email: 'invalido', password })).rejects.toThrow();
 });
 

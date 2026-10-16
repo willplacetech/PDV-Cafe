@@ -10,7 +10,7 @@ const { carregarPagamentosDoPeriodo } = require('../../utils/pagamento');
 let token, product, comanda;
 const receiptDate = new Date('2026-09-02T12:00:00Z');
 const period = { inicio: new Date('2026-09-02T00:00:00Z'), fim: new Date('2026-09-03T00:00:00Z') };
-const cancel = (kind, id) => request(app).patch(`/api/${kind}/${id}/cancelar`).set('Authorization', `Bearer ${token}`);
+const cancel = (kind, id) => request(app).patch(`/api/${kind}/${id}/cancelar`).set('Authorization', `Bearer ${token}`).set('X-Autorizacao-Gerente', require('../approvalFixture')(token, 'cancelar_venda'));
 const makeOrder = async (extra = {}) => {
   const order = await Order.create({ numero: '000001', atendente: 'cancel-admin', subtotal: 20, total: 20, itens: comanda.itens, ...extra });
   if (extra.comandaId) { comanda.pedidoId = order.id; await comanda.save(); }
@@ -22,6 +22,7 @@ test('desconto no fechamento não reduz total abaixo do valor recebido', async (
   await comanda.save();
   const response = await request(app).post(`/api/comandas/${comanda.id}/fechar`)
     .set('Authorization', `Bearer ${token}`)
+    .set('X-Autorizacao-Gerente', require('../approvalFixture')(token, 'desconto_acima_10'))
     .send({ desconto: 15, metodoPagamento: 'dinheiro', operacaoId: 'desconto-sem-estorno' });
   expect(response.status).toBe(400);
   expect(response.body.msg).toMatch(/recebido|estorno/i);

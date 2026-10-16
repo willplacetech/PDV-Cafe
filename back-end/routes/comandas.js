@@ -632,9 +632,10 @@ router.post('/:id/reabrir', auth, auth.allowRoles('admin', 'gerente', 'operador'
     if (!comanda || comanda.status !== 'fechada') return res.status(409).json({ msg: 'Somente comandas fechadas podem ser reabertas' });
     if (comanda.utilizacaoInterna || comanda.entrega) return res.status(409).json({ msg: 'Consumo interno e delivery exigem regularização específica antes de reabrir' });
     const pedido = await Order.findById(comanda.pedidoId).session(session);
-    if (!pedido || pedido.status === 'cancelado' || ['autorizada', 'processando'].includes(pedido.nfce?.status)) return res.status(409).json({ msg: 'Regularize o pedido e a situação fiscal antes de reabrir' });
+    if (!pedido || pedido.status === 'cancelado' || ['autorizada', 'processando'].includes(pedido.nfce?.status) || pedido.pagamentos.some(pagamento => ['pendente', 'emitido'].includes(pagamento.fiscal?.status))) return res.status(409).json({ msg: 'Regularize o pedido e a situação fiscal antes de reabrir' });
     if (comanda.mesa && await Comanda.exists({ _id: { $ne: comanda._id }, mesa: comanda.mesa, status: 'aberta' }).session(session)) return res.status(409).json({ msg: 'A mesa já possui outra comanda aberta' });
     comanda.status = 'aberta';
+    comanda.cicloFechamento = (comanda.cicloFechamento || 0) + 1;
     await comanda.save({ session });
     await session.commitTransaction();
     res.json(comanda);

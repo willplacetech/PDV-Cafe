@@ -1,4 +1,5 @@
 import api, { setHeaderAutorizacao } from './api.jsx';
+import { getAutorizacaoCache } from './managerApproval.js';
 
 export async function requestAutorizado(method, url, body, acao, solicitar) {
   const tentativa = async (config) => {
@@ -13,5 +14,5 @@ export async function requestAutorizado(method, url, body, acao, solicitar) {
       throw err;
     }
   };
-  return tentativa();
+  return tentativa(setHeaderAutorizacao({}, getAutorizacaoCache(acao)?.token));
 }

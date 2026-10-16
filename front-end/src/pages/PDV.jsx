@@ -5,7 +5,7 @@ import { useCallback, useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
-import { solicitarAutorizacao } from '../services/managerApproval.js';
+import { solicitarAutorizacao as solicitarAcaoGerente } from '../services/managerApproval.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { estoqueDisponivelComanda } from '../utils/estoqueComanda.js';
@@ -303,7 +303,7 @@ export default function PDV() {
     const estoqueDisponivel = estoqueDisponivelComanda(prod, comandaAtual);
     if (!prod.permitirVendaSemInsumo && quantidadeOutrasLinhas + quantidade > estoqueDisponivel) return showToast(`Máximo: ${estoqueDisponivel}`, 'warning');
     if (quantidade < novos[idx].quantidade) {
-      try { await solicitarAutorizacao('excluir_item'); }
+      try { await solicitarAcaoGerente('excluir_item'); }
       catch { setQuantidadesRascunho({}); return; }
     }
     novos[idx].quantidade = quantidade;
@@ -321,14 +321,14 @@ export default function PDV() {
       return;
     }
     if (preco === carrinho[idx]?.precoUnitario) return;
-    try { await solicitarAutorizacao('alterar_preco'); } catch { return; }
+    try { await solicitarAcaoGerente('alterar_preco'); } catch { return; }
     setCarrinho(itens => itens.map((item, index) => index === idx ? {
       ...item, precoUnitario: Math.round(preco * 100) / 100, precoUnitarioManual: Math.round(preco * 100) / 100,
     } : item));
   };
 
   const removerItem = async (idx) => {
-    try { await solicitarAutorizacao('excluir_item'); } catch { return; }
+    try { await solicitarAcaoGerente('excluir_item'); } catch { return; }
     setCarrinho((atuais) => recalcularPrecosCarrinho(atuais.filter((_, i) => i !== idx)));
     setQuantidadesRascunho({});
     setPrecosRascunho({});
@@ -566,6 +566,7 @@ export default function PDV() {
     setEnviando(true);
     try {
       if (comandaAtual._id) await requestAutorizado('patch', `/comandas/${comandaAtual._id}/cancelar`, null, 'cancelar_venda', solicitarAutorizacao);
+      else await solicitarAutorizacao();
       limparComanda();
       idempotenciaRef.current = null;
       pagamentoPreparadoRef.current = null;
@@ -1236,7 +1237,7 @@ export default function PDV() {
               </>
             )}
             {(comandaAtual._id || carrinho.length > 0) && <div className="pdv-command-actions" style={{ marginTop: 8 }}>
-              <button type="button" onClick={cancelarComandaAtual} disabled={enviando || fechamentoPendente} style={{ color: 'var(--error-bg)', borderColor: 'var(--error-bg)' }}>Cancelar comanda</button>
+              <button type="button" onClick={cancelarComandaAtual} disabled={enviando || fechamentoPendente} style={{ color: 'var(--error-bg)', borderColor: 'var(--error-bg)' }}>🔒 Cancelar comanda</button>
             </div>}
           </div>
         </div>
@@ -1331,7 +1332,7 @@ export default function PDV() {
           <p>Subtotal: <strong>{formatMoney(subtotal)}</strong></p>
           {Number(comandaPagamento?.taxaEntrega) > 0 && <p>Taxa de entrega: <strong>{formatMoney(comandaPagamento.taxaEntrega)}</strong></p>}
           <div className="pdv-payment-summary">
-            <label>Desconto (R$)
+            <label>🔒 Desconto (R$) — autorização acima de 10%
               <input type="number" min="0" max={subtotal} step="0.01" disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={descontoFechamento} onChange={event => setDescontoFechamento(event.target.value)} />
             </label>
             <div><span>{jaRecebido > 0 ? 'Saldo em aberto' : 'Total a cobrar'}</span><strong>{formatMoney(saldoFechamento)}</strong>{jaRecebido > 0 && <small>Total {formatMoney(totalFechamento)} · já recebido {formatMoney(jaRecebido)}</small>}</div>

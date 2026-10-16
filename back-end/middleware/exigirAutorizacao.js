@@ -50,6 +50,8 @@ const verificarAutorizacao = async (req, acao) => {
     await registrarAuditoria(req.user?.id, user._id, acao, detalhesAuditoria(req, acao), true, req.ip);
     return claims;
   } catch (error) {
+    if (error.status === 403) throw error;
+    if (!['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(error.name)) throw error;
     await registrarAuditoria(req.user?.id, null, acao, detalhesAuditoria(req, acao), false, req.ip, 'token_invalido');
     return recusar();
   }
@@ -57,7 +59,10 @@ const verificarAutorizacao = async (req, acao) => {
 
 const exigirAutorizacao = acao => async (req, res, next) => {
   try { await verificarAutorizacao(req, acao); next(); }
-  catch (error) { res.status(error.status || 500).json({ msg: error.message, acao: error.acao }); }
+  catch (error) {
+    if (error.status !== 403) return next(error);
+    res.status(403).json({ msg: error.message, acao: error.acao });
+  }
 };
 
 const exigirPrecoManual = (req, res, next) => {

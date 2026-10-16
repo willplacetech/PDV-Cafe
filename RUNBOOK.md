@@ -97,6 +97,8 @@ pedido ausente/cancelado, NFC-e autorizada/em processamento ou mesa já ocupada.
 Recebimentos anteriores continuam válidos; o novo fechamento atualiza o mesmo pedido
 e não concede fidelidade novamente. Reabrir caixa preserva um snapshot do fechamento
 em `reaberturas`. Não use reabertura para estornar recebimentos ou documentos fiscais.
+Cada reabertura incrementa `cicloFechamento`; o frontend inclui esse ciclo no payload
+para gerar uma nova operação financeira sem reutilizar o resultado do fechamento anterior.
 
 Logout remove token, identidade, rascunhos/carrinho e caches pessoais do localStorage.
 Mantém catálogo e vendas já registradas na fila offline para evitar perda de vendas;

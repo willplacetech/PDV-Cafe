@@ -24,7 +24,8 @@ export default function AutorizacaoGerenteGlobal() {
       cancel();
     };
   }, []);
-  const finish = token => {
+  const finish = (request, token) => {
+    if (queue.current[0] !== request) return;
     const item = queue.current.shift();
     if (token) item?.resolve(token);
     else item?.reject(new Error('Autorização cancelada'));
@@ -34,5 +35,5 @@ export default function AutorizacaoGerenteGlobal() {
     }
     setCurrent(queue.current[0] || null);
   };
-  return current && <AutorizarGerente key={current.acao} acao={current.acao} aberto onConfirmado={finish} onCancelar={() => finish(null)} />;
+  return current && <AutorizarGerente key={current.acao} acao={current.acao} aberto onConfirmado={token => finish(current, token)} onCancelar={() => finish(current, null)} />;
 }

@@ -11,7 +11,7 @@ const { calcularOutrosMeios } = require('../../utils/caixa');
 let token;
 let operatorToken;
 let product;
-const api = (method, path, body, authToken = token) => request(app)[method](`/api${path}`).set('Authorization', `Bearer ${authToken}`).send(body);
+const api = (method, path, body, authToken = token) => request(app)[method](`/api${path}`).set('Authorization', `Bearer ${authToken}`).set(require('../approvalFixture').headers(method, path, authToken, body, jwt.decode(token).id)).send(body);
 const createMethod = async () => {
   const response = await api('post', '/payment-settings', { nome: 'Vale Refeição', taxaPercentual: 3 });
   expect(response.status).toBe(201);

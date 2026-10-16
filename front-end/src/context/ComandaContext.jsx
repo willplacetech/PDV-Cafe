@@ -32,6 +32,7 @@ const normalizarComanda = comanda => ({
     precoUnitarioOriginal: item.precoUnitarioOriginal ?? item.precoUnitario,
   })),
   status: comanda.status || 'aberta',
+  cicloFechamento: comanda.cicloFechamento || 0,
   registroOriginal: comanda,
 });
 
@@ -146,7 +147,7 @@ export function ComandaProvider({ children }) {
 
   const fecharComanda = useCallback(async (pagamento, comandaSalva = comandaAtual) => {
     const comanda = comandaSalva._id ? comandaSalva : await salvarComandaAberta(comandaSalva);
-    const { data } = await operacoesFinanceiras.enviar('post', `/comandas/${comanda._id}/fechar`, pagamento);
+    const { data } = await operacoesFinanceiras.enviar('post', `/comandas/${comanda._id}/fechar`, { ...pagamento, cicloFechamento: comanda.cicloFechamento || 0 });
     setComandaAtual(novaComanda());
     return { comanda: comanda.registroOriginal || comanda, ...data };
   }, [comandaAtual, salvarComandaAberta, operacoesFinanceiras]);

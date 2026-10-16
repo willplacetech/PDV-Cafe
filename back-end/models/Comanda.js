@@ -69,6 +69,7 @@ const comandaSchema = new mongoose.Schema({
   }],
   utilizacaoInterna: { type: Boolean, default: false },
   estoqueBaixado: { type: Boolean, default: false },
+  cicloFechamento: { type: Number, default: 0, min: 0 },
   status: { type: String, enum: ['rascunho', 'aberta', 'fechada', 'cancelada'], default: 'aberta', index: true },
   atendente: { type: String, required: true },
   entrega: {
