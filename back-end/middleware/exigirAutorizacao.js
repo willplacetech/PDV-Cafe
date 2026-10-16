@@ -61,6 +61,11 @@ const verificarAutorizacao = async (req, acao) => {
   const token = req.headers['x-autorizacao-gerente'];
   const recusar = () => { throw Object.assign(new Error('Autorização do gerente necessária'), { status: 403, acao }); };
 
+  if (!token) {
+    await registrarAuditoria(req.user?.id, null, acao, detalhesAuditoria(req, acao), false, req.ip, 'token_ausente');
+    return recusar();
+  }
+
   try {
     const claims = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
     if (claims.tipo !== 'autorizacao-gerente' || claims.acao !== acao || claims.solicitante !== req.user?.id || claims.sessao !== (req.user?.sid || null) || claims.versaoSolicitante !== (req.user?.tokenVersion ?? 0)) {

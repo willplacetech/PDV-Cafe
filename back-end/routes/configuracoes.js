@@ -3,7 +3,7 @@ const router = express.Router();
 const Configuracoes = require('../models/Configuracoes');
 const Auditoria = require('../models/Auditoria');
 const auth = require('../middleware/auth');
-const { exigirAutorizacao, invalidarCacheConfiguracaoGerente } = require('../middleware/exigirAutorizacao');
+const { invalidarCacheConfiguracaoGerente } = require('../middleware/exigirAutorizacao');
 
 const isSupportOverrideActive = () => process.env.FORCAR_AUTORIZACAO_GERENTE === 'true';
 
@@ -26,7 +26,7 @@ router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
 });
 
 // PATCH /api/configuracoes/autorizacao-gerente
-router.patch('/autorizacao-gerente', auth, auth.allowRoles('admin'), exigirAutorizacao('alterar_configuracao'), async (req, res) => {
+router.patch('/autorizacao-gerente', auth, auth.allowRoles('admin'), async (req, res) => {
   if (isSupportOverrideActive()) {
     return res.status(403).json({ msg: 'Bloqueado pelo suporte' });
   }

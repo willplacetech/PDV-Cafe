@@ -19,6 +19,25 @@ test('a chave pública antiga nunca autentica um administrador', () => {
   assert.ok([401, 503].includes(res.statusCode));
 });
 
+test('requisição sem token de autorização do gerente retorna 403 em vez de 500', async () => {
+  const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
+  const previous = process.env.FORCAR_AUTORIZACAO_GERENTE;
+  process.env.FORCAR_AUTORIZACAO_GERENTE = 'true';
+  const req = { headers: {}, user: { id: 'user-1', tokenVersion: 0, sid: 'sessao-1' }, ip: '127.0.0.1' };
+  const res = response();
+  let nextCalled = false;
+
+  try {
+    await exigirAutorizacao('alterar_configuracao')(req, res, () => { nextCalled = true; });
+    assert.equal(nextCalled, false);
+    assert.equal(res.statusCode, 403);
+    assert.equal(res.body.acao, 'alterar_configuracao');
+  } finally {
+    if (previous === undefined) delete process.env.FORCAR_AUTORIZACAO_GERENTE;
+    else process.env.FORCAR_AUTORIZACAO_GERENTE = previous;
+  }
+});
+
 test('senha ausente retorna erro de entrada sem consultar banco', async () => {
   const router = require('../routes/auth');
   const handler = router.stack.find((layer) => layer.route?.path === '/login').route.stack[0].handle;
