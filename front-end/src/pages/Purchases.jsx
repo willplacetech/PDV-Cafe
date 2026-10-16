@@ -1,9 +1,10 @@
 import SearchableSelect from '../components/SearchableSelect.jsx';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/useToast.js';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
+import EstadoLista from '../components/EstadoLista.jsx';
 
 const units = ['kg', 'L', 'un'];
 const decimalStep = (unit) => unit === 'un' ? '0.01' : '0.001';
@@ -49,30 +50,30 @@ export default function Purchases() {
   const [savingSupply, setSavingSupply] = useState(false);
   const [saving, setSaving] = useState(false);
   const [expandedPurchaseId, setExpandedPurchaseId] = useState(null);
+  const [loadingPurchases, setLoadingPurchases] = useState(true);
+  const [purchaseLoadError, setPurchaseLoadError] = useState('');
   const { showToast } = useToast();
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    setLoadingPurchases(true);
+    setPurchaseLoadError('');
     try {
       const [productsResponse, purchasesResponse] = await Promise.all([api.get('/products'), api.get('/compras')]);
       setProducts(productsResponse.data || []);
       setPurchases(purchasesResponse.data || []);
     } catch (error) {
-      showToast(error.response?.data?.msg || 'Nao foi possivel carregar as compras', 'error');
+      const message = error.response?.data?.msg || 'Nao foi possivel carregar as compras';
+      setPurchaseLoadError(message);
+      showToast(message, 'error');
+    } finally {
+      setLoadingPurchases(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const [productsResponse, purchasesResponse] = await Promise.all([api.get('/products'), api.get('/compras')]);
-        setProducts(productsResponse.data || []);
-        setPurchases(purchasesResponse.data || []);
-      } catch (error) {
-        showToast(error.response?.data?.msg || 'Nao foi possivel carregar as compras', 'error');
-      }
-    };
-    loadInitialData();
-  }, [showToast]);
+    const initialLoad = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initialLoad);
+  }, [load]);
 
   const updateItem = (index, field, value) => {
     setForm((current) => ({ ...current, itens: current.itens.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
@@ -255,7 +256,14 @@ export default function Purchases() {
     </form>
     <section className="purchases-history">
       <div className="purchases-section-heading"><h2>Historico de compras</h2><span>{purchases.length} registro(s)</span></div>
-      {purchases.length ? paginacaoCompras.itensPagina.map((purchase) => {
+      <EstadoLista
+        carregando={loadingPurchases}
+        erro={purchaseLoadError}
+        vazio={purchases.length === 0}
+        tituloVazio="Nenhuma compra registrada"
+        onRetry={load}
+      >
+      {paginacaoCompras.itensPagina.map((purchase) => {
         const isExpanded = expandedPurchaseId === purchase._id;
         const itens = purchase.itens || [];
         return (
@@ -312,7 +320,8 @@ export default function Purchases() {
             )}
           </article>
         );
-      }) : <p>Nenhuma compra registrada.</p>}
+      })}
+      </EstadoLista>
       <Paginacao total={paginacaoCompras.total} paginaAtual={paginacaoCompras.paginaAtual} limiteAtual={paginacaoCompras.limiteAtual} onChangePagina={paginacaoCompras.alterarPagina} onChangeLimite={paginacaoCompras.alterarLimite} />
     </section>
     {supplyModalOpen && <div className="purchase-supply-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSupplyModalOpen(false); }}>

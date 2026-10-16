@@ -13,6 +13,7 @@ import DateInput from '../components/DateInput.jsx';
 import { dataBR, normalizarPagamentos, saldoDevedor, statusPagamentoInfo, totalPago as somarPagamentos } from '../utils/formasPagamento.jsx';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
+import EstadoLista from '../components/EstadoLista.jsx';
 
 
 const statusCor = {
@@ -31,7 +32,10 @@ const saldoRecebivelPedido = (pedido) => {
 
 export default function ContasReceber() {
   const { formasPagamento: FORMAS_PAGAMENTO, rotuloPagamento } = useFormasPagamento();
-  const [carregando, setCarregando] = useState(true);
+  const [carregandoPedidos, setCarregandoPedidos] = useState(true);
+  const [erroPedidos, setErroPedidos] = useState('');
+  const [carregandoComandas, setCarregandoComandas] = useState(false);
+  const [erroComandas, setErroComandas] = useState('');
   const [aba, setAba] = useState('pedidos');
   const [pedidos, setPedidos] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -58,6 +62,7 @@ export default function ContasReceber() {
   if (operacoesRef.current === null) { operacoesRef.current = criarOperacoesFinanceiras(api); }
   const recebendoRef = useRef(false);
   const [recebendo, setRecebendo] = useState(false);
+  const carregando = aba === 'comandas' ? carregandoComandas : carregandoPedidos;
   useEffect(() => {
     if (!pagamentoModal && !formComanda && !pagamentoMultiploModal && !quitarClienteModal) operacoesRef.current.limpar();
   }, [pagamentoModal, formComanda, pagamentoMultiploModal, quitarClienteModal]);
@@ -81,6 +86,8 @@ export default function ContasReceber() {
 
   const carregarComandas = useCallback(async () => {
     if (aba !== 'comandas') return;
+    setCarregandoComandas(true);
+    setErroComandas('');
     try {
       const params = new URLSearchParams();
       if (clienteFiltro) params.append('clienteId', clienteFiltro);
@@ -88,16 +95,18 @@ export default function ContasReceber() {
       if (fim) params.append('dataFim', fim);
       const res = await api.get(`/comandas/a-receber?${params}`);
       setComandasAbertas(res.data || []);
-    } catch {
-      showToast('Erro ao carregar comandas em aberto', 'error');
-      setComandasAbertas([]);
+    } catch (error) {
+      setErroComandas(error.response?.data?.msg || error.message || 'Não foi possível carregar as comandas em aberto.');
+    } finally {
+      setCarregandoComandas(false);
     }
-  }, [aba, clienteFiltro, inicio, fim, showToast]);
+  }, [aba, clienteFiltro, inicio, fim]);
 
 
   const carregarPedidos = useCallback(async () => {
     try {
-      setCarregando(true);
+      setCarregandoPedidos(true);
+      setErroPedidos('');
       const params = new URLSearchParams();
       if (clienteFiltro) params.append('clienteId', clienteFiltro);
       if (statusFiltro) params.append('status', statusFiltro);
@@ -107,13 +116,12 @@ export default function ContasReceber() {
       const res = await api.get(`/orders?${params}`);
       setPedidos(res.data || []);
       setSelecionados(new Set());
-    } catch {
-      showToast('Erro ao carregar pedidos', 'error');
-      setPedidos([]);
+    } catch (error) {
+      setErroPedidos(error.response?.data?.msg || error.message || 'Não foi possível carregar os pedidos.');
     } finally {
-      setCarregando(false);
+      setCarregandoPedidos(false);
     }
-  }, [clienteFiltro, statusFiltro, inicio, fim, showToast]);
+  }, [clienteFiltro, statusFiltro, inicio, fim]);
 
 
   useEffect(() => {
@@ -547,7 +555,7 @@ export default function ContasReceber() {
           <button type="button" disabled={carregando} onClick={exportarContas}>Exportar CSV</button>
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
             {[['pedidos', '📄 Pedidos'], ['comandas', '🧾 Comandas em aberto']].map(([chave, label]) => (
-              <button key={chave} type="button" onClick={() => setAba(chave)} style={{
+              <button key={chave} type="button" onClick={() => { if (chave === 'comandas') setCarregandoComandas(true); setAba(chave); }} style={{
                 padding: '8px 14px', borderRadius: 999, cursor: 'pointer', fontWeight: 700, fontSize: 13,
                 border: aba === chave ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
                 background: aba === chave ? 'var(--accent-light)' : 'var(--bg-tertiary)',
@@ -662,11 +670,16 @@ export default function ContasReceber() {
 
       {/* LISTA DE COMANDAS EM ABERTO */}
       {aba === 'comandas' && (
-        comandasAbertas.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 12 }}>
-            Nenhuma comanda com saldo em aberto
-          </div>
-        ) : (
+        <EstadoLista
+          carregando={carregandoComandas}
+          erro={erroComandas}
+          vazio={comandasAbertas.length === 0}
+          tituloVazio={clienteFiltro || inicio || fim ? 'Nenhuma comanda encontrada para os filtros atuais' : 'Nenhuma comanda com saldo em aberto'}
+          mensagemVazia={(clienteFiltro || inicio || fim) ? 'Ajuste ou limpe os filtros para ver outras comandas.' : undefined}
+          acaoVaziaTexto={(clienteFiltro || inicio || fim) ? 'Limpar filtros' : undefined}
+          onAcaoVazia={(clienteFiltro || inicio || fim) ? () => { setClienteFiltro(''); setInicio(''); setFim(''); } : undefined}
+          onRetry={carregarComandas}
+        >
           <div style={{ display: 'grid', gap: 12 }}>
             {paginacaoComandas.itensPagina.map((comanda) => {
               const info = statusPagamentoInfo(comanda.statusPagamento);
@@ -720,15 +733,21 @@ export default function ContasReceber() {
             })}
             <Paginacao prefixo="comandas-a-receber" total={paginacaoComandas.total} paginaAtual={paginacaoComandas.paginaAtual} limiteAtual={paginacaoComandas.limiteAtual} onChangePagina={paginacaoComandas.alterarPagina} onChangeLimite={paginacaoComandas.alterarLimite} />
           </div>
-        )
+        </EstadoLista>
       )}
 
       {/* LISTA DE PEDIDOS */}
-      {aba === 'pedidos' && (pedidos.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 12 }}>
-          {carregando ? 'Carregando pedidos...' : 'Nenhum pedido encontrado'}
-        </div>
-      ) : (
+      {aba === 'pedidos' && (
+        <EstadoLista
+          carregando={carregandoPedidos}
+          erro={erroPedidos}
+          vazio={pedidos.length === 0}
+          tituloVazio={clienteFiltro || inicio || fim || statusFiltro !== 'abertas' ? 'Nenhum pedido encontrado para os filtros atuais' : 'Nenhum pedido em aberto'}
+          mensagemVazia={clienteFiltro || inicio || fim || statusFiltro !== 'abertas' ? 'Ajuste ou limpe os filtros para ver outros pedidos.' : undefined}
+          acaoVaziaTexto={clienteFiltro || inicio || fim || statusFiltro !== 'abertas' ? 'Limpar filtros' : undefined}
+          onAcaoVazia={clienteFiltro || inicio || fim || statusFiltro !== 'abertas' ? () => { setClienteFiltro(''); setStatusFiltro('abertas'); setInicio(''); setFim(''); } : undefined}
+          onRetry={carregarPedidos}
+        >
         <div style={{ display: 'grid', gap: 12 }}>
           {paginacaoPedidos.itensPagina.map(pedido => {
             const st = statusCor[pedido.status];
@@ -875,7 +894,8 @@ export default function ContasReceber() {
           })}
           <Paginacao prefixo="pedidos-a-receber" total={paginacaoPedidos.total} paginaAtual={paginacaoPedidos.paginaAtual} limiteAtual={paginacaoPedidos.limiteAtual} onChangePagina={paginacaoPedidos.alterarPagina} onChangeLimite={paginacaoPedidos.alterarLimite} />
         </div>
-      ))}
+        </EstadoLista>
+      )}
 
       {/* MODAL DE RECEBIMENTO DE COMANDA */}
       {formComanda && (

@@ -108,7 +108,7 @@ describe('Feedback compartilhado acessível', () => {
   it('mostra o skeleton antes de erro, vazio ou conteúdo durante o carregamento', () => {
     mountFeedback(() => Promise.resolve());
 
-    cy.document().then((document) => {
+    cy.document().then(() => {
       root.render(h(ToastProvider, null, h(EstadoLista, {
         carregando: true,
         erro: 'Erro anterior',
@@ -324,5 +324,166 @@ describe('Estados das listas administrativas', () => {
     cy.contains('button', 'Adicionar Mesa').should('be.enabled');
     cy.contains('button', 'Salvar').should('be.enabled');
     cy.get('@saveTables.all').should('have.length', 0);
+  });
+
+  it('repete a carga de despesas e preserva filtros de data antes de mostrar o vazio filtrado', () => {
+    cy.login();
+    let attempts = 0;
+    cy.intercept('GET', '**/api/despesas', (request) => {
+      attempts += 1;
+      request.reply(attempts <= 2
+        ? { statusCode: 503, body: { msg: 'Falha temporária das despesas.' } }
+        : {
+            statusCode: 200,
+            body: [{
+              _id: 'despesa-fora-periodo',
+              descricao: 'Despesa fora do período',
+              categoria: 'Outros',
+              valor: 42,
+              dataVencimento: '2026-10-03',
+              status: 'pendente',
+            }],
+          });
+    }).as('expenses');
+    cy.intercept('GET', '**/api/despesas/resumo*', {
+      totalPendente: 42,
+      totalPago: 0,
+      totalAtrasado: 0,
+      porCategoria: [],
+    });
+    cy.visit('/financeiro');
+
+    cy.get('[role="status"][aria-label="Carregando lista"]').should('be.visible');
+    cy.wait('@expenses').its('response.statusCode').should('equal', 503);
+    cy.get('[role="alert"]').should('be.visible');
+    cy.get('.filters-grid input[placeholder="dd/mm/aaaa"]').eq(0).type('01102026');
+    cy.get('.filters-grid input[placeholder="dd/mm/aaaa"]').eq(1).type('02102026');
+
+    cy.get('@expenses.all').should('have.length', 2);
+    cy.wait('@expenses').its('response.statusCode').should('equal', 503);
+    cy.contains('[role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@expenses').its('response.statusCode').should('equal', 200);
+    cy.get('@expenses.all').should('have.length', 3);
+    cy.get('.filters-grid input[placeholder="dd/mm/aaaa"]').eq(0).should('have.value', '01/10/2026');
+    cy.get('.filters-grid input[placeholder="dd/mm/aaaa"]').eq(1).should('have.value', '02/10/2026');
+    cy.contains('.estado-lista--vazio h3', 'Nenhuma despesa encontrada para os filtros atuais').should('be.visible');
+  });
+
+  it('repete a carga do estoque de produção sem recarregar a página', () => {
+    cy.login();
+    let attempts = 0;
+    cy.intercept('GET', '**/api/products', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/production/recipes', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/production/dashboard', {
+      statusCode: 200,
+      body: { receitasPossiveis: [], baixoEstoque: [], producoesRecentes: [] },
+    });
+    cy.intercept('GET', '**/api/production/movements', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/production/stock*', (request) => {
+      attempts += 1;
+      request.reply(attempts <= 2
+        ? { statusCode: 503, body: { msg: 'Falha temporária do estoque de insumos.' } }
+        : { statusCode: 200, body: [] });
+    }).as('productionStock');
+    cy.visit('/producao');
+
+    cy.get('[role="status"][aria-label="Carregando lista"]').should('be.visible');
+    cy.wait('@productionStock').its('response.statusCode').should('equal', 503);
+    cy.get('[role="alert"]').should('be.visible');
+    cy.wait('@productionStock').its('response.statusCode').should('equal', 503);
+    cy.contains('[role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@productionStock').its('response.statusCode').should('equal', 200);
+    cy.get('@productionStock.all').should('have.length', 3);
+    cy.contains('.estado-lista--vazio h3', 'Nenhum insumo em estoque').should('be.visible');
+    cy.location('pathname').should('equal', '/producao');
+  });
+
+  it('repete a carga de comandas a receber na aba ativa', () => {
+    cy.login();
+    let attempts = 0;
+    cy.intercept('GET', '**/api/comandas/a-receber*', (request) => {
+      attempts += 1;
+      request.reply(attempts === 1
+        ? { statusCode: 503, body: { msg: 'Falha temporária das comandas.' } }
+        : { statusCode: 200, body: [] });
+    }).as('openReceivables');
+    cy.visit('/contas-receber');
+    cy.contains('button', 'Comandas em aberto').click();
+
+    cy.wait('@openReceivables').its('response.statusCode').should('equal', 503);
+    cy.get('[role="alert"]').should('be.visible');
+    cy.contains('[role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@openReceivables').its('response.statusCode').should('equal', 200);
+    cy.contains('.estado-lista--vazio h3', 'Nenhuma comanda com saldo em aberto').should('be.visible');
+  });
+
+  it('repete a carga do histórico de compras e informa quando ainda está vazio', () => {
+    cy.login();
+    let attempts = 0;
+    cy.intercept('GET', '**/api/products', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/compras*', (request) => {
+      attempts += 1;
+      request.reply(attempts === 1
+        ? { statusCode: 503, body: { msg: 'Falha temporária das compras.' } }
+        : { statusCode: 200, body: [] });
+    }).as('purchases');
+    cy.visit('/compras');
+
+    cy.get('[role="status"][aria-label="Carregando lista"]').should('be.visible');
+    cy.wait('@purchases').its('response.statusCode').should('equal', 503);
+    cy.get('[role="alert"]').should('be.visible');
+    cy.contains('[role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@purchases').its('response.statusCode').should('equal', 200);
+    cy.contains('.estado-lista--vazio h3', 'Nenhuma compra registrada').should('be.visible');
+  });
+
+  it('repete a carga da cozinha após erro sem substituir os comandos por um vazio falso', () => {
+    cy.login();
+    let attempts = 0;
+    cy.intercept('GET', '**/api/comandas/cozinha', (request) => {
+      attempts += 1;
+      request.reply(attempts === 1
+        ? { statusCode: 503, body: { msg: 'Falha temporária da cozinha.' } }
+        : { statusCode: 200, body: [] });
+    }).as('kitchenOrders');
+    cy.visit('/cozinha');
+
+    cy.get('[role="status"][aria-label="Carregando lista"]').should('be.visible');
+    cy.wait('@kitchenOrders').its('response.statusCode').should('equal', 503);
+    cy.get('[role="alert"]').should('be.visible');
+    cy.contains('[role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@kitchenOrders').its('response.statusCode').should('equal', 200);
+    cy.contains('.estado-lista--vazio h3', 'Nenhum preparo pendente').should('be.visible');
+  });
+
+  it('repete a carga de fichas técnicas no painel de produção', () => {
+    cy.login();
+    let attempts = 0;
+    cy.intercept('GET', '**/api/products', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/production/stock*', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/production/dashboard', {
+      statusCode: 200,
+      body: { receitasPossiveis: [], baixoEstoque: [], producoesRecentes: [] },
+    });
+    cy.intercept('GET', '**/api/production/movements', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/production/recipes', (request) => {
+      attempts += 1;
+      request.reply(attempts <= 2
+        ? { statusCode: 200, body: [] }
+        : attempts <= 4
+          ? { statusCode: 503, body: { msg: 'Falha temporária das fichas técnicas.' } }
+          : { statusCode: 200, body: [] });
+    }).as('productionRecipes');
+    cy.visit('/producao');
+    cy.wait('@productionRecipes');
+    cy.wait('@productionRecipes');
+    cy.contains('button', 'Ficha técnica').click();
+
+    cy.wait('@productionRecipes').its('response.statusCode').should('equal', 503);
+    cy.wait('@productionRecipes').its('response.statusCode').should('equal', 503);
+    cy.get('[role="alert"]').should('be.visible');
+    cy.contains('[role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@productionRecipes').its('response.statusCode').should('equal', 200);
+    cy.contains('.estado-lista--vazio h3', 'Nenhuma ficha técnica encontrada').should('be.visible');
   });
 });

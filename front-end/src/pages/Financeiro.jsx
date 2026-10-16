@@ -10,6 +10,7 @@ import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import DateInput from '../components/DateInput.jsx';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
+import EstadoLista from '../components/EstadoLista.jsx';
 
 const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const statusColors = { pago: '#16a34a', pendente: '#d97706', atrasado: '#dc2626' };
@@ -45,6 +46,7 @@ export default function Financeiro() {
   const [salvandoDespesa, setSalvandoDespesa] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [erroCarregamento, setErroCarregamento] = useState('');
+  const [tentativaCarregamento, setTentativaCarregamento] = useState(0);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -87,7 +89,7 @@ export default function Financeiro() {
 
     load();
     return () => { active = false; };
-  }, [mesSelecionado, mesComparacaoA, mesComparacaoB, showToast, tab, user]);
+  }, [mesSelecionado, mesComparacaoA, mesComparacaoB, showToast, tab, tentativaCarregamento, user]);
 
   const despesasFiltradas = useMemo(() => despesas.filter((despesa) => {
     const matchesStatus = !filtro.status || despesa.status === filtro.status;
@@ -153,8 +155,6 @@ export default function Financeiro() {
   };
 
   if (!user || user.role !== 'admin') return <Navigate to="/pdv" replace />;
-
-  if (carregando) return <><AreaTabs area="dashboard" /><div className="financeiro-page"><section className="financeiro-panel financeiro-state"><h2>Carregando financeiro...</h2><p>Consultando despesas, caixa e DRE.</p></section></div></>;
 
   const salvarDespesa = async (event) => {
     event.preventDefault();
@@ -302,7 +302,7 @@ export default function Financeiro() {
     <>
       <AreaTabs area="dashboard" />
       <div className="financeiro-page">
-      {erroCarregamento && <section className="financeiro-panel financeiro-error"><strong>Não foi possível carregar todos os dados.</strong><span>{erroCarregamento}</span><button type="button" onClick={() => window.location.reload()}>Tentar novamente</button></section>}
+      {erroCarregamento && tab !== 'despesas' && <section className="financeiro-panel financeiro-error" role="alert"><strong>Não foi possível carregar os dados financeiros.</strong><span>{erroCarregamento}</span><button type="button" onClick={() => { setCarregando(true); setErroCarregamento(''); setTentativaCarregamento((valor) => valor + 1); }}>Tentar novamente</button></section>}
       <header className="page-heading financeiro-header">
         <div>
           <span className="dashboard-eyebrow">MÓDULO FINANCEIRO</span>
@@ -318,7 +318,7 @@ export default function Financeiro() {
         </div>
       </header>
 
-      {carregando && (
+      {carregando && tab !== 'despesas' && (
         <section className="financeiro-panel financeiro-loading" style={{ textAlign: 'center', padding: 40 }}>
           <div style={{ display: 'inline-block', width: 32, height: 32, border: '3px solid var(--border-color)', borderTopColor: 'var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -402,6 +402,16 @@ export default function Financeiro() {
             </div>
 
             <div className="table-wrap">
+              <EstadoLista
+                carregando={carregando}
+                erro={erroCarregamento}
+                vazio={despesasFiltradas.length === 0}
+                tituloVazio={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? 'Nenhuma despesa encontrada para os filtros atuais' : 'Nenhuma despesa cadastrada'}
+                mensagemVazia={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? 'Ajuste ou limpe os filtros para ver outras despesas.' : undefined}
+                acaoVaziaTexto={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? 'Limpar filtros' : undefined}
+                onAcaoVazia={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? () => setFiltro({ status: '', categoria: '', dataInicio: '', dataFim: '' }) : undefined}
+                onRetry={() => { setCarregando(true); setErroCarregamento(''); setTentativaCarregamento((valor) => valor + 1); }}
+              >
               <table className="financeiro-table">
                 <thead>
                   <tr>
@@ -414,8 +424,7 @@ export default function Financeiro() {
                   </tr>
                 </thead>
                 <tbody>
-                  {despesasFiltradas.length ? (
-                    paginacaoDespesas.itensPagina.map((item) => (
+                  {paginacaoDespesas.itensPagina.map((item) => (
                       <tr key={item._id}>
                         <td>{item.descricao}</td>
                         <td>{item.categoria}</td>
@@ -438,14 +447,10 @@ export default function Financeiro() {
                           </div>
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="6" className="financeiro-empty">Nenhuma despesa encontrada.</td>
-                    </tr>
-                  )}
+                    ))}
                 </tbody>
               </table>
+              </EstadoLista>
             </div>
             <Paginacao total={paginacaoDespesas.total} paginaAtual={paginacaoDespesas.paginaAtual} limiteAtual={paginacaoDespesas.limiteAtual} onChangePagina={paginacaoDespesas.alterarPagina} onChangeLimite={paginacaoDespesas.alterarLimite} />
           </section>
