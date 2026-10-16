@@ -27,6 +27,7 @@ export default function Financeiro() {
   const [tab, setTab] = useState('despesas');
   const [despesas, setDespesas] = useState([]);
   const [resumo, setResumo] = useState({ totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
+  const [estadoResumo, setEstadoResumo] = useState({ mes: '', status: 'loading', erro: '' });
   const [fluxo, setFluxo] = useState({ dados: [], totalEntradas: 0, totalSaidas: 0, saldoDoMes: 0 });
   const [mesComparacaoA, setMesComparacaoA] = useState(new Date().toISOString().slice(0, 7));
   const [mesComparacaoB, setMesComparacaoB] = useState(() => {
@@ -47,6 +48,7 @@ export default function Financeiro() {
   const [carregando, setCarregando] = useState(true);
   const [erroCarregamento, setErroCarregamento] = useState('');
   const [tentativaCarregamento, setTentativaCarregamento] = useState(0);
+  const [tentativaResumo, setTentativaResumo] = useState(0);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -58,14 +60,8 @@ export default function Financeiro() {
       setErroCarregamento('');
       try {
         if (tab === 'despesas') {
-          const [despesasResponse, resumoResponse] = await Promise.all([
-            api.get('/despesas'),
-            api.get('/despesas/resumo', { params: { mes: mesSelecionado } }),
-          ]);
-          if (active) {
-            setDespesas(despesasResponse.data || []);
-            setResumo(resumoResponse.data || { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
-          }
+          const despesasResponse = await api.get('/despesas');
+          if (active) setDespesas(despesasResponse.data || []);
         } else if (tab === 'fluxo') {
           const response = await api.get('/contabil/fluxo-caixa', { params: { mes: mesSelecionado } });
           if (active) setFluxo(response.data || { dados: [], totalEntradas: 0, totalSaidas: 0, saldoDoMes: 0 });
@@ -91,6 +87,31 @@ export default function Financeiro() {
     return () => { active = false; };
   }, [mesSelecionado, mesComparacaoA, mesComparacaoB, showToast, tab, tentativaCarregamento, user]);
 
+  useEffect(() => {
+    if (!user || user.role !== 'admin' || tab !== 'despesas') return undefined;
+
+    let active = true;
+    const carregarResumo = async () => {
+      setEstadoResumo({ mes: mesSelecionado, status: 'loading', erro: '' });
+      try {
+        const response = await api.get('/despesas/resumo', { params: { mes: mesSelecionado } });
+        if (active) {
+          setResumo(response.data || { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
+          setEstadoResumo({ mes: mesSelecionado, status: 'success', erro: '' });
+        }
+      } catch (error) {
+        if (active) {
+          const mensagem = error.response?.data?.msg || 'Não foi possível carregar o resumo das despesas.';
+          setEstadoResumo({ mes: mesSelecionado, status: 'error', erro: mensagem });
+          showToast(mensagem, 'error');
+        }
+      }
+    };
+
+    carregarResumo();
+    return () => { active = false; };
+  }, [mesSelecionado, showToast, tab, tentativaResumo, user]);
+
   const despesasFiltradas = useMemo(() => despesas.filter((despesa) => {
     const matchesStatus = !filtro.status || despesa.status === filtro.status;
     const matchesCategoria = !filtro.categoria || despesa.categoria === filtro.categoria;
@@ -102,13 +123,38 @@ export default function Financeiro() {
   const paginacaoDespesas = usePagination(despesasFiltradas, 25, `${filtro.status}|${filtro.categoria}|${filtro.dataInicio}|${filtro.dataFim}`);
 
   const recarregarDespesas = async () => {
-    const [despesasResponse, resumoResponse] = await Promise.all([
-      api.get('/despesas'),
-      api.get('/despesas/resumo', { params: { mes: mesSelecionado } }),
-    ]);
-    setDespesas(despesasResponse.data || []);
-    setResumo(resumoResponse.data || { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
+    const mesConsultado = mesSelecionado;
+    setEstadoResumo({ mes: mesConsultado, status: 'loading', erro: '' });
+    try {
+      const [despesasResponse, resumoResponse] = await Promise.all([
+        api.get('/despesas'),
+        api.get('/despesas/resumo', { params: { mes: mesConsultado } }),
+      ]);
+      setDespesas(despesasResponse.data || []);
+      setResumo(resumoResponse.data || { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
+      setEstadoResumo({ mes: mesConsultado, status: 'success', erro: '' });
+    } catch (error) {
+      setEstadoResumo({
+        mes: mesConsultado,
+        status: 'error',
+        erro: error.response?.data?.msg || 'Não foi possível carregar o resumo das despesas.',
+      });
+      throw error;
+    }
   };
+
+  const retryFinanceiro = () => {
+    setCarregando(true);
+    setErroCarregamento('');
+    setTentativaCarregamento((valor) => valor + 1);
+  };
+
+  const retryResumo = () => {
+    setEstadoResumo({ mes: mesSelecionado, status: 'loading', erro: '' });
+    setTentativaResumo((valor) => valor + 1);
+  };
+
+  const estadoResumoAtual = estadoResumo.mes === mesSelecionado ? estadoResumo.status : 'loading';
 
   const aplicarDiaNasParcelasRecorrentes = async (despesa, dia, camposAtualizacao) => {
     const origemId = despesa.origemRecorrencia || despesa._id;
@@ -302,7 +348,7 @@ export default function Financeiro() {
     <>
       <AreaTabs area="dashboard" />
       <div className="financeiro-page">
-      {erroCarregamento && tab !== 'despesas' && <section className="financeiro-panel financeiro-error" role="alert"><strong>Não foi possível carregar os dados financeiros.</strong><span>{erroCarregamento}</span><button type="button" onClick={() => { setCarregando(true); setErroCarregamento(''); setTentativaCarregamento((valor) => valor + 1); }}>Tentar novamente</button></section>}
+      {erroCarregamento && tab !== 'despesas' && <section className="financeiro-panel financeiro-error" role="alert"><strong>Não foi possível carregar os dados financeiros.</strong><span>{erroCarregamento}</span><button type="button" onClick={retryFinanceiro}>Tentar novamente</button></section>}
       <header className="page-heading financeiro-header">
         <div>
           <span className="dashboard-eyebrow">MÓDULO FINANCEIRO</span>
@@ -337,7 +383,12 @@ export default function Financeiro() {
             key={key}
             type="button"
             className={tab === key ? 'active' : ''}
-            onClick={() => setTab(key)}
+            onClick={() => {
+              if (tab !== key && key === 'despesas') {
+                setEstadoResumo({ mes: mesSelecionado, status: 'loading', erro: '' });
+              }
+              setTab(key);
+            }}
           >
             {label}
           </button>
@@ -347,18 +398,37 @@ export default function Financeiro() {
       {tab === 'despesas' && (
         <>
           <div className="financeiro-kpis">
-            <div className="financeiro-kpi">
-              <span>Total Pago no mês</span>
-              <strong>{money(resumo.totalPago)}</strong>
-            </div>
-            <div className="financeiro-kpi">
-              <span>Total Pendente</span>
-              <strong>{money(resumo.totalPendente)}</strong>
-            </div>
-            <div className="financeiro-kpi">
-              <span>Total Atrasado</span>
-              <strong>{money(resumo.totalAtrasado)}</strong>
-            </div>
+            {estadoResumoAtual === 'loading' ? (
+              <div
+                role="status"
+                aria-label="Carregando indicadores financeiros"
+                aria-busy="true"
+                style={{ gridColumn: '1 / -1', color: 'var(--text-secondary)' }}
+              >
+                Carregando indicadores financeiros...
+              </div>
+            ) : estadoResumoAtual === 'error' ? (
+              <section className="financeiro-panel financeiro-error" role="alert" style={{ gridColumn: '1 / -1' }}>
+                <strong>Não foi possível carregar os indicadores do mês.</strong>
+                <span>{estadoResumo.erro}</span>
+                <button type="button" onClick={retryResumo}>Tentar novamente</button>
+              </section>
+            ) : (
+              <>
+                <div className="financeiro-kpi">
+                  <span>Total Pago no mês</span>
+                  <strong>{money(resumo.totalPago)}</strong>
+                </div>
+                <div className="financeiro-kpi">
+                  <span>Total Pendente</span>
+                  <strong>{money(resumo.totalPendente)}</strong>
+                </div>
+                <div className="financeiro-kpi">
+                  <span>Total Atrasado</span>
+                  <strong>{money(resumo.totalAtrasado)}</strong>
+                </div>
+              </>
+            )}
           </div>
 
           <section className="financeiro-panel">
@@ -410,7 +480,7 @@ export default function Financeiro() {
                 mensagemVazia={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? 'Ajuste ou limpe os filtros para ver outras despesas.' : undefined}
                 acaoVaziaTexto={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? 'Limpar filtros' : undefined}
                 onAcaoVazia={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? () => setFiltro({ status: '', categoria: '', dataInicio: '', dataFim: '' }) : undefined}
-                onRetry={() => { setCarregando(true); setErroCarregamento(''); setTentativaCarregamento((valor) => valor + 1); }}
+                onRetry={retryFinanceiro}
               >
               <table className="financeiro-table">
                 <thead>

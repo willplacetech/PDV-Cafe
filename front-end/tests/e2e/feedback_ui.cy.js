@@ -369,6 +369,91 @@ describe('Estados das listas administrativas', () => {
     cy.contains('.estado-lista--vazio h3', 'Nenhuma despesa encontrada para os filtros atuais').should('be.visible');
   });
 
+  it('invalida pedidos selecionados quando um filtro de pedidos falha ao recarregar', () => {
+    cy.login();
+    const pedido = {
+      _id: 'pedido-selecionado-1',
+      numero: '808',
+      clienteId: 'cliente-1',
+      clienteNome: 'Cliente teste',
+      status: 'pendente',
+      createdAt: '2026-10-16T12:00:00.000Z',
+      atendente: 'Caixa',
+      total: 18.5,
+      pagamentos: [],
+      itens: [],
+    };
+    cy.intercept('GET', '**/api/customers', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/products', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/orders*', (request) => {
+      const status = new URL(request.url).searchParams.get('status');
+      request.reply(status === 'pago'
+        ? { statusCode: 503, body: { msg: 'Falha ao atualizar pedidos filtrados.' } }
+        : { statusCode: 200, body: [pedido] });
+    }).as('orders');
+    cy.intercept('PATCH', '**/api/orders/*/pagar', { statusCode: 200, body: pedido }).as('batchPayment');
+    cy.visit('/contas-receber');
+
+    cy.wait('@orders').its('response.statusCode').should('equal', 200);
+    cy.wait('@orders').its('response.statusCode').should('equal', 200);
+    cy.get('input[type="checkbox"]').check();
+    cy.contains('button', 'Receber Marcados (1)').should('be.enabled');
+
+    cy.get('[role="combobox"]').eq(1).click();
+    cy.get('[role="option"]').contains('Quitados').click();
+    cy.wait('@orders').its('response.statusCode').should('equal', 503);
+
+    cy.contains('button', 'Receber Marcados (0)').should('be.disabled');
+    cy.get('[role="dialog"]').should('not.exist');
+    cy.get('@batchPayment.all').should('have.length', 0);
+  });
+
+  it('oculta KPIs desatualizados e recupera o resumo financeiro ao repetir a consulta do mês', () => {
+    cy.login();
+    const dataAlvo = new Date();
+    dataAlvo.setDate(1);
+    dataAlvo.setMonth(dataAlvo.getMonth() - 2);
+    const mesAlvo = dataAlvo.toISOString().slice(0, 7);
+    let tentativasDoMes = 0;
+    cy.intercept('GET', '**/api/despesas', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/despesas/resumo*', (request) => {
+      const mes = new URL(request.url).searchParams.get('mes');
+      request.alias = mes === mesAlvo ? 'targetSummary' : 'initialSummary';
+      if (mes !== mesAlvo) {
+        return request.reply({
+          statusCode: 200,
+          body: { totalPago: 1111, totalPendente: 2222, totalAtrasado: 3333, porCategoria: [] },
+        });
+      }
+
+      tentativasDoMes += 1;
+      request.reply(tentativasDoMes === 1
+        ? { delay: 400, statusCode: 503, body: { msg: 'Falha temporária do resumo.' } }
+        : {
+            statusCode: 200,
+            body: { totalPago: 44, totalPendente: 55, totalAtrasado: 66, porCategoria: [] },
+          });
+    });
+    cy.visit('/financeiro');
+
+    cy.wait('@initialSummary');
+    cy.wait('@initialSummary');
+    cy.get('.financeiro-kpis').should('contain.text', 'R$ 1.111,00');
+    cy.get('input[type="month"]').clear().type(mesAlvo);
+    cy.get('input[type="month"]').should('have.value', mesAlvo);
+    cy.get('[aria-label="Carregando indicadores financeiros"]').should('be.visible');
+    cy.get('.financeiro-kpis').should('not.contain.text', 'R$ 1.111,00');
+    cy.wait('@targetSummary').its('response.statusCode').should('equal', 503);
+    cy.get('[role="alert"]').should('contain.text', 'Não foi possível carregar os indicadores do mês.');
+    cy.get('.financeiro-kpis').should('not.contain.text', 'R$ 1.111,00');
+
+    cy.contains('.financeiro-kpis [role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@targetSummary').its('response.statusCode').should('equal', 200);
+    cy.get('.financeiro-kpis').should('contain.text', 'R$ 44,00')
+      .and('contain.text', 'R$ 55,00')
+      .and('contain.text', 'R$ 66,00');
+  });
+
   it('repete a carga do estoque de produção sem recarregar a página', () => {
     cy.login();
     let attempts = 0;

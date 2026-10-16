@@ -56,6 +56,7 @@ export default function ContasReceber() {
   const [formComanda, setFormComanda] = useState(null);
   const [selecionados, setSelecionados] = useState(new Set());
   const chaveFiltros = `${aba}|${clienteFiltro}|${statusFiltro}|${inicio}|${fim}`;
+  const pedidoRequestIdRef = useRef(0);
   const paginacaoPedidos = usePagination(pedidos, 25, chaveFiltros);
   const paginacaoComandas = usePagination(comandasAbertas, 25, chaveFiltros);
   const operacoesRef = useRef(null);
@@ -63,6 +64,11 @@ export default function ContasReceber() {
   const recebendoRef = useRef(false);
   const [recebendo, setRecebendo] = useState(false);
   const carregando = aba === 'comandas' ? carregandoComandas : carregandoPedidos;
+  const invalidarSelecaoPedidos = () => {
+    setSelecionados(new Set());
+    setPagamentoMultiploModal(null);
+  };
+
   useEffect(() => {
     if (!pagamentoModal && !formComanda && !pagamentoMultiploModal && !quitarClienteModal) operacoesRef.current.limpar();
   }, [pagamentoModal, formComanda, pagamentoMultiploModal, quitarClienteModal]);
@@ -104,6 +110,7 @@ export default function ContasReceber() {
 
 
   const carregarPedidos = useCallback(async () => {
+    const requestId = ++pedidoRequestIdRef.current;
     try {
       setCarregandoPedidos(true);
       setErroPedidos('');
@@ -114,12 +121,23 @@ export default function ContasReceber() {
       if (fim) params.append('fim', fim);
 
       const res = await api.get(`/orders?${params}`);
-      setPedidos(res.data || []);
-      setSelecionados(new Set());
+      if (requestId !== pedidoRequestIdRef.current) return;
+      const pedidosAtualizados = res.data || [];
+      const pedidosRecebiveis = new Set(
+        pedidosAtualizados
+          .filter(pedido => pedido.status === 'pendente' || pedido.status === 'parcial')
+          .map(pedido => pedido._id)
+      );
+      setPedidos(pedidosAtualizados);
+      setSelecionados(atuais => new Set([...atuais].filter(id => pedidosRecebiveis.has(id))));
     } catch (error) {
-      setErroPedidos(error.response?.data?.msg || error.message || 'Não foi possível carregar os pedidos.');
+      if (requestId === pedidoRequestIdRef.current) {
+        setSelecionados(new Set());
+        setPagamentoMultiploModal(null);
+        setErroPedidos(error.response?.data?.msg || error.message || 'Não foi possível carregar os pedidos.');
+      }
     } finally {
-      setCarregandoPedidos(false);
+      if (requestId === pedidoRequestIdRef.current) setCarregandoPedidos(false);
     }
   }, [clienteFiltro, statusFiltro, inicio, fim]);
 
@@ -266,10 +284,12 @@ export default function ContasReceber() {
 
   // ✅ Abrir modal de RECEBIMENTO MÚLTIPLO dos marcados
   const abrirReceberMarcados = () => {
+    if (aba !== 'pedidos' || carregandoPedidos || erroPedidos) return;
     if (selecionados.size === 0) {
       return showToast('Selecione pelo menos um pedido!', 'warning');
     }
     const pedidosSelecionados = pedidos.filter(p => selecionados.has(p._id));
+    if (pedidosSelecionados.length !== selecionados.size) return;
     const clientes = new Set(pedidosSelecionados.map(p => p.clienteId || `nome:${p.clienteNome || ''}`));
     if (clientes.size > 1) return showToast('Selecione apenas pedidos do mesmo cliente', 'warning');
     setPagamentoMultiploModal(true);
@@ -296,10 +316,13 @@ export default function ContasReceber() {
 
   // ✅ Registrar pagamento de TODOS os marcados
   const registrarPagamentoMultiplo = async () => {
+    if (aba !== 'pedidos' || carregandoPedidos || erroPedidos || selecionados.size === 0) return;
     if (recebendoRef.current) return;
+    const pedidosSelecionados = pedidos.filter(p => selecionados.has(p._id));
+    if (pedidosSelecionados.length !== selecionados.size
+      || pedidosSelecionados.some(pedido => pedido.status !== 'pendente' && pedido.status !== 'parcial')) return;
     recebendoRef.current = true;
     setRecebendo(true);
-    const pedidosSelecionados = pedidos.filter(p => selecionados.has(p._id));
     const pedidosRecebidos = [];
     let sucessos = 0;
     let falhas = 0;
@@ -555,7 +578,7 @@ export default function ContasReceber() {
           <button type="button" disabled={carregando} onClick={exportarContas}>Exportar CSV</button>
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
             {[['pedidos', '📄 Pedidos'], ['comandas', '🧾 Comandas em aberto']].map(([chave, label]) => (
-              <button key={chave} type="button" onClick={() => { if (chave === 'comandas') setCarregandoComandas(true); setAba(chave); }} style={{
+              <button key={chave} type="button" onClick={() => { invalidarSelecaoPedidos(); if (chave === 'comandas') setCarregandoComandas(true); setAba(chave); }} style={{
                 padding: '8px 14px', borderRadius: 999, cursor: 'pointer', fontWeight: 700, fontSize: 13,
                 border: aba === chave ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
                 background: aba === chave ? 'var(--accent-light)' : 'var(--bg-tertiary)',
@@ -573,7 +596,7 @@ export default function ContasReceber() {
       }}>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Cliente</label>
-          <SearchableSelect value={clienteFiltro} onChange={e => setClienteFiltro(e.target.value)} style={{
+          <SearchableSelect value={clienteFiltro} onChange={e => { invalidarSelecaoPedidos(); setClienteFiltro(e.target.value); }} style={{
             width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
           }}>
             <option value="">Todos os clientes</option>
@@ -582,7 +605,7 @@ export default function ContasReceber() {
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Status</label>
-          <SearchableSelect value={statusFiltro} onChange={e => setStatusFiltro(e.target.value)} style={{
+          <SearchableSelect value={statusFiltro} onChange={e => { invalidarSelecaoPedidos(); setStatusFiltro(e.target.value); }} style={{
             width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
           }}>
             <option value="abertas">Todos em A Receber</option>
@@ -593,13 +616,13 @@ export default function ContasReceber() {
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Data Início</label>
-          <DateInput value={inicio} onChange={setInicio} style={{
+          <DateInput value={inicio} onChange={value => { invalidarSelecaoPedidos(); setInicio(value); }} style={{
             width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
           }} />
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Data Fim</label>
-          <DateInput value={fim} onChange={setFim} style={{
+          <DateInput value={fim} onChange={value => { invalidarSelecaoPedidos(); setFim(value); }} style={{
             width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
           }} />
         </div>
@@ -625,6 +648,7 @@ export default function ContasReceber() {
             {aba === 'pedidos' && pedidos.length > 0 && (
               <button
                 onClick={toggleSelecionarTodos}
+                disabled={carregandoPedidos || Boolean(erroPedidos)}
                 style={{
                   padding: '6px 12px',
                   background: selecionados.size === pedidos.length && pedidos.length > 0 ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.2)',
@@ -637,7 +661,7 @@ export default function ContasReceber() {
             )}
             <div style={{ display: 'flex', gap: 6 }}>
               {aba === 'pedidos' && (
-                <button onClick={abrirReceberMarcados} style={{
+                <button disabled={carregandoPedidos || Boolean(erroPedidos)} onClick={abrirReceberMarcados} style={{
                     padding: '6px 12px', background: 'var(--brand-cream)', color: 'var(--brand-brown)',
                   border: 'none', borderRadius: 8,
                   fontSize: 12, fontWeight: 700, cursor: 'pointer'
@@ -677,7 +701,7 @@ export default function ContasReceber() {
           tituloVazio={clienteFiltro || inicio || fim ? 'Nenhuma comanda encontrada para os filtros atuais' : 'Nenhuma comanda com saldo em aberto'}
           mensagemVazia={(clienteFiltro || inicio || fim) ? 'Ajuste ou limpe os filtros para ver outras comandas.' : undefined}
           acaoVaziaTexto={(clienteFiltro || inicio || fim) ? 'Limpar filtros' : undefined}
-          onAcaoVazia={(clienteFiltro || inicio || fim) ? () => { setClienteFiltro(''); setInicio(''); setFim(''); } : undefined}
+          onAcaoVazia={(clienteFiltro || inicio || fim) ? () => { invalidarSelecaoPedidos(); setClienteFiltro(''); setInicio(''); setFim(''); } : undefined}
           onRetry={carregarComandas}
         >
           <div style={{ display: 'grid', gap: 12 }}>
@@ -745,7 +769,7 @@ export default function ContasReceber() {
           tituloVazio={clienteFiltro || inicio || fim || statusFiltro !== 'abertas' ? 'Nenhum pedido encontrado para os filtros atuais' : 'Nenhum pedido em aberto'}
           mensagemVazia={clienteFiltro || inicio || fim || statusFiltro !== 'abertas' ? 'Ajuste ou limpe os filtros para ver outros pedidos.' : undefined}
           acaoVaziaTexto={clienteFiltro || inicio || fim || statusFiltro !== 'abertas' ? 'Limpar filtros' : undefined}
-          onAcaoVazia={clienteFiltro || inicio || fim || statusFiltro !== 'abertas' ? () => { setClienteFiltro(''); setStatusFiltro('abertas'); setInicio(''); setFim(''); } : undefined}
+          onAcaoVazia={clienteFiltro || inicio || fim || statusFiltro !== 'abertas' ? () => { invalidarSelecaoPedidos(); setClienteFiltro(''); setStatusFiltro('abertas'); setInicio(''); setFim(''); } : undefined}
           onRetry={carregarPedidos}
         >
         <div style={{ display: 'grid', gap: 12 }}>
@@ -767,6 +791,7 @@ export default function ContasReceber() {
                     <input
                       type="checkbox"
                       checked={estaSelecionado}
+                      disabled={carregandoPedidos || Boolean(erroPedidos)}
                       onChange={() => toggleSelecionar(pedido._id)}
                       style={{ width: 18, height: 18, cursor: 'pointer' }}
                     />
@@ -980,7 +1005,7 @@ export default function ContasReceber() {
               <button onClick={() => { if (!recebendoRef.current) setPagamentoMultiploModal(null); }} style={{
                 flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer'
               }}>Cancelar</button>
-              <button disabled={recebendo} onClick={registrarPagamentoMultiplo} style={{
+              <button disabled={recebendo || carregandoPedidos || Boolean(erroPedidos) || selecionados.size === 0} onClick={registrarPagamentoMultiplo} style={{
                 flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer'
               }}>✅ Receber Tudo</button>
             </div>
