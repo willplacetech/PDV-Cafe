@@ -77,3 +77,30 @@ Thumbs.db
 .continue/
 .kilo/
 .superpowers/
+
+# Artefatos auxiliares gerados
+.agents/
+.aider-desk/
+.xgrok/
+.playwright-mcp/
+graphify-out/
+reports/
+
+# Testes e builds
+.test-mongodb-cache/
+node_modules/
+dist/
+build/
+coverage/
+
+# Ambiente local
+.env
+.env.*
+!.env.example
+
+# Logs e arquivos locais
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
