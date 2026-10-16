@@ -9,6 +9,7 @@ const HistoricoCusto = require('../models/HistoricoCusto');
 const { UNIDADES_PERMITIDAS, normalizarUnidade, validarQuantidadeCompra } = require('../utils/unidades');
 const { paraBase, estoqueTotalBase } = require('../utils/estoqueInsumo');
 const { normalizarEstoqueLegado, produtoControlaPeso } = require('../utils/estoqueProduto');
+const { parsePagination, createPaginationResponse } = require('../utils/pagination');
 
 const router = express.Router();
 const units = UNIDADES_PERMITIDAS;
@@ -32,13 +33,23 @@ router.use(auth.allowRoles('admin'));
 
 router.get('/', async (req, res) => {
   try {
-    const compras = await Purchase.find()
+    const pagination = parsePagination(req.query);
+    const total = pagination.requested ? await Purchase.countDocuments() : null;
+    let comprasQuery = Purchase.find()
       .populate('itens.produtoId', 'nome codigo unidadeConteudo conteudoPorEmbalagem')
       .populate('createdBy', 'username')
-      .sort({ data: -1, createdAt: -1 })
-      .limit(200);
-    res.json(compras);
+      .sort({ data: -1, createdAt: -1, _id: -1 });
+    if (pagination.requested) {
+      const totalPaginas = Math.ceil(total / pagination.limite);
+      const pagina = Math.min(pagination.pagina, Math.max(1, totalPaginas));
+      comprasQuery = comprasQuery.skip((pagina - 1) * pagination.limite).limit(pagination.limite);
+    } else {
+      comprasQuery = comprasQuery.limit(200);
+    }
+    const compras = await comprasQuery;
+    res.json(pagination.requested ? createPaginationResponse(compras, total, pagination) : compras);
   } catch (error) {
+    if (error.status === 400) return res.status(400).json({ msg: error.message });
     res.status(500).json({ msg: error.message });
   }
 });

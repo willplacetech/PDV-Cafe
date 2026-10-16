@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import Paginacao from '../components/Paginacao.jsx';
-import usePagination from '../hooks/usePagination.js';
+import useUrlPagination from '../hooks/useUrlPagination.js';
+import { updatePaginationParams } from '../utils/paginationUrl.js';
 import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import EstadoLista from '../components/EstadoLista.jsx';
 import { useToast } from '../components/useToast.js';
@@ -69,7 +70,7 @@ function FormularioPedidoManual({ onSubmit, ocupado, taxaPadrao }) {
 export default function Entregas() {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const pedidoDestacado = searchParams.get('pedido');
   const [pedidos, setPedidos] = useState([]);
   const [entregadores, setEntregadores] = useState([]);
@@ -78,10 +79,9 @@ export default function Entregas() {
   const [selecao, setSelecao] = useState({});
   const [aba, setAba] = useState('fila');
   const [filaAba, setFilaAba] = useState('prontos');
-  const [filtroStatus, setFiltroStatus] = useState('');
-  const [filtroData, setFiltroData] = useState('');
-  const [pagina, setPagina] = useState(1);
-  const [paginas, setPaginas] = useState(0);
+  const [filtroStatus, setFiltroStatus] = useState(() => searchParams.get('status') || '');
+  const [filtroData, setFiltroData] = useState(() => searchParams.get('data') || '');
+  const [totalPedidos, setTotalPedidos] = useState(0);
   const [entregadorEdicao, setEntregadorEdicao] = useState(null);
   const [whatsapp, setWhatsapp] = useState(null);
   const [erro, setErro] = useState('');
@@ -92,16 +92,16 @@ export default function Entregas() {
   const [agora, setAgora] = useState(Date.now);
   const [ocupado, setOcupado] = useState(false);
   const [despachando, setDespachando] = useState('');
-  const carregamentoAtivo = useRef(false);
+  const carregamentoRequestId = useRef(0);
   const pedidoFocado = useRef(null);
-  const paginacaoEntregadores = usePagination(entregadores, 25, 'delivery-couriers');
+  const paginacaoHistorico = useUrlPagination();
+  const { paginaAtual, limiteAtual } = paginacaoHistorico;
 
   const carregar = useCallback(async (silencioso = false) => {
-    if (carregamentoAtivo.current) return;
-    carregamentoAtivo.current = true;
+    const requestId = ++carregamentoRequestId.current;
     if (!silencioso) setCarregando(true);
     try {
-      const query = new URLSearchParams({ pagina: String(aba === 'historico' ? pagina : 1), limite: aba === 'historico' ? '30' : '100' });
+      const query = new URLSearchParams({ pagina: String(aba === 'historico' ? paginaAtual : 1), limite: String(aba === 'historico' ? limiteAtual : 100) });
       if (aba === 'historico') {
         if (filtroStatus) query.set('status', filtroStatus);
         if (filtroData) query.set('data', filtroData);
@@ -112,20 +112,22 @@ export default function Entregas() {
         api.get('/entregas/estatisticas', { pdvSilenciosa: silencioso }),
         api.get('/entregas/configuracao', { pdvSilenciosa: silencioso }),
       ]);
+      if (requestId !== carregamentoRequestId.current) return;
       setPedidos(pedidosResponse.data.pedidos || []);
-      setPaginas(pedidosResponse.data.paginas || 0);
+      setTotalPedidos(pedidosResponse.data.total || 0);
       setEntregadores(entregadoresResponse.data || []);
       setEstatisticas(estatisticasResponse.data || {});
       setComercio(comercioResponse.data || null);
       setAgora(Date.now());
       setErroLista('');
     } catch (error) {
-      setErroLista(error.response?.data?.msg || 'Não foi possível carregar as entregas.');
+      if (requestId === carregamentoRequestId.current) {
+        setErroLista(error.response?.data?.msg || 'Não foi possível carregar as entregas.');
+      }
     } finally {
-      setCarregando(false);
-      carregamentoAtivo.current = false;
+      if (requestId === carregamentoRequestId.current) setCarregando(false);
     }
-  }, [aba, filtroData, filtroStatus, pagina]);
+  }, [aba, filtroData, filtroStatus, paginaAtual, limiteAtual]);
 
   useEffect(() => {
     const iniciar = window.setTimeout(() => { void carregar(); }, 0);
@@ -137,6 +139,16 @@ export default function Entregas() {
       window.clearInterval(relogio);
     };
   }, [carregar]);
+
+  const atualizarFiltroHistorico = (nome, valor, atualizarEstado) => {
+    atualizarEstado(valor);
+    setSearchParams((current) => {
+      const next = updatePaginationParams(current, { pagina: 1 });
+      if (!valor) next.delete(nome);
+      else next.set(nome, valor);
+      return next;
+    }, { replace: true });
+  };
 
   useEffect(() => {
     if (!pedidoDestacado || pedidoFocado.current === pedidoDestacado) return undefined;
@@ -324,7 +336,7 @@ export default function Entregas() {
 
     <nav className="delivery-tabs" aria-label="Gestão de entregas">
       {[['fila', 'Fila de entregas'], ['novo', 'Novo pedido'], ['historico', 'Histórico'], ['entregadores', 'Entregadores'], ['configuracao', 'Configurações']].map(([id, label]) =>
-        <button key={id} type="button" aria-selected={aba === id} onClick={() => { setAba(id); setPagina(1); }}>{label}</button>
+        <button key={id} type="button" aria-selected={aba === id} onClick={() => { setAba(id); paginacaoHistorico.alterarPagina(1); }}>{label}</button>
       )}
     </nav>
 
@@ -338,11 +350,11 @@ export default function Entregas() {
 
     {aba === 'historico' && <div className="delivery-form-grid">
       <label>Status
-        <SearchableSelect value={filtroStatus} onChange={event => { setFiltroStatus(event.target.value); setPagina(1); }}>
+        <SearchableSelect value={filtroStatus} onChange={event => atualizarFiltroHistorico('status', event.target.value, setFiltroStatus)}>
           <option value="">Todos</option>{Object.entries(STATUS_NOMES).map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
         </SearchableSelect>
       </label>
-      <label>Data<input type="date" value={filtroData} onChange={event => { setFiltroData(event.target.value); setPagina(1); }} /></label>
+      <label>Data<input type="date" value={filtroData} onChange={event => atualizarFiltroHistorico('data', event.target.value, setFiltroData)} /></label>
     </div>}
 
     {aba === 'entregadores' && <section className="delivery-grid">
@@ -356,7 +368,7 @@ export default function Entregas() {
       </form>
       <div>
         <div className="delivery-grid">
-        {paginacaoEntregadores.itensPagina.map(entregador => {
+        {entregadores.map(entregador => {
           const pertenceAoComercio = String(entregador.tenantId) === String(comercio?._id);
           return <article className="delivery-card" key={entregador._id}>
           <span className="delivery-badge">{!pertenceAoComercio ? 'Livre · compartilhado' : entregador.ativo === false ? 'Desativado' : entregador.status}</span>
@@ -366,7 +378,6 @@ export default function Entregas() {
         })}
         {!entregadores.length && <p className="delivery-empty">Nenhum entregador cadastrado.</p>}
         </div>
-        <Paginacao total={paginacaoEntregadores.total} paginaAtual={paginacaoEntregadores.paginaAtual} limiteAtual={paginacaoEntregadores.limiteAtual} onChangePagina={paginacaoEntregadores.alterarPagina} onChangeLimite={paginacaoEntregadores.alterarLimite} prefixo="delivery-couriers" />
       </div>
     </section>}
 
@@ -433,11 +444,7 @@ export default function Entregas() {
       </section>
     </EstadoLista>}
 
-    {aba === 'historico' && paginas > 1 && <div className="delivery-actions" aria-label="Paginação do histórico">
-      <button type="button" className="delivery-secondary" disabled={pagina <= 1 || carregando} onClick={() => setPagina(value => value - 1)}>Anterior</button>
-      <span>Página {pagina} de {paginas}</span>
-      <button type="button" className="delivery-secondary" disabled={pagina >= paginas || carregando} onClick={() => setPagina(value => value + 1)}>Próxima</button>
-    </div>}
+    {aba === 'historico' && <Paginacao total={totalPedidos} paginaAtual={paginaAtual} limiteAtual={limiteAtual} onChangePagina={paginacaoHistorico.alterarPagina} onChangeLimite={paginacaoHistorico.alterarLimite} />}
 
   </div>;
 }

@@ -6,7 +6,10 @@ const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
 const Customer = require('../models/Customer');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
+const { parsePagination, createPaginationResponse } = require('../utils/pagination');
 const normalizarTelefone = (telefone) => String(telefone || '').replace(/\D/g, '');
+const normalizarCpf = (cpf) => String(cpf || '').replace(/\D/g, '');
+const filtroCpf = (cpf) => ({ $regex: `^${normalizarCpf(cpf).split('').join('\\D*')}$` });
 const normalizarEnderecoEntrega = (endereco) => {
   if (endereco === undefined) return undefined;
   if (!endereco || typeof endereco !== 'object' || Array.isArray(endereco)) return null;
@@ -26,6 +29,8 @@ const normalizarEnderecoEntrega = (endereco) => {
 router.get('/', auth, auth.allowRoles('admin', 'gerente'), async (req, res) => {
   try {
     const { search } = req.query;
+    if (search !== undefined && typeof search !== 'string') return res.status(400).json({ msg: 'Busca inválida' });
+    const pagination = parsePagination(req.query);
     await Customer.findOneAndUpdate(
       { clienteInterno: true },
       { $setOnInsert: { nome: 'Cliente Interno', clienteInterno: true, createdBy: req.user.id } },
@@ -42,9 +47,19 @@ router.get('/', auth, auth.allowRoles('admin', 'gerente'), async (req, res) => {
       };
     }
 
-    const customers = await Customer.find(query).sort({ nome: 1 });
-    res.json(customers);
+    const total = pagination.requested ? await Customer.countDocuments(query) : null;
+    let customersQuery = Customer.find(query).sort({ nome: 1, _id: 1 });
+    if (pagination.requested) {
+      const totalPaginas = Math.ceil(total / pagination.limite);
+      const pagina = Math.min(pagination.pagina, Math.max(1, totalPaginas));
+      customersQuery = customersQuery.skip((pagina - 1) * pagination.limite).limit(pagination.limite);
+    }
+    const customers = await customersQuery;
+    res.json(pagination.requested
+      ? createPaginationResponse(customers, total, pagination)
+      : customers);
   } catch (err) {
+    if (err.status === 400) return res.status(400).json({ msg: err.message });
     console.error(err.message);
     res.status(500).send('Erro no servidor');
   }
@@ -107,6 +122,11 @@ router.post(
       const enderecoEntrega = normalizarEnderecoEntrega(req.body.enderecoEntrega);
       if (enderecoEntrega === null) return res.status(400).json({ msg: 'Endereço de entrega inválido' });
       const telefoneNormalizado = normalizarTelefone(telefone);
+      const cpfNormalizado = normalizarCpf(cpf);
+      if (cpfNormalizado && cpfNormalizado.length !== 11) return res.status(400).json({ msg: 'CPF inválido' });
+      if (cpfNormalizado && await Customer.exists({ cpf: filtroCpf(cpfNormalizado) })) {
+        return res.status(409).json({ msg: 'CPF já cadastrado' });
+      }
       if (telefoneNormalizado && await Customer.exists({ telefone: telefoneNormalizado })) {
         return res.status(409).json({ msg: 'Telefone já cadastrado' });
       }
@@ -117,7 +137,7 @@ router.post(
         endereco: endereco ? endereco.trim() : '',
         enderecoEntrega,
         aniversario: aniversario ? aniversario.trim() : '',
-        cpf: cpf ? cpf.trim() : '',
+        cpf: cpfNormalizado,
         createdBy: req.user.id,
       });
 
@@ -140,6 +160,11 @@ router.put('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
       return res.status(409).json({ msg: 'O Cliente Interno é reservado para consumo da equipe e não pode ser alterado' });
     }
     const { nome, telefone, endereco, cpf, aniversario } = req.body;
+    const cpfNormalizado = cpf === undefined ? undefined : normalizarCpf(cpf);
+    if (cpfNormalizado && cpfNormalizado.length !== 11) return res.status(400).json({ msg: 'CPF inválido' });
+    if (cpfNormalizado && await Customer.exists({ cpf: filtroCpf(cpfNormalizado), _id: { $ne: req.params.id } })) {
+      return res.status(409).json({ msg: 'CPF já cadastrado' });
+    }
     if (req.body.cafesFidelidade !== undefined
       && (!Number.isSafeInteger(req.body.cafesFidelidade) || req.body.cafesFidelidade < 0)) {
       return res.status(400).json({ msg: 'Total histórico de comandas deve ser um inteiro não negativo' });
@@ -157,7 +182,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
     if (endereco !== undefined) updateFields.endereco = endereco.trim();
     if (enderecoEntrega !== undefined) updateFields.enderecoEntrega = enderecoEntrega;
     if (aniversario !== undefined) updateFields.aniversario = aniversario.trim();
-    if (cpf !== undefined) updateFields.cpf = cpf.trim();
+    if (cpfNormalizado !== undefined) updateFields.cpf = cpfNormalizado;
     if (req.body.cafesFidelidade !== undefined) updateFields.cafesFidelidade = req.body.cafesFidelidade;
 
     const customer = await Customer.findByIdAndUpdate(

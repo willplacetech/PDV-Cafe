@@ -13,6 +13,7 @@ const gruposMenu = [
     label: '🏪 ATENDIMENTO',
     items: [
       { label: 'PDV · Nova venda', icon: '🛒', to: '/pdv' },
+      { label: 'Histórico de Vendas', icon: '📋', to: '/pedidos', admin: true },
       { label: 'Entregas', icon: '🛵', to: '/entregas', roles: ['admin', 'operador'], badge: true },
       { label: 'Mesas / Comandas', icon: '🪑', to: '/comandas', badge: 'comandas' },
       { label: 'A Receber', icon: '💰', to: '/contas-receber', admin: true },
@@ -51,6 +52,7 @@ const gruposMenu = [
       { label: 'Dashboard', icon: '📊', to: '/dashboard', admin: true },
       { label: 'Fechamento de Caixa', icon: '💵', to: '/caixa', roles: ['admin', 'gerente'] },
       { label: 'DRE / Demonstrativo', icon: '📈', to: '/financeiro', admin: true },
+      { label: 'Auditoria', icon: '🧾', to: '/auditoria', admin: true },
     ],
   },
   {
@@ -74,6 +76,7 @@ const gruposMenu = [
 
 const pageIcons = {
   '/pdv': { icon: '🛒', title: 'Atendimento' },
+  '/pedidos': { icon: '📋', title: 'Histórico de Vendas' },
   '/entregas': { icon: '🛵', title: 'Entregas' },
   '/produtos': { icon: '📦', title: 'Produtos' },
   '/clientes': { icon: '👤', title: 'Clientes' },
@@ -86,6 +89,7 @@ const pageIcons = {
   '/producao': { icon: '🧪', title: 'Produção' },
   '/compras': { icon: '🧾', title: 'Compras' },
   '/financeiro': { icon: '💵', title: 'Financeiro' },
+  '/auditoria': { icon: '🧾', title: 'Auditoria' },
   '/ajustes/impressoras': { icon: '🖨️', title: 'Impressoras' },
   '/configuracoes/pagamentos': { icon: '💳', title: 'Pagamentos' },
   '/configuracoes': { icon: '🔐', title: 'Autorização de gerente' },

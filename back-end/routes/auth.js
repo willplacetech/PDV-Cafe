@@ -9,6 +9,7 @@ const auth = require('../middleware/auth');
 const { exigirAutorizacao, registrarAuditoria } = require('../middleware/exigirAutorizacao');
 const Auditoria = require('../models/Auditoria');
 const { getJwtSecret } = require('../utils/authConfig');
+const { parsePagination, createPaginationResponse } = require('../utils/pagination');
 const router = express.Router();
 const { PASSWORD_MESSAGE, validLoginPassword, validNewPassword, validUsername } = require('../utils/passwordPolicy');
 const sessions = require('../utils/authSessions');
@@ -80,9 +81,21 @@ router.post('/register', auth, auth.allowRoles('admin'), exigirAutorizacao('cria
 // Administração de contas PDV; cada alteração revoga as sessões anteriores.
 router.get('/users', auth, auth.allowRoles('admin'), async (req, res, next) => {
   try {
-    const users = await User.find({ role: { $in: pdvRoles } }).select('username role ativo').sort({ username: 1 });
-    res.json(users.filter(user => user.username.toLowerCase() !== 'dola').map(publicManagedUser));
-  } catch (error) { next(error); }
+    const pagination = parsePagination(req.query);
+    const filter = { role: { $in: pdvRoles }, username: { $not: /^dola$/i } };
+    const total = pagination.requested ? await User.countDocuments(filter) : null;
+    let usersQuery = User.find(filter).select('username role ativo').sort({ username: 1, _id: 1 });
+    if (pagination.requested) {
+      const totalPaginas = Math.ceil(total / pagination.limite);
+      const pagina = Math.min(pagination.pagina, Math.max(1, totalPaginas));
+      usersQuery = usersQuery.skip((pagina - 1) * pagination.limite).limit(pagination.limite);
+    }
+    const users = (await usersQuery).map(publicManagedUser);
+    res.json(pagination.requested ? createPaginationResponse(users, total, pagination) : users);
+  } catch (error) {
+    if (error.status === 400) return res.status(400).json({ msg: error.message });
+    next(error);
+  }
 });
 
 router.patch('/users/:id', auth, auth.allowRoles('admin'), exigirAutorizacao('editar_usuario'), async (req, res, next) => {

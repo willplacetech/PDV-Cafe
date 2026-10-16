@@ -1,5 +1,5 @@
 import FieldLabel from '../components/FieldLabel.jsx';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
@@ -11,7 +11,7 @@ import { criarXmlClientes } from '../utils/customersXml.js';
 import { exportarCSV, colunasCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { calcularMultiplicadorFidelidade } from '../utils/fidelidade.js';
 import Paginacao from '../components/Paginacao.jsx';
-import usePagination from '../hooks/usePagination.js';
+import useUrlPagination from '../hooks/useUrlPagination.js';
 
 // 🎯 Máscaras
 const aplicarMascaraTelefone = (valor) => {
@@ -43,31 +43,34 @@ const aplicarMascaraData = (valor) => {
 
 export default function Customers() {
   const [clientes, setClientes] = useState([]);
+  const [totalClientes, setTotalClientes] = useState(0);
   const [carregandoLista, setCarregandoLista] = useState(true);
   const [erroLista, setErroLista] = useState('');
-  const paginacao = usePagination(clientes);
+  const paginacao = useUrlPagination();
+  const { paginaAtual, limiteAtual } = paginacao;
   const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '' }, cpf: '', aniversario: '', cafesFidelidade: '0' });
   const [editing, setEditing] = useState(null);
   const { showToast } = useToast();
   const { solicitar: solicitarExcluir, renderizarModal: renderizarAutorizacaoExcluir } = useAutorizacaoGerente('excluir_cliente');
 
 
-  const carregar = async () => {
+  const carregar = useCallback(async () => {
     setCarregandoLista(true);
     setErroLista('');
     try {
-      const res = await api.get('/customers');
-      setClientes(res.data);
+      const res = await api.get('/customers', { params: { pagina: paginaAtual, limite: limiteAtual } });
+      setClientes(Array.isArray(res.data) ? res.data : res.data.dados);
+      setTotalClientes(Array.isArray(res.data) ? res.data.length : res.data.total);
     } catch (error) {
       setErroLista(error.response?.data?.msg || error.message || 'Não foi possível carregar clientes.');
     } finally {
       setCarregandoLista(false);
     }
-  };
+  }, [paginaAtual, limiteAtual]);
   useEffect(() => {
     const carregarInicial = async () => { await carregar(); };
     carregarInicial();
-  }, []);
+  }, [carregar]);
 
   // 🔒 Verifica duplicidade de CPF
   const cpfJaExiste = (cpf, idEdicao = null) => {
@@ -156,8 +159,14 @@ export default function Customers() {
     }
   };
 
-  const exportarXml = () => {
-    const xml = criarXmlClientes(clientes);
+  const clientesParaExportacao = async () => {
+    const resposta = await api.get('/customers');
+    return Array.isArray(resposta.data) ? resposta.data : resposta.data.dados;
+  };
+
+  const exportarXml = async () => {
+    try {
+    const xml = criarXmlClientes(await clientesParaExportacao());
     const arquivo = new Blob([xml], { type: 'application/xml;charset=utf-8' });
     const url = URL.createObjectURL(arquivo);
     const link = document.createElement('a');
@@ -167,6 +176,17 @@ export default function Customers() {
     link.click();
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (error) {
+      showToast(error.response?.data?.msg || 'Não foi possível exportar os clientes.', 'error');
+    }
+  };
+
+  const exportarCsv = async () => {
+    try {
+      exportarCSV(await clientesParaExportacao(), colunasCSV.clientes, `clientes_${dataArquivoCSV()}.csv`);
+    } catch (error) {
+      showToast(error.response?.data?.msg || 'Não foi possível exportar os clientes.', 'error');
+    }
   };
 
 
@@ -196,7 +216,7 @@ export default function Customers() {
            <h1>👤 Cadastro de Clientes</h1>
            <p>Gerencie sua base de clientes</p>
          </div>
-         <button type="button" className="customers-secondary-button" onClick={() => exportarCSV(clientes, colunasCSV.clientes, `clientes_${dataArquivoCSV()}.csv`)}>Exportar CSV</button>
+         <button type="button" className="customers-secondary-button" onClick={exportarCsv}>Exportar CSV</button>
        </div>
 
 
@@ -313,7 +333,7 @@ export default function Customers() {
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             Cadastrados
             <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-bg)', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
-              {clientes.length}
+              {totalClientes}
             </span>
           </span>
           <button type="button" onClick={exportarXml} style={btnTable} aria-label="Exportar lista de clientes em XML">
@@ -345,7 +365,7 @@ export default function Customers() {
                     />
                   </td>
                 </tr>
-              ) : paginacao.itensPagina.map(c => (
+              ) : clientes.map(c => (
                 <tr key={c._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
                   <td style={{ padding: '10px 8px', fontWeight: 600, fontSize: 13 }}>{c.nome}{c.clienteInterno && <small style={{ display: 'block', fontWeight: 400 }}>Consumo da equipe · sem pagamento</small>}</td>
                   <td style={{ padding: '10px 8px', fontSize: 13, fontFamily: 'monospace' }}>
@@ -373,7 +393,7 @@ export default function Customers() {
             </tbody>
           </table>
         </div>
-        <Paginacao total={paginacao.total} paginaAtual={paginacao.paginaAtual} limiteAtual={paginacao.limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
+        <Paginacao total={totalClientes} paginaAtual={paginaAtual} limiteAtual={limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
       </div>
 
 

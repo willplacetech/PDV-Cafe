@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { criarCSV, dataArquivoCSV } from '../src/utils/exportarCsv.js';
+import { buildOrdersQuery } from '../src/utils/orderQuery.js';
 
 test('CSV preserva acentos, aspas, separadores e quebras de linha com BOM e CRLF', () => {
   assert.equal(criarCSV([{ nome: 'Pão; "café"\r\nquente', quantidade: 0, vazio: null }], [
@@ -27,13 +27,24 @@ test('data do arquivo e datas de vendas usam São Paulo na virada UTC', () => {
   assert.match(criarCSV([{ data }], [{ chave: 'data' }]), /16\/10\/2026/);
 });
 
-test('filtro de vendas inclui todas as linhas do período em São Paulo antes da paginação', () => {
-  const source = readFileSync(new URL('../src/pages/Orders.jsx', import.meta.url), 'utf8');
-  const expression = source.split('const pedidosFiltrados = useMemo(() => ')[1].split(', [pedidos, inicio, fim])')[0];
-  const pedidos = Array.from({ length: 60 }, (_, numero) => ({ numero, createdAt: '2026-10-17T01:30:00Z' }));
-  pedidos.push({ numero: 60, createdAt: '2026-10-17T03:00:00Z' });
-  const filtrar = new Function('pedidos', 'inicio', 'fim', 'dataArquivoCSV', `return ${expression}`);
-  assert.equal(filtrar(pedidos, '2026-10-16', '2026-10-16', dataArquivoCSV).length, 60);
-  assert.equal(filtrar(pedidos, '2026-10-17', '', dataArquivoCSV).length, 1);
-  assert.equal(filtrar(pedidos, '', '', dataArquivoCSV).length, 61);
+test('order filters reach the server before pagination and full exports omit page limits', () => {
+  assert.deepEqual(buildOrdersQuery({
+    pagina: 2,
+    limite: 25,
+    status: 'pendente',
+    inicio: '2026-10-16',
+    fim: '2026-10-17',
+  }), {
+    pagina: 2,
+    limite: 25,
+    status: 'pendente',
+    inicio: '2026-10-16',
+    fim: '2026-10-17',
+  });
+  assert.deepEqual(buildOrdersQuery({
+    pagina: 2,
+    limite: 25,
+    status: 'todos',
+    paginada: false,
+  }), {});
 });

@@ -20,6 +20,8 @@ const PDV = lazy(() => import('./pages/PDV.jsx'));
 const Products = lazy(() => import('./pages/Products.jsx'));
 const Customers = lazy(() => import('./pages/Customers.jsx'));
 const ContasReceber = lazy(() => import('./pages/ContasReceber.jsx'));
+const Orders = lazy(() => import('./pages/Orders.jsx'));
+const Auditoria = lazy(() => import('./pages/Auditoria.jsx'));
 const Users = lazy(() => import('./pages/Users.jsx'));
 const Comandas = lazy(() => import('./pages/Comandas.jsx'));
 const MesasCadastro = lazy(() => import('./pages/MesasCadastro.jsx'));
@@ -160,7 +162,8 @@ export default function App() {
                         <Route element={<RoleRoute roles={['admin']} />}>
                           <Route path="/produtos" element={<Products />} />
                           <Route path="/clientes" element={<Customers />} />
-                          <Route path="/pedidos" element={<Navigate to="/dashboard" replace />} />
+                          <Route path="/pedidos" element={<Orders />} />
+                          <Route path="/auditoria" element={<Auditoria />} />
                           <Route path="/contas-receber" element={<ContasReceber />} />
                           <Route path="/usuarios" element={<Users />} />
                           <Route path="/dashboard" element={<Dashboard />} />

@@ -14,6 +14,7 @@ const { calcularPrecoComDesconto } = require('../utils/descontosQuantidade');
 const { calcularStatusPagamento, saldoDevedor: calcularSaldoDevedor, construirPagamento, normalizarPagamentos, pagamentosDoPedido, validarCancelamentoFinanceiro, formaPagamentoValida } = require('../utils/pagamento');
 
 const { executarOperacaoFinanceira } = require('../utils/operacaoFinanceira');
+const { parsePagination, createPaginationResponse } = require('../utils/pagination');
 
 const router = express.Router();
 const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'L'].includes(product?.unidadeVenda));
@@ -144,12 +145,25 @@ router.post('/', auth, auth.allowRoles('admin'), async (req, res) => {
 router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
     const { clienteId, status, inicio, fim } = req.query;
+    const pagination = parsePagination(req.query);
     const filter = {};
     if (clienteId) filter.clienteId = clienteId;
     const statusNormalizado = normalizarStatusFiltro(status);
     if (statusNormalizado) filter.$or = [{ status: statusNormalizado }, { comandaId: { $exists: true } }];
     if (inicio && fim) filter.createdAt = { $gte: new Date(inicio), $lte: new Date(new Date(fim).setHours(23, 59, 59)) };
-    const pedidos = await Order.find(filter).sort({ createdAt: -1 }).lean();
+    const [totalEncontrado, totalAgregado] = pagination.requested && !statusNormalizado
+      ? await Promise.all([
+        Order.countDocuments(filter),
+        Order.aggregate([{ $match: filter }, { $group: { _id: null, total: { $sum: '$total' } } }]),
+      ])
+      : [null, []];
+    let pedidosQuery = Order.find(filter).sort({ createdAt: -1, _id: -1 }).lean();
+    if (pagination.requested && !statusNormalizado) {
+      const totalPaginas = Math.ceil(totalEncontrado / pagination.limite);
+      const pagina = Math.min(pagination.pagina, Math.max(1, totalPaginas));
+      pedidosQuery = pedidosQuery.skip((pagina - 1) * pagination.limite).limit(pagination.limite);
+    }
+    const pedidos = await pedidosQuery;
     const comandaIds = [...new Set(pedidos.map((pedido) => pedido.comandaId).filter(Boolean).map(String))];
     const comandas = comandaIds.length
       ? await Comanda.find({ _id: { $in: comandaIds } }).select('_id valorTotal historicoPagamentos status utilizacaoInterna').lean()
@@ -170,12 +184,36 @@ router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
         saldoDevedor: situacao.saldoDevedor,
       };
     });
-    res.json(statusNormalizado
+    const pedidosFiltrados = statusNormalizado
       ? pedidosAtualizados.filter((pedido) => (Array.isArray(statusNormalizado.$in)
         ? statusNormalizado.$in.includes(pedido.status)
         : pedido.status === statusNormalizado))
-      : pedidosAtualizados);
-  } catch (err) { res.status(500).json({ msg: err.message }); }
+      : pedidosAtualizados;
+    if (!pagination.requested) return res.json(pedidosFiltrados);
+
+    const total = statusNormalizado ? pedidosFiltrados.length : totalEncontrado;
+    const totalVendido = statusNormalizado
+      ? pedidosFiltrados.reduce((soma, pedido) => soma + Number(pedido.total ?? pedido.valorTotal ?? pedido.totalPedido ?? pedido.valor ?? pedido.subtotal ?? 0), 0)
+      : Number(totalAgregado[0]?.total || 0);
+    const totais = statusNormalizado
+      ? pedidosFiltrados.reduce((acc, pedido) => {
+        const totalPedido = Number(pedido.total ?? pedido.valorTotal ?? pedido.totalPedido ?? pedido.valor ?? pedido.subtotal ?? 0);
+        const saldo = Number(pedido.saldoDevedor || 0);
+        acc.totalBruto += totalPedido;
+        acc.totalEmAberto += ['pago', 'cancelado'].includes(pedido.status) ? 0 : saldo;
+        acc.totalPago += Math.max(0, totalPedido - saldo);
+        return acc;
+      }, { totalBruto: 0, totalEmAberto: 0, totalPago: 0 })
+      : null;
+    const pagina = Math.min(pagination.pagina, Math.max(1, Math.ceil(total / pagination.limite)));
+    const dados = statusNormalizado
+      ? pedidosFiltrados.slice((pagina - 1) * pagination.limite, pagina * pagination.limite)
+      : pedidosFiltrados;
+    res.json({ ...createPaginationResponse(dados, total, pagination), totalVendido, ...(totais ? { totais } : {}) });
+  } catch (err) {
+    if (err.status === 400) return res.status(400).json({ msg: err.message });
+    res.status(500).json({ msg: err.message });
+  }
 });
 
 router.get('/:id', auth, auth.allowRoles('admin'), async (req, res) => {

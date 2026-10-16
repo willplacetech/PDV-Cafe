@@ -13,6 +13,7 @@ const { calcularStatusPagamento, construirPagamento, formaPagamentoValida, norma
 const { precoPorUnidade } = require('../utils/pesoProduto');
 const { produtoControlaPeso } = require('../utils/estoqueProduto');
 const { calcularPrecoComDesconto, calcularPrecoGrupo } = require('../utils/descontosQuantidade');
+const { parsePagination, createPaginationResponse } = require('../utils/pagination');
 const { ajustarEstoque } = require('../utils/movimentarEstoqueVenda');
 
 const { executarOperacaoFinanceira } = require('../utils/operacaoFinanceira');
@@ -138,6 +139,7 @@ router.post('/:id/cozinha/pronto', auth, auth.allowRoles('admin', 'operador', 'c
 
 router.get('/a-receber', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
+    const pagination = parsePagination(req.query);
     const { clienteId, dataInicio, dataFim } = req.query;
     const filter = {
       status: 'aberta',
@@ -154,12 +156,61 @@ router.get('/a-receber', auth, auth.allowRoles('admin', 'operador'), async (req,
       if (dataInicio) filter.createdAt.$gte = new Date(`${dataInicio}T00:00:00.000Z`);
       if (dataFim) filter.createdAt.$lte = new Date(`${dataFim}T23:59:59.999Z`);
     }
-    const comandas = await Comanda.find(filter)
+    const [total, resumoRecebiveis] = pagination.requested
+      ? await Promise.all([
+        Comanda.countDocuments(filter),
+        Comanda.aggregate([
+          { $match: filter },
+          {
+            $addFields: {
+              __valorPago: {
+                $sum: {
+                  $map: {
+                    input: { $ifNull: ['$historicoPagamentos', []] },
+                    as: 'pagamento',
+                    in: {
+                      $cond: [
+                        { $eq: [{ $ifNull: ['$$pagamento.formaPagamento', '$$pagamento.tipo'] }, 'credito_loja'] },
+                        0,
+                        { $ifNull: ['$$pagamento.valor', '$$pagamento.valorRecebido'] },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalBruto: { $sum: '$valorTotal' },
+              totalPago: { $sum: '$__valorPago' },
+              totalEmAberto: { $sum: { $max: [0, { $subtract: ['$valorTotal', '$__valorPago'] }] } },
+            },
+          },
+        ]),
+      ])
+      : [null, []];
+    let comandasQuery = Comanda.find(filter)
       .populate('clienteId', 'nome telefone')
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: -1, _id: -1 })
       .lean();
-    res.json(comandas.map((comanda) => ({ ...comanda, ...calcularStatusPagamento(comanda) })));
-  } catch (err) { res.status(500).json({ msg: err.message }); }
+    if (pagination.requested) {
+      const totalPaginas = Math.ceil(total / pagination.limite);
+      const pagina = Math.min(pagination.pagina, Math.max(1, totalPaginas));
+      comandasQuery = comandasQuery.skip((pagina - 1) * pagination.limite).limit(pagination.limite);
+    }
+    const comandas = (await comandasQuery).map((comanda) => ({ ...comanda, ...calcularStatusPagamento(comanda) }));
+    res.json(pagination.requested
+      ? {
+        ...createPaginationResponse(comandas, total, pagination),
+        totais: resumoRecebiveis[0] || { totalBruto: 0, totalPago: 0, totalEmAberto: 0 },
+      }
+      : comandas);
+  } catch (err) {
+    if (err.status === 400) return res.status(400).json({ msg: err.message });
+    res.status(500).json({ msg: err.message });
+  }
 });
 
 router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {

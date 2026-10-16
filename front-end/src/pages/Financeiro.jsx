@@ -1,6 +1,6 @@
 import SearchableSelect from '../components/SearchableSelect.jsx';
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { exportarCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { useToast } from '../components/useToast.js';
@@ -9,7 +9,7 @@ import AreaTabs from '../components/AreaTabs.jsx';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import DateInput from '../components/DateInput.jsx';
 import Paginacao from '../components/Paginacao.jsx';
-import usePagination from '../hooks/usePagination.js';
+import useUrlPagination from '../hooks/useUrlPagination.js';
 import EstadoLista from '../components/EstadoLista.jsx';
 
 const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -24,8 +24,12 @@ const formatDate = (value) => dateKey(value).split('-').reverse().join('/');
 
 export default function Financeiro() {
   const { user } = useContext(AuthContext);
+  const [searchParams] = useSearchParams();
+  const paginacaoDespesas = useUrlPagination();
+  const { paginaAtual, limiteAtual } = paginacaoDespesas;
   const [tab, setTab] = useState('despesas');
   const [despesas, setDespesas] = useState([]);
+  const [totalDespesas, setTotalDespesas] = useState(0);
   const [resumo, setResumo] = useState({ totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
   const [estadoResumo, setEstadoResumo] = useState({ mes: '', status: 'loading', erro: '' });
   const [fluxo, setFluxo] = useState({ dados: [], totalEntradas: 0, totalSaidas: 0, saldoDoMes: 0 });
@@ -38,7 +42,12 @@ export default function Financeiro() {
   const [comparacao, setComparacao] = useState({ periodoA: null, periodoB: null });
   const [dre, setDre] = useState({ receitaBruta: 0, deducoes: 0, receitaLiquida: 0, taxasCartao: 0, cmv: 0, cmvFormula: '', cmvComponentes: {}, lucroBruto: 0, despesasOperacionais: 0, ebit: 0, depreciacaoAmortizacao: 0, ebitda: 0, despesasFinanceiras: 0, impostosEstimados: 0, lucroLiquido: 0, margemBruta: 0, margemLiquida: 0, despesasPorCategoria: {}, produtosSemCusto: [] });
   const [mesSelecionado, setMesSelecionado] = useState(new Date().toISOString().slice(0, 7));
-  const [filtro, setFiltro] = useState({ status: '', categoria: '', dataInicio: '', dataFim: '' });
+  const [filtro, setFiltro] = useState(() => ({
+    status: searchParams.get('status') || '',
+    categoria: searchParams.get('categoria') || '',
+    dataInicio: searchParams.get('dataInicio') || '',
+    dataFim: searchParams.get('dataFim') || '',
+  }));
   const [form, setForm] = useState({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
   const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
   const [alterarTodasRecorrentes, setAlterarTodasRecorrentes] = useState(false);
@@ -62,8 +71,21 @@ export default function Financeiro() {
       setErroCarregamento('');
       try {
         if (tab === 'despesas') {
-          const despesasResponse = await api.get('/despesas');
-          if (active) setDespesas(despesasResponse.data || []);
+        const despesasResponse = await api.get('/despesas', {
+          params: {
+            pagina: paginaAtual,
+            limite: limiteAtual,
+            ...(filtro.status ? { status: filtro.status } : {}),
+            ...(filtro.categoria ? { categoria: filtro.categoria } : {}),
+            ...(filtro.dataInicio ? { dataInicio: filtro.dataInicio } : {}),
+            ...(filtro.dataFim ? { dataFim: filtro.dataFim } : {}),
+          },
+        });
+        const data = despesasResponse.data;
+        if (active) {
+          setDespesas(Array.isArray(data) ? data : data.dados);
+          setTotalDespesas(Array.isArray(data) ? data.length : data.total);
+        }
         } else if (tab === 'fluxo') {
           const response = await api.get('/contabil/fluxo-caixa', { params: { mes: mesSelecionado } });
           if (active) setFluxo(response.data || { dados: [], totalEntradas: 0, totalSaidas: 0, saldoDoMes: 0 });
@@ -87,7 +109,7 @@ export default function Financeiro() {
 
     load();
     return () => { active = false; };
-  }, [mesSelecionado, mesComparacaoA, mesComparacaoB, showToast, tab, tentativaCarregamento, user]);
+  }, [mesSelecionado, mesComparacaoA, mesComparacaoB, showToast, tab, tentativaCarregamento, user, paginaAtual, limiteAtual, filtro]);
 
   useEffect(() => {
     if (!user || user.role !== 'admin' || tab !== 'despesas') return undefined;
@@ -115,15 +137,7 @@ export default function Financeiro() {
     return () => { active = false; };
   }, [mesSelecionado, showToast, tab, tentativaResumo, user]);
 
-  const despesasFiltradas = useMemo(() => despesas.filter((despesa) => {
-    const matchesStatus = !filtro.status || despesa.status === filtro.status;
-    const matchesCategoria = !filtro.categoria || despesa.categoria === filtro.categoria;
-    const vencimento = dateKey(despesa.dataVencimento);
-    const matchesInicio = !filtro.dataInicio || vencimento >= filtro.dataInicio;
-    const matchesFim = !filtro.dataFim || vencimento <= filtro.dataFim;
-    return matchesStatus && matchesCategoria && matchesInicio && matchesFim;
-  }), [despesas, filtro]);
-  const paginacaoDespesas = usePagination(despesasFiltradas, 25, `${filtro.status}|${filtro.categoria}|${filtro.dataInicio}|${filtro.dataFim}`);
+  const despesasFiltradas = despesas;
 
   const recarregarDespesas = async () => {
     const mesConsultado = mesSelecionado;
@@ -131,10 +145,21 @@ export default function Financeiro() {
     setEstadoResumo({ mes: mesConsultado, status: 'loading', erro: '' });
     try {
       const [despesasResponse, resumoResponse] = await Promise.all([
-        api.get('/despesas'),
+        api.get('/despesas', {
+          params: {
+            pagina: paginaAtual,
+            limite: limiteAtual,
+            ...(filtro.status ? { status: filtro.status } : {}),
+            ...(filtro.categoria ? { categoria: filtro.categoria } : {}),
+            ...(filtro.dataInicio ? { dataInicio: filtro.dataInicio } : {}),
+            ...(filtro.dataFim ? { dataFim: filtro.dataFim } : {}),
+          },
+        }),
         api.get('/despesas/resumo', { params: { mes: mesConsultado } }),
       ]);
-      setDespesas(despesasResponse.data || []);
+      const lista = despesasResponse.data;
+      setDespesas(Array.isArray(lista) ? lista : lista.dados);
+      setTotalDespesas(Array.isArray(lista) ? lista.length : lista.total);
       if (requestId === resumoRequestIdRef.current && mesConsultado === mesSelecionadoRef.current) {
         setResumo(resumoResponse.data || { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
         setEstadoResumo({ mes: mesConsultado, status: 'success', erro: '' });
@@ -162,11 +187,22 @@ export default function Financeiro() {
     setTentativaResumo((valor) => valor + 1);
   };
 
+  const alterarFiltroDespesa = (nome, valor) => {
+    setFiltro((atual) => ({ ...atual, [nome]: valor }));
+    paginacaoDespesas.definirFiltro(nome, valor);
+  };
+
+  const limparFiltrosDespesas = () => {
+    setFiltro({ status: '', categoria: '', dataInicio: '', dataFim: '' });
+    paginacaoDespesas.limparFiltros(['status', 'categoria', 'dataInicio', 'dataFim']);
+  };
+
   const estadoResumoAtual = estadoResumo.mes === mesSelecionado ? estadoResumo.status : 'loading';
 
   const aplicarDiaNasParcelasRecorrentes = async (despesa, dia, camposAtualizacao) => {
     const origemId = despesa.origemRecorrencia || despesa._id;
-    const parcelasAbertas = despesas.filter((parcela) => (
+    const { data: todasDespesas } = await api.get('/despesas');
+    const parcelasAbertas = todasDespesas.filter((parcela) => (
       parcela.recorrente
       && parcela.status !== 'pago'
       && (String(parcela._id) === String(origemId) || String(parcela.origemRecorrencia) === String(origemId))
@@ -204,7 +240,18 @@ export default function Financeiro() {
       throw new Error(`O servidor não confirmou a atualização de ${naoAtualizadas.length} parcela(s)`);
     }
 
-    setDespesas(despesasAtuais);
+    const { data: paginaAtualizada } = await api.get('/despesas', {
+      params: {
+        pagina: paginaAtual,
+        limite: limiteAtual,
+        ...(filtro.status ? { status: filtro.status } : {}),
+        ...(filtro.categoria ? { categoria: filtro.categoria } : {}),
+        ...(filtro.dataInicio ? { dataInicio: filtro.dataInicio } : {}),
+        ...(filtro.dataFim ? { dataFim: filtro.dataFim } : {}),
+      },
+    });
+    setDespesas(Array.isArray(paginaAtualizada) ? paginaAtualizada : paginaAtualizada.dados);
+    setTotalDespesas(Array.isArray(paginaAtualizada) ? paginaAtualizada.length : paginaAtualizada.total);
     return parcelas.length;
   };
 
@@ -457,7 +504,7 @@ export default function Financeiro() {
             <div className="filters-grid">
               <label>
                 Status
-                <SearchableSelect value={filtro.status} onChange={(event) => setFiltro({ ...filtro, status: event.target.value })}>
+                <SearchableSelect value={filtro.status} onChange={(event) => alterarFiltroDespesa('status', event.target.value)}>
                   <option value="">Todos</option>
                   <option value="pendente">Pendente</option>
                   <option value="pago">Pago</option>
@@ -467,7 +514,7 @@ export default function Financeiro() {
 
               <label>
                 Categoria
-                <SearchableSelect value={filtro.categoria} onChange={(event) => setFiltro({ ...filtro, categoria: event.target.value })}>
+                <SearchableSelect value={filtro.categoria} onChange={(event) => alterarFiltroDespesa('categoria', event.target.value)}>
                   <option value="">Todas</option>
                   {categorias.map((categoria) => (
                     <option key={categoria} value={categoria}>{categoria}</option>
@@ -477,12 +524,12 @@ export default function Financeiro() {
 
               <label>
                 De
-                <DateInput value={filtro.dataInicio} onChange={(value) => setFiltro({ ...filtro, dataInicio: value })} />
+                <DateInput value={filtro.dataInicio} onChange={(value) => alterarFiltroDespesa('dataInicio', value)} />
               </label>
 
               <label>
                 Até
-                <DateInput value={filtro.dataFim} onChange={(value) => setFiltro({ ...filtro, dataFim: value })} />
+                <DateInput value={filtro.dataFim} onChange={(value) => alterarFiltroDespesa('dataFim', value)} />
               </label>
             </div>
 
@@ -490,11 +537,11 @@ export default function Financeiro() {
               <EstadoLista
                 carregando={carregando}
                 erro={erroCarregamento}
-                vazio={despesasFiltradas.length === 0}
+                vazio={totalDespesas === 0}
                 tituloVazio={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? 'Nenhuma despesa encontrada para os filtros atuais' : 'Nenhuma despesa cadastrada'}
                 mensagemVazia={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? 'Ajuste ou limpe os filtros para ver outras despesas.' : undefined}
                 acaoVaziaTexto={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? 'Limpar filtros' : undefined}
-                onAcaoVazia={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? () => setFiltro({ status: '', categoria: '', dataInicio: '', dataFim: '' }) : undefined}
+                onAcaoVazia={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? limparFiltrosDespesas : undefined}
                 onRetry={retryFinanceiro}
               >
               <table className="financeiro-table">
@@ -509,7 +556,7 @@ export default function Financeiro() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginacaoDespesas.itensPagina.map((item) => (
+                  {despesasFiltradas.map((item) => (
                       <tr key={item._id}>
                         <td>{item.descricao}</td>
                         <td>{item.categoria}</td>
@@ -537,7 +584,7 @@ export default function Financeiro() {
               </table>
               </EstadoLista>
             </div>
-            <Paginacao total={paginacaoDespesas.total} paginaAtual={paginacaoDespesas.paginaAtual} limiteAtual={paginacaoDespesas.limiteAtual} onChangePagina={paginacaoDespesas.alterarPagina} onChangeLimite={paginacaoDespesas.alterarLimite} />
+            <Paginacao total={totalDespesas} paginaAtual={paginaAtual} limiteAtual={limiteAtual} onChangePagina={paginacaoDespesas.alterarPagina} onChangeLimite={paginacaoDespesas.alterarLimite} />
           </section>
 
           <section className="financeiro-panel" id="nova-despesa">

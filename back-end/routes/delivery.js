@@ -106,13 +106,14 @@ router.get(['/tenant/pedidos', '/entregas/pedidos'], ...tenantAuth, route(async 
   }
   if (req.query.data) filtro.criadoEm = periodo(req.query.data);
   const pagina = req.query.pagina === undefined ? 1 : Number(req.query.pagina);
-  const limite = req.query.limite === undefined ? 30 : Number(req.query.limite);
+  const limite = req.query.limite === undefined ? 25 : Number(req.query.limite);
   if (!Number.isInteger(pagina) || pagina < 1 || pagina > 10000 || !Number.isInteger(limite) || limite < 1 || limite > 100) throw service.erro('Paginação inválida');
   const [pedidos, total] = await Promise.all([
     PedidoEntrega.find(filtro).sort({ criadoEm: -1, _id: -1 }).skip((pagina - 1) * limite).limit(limite).populate('entregadorId', 'nome telefone').lean(),
     PedidoEntrega.countDocuments(filtro),
   ]);
-  res.json({ pedidos, total, pagina, paginas: Math.ceil(total / limite) });
+  const totalPaginas = Math.ceil(total / limite);
+  res.json({ dados: pedidos, pedidos, total, pagina, limite, totalPaginas, paginas: totalPaginas });
 }));
 router.get('/entregas/venda/:vendaId', ...tenantAuth, route(async (req, res) => {
   const vendaId = service.validarId(req.params.vendaId);

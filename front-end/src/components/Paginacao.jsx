@@ -1,8 +1,8 @@
 import { useSearchParams } from 'react-router-dom';
+import { updatePaginationParams } from '../utils/paginationUrl.js';
 
-const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, prefixo = '' }) => {
+const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLimite, prefixo = '' }) => {
   const [, setSearchParams] = useSearchParams();
-  const parametroPagina = prefixo ? `pagina_${prefixo}` : 'pagina';
   const totalPaginas = Math.ceil(total / limiteAtual);
   const paginaAtualNum = parseInt(paginaAtual, 10) || 1;
   const limiteAtualNum = parseInt(limiteAtual, 10) || 25;
@@ -10,14 +10,16 @@ const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, prefixo = 
   const handlePageChange = (novaPagina) => {
     if (novaPagina < 1 || novaPagina > totalPaginas || novaPagina === paginaAtualNum) return;
     onChangePagina(novaPagina);
-    setSearchParams(prev => {
-      prev.set(parametroPagina, novaPagina.toString());
-      return prev;
-    }, { replace: true });
+    setSearchParams(prev => updatePaginationParams(prev, { pagina: novaPagina }, prefixo), { replace: true });
     window.scrollTo(0, 0);
   };
 
-  if (total === 0) return null;
+  const handleLimitChange = (event) => {
+    const novoLimite = Number(event.target.value);
+    if (![10, 25, 50, 100].includes(novoLimite)) return;
+    onChangeLimite?.(novoLimite);
+    setSearchParams(prev => updatePaginationParams(prev, { limite: novoLimite }, prefixo), { replace: true });
+  };
 
   const renderPageNumbers = () => {
     const pages = [];
@@ -73,6 +75,20 @@ const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, prefixo = 
           flex-wrap: wrap;
           margin-left: auto;
         }
+        .paginacao-minimalista-limite {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          white-space: nowrap;
+        }
+        .paginacao-minimalista-limite select {
+          min-height: 32px;
+          padding: 0 8px;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          background: var(--bg-secondary);
+          color: var(--text-primary);
+        }
         .paginacao-minimalista-arrow,
         .paginacao-minimalista-numero {
           min-width: 32px;
@@ -120,10 +136,20 @@ const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, prefixo = 
       `}</style>
 
       <div className="paginacao-minimalista-info">
-        Mostrando {total === 0 ? 0 : (paginaAtualNum - 1) * limiteAtualNum + 1}-{Math.min(paginaAtualNum * limiteAtualNum, total)} de {total} itens.
+        Mostrando {total === 0 ? 0 : (paginaAtualNum - 1) * limiteAtualNum + 1}–{Math.min(paginaAtualNum * limiteAtualNum, total)} de {total}
       </div>
 
       <div className="paginacao-minimalista-controles">
+        <label className="paginacao-minimalista-limite">
+          Itens por página
+          <select
+            aria-label="Itens por página"
+            value={limiteAtualNum}
+            onChange={handleLimitChange}
+          >
+            {[10, 25, 50, 100].map(limite => <option key={limite} value={limite}>{limite}</option>)}
+          </select>
+        </label>
         <button
           type="button"
           className="paginacao-minimalista-arrow"

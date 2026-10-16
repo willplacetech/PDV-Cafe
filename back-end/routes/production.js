@@ -9,6 +9,7 @@ const Production = require('../models/Production');
 const StockMovement = require('../models/StockMovement');
 const { dadosEstoqueProduto } = require('../utils/estoqueProduto');
 const { paraBase, calcularResumoCompleto, consumirInsumo, estoqueTotalBase, unidadeBase, calcularCustoDaFichaTecnica } = require('../utils/estoqueInsumo');
+const { parsePagination, createPaginationResponse } = require('../utils/pagination');
 
 const router = express.Router();
 const locations = ['venda', 'insumos'];
@@ -196,16 +197,45 @@ router.get('/stock', async (req, res) => {
   try {
     const location = locations.includes(req.query.location) ? req.query.location : 'insumos';
     const field = balanceField(location);
-    const products = await Product.find({ tipo: location === 'insumos' ? 'insumo' : 'venda', $or: [{ [field]: { $gt: 0 } }, { [field]: 0 }] }).sort({ nome: 1 });
-    res.json(products.map((product) => {
+    const pagination = parsePagination(req.query);
+    const filter = { tipo: location === 'insumos' ? 'insumo' : 'venda', $or: [{ [field]: { $gt: 0 } }, { [field]: 0 }] };
+    const total = pagination.requested ? await Product.countDocuments(filter) : null;
+    let productsQuery = Product.find(filter).sort({ nome: 1, _id: 1 });
+    if (pagination.requested) {
+      const totalPaginas = Math.ceil(total / pagination.limite);
+      const pagina = Math.min(pagination.pagina, Math.max(1, totalPaginas));
+      productsQuery = productsQuery.skip((pagina - 1) * pagination.limite).limit(pagination.limite);
+    }
+    const products = await productsQuery;
+    const dados = products.map((product) => {
       const resumo = location === 'insumos' ? calcularResumoCompleto(product) : null;
       return { ...product.toObject(), ...dadosEstoqueProduto(product), local: location, saldo: location === 'venda' ? dadosEstoqueProduto(product).estoque : resumo.embalagensFechadas, totalDisponivel: resumo?.total || 0, totalKgDisponivel: resumo?.totalKg, unidadeDisponivel: resumo?.unidadeConteudo, conteudoAberto: resumo?.conteudoAberto || 0, minimo: Number(location === 'insumos' ? (resumo?.estoqueMinimo || product.estoqueMinimoEmbalagens || product.estoqueMinimoInsumos || 0) : product.estoqueMinimo || 0) };
-    }));
-  } catch (error) { res.status(500).json({ msg: error.message }); }
+    });
+    res.json(pagination.requested ? createPaginationResponse(dados, total, pagination) : dados);
+  } catch (error) {
+    if (error.status === 400) return res.status(400).json({ msg: error.message });
+    res.status(500).json({ msg: error.message });
+  }
 });
 
 router.get('/movements', async (req, res) => {
-  try { res.json(await StockMovement.find().sort({ createdAt: -1 }).limit(100).populate('createdBy', 'username').lean()); } catch (error) { res.status(500).json({ msg: error.message }); }
+  try {
+    const pagination = parsePagination(req.query);
+    const total = pagination.requested ? await StockMovement.countDocuments() : null;
+    let movementsQuery = StockMovement.find().sort({ createdAt: -1, _id: -1 }).populate('createdBy', 'username');
+    if (pagination.requested) {
+      const totalPaginas = Math.ceil(total / pagination.limite);
+      const pagina = Math.min(pagination.pagina, Math.max(1, totalPaginas));
+      movementsQuery = movementsQuery.skip((pagina - 1) * pagination.limite).limit(pagination.limite);
+    } else {
+      movementsQuery = movementsQuery.limit(100);
+    }
+    const movements = await movementsQuery.lean();
+    res.json(pagination.requested ? createPaginationResponse(movements, total, pagination) : movements);
+  } catch (error) {
+    if (error.status === 400) return res.status(400).json({ msg: error.message });
+    res.status(500).json({ msg: error.message });
+  }
 });
 
 router.post('/transfer', onlyManager, [body('produtoId').isMongoId(), body('origem').isIn(locations), body('destino').isIn(locations), body('quantidade').isFloat({ min: 0.001 })], async (req, res) => {

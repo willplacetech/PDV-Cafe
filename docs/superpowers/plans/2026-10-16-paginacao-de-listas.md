@@ -4,7 +4,7 @@
 
 **Goal:** Provide consistent pagination for user-facing record lists throughout the application without changing existing API response contracts.
 
-**Architecture:** Add a small shared client-side pagination hook and reuse the existing `Paginacao.jsx` control. Paginate the already-fetched records, preserving filtering, sorting, selection, edits, exports, and current server-side pagination in delivery screens; remove existing arbitrary display caps that hide records.
+**Architecture:** Use the shared `Paginacao.jsx` control and URL-backed page/limit state. Large historical lists request server-side pages through the common API envelope; small lists may paginate already-fetched records. Filters run before pagination, and exports and bulk operations retain their full-dataset semantics.
 
 **Tech Stack:** React 19, Vite 8, JavaScript, Cypress, Node test runner.
 
@@ -14,7 +14,7 @@
 
 - Preserve the existing creme/marrom visual identity and tokens.
 - Keep React + Vite in JavaScript; do not start the TypeScript migration.
-- Do not change backend response contracts or database query semantics.
+- New server-side pagination is opt-in, validated, capped at 100, and preserves legacy responses when pagination parameters are omitted.
 - Loading is not an empty result; errors are not empty results.
 - Static options and deliberately short operational summaries do not need pagination.
 - Exports and bulk actions continue to use the full filtered dataset, not only visible rows.
@@ -23,7 +23,7 @@
 
 - A filter or search change resets the visible list to page one.
 - Deleting the last row on a page does not leave an invalid empty page.
-- Sorting and filtering apply to the full result before slicing the visible page.
+- Sorting and filtering apply to the full result before slicing the visible page or are applied by the server before returning a page.
 - Selected record details remain valid if the selected row is not on the current page.
 - Existing delivery API pagination is not paginated a second time on the client.
 
@@ -130,9 +130,9 @@
 
 ## Status da execução — 2026-10-16
 
-- Hook e controles compartilhados aplicados às listas de registros em Pedidos, Clientes, Produtos, Usuários, Comandas, Contas a Receber, Financeiro, Fichas Técnicas, Mesas, Compras, Produção, Cozinha, Plataforma de Delivery e Entregador.
-- Dashboard agora pagina estoque, clientes, pedidos do dia, histórico de comandas e listas de produção; os indicadores, exportações e relatórios continuam usando o conjunto completo.
-- Histórico de entregas mantém a paginação do servidor, sem uma segunda paginação no cliente. As listas de entregadores em Entregas e no painel Delivery usam a paginação compartilhada.
-- Inventário deliberadamente exclui opções de formulários, imagens da tela de login, etapas da linha do tempo, totais/resumos e listas explicitamente limitadas, como os cinco produtos mais vendidos.
-- Verificação: 3 testes unitários direcionados de paginação passaram; 8 testes do dashboard no backend passaram; 23 testes Cypress focados passaram; build, lint focado e `git diff --check` passaram. A suíte unitária completa terminou com 88/91; as 3 falhas foram uma expectativa de caixa em `caixa.test.js` e dois erros `useContext` em `layout.test.js`.
-- As etapas de commit permanecem pendentes; nenhuma alteração foi commitada.
+- Paginação server-side opt-in nas listas grandes: Produtos, Clientes, Vendas, Usuários, Compras, Estoque/Movimentos, Entregas, Contas a Pagar, Contas a Receber e Auditoria.
+- `Contas a Receber` usa páginas independentes por aba, filtros sincronizados na URL, totais globais calculados no servidor, seleção preservada entre páginas e operações em lote; exportação CSV e relatório do cliente consultam o conjunto filtrado completo.
+- Histórico de Vendas e Auditoria estão disponíveis no menu administrativo; listas pequenas fixas (mesas, categorias e entregadores) continuam sem paginação.
+- As APIs mantêm compatibilidade com respostas legadas quando os parâmetros de paginação não são enviados; filtros são aplicados antes do corte da página.
+- Verificação final: backend 31 suítes/334 testes aprovados; cobertura backend executada (69,12% statements, 53,76% branches, 73,14% functions, 73,04% lines); frontend 104 testes unitários aprovados; lint, build e `git diff --check` aprovados. Integrações de clientes/pedidos e agregados financeiros também passaram.
+- Nenhuma alteração foi commitada.

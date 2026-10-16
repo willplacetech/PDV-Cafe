@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
 const Despesa = require('../models/Despesa');
+const { parsePagination, createPaginationResponse } = require('../utils/pagination');
 
 const router = express.Router();
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -60,6 +61,7 @@ router.use(auth.allowRoles('admin'));
 
 router.get('/', async (req, res) => {
   try {
+    const pagination = parsePagination(req.query);
     const filtro = {};
     if (req.query.status) filtro.status = req.query.status;
     if (req.query.categoria) filtro.categoria = req.query.categoria;
@@ -68,9 +70,17 @@ router.get('/', async (req, res) => {
       if (req.query.dataInicio) filtro.dataVencimento.$gte = new Date(`${req.query.dataInicio}T00:00:00`);
       if (req.query.dataFim) filtro.dataVencimento.$lte = new Date(`${req.query.dataFim}T23:59:59`);
     }
-    const despesas = await Despesa.find(filtro).sort({ dataVencimento: 1 });
-    res.json(despesas);
+    const total = pagination.requested ? await Despesa.countDocuments(filtro) : null;
+    let despesasQuery = Despesa.find(filtro).sort({ dataVencimento: 1, _id: 1 });
+    if (pagination.requested) {
+      const totalPaginas = Math.ceil(total / pagination.limite);
+      const pagina = Math.min(pagination.pagina, Math.max(1, totalPaginas));
+      despesasQuery = despesasQuery.skip((pagina - 1) * pagination.limite).limit(pagination.limite);
+    }
+    const despesas = await despesasQuery;
+    res.json(pagination.requested ? createPaginationResponse(despesas, total, pagination) : despesas);
   } catch (error) {
+    if (error.status === 400) return res.status(400).json({ msg: error.message });
     res.status(500).json({ msg: error.message });
   }
 });

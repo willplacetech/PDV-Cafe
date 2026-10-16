@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useMemo } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import api from '../services/api.jsx';
 import { exportarCSV, colunasCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { requestAutorizado } from '../services/apiAutorizada.js';
@@ -6,46 +6,50 @@ import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
 import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import Paginacao from '../components/Paginacao.jsx';
-import usePagination from '../hooks/usePagination.js';
-import { useNavigate } from 'react-router-dom';
+import useUrlPagination from '../hooks/useUrlPagination.js';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useComanda } from '../context/ComandaContext.jsx';
 import EstadoLista from '../components/EstadoLista.jsx';
+import { updatePaginationParams } from '../utils/paginationUrl.js';
+import { buildOrdersQuery } from '../utils/orderQuery.js';
 
 export default function Orders() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { carregarComanda } = useComanda();
   const [pedidos, setPedidos] = useState([]);
-  const [inicio, setInicio] = useState('');
-  const [fim, setFim] = useState('');
-  const pedidosFiltrados = useMemo(() => pedidos.filter((pedido) => {
-    const dia = dataArquivoCSV(new Date(pedido.createdAt));
-    return (!inicio || dia >= inicio) && (!fim || dia <= fim);
-  }), [pedidos, inicio, fim]);
+  const [totalPedidos, setTotalPedidos] = useState(0);
+  const [totalVendido, setTotalVendido] = useState(0);
+  const [inicio, setInicio] = useState(() => searchParams.get('inicio') || '');
+  const [fim, setFim] = useState(() => searchParams.get('fim') || '');
   const [selecionado, setSelecionado] = useState(null);
-  const [filtroStatus, setFiltroStatus] = useState('todos');
+  const [filtroStatus, setFiltroStatus] = useState(() => searchParams.get('status') || 'todos');
   const [carregando, setCarregando] = useState(true);
   const [erroLista, setErroLista] = useState('');
   const [cancelando, setCancelando] = useState(false);
   const { showToast } = useToast();
   const { solicitar: solicitarAutorizacao, renderizarModal: renderizarAutorizacao } = useAutorizacaoGerente('cancelar_venda');
-  const paginacao = usePagination(pedidosFiltrados, 25, `${filtroStatus}|${inicio}|${fim}`);
+  const paginacao = useUrlPagination();
+  const { paginaAtual, limiteAtual } = paginacao;
 
   const carregar = useCallback(async () => {
     setCarregando(true);
     setErroLista('');
     try {
-      const url = filtroStatus === 'todos' 
-        ? '/orders' 
-        : `/orders?status=${filtroStatus}`;
-      const res = await api.get(url);
-      setPedidos(res.data || []);
+      const res = await api.get('/orders', {
+        params: buildOrdersQuery({ pagina: paginaAtual, limite: limiteAtual, status: filtroStatus, inicio, fim }),
+      });
+      const data = res.data;
+      setPedidos(Array.isArray(data) ? data : data.dados);
+      setTotalPedidos(Array.isArray(data) ? data.length : data.total);
+      setTotalVendido(Array.isArray(data) ? data.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0) : data.totalVendido);
     } catch (err) {
       console.error('Erro ao carregar pedidos:', err);
       setErroLista(err.response?.data?.msg || err.message || 'Não foi possível carregar os pedidos.');
     } finally {
       setCarregando(false);
     }
-  }, [filtroStatus]);
+  }, [filtroStatus, fim, inicio, limiteAtual, paginaAtual]);
 
   useEffect(() => {
     const inicializar = async () => { await carregar(); };
@@ -86,36 +90,46 @@ export default function Orders() {
     return ['pendente', 'parcial'].includes(status);
   };
 
-  const totalVendido = useMemo(() => {
-    if (pedidosFiltrados.length === 0) return 0;
-
-    const soma = pedidosFiltrados.reduce((ac, p) => {
-      const valor = parseFloat(
-        p.total || 
-        p.valorTotal || 
-        p.totalPedido || 
-        p.valor || 
-        p.subtotal || 
-        0
-      ) || 0;
-      return ac + valor;
-    }, 0);
-
-    return soma;
-  }, [pedidosFiltrados]);
+  const pedidosFiltrados = pedidos;
   const filtrosPedidosAtivos = Boolean(filtroStatus !== 'todos' || inicio || fim);
   const acaoListaVazia = useCallback(() => {
     if (filtrosPedidosAtivos) {
       setInicio('');
       setFim('');
-      if (filtroStatus !== 'todos') {
-        setCarregando(true);
-        setFiltroStatus('todos');
-      }
+      setFiltroStatus('todos');
+      setSearchParams((current) => {
+        const next = updatePaginationParams(current, { pagina: 1 });
+        ['status', 'inicio', 'fim'].forEach((key) => next.delete(key));
+        return next;
+      }, { replace: true });
       return;
     }
     navigate('/pdv');
-  }, [filtrosPedidosAtivos, filtroStatus, navigate]);
+  }, [filtrosPedidosAtivos, navigate, setSearchParams]);
+  const atualizarFiltro = (nome, valor, atualizarEstado) => {
+    atualizarEstado(valor);
+    setSearchParams((current) => {
+      const next = updatePaginationParams(current, { pagina: 1 });
+      if (!valor || valor === 'todos') next.delete(nome);
+      else next.set(nome, valor);
+      return next;
+    }, { replace: true });
+  };
+  const exportarPedidos = async () => {
+    try {
+      const { data } = await api.get('/orders', {
+        params: buildOrdersQuery({ status: filtroStatus, inicio, fim, paginada: false }),
+      });
+      const registros = Array.isArray(data) ? data : data.dados;
+      exportarCSV(registros.map((pedido) => ({
+        ...pedido,
+        createdAt: new Date(pedido.createdAt),
+        total: Number(pedido.total ?? pedido.valorTotal ?? pedido.totalPedido ?? pedido.valor ?? pedido.subtotal ?? 0),
+      })), colunasCSV.vendas, `vendas_${dataArquivoCSV()}.csv`);
+    } catch (error) {
+      showToast(error.response?.data?.msg || 'Não foi possível exportar o histórico de vendas.', 'error');
+    }
+  };
 
   const getStatusInfo = (status) => {
     const map = {
@@ -135,12 +149,12 @@ export default function Orders() {
           <h1>📋 Histórico de Pedidos</h1>
           <p>Acompanhe todas as vendas realizadas</p>
         </div>
-        <button type="button" disabled={carregando} onClick={() => exportarCSV(pedidosFiltrados.map((pedido) => ({ ...pedido, createdAt: new Date(pedido.createdAt), total: Number(pedido.total ?? pedido.valorTotal ?? pedido.totalPedido ?? pedido.valor ?? pedido.subtotal ?? 0) })), colunasCSV.vendas, `vendas_${dataArquivoCSV()}.csv`)}>Exportar CSV</button>
+        <button type="button" disabled={carregando} onClick={exportarPedidos}>Exportar CSV</button>
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <label>De <input type="date" value={inicio} max={fim || undefined} onChange={(event) => setInicio(event.target.value)} /></label>
-        <label>Até <input type="date" value={fim} min={inicio || undefined} onChange={(event) => setFim(event.target.value)} /></label>
+        <label>De <input type="date" value={inicio} max={fim || undefined} onChange={(event) => atualizarFiltro('inicio', event.target.value, setInicio)} /></label>
+        <label>Até <input type="date" value={fim} min={inicio || undefined} onChange={(event) => atualizarFiltro('fim', event.target.value, setFim)} /></label>
       </div>
 
       {/* FILTRO DE STATUS */}
@@ -154,7 +168,7 @@ export default function Orders() {
         ].map(item => (
           <button
             key={item.valor}
-            onClick={() => { setCarregando(true); setFiltroStatus(item.valor); }}
+            onClick={() => atualizarFiltro('status', item.valor, setFiltroStatus)}
             style={{
               padding: '6px 14px', borderRadius: '20px', border: 'none',
               fontSize: '12px', fontWeight: filtroStatus === item.valor ? '700' : '500',
@@ -173,7 +187,7 @@ export default function Orders() {
           <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             Pedidos
             <span style={{ background: 'var(--accent-light)', color: 'var(--accent-primary)', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
-              {pedidosFiltrados.length}
+              {totalPedidos}
             </span>
           </h3>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -191,7 +205,7 @@ export default function Orders() {
         <EstadoLista
           carregando={carregando}
           erro={erroLista}
-          vazio={pedidosFiltrados.length === 0}
+          vazio={totalPedidos === 0}
           tituloVazio={filtrosPedidosAtivos ? 'Nenhum pedido corresponde aos filtros' : 'Nenhum pedido realizado'}
           mensagemVazia={filtrosPedidosAtivos
             ? 'Limpe os filtros para voltar a consultar todos os pedidos.'
@@ -211,7 +225,7 @@ export default function Orders() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginacao.itensPagina.map(p => {
+                  {pedidosFiltrados.map(p => {
                   const statusInfo = getStatusInfo(p.status);
                   const valorTotal = Number(p?.total || p?.valorTotal || p?.subtotal || 0);
                   return (
@@ -246,7 +260,7 @@ export default function Orders() {
                 </tbody>
               </table>
             </div>
-            <Paginacao total={paginacao.total} paginaAtual={paginacao.paginaAtual} limiteAtual={paginacao.limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
+            <Paginacao total={totalPedidos} paginaAtual={paginaAtual} limiteAtual={limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
           </>
         </EstadoLista>
       </div>

@@ -1,6 +1,6 @@
 import FieldLabel from '../components/FieldLabel.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { exportarCSV, colunasCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
@@ -9,7 +9,8 @@ import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
 import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import Paginacao from '../components/Paginacao.jsx';
-import usePagination from '../hooks/usePagination.js';
+import { paginarItens } from '../hooks/usePagination.js';
+import useUrlPagination from '../hooks/useUrlPagination.js';
 import EstadoLista from '../components/EstadoLista.jsx';
 
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Outros'];
@@ -56,18 +57,21 @@ const vazio = {
 };
 
 export default function Products() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [produtos, setProdutos] = useState([]);
+  const [totalProdutos, setTotalProdutos] = useState(0);
   const [fichas, setFichas] = useState([]);
   const [carregandoLista, setCarregandoLista] = useState(true);
   const [erroLista, setErroLista] = useState('');
   const [form, setForm] = useState(() => searchParams.get('tipo') === 'insumo' ? { ...vazio, tipo: 'insumo', categoria: 'Insumos' } : vazio);
   const [editing, setEditing] = useState(null);
-  const [filtroTexto, setFiltroTexto] = useState('');
-  const [filtroTipo, setFiltroTipo] = useState('Todos');
-  const [filtroCategoria, setFiltroCategoria] = useState('Todos');
-  const [filtroFicha, setFiltroFicha] = useState('Todos');
+  const [filtroTexto, setFiltroTexto] = useState(() => searchParams.get('busca') || '');
+  const [filtroTipo, setFiltroTipo] = useState(() => searchParams.get('filtroTipo') || 'Todos');
+  const [filtroCategoria, setFiltroCategoria] = useState(() => searchParams.get('categoria') || 'Todos');
+  const [filtroFicha, setFiltroFicha] = useState(() => searchParams.get('ficha') || 'Todos');
+  const paginacao = useUrlPagination();
+  const { paginaAtual, limiteAtual } = paginacao;
   const { showToast } = useToast();
   const fichaProduto = fichas.find((ficha) => String(ficha.produtoId?._id || ficha.produtoId) === String(editing?._id));
   const calculoDireto = form.tipo === 'insumo' || (form.tipo === 'venda' && form.tipoProduto === 'revenda');
@@ -87,24 +91,36 @@ export default function Products() {
     ? dataCusto.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
     : null;
 
-  const carregar = async () => {
+  const carregar = useCallback(async () => {
     setCarregandoLista(true);
     setErroLista('');
     try {
-      const [productsResponse, recipesResponse] = await Promise.all([api.get('/products'), api.get('/production/recipes')]);
-      setProdutos(productsResponse.data);
+      const filtrosAvancados = filtroFicha !== 'Todos' || searchParams.get('filtro') === 'estoque-baixo';
+      const params = {
+        ...(filtrosAvancados ? {} : { pagina: paginaAtual, limite: limiteAtual }),
+        ...(filtroTexto ? { busca: filtroTexto } : {}),
+        ...(filtroTipo === 'Todos' ? {} : { tipo: filtroTipo === 'Estoque de Venda' ? 'venda' : 'insumo' }),
+        ...(filtroCategoria === 'Todos' ? {} : { categoria: filtroCategoria }),
+      };
+      const [productsResponse, recipesResponse] = await Promise.all([
+        api.get('/products', { params }),
+        api.get('/production/recipes'),
+      ]);
+      const data = productsResponse.data;
+      setProdutos(Array.isArray(data) ? data : data.dados);
+      setTotalProdutos(Array.isArray(data) ? data.length : data.total);
       setFichas(recipesResponse.data || []);
     } catch (error) {
       setErroLista(error.response?.data?.msg || error.message || 'Não foi possível carregar produtos.');
     } finally {
       setCarregandoLista(false);
     }
-  };
+  }, [filtroCategoria, filtroFicha, filtroTexto, filtroTipo, limiteAtual, paginaAtual, searchParams]);
 
   useEffect(() => {
     const carregarInicial = async () => { await carregar(); };
     carregarInicial();
-  }, []);
+  }, [carregar]);
 
   const tipoSolicitado = searchParams.get('tipo');
   const contextoFormulario = `${tipoSolicitado || ''}:${editing?._id || ''}`;
@@ -378,7 +394,11 @@ export default function Products() {
     const textoOk = [produto.nome, produto.codigo].join(' ').toLowerCase().includes(filtroTexto.toLowerCase());
     return tipoOk && categoriaOk && fichaOk && textoOk && (!filtrarEstoqueBaixo || abaixoDoMinimo(produto));
   });
-  const paginacao = usePagination(filtrados, 25, `${filtroTexto}|${filtroTipo}|${filtroCategoria}|${filtroFicha}|${filtrarEstoqueBaixo}`);
+  const filtrosAvancados = filtroFicha !== 'Todos' || filtrarEstoqueBaixo;
+  const itensExibidos = filtrosAvancados
+    ? paginarItens(filtrados, paginaAtual, limiteAtual).itensPagina
+    : filtrados;
+  const totalExibido = filtrosAvancados ? filtrados.length : totalProdutos;
 
   const focarCadastro = () => {
     document.getElementById('product-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -389,6 +409,16 @@ export default function Products() {
     setFiltroCategoria('Todos');
     setFiltroFicha('Todos');
     navigate('/produtos');
+  };
+  const atualizarFiltro = (nome, valor, atualizarEstado) => {
+    atualizarEstado(valor);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('pagina', '1');
+      if (valor === '' || valor === 'Todos') next.delete(nome);
+      else next.set(nome, valor);
+      return next;
+    }, { replace: true });
   };
   const retryLista = () => { void carregar(); };
 
@@ -617,7 +647,7 @@ export default function Products() {
       <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 16 }}>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 10 }}>
           {filtrosTipo.map((tipo) => (
-            <button key={tipo} type="button" onClick={() => setFiltroTipo(tipo)} style={{ flexShrink: 0, minHeight: 40, padding: '8px 13px', borderRadius: 20, border: filtroTipo === tipo ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)', background: filtroTipo === tipo ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: filtroTipo === tipo ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+            <button key={tipo} type="button" onClick={() => atualizarFiltro('filtroTipo', tipo, setFiltroTipo)} style={{ flexShrink: 0, minHeight: 40, padding: '8px 13px', borderRadius: 20, border: filtroTipo === tipo ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)', background: filtroTipo === tipo ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: filtroTipo === tipo ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
               {tipo}
             </button>
           ))}
@@ -627,16 +657,16 @@ export default function Products() {
           <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>{filtrarEstoqueBaixo ? 'Produtos abaixo do mínimo' : 'Produtos'}</h3>
           <div className="product-list-filters">
 
-              <SearchableSelect className="product-filter-select" value={filtroFicha} onChange={(event) => setFiltroFicha(event.target.value)} aria-label="Selecionar ficha técnica">
+              <SearchableSelect className="product-filter-select" value={filtroFicha} onChange={(event) => atualizarFiltro('ficha', event.target.value, setFiltroFicha)} aria-label="Selecionar ficha técnica">
               <option value="Todos">Por Ficha técnica</option>
               {fichas.map((ficha) => <option key={ficha._id} value={ficha._id}>{ficha.produtoId?.nome || ficha.nome}</option>)}
               </SearchableSelect>
 
-              <SearchableSelect className="product-filter-select" value={filtroCategoria} onChange={(event) => setFiltroCategoria(event.target.value)}>
+              <SearchableSelect className="product-filter-select" value={filtroCategoria} onChange={(event) => atualizarFiltro('categoria', event.target.value, setFiltroCategoria)}>
               <option value="Todos">Todas as categorias</option>
               {categoriasVenda.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}
             </SearchableSelect>
-            <input className="product-filter-input" value={filtroTexto} onChange={(event) => setFiltroTexto(event.target.value)} placeholder="Filtrar..." />
+            <input className="product-filter-input" value={filtroTexto} onChange={(event) => atualizarFiltro('busca', event.target.value, setFiltroTexto)} placeholder="Filtrar..." />
           </div>
         </div>
 
@@ -653,7 +683,7 @@ export default function Products() {
           onRetry={retryLista}
         >
           <div className="product-admin-grid">
-            {paginacao.itensPagina.map((produto) => (
+            {itensExibidos.map((produto) => (
               <article key={produto._id} className="product-admin-card">
                 <div>
                   <span style={{ background: produto.tipo === 'insumo' ? 'var(--category-supply-bg)' : 'var(--category-hot-bg)', color: produto.tipo === 'insumo' ? 'var(--category-supply-text)' : 'var(--category-hot-text)', padding: '3px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700 }}>
@@ -716,7 +746,7 @@ export default function Products() {
               </article>
             ))}
           </div>
-          <Paginacao total={paginacao.total} paginaAtual={paginacao.paginaAtual} limiteAtual={paginacao.limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
+          <Paginacao total={totalExibido} paginaAtual={paginaAtual} limiteAtual={limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
         </EstadoLista>
       </div>
 

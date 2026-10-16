@@ -7,12 +7,15 @@ import api from '../services/api.jsx';
 import { exportarCSV, colunasCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/useToast.js';
+import { useSearchParams } from 'react-router-dom';
 import { buildNotaVendaHtml, compartilharNotaWhatsApp, textoSeguro } from '../utils/notaVenda.js';
 import PagamentoResultadoModal from '../components/PagamentoResultadoModal.jsx';
 import DateInput from '../components/DateInput.jsx';
 import { dataBR, normalizarPagamentos, saldoDevedor, statusPagamentoInfo, totalPago as somarPagamentos } from '../utils/formasPagamento.jsx';
 import Paginacao from '../components/Paginacao.jsx';
-import usePagination from '../hooks/usePagination.js';
+import useUrlPagination from '../hooks/useUrlPagination.js';
+import { updatePaginationParams } from '../utils/paginationUrl.js';
+import { buildOrdersQuery } from '../utils/orderQuery.js';
 import EstadoLista from '../components/EstadoLista.jsx';
 
 
@@ -29,22 +32,35 @@ const saldoRecebivelPedido = (pedido) => {
   return Math.max(0, (parseFloat(pedido?.total) || 0) - somarPagamentos(pedido?.pagamentos));
 };
 
+const chaveClientePedido = (pedido) => pedido?.clienteId?._id || pedido?.clienteId || `nome:${pedido?.clienteNome || ''}`;
+
 
 export default function ContasReceber() {
   const { formasPagamento: FORMAS_PAGAMENTO, rotuloPagamento } = useFormasPagamento();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paginacaoPedidos = useUrlPagination('pedidos-a-receber');
+  const paginacaoComandas = useUrlPagination('comandas-a-receber');
+  const { paginaAtual: paginaPedidos, limiteAtual: limitePedidos } = paginacaoPedidos;
+  const { paginaAtual: paginaComandas, limiteAtual: limiteComandas } = paginacaoComandas;
+  const alterarPaginaPedidos = paginacaoPedidos.alterarPagina;
+  const alterarPaginaComandas = paginacaoComandas.alterarPagina;
   const [carregandoPedidos, setCarregandoPedidos] = useState(true);
   const [erroPedidos, setErroPedidos] = useState('');
   const [carregandoComandas, setCarregandoComandas] = useState(false);
   const [erroComandas, setErroComandas] = useState('');
   const [aba, setAba] = useState('pedidos');
   const [pedidos, setPedidos] = useState([]);
+  const [totalPedidos, setTotalPedidos] = useState(0);
+  const [totaisPedidosServidor, setTotaisPedidosServidor] = useState(null);
   const [clientes, setClientes] = useState([]);
   const [produtos, setProdutos] = useState([]);
   const [comandasAbertas, setComandasAbertas] = useState([]);
-  const [clienteFiltro, setClienteFiltro] = useState('');
-  const [statusFiltro, setStatusFiltro] = useState('abertas');
-  const [inicio, setInicio] = useState('');
-  const [fim, setFim] = useState('');
+  const [totalComandas, setTotalComandas] = useState(0);
+  const [totaisComandasServidor, setTotaisComandasServidor] = useState(null);
+  const clienteFiltro = searchParams.get('clienteId') || '';
+  const statusFiltro = searchParams.get('status') || 'abertas';
+  const inicio = searchParams.get('inicio') || '';
+  const fim = searchParams.get('fim') || '';
   const [pagamentoModal, setPagamentoModal] = useState(null);
   const [pagamentoConcluido, setPagamentoConcluido] = useState(null);
   const [quitarClienteModal, setQuitarClienteModal] = useState(false);
@@ -54,19 +70,37 @@ export default function ContasReceber() {
   const [formPagamento, setFormPagamento] = useState({ tipo: 'dinheiro', valorRecebido: '', observacao: '' });
   const [formPagamentoMultiplo, setFormPagamentoMultiplo] = useState({ tipo: 'dinheiro', observacao: '' });
   const [formComanda, setFormComanda] = useState(null);
-  const [selecionados, setSelecionados] = useState(new Set());
-  const chaveFiltros = `${aba}|${clienteFiltro}|${statusFiltro}|${inicio}|${fim}`;
+  const [pedidosSelecionados, setPedidosSelecionados] = useState(new Map());
+  const selecionados = useMemo(() => new Set(pedidosSelecionados.keys()), [pedidosSelecionados]);
   const pedidoRequestIdRef = useRef(0);
-  const paginacaoPedidos = usePagination(pedidos, 25, chaveFiltros);
-  const paginacaoComandas = usePagination(comandasAbertas, 25, chaveFiltros);
+  const comandaRequestIdRef = useRef(0);
   const operacoesRef = useRef(null);
   if (operacoesRef.current === null) { operacoesRef.current = criarOperacoesFinanceiras(api); }
   const recebendoRef = useRef(false);
   const [recebendo, setRecebendo] = useState(false);
   const carregando = aba === 'comandas' ? carregandoComandas : carregandoPedidos;
   const invalidarSelecaoPedidos = () => {
-    setSelecionados(new Set());
+    setPedidosSelecionados(new Map());
     setPagamentoMultiploModal(null);
+  };
+  const atualizarFiltro = (nome, valor) => {
+    invalidarSelecaoPedidos();
+    setSearchParams((current) => {
+      let next = updatePaginationParams(current, { pagina: 1 }, 'pedidos-a-receber');
+      next = updatePaginationParams(next, { pagina: 1 }, 'comandas-a-receber');
+      if (valor === '' || valor === null || valor === undefined || (nome === 'status' && valor === 'abertas')) next.delete(nome);
+      else next.set(nome, String(valor));
+      return next;
+    }, { replace: true });
+  };
+  const limparFiltros = () => {
+    invalidarSelecaoPedidos();
+    setSearchParams((current) => {
+      let next = updatePaginationParams(current, { pagina: 1 }, 'pedidos-a-receber');
+      next = updatePaginationParams(next, { pagina: 1 }, 'comandas-a-receber');
+      ['clienteId', 'status', 'inicio', 'fim'].forEach((nome) => next.delete(nome));
+      return next;
+    }, { replace: true });
   };
 
   useEffect(() => {
@@ -92,6 +126,7 @@ export default function ContasReceber() {
 
   const carregarComandas = useCallback(async () => {
     if (aba !== 'comandas') return;
+    const requestId = ++comandaRequestIdRef.current;
     setCarregandoComandas(true);
     setErroComandas('');
     try {
@@ -99,14 +134,22 @@ export default function ContasReceber() {
       if (clienteFiltro) params.append('clienteId', clienteFiltro);
       if (inicio) params.append('dataInicio', inicio);
       if (fim) params.append('dataFim', fim);
+      params.append('pagina', String(paginaComandas));
+      params.append('limite', String(limiteComandas));
       const res = await api.get(`/comandas/a-receber?${params}`);
-      setComandasAbertas(res.data || []);
+      if (requestId !== comandaRequestIdRef.current) return;
+      setComandasAbertas(res.data.dados || []);
+      setTotalComandas(res.data.total || 0);
+      setTotaisComandasServidor(res.data.totais || null);
+      if (res.data.pagina && res.data.pagina !== paginaComandas) alterarPaginaComandas(res.data.pagina);
     } catch (error) {
-      setErroComandas(error.response?.data?.msg || error.message || 'Não foi possível carregar as comandas em aberto.');
+      if (requestId === comandaRequestIdRef.current) {
+        setErroComandas(error.response?.data?.msg || error.message || 'Não foi possível carregar as comandas em aberto.');
+      }
     } finally {
-      setCarregandoComandas(false);
+      if (requestId === comandaRequestIdRef.current) setCarregandoComandas(false);
     }
-  }, [aba, clienteFiltro, inicio, fim]);
+  }, [aba, clienteFiltro, inicio, fim, paginaComandas, limiteComandas, alterarPaginaComandas]);
 
 
   const carregarPedidos = useCallback(async () => {
@@ -119,27 +162,38 @@ export default function ContasReceber() {
       if (statusFiltro) params.append('status', statusFiltro);
       if (inicio) params.append('inicio', inicio);
       if (fim) params.append('fim', fim);
+      params.append('pagina', String(paginaPedidos));
+      params.append('limite', String(limitePedidos));
 
       const res = await api.get(`/orders?${params}`);
       if (requestId !== pedidoRequestIdRef.current) return;
-      const pedidosAtualizados = res.data || [];
+      const pedidosAtualizados = res.data.dados || [];
+      setTotalPedidos(res.data.total || 0);
+      setTotaisPedidosServidor(res.data.totais || null);
+      if (res.data.pagina && res.data.pagina !== paginaPedidos) alterarPaginaPedidos(res.data.pagina);
       const pedidosRecebiveis = new Set(
         pedidosAtualizados
           .filter(pedido => pedido.status === 'pendente' || pedido.status === 'parcial')
           .map(pedido => pedido._id)
       );
       setPedidos(pedidosAtualizados);
-      setSelecionados(atuais => new Set([...atuais].filter(id => pedidosRecebiveis.has(id))));
+      setPedidosSelecionados((atuais) => {
+        const proximo = new Map(atuais);
+        pedidosAtualizados.forEach((pedido) => {
+          if (!pedidosRecebiveis.has(pedido._id)) proximo.delete(pedido._id);
+          else if (proximo.has(pedido._id)) proximo.set(pedido._id, pedido);
+        });
+        return proximo;
+      });
     } catch (error) {
       if (requestId === pedidoRequestIdRef.current) {
-        setSelecionados(new Set());
         setPagamentoMultiploModal(null);
         setErroPedidos(error.response?.data?.msg || error.message || 'Não foi possível carregar os pedidos.');
       }
     } finally {
       if (requestId === pedidoRequestIdRef.current) setCarregandoPedidos(false);
     }
-  }, [clienteFiltro, statusFiltro, inicio, fim]);
+  }, [clienteFiltro, statusFiltro, inicio, fim, paginaPedidos, limitePedidos, alterarPaginaPedidos]);
 
 
   useEffect(() => {
@@ -153,7 +207,7 @@ export default function ContasReceber() {
     atualizar();
   }, [carregarPedidos, carregarComandas, aba]);
 
-  const totais = useMemo(() => {
+  const totaisCalculados = useMemo(() => {
     let totalEmAberto = 0;
     let totalBruto = 0;
     let totalPagoGeral = 0;
@@ -179,7 +233,7 @@ export default function ContasReceber() {
   }, [pedidos]);
 
 
-  const totaisComandas = useMemo(() => {
+  const totaisComandasCalculados = useMemo(() => {
     let emAberto = 0;
     let bruto = 0;
     let pago = 0;
@@ -195,8 +249,19 @@ export default function ContasReceber() {
 
 
   const totaisExibidos = aba === 'comandas'
-    ? { emAberto: totaisComandas.emAberto, bruto: totaisComandas.bruto, pago: totaisComandas.pago }
-    : { emAberto: totais.totalEmAberto, bruto: totais.totalBruto, pago: totais.totalPagoGeral };
+    ? {
+      emAberto: totaisComandasServidor?.totalEmAberto ?? totaisComandasCalculados.emAberto,
+      bruto: totaisComandasServidor?.totalBruto ?? totaisComandasCalculados.bruto,
+      pago: totaisComandasServidor?.totalPago ?? totaisComandasCalculados.pago,
+    }
+    : {
+      emAberto: totaisPedidosServidor?.totalEmAberto ?? totaisCalculados.totalEmAberto,
+      bruto: totaisPedidosServidor?.totalBruto ?? totaisCalculados.totalBruto,
+      pago: totaisPedidosServidor?.totalPago ?? totaisCalculados.totalPagoGeral,
+    };
+  const pedidosRecebiveisNaPagina = pedidos.filter(pedido => pedido.status === 'pendente' || pedido.status === 'parcial');
+  const todosPedidosRecebiveisSelecionados = pedidosRecebiveisNaPagina.length > 0
+    && pedidosRecebiveisNaPagina.every(pedido => selecionados.has(pedido._id));
 
 
   const abrirReceberComanda = (comanda) => {
@@ -242,44 +307,48 @@ export default function ContasReceber() {
 
   const toggleSelecionarTodos = () => {
     const disponiveis = pedidos.filter(p => p.status === 'pendente' || p.status === 'parcial');
-    const todosIds = new Set(disponiveis.map(p => p._id));
-    if (selecionados.size === disponiveis.length && disponiveis.length > 0) {
-      setSelecionados(new Set());
+    const todosSelecionados = disponiveis.length > 0 && disponiveis.every(pedido => selecionados.has(pedido._id));
+    if (todosSelecionados) {
+      setPedidosSelecionados((atuais) => {
+        const proximo = new Map(atuais);
+        disponiveis.forEach(pedido => proximo.delete(pedido._id));
+        return proximo;
+      });
     } else {
-      const clientes = new Set(disponiveis.map(p => p.clienteId || `nome:${p.clienteNome || ''}`));
+      const proximo = new Map(pedidosSelecionados);
+      disponiveis.forEach(pedido => proximo.set(pedido._id, pedido));
+      const clientes = new Set([...proximo.values()].map(chaveClientePedido));
       if (clientes.size > 1) return showToast('Selecione apenas pedidos do mesmo cliente', 'warning');
-      setSelecionados(todosIds);
+      setPedidosSelecionados(proximo);
     }
   };
 
 
   const toggleSelecionar = (id) => {
-    const proximo = new Set(selecionados);
+    const proximo = new Map(pedidosSelecionados);
     if (proximo.has(id)) {
       proximo.delete(id);
     } else {
       const pedido = pedidos.find(p => p._id === id);
-      const selecionado = pedidos.find(p => proximo.has(p._id));
-      const chavePedido = pedido?.clienteId || `nome:${pedido?.clienteNome || ''}`;
-      const chaveSelecionado = selecionado?.clienteId || `nome:${selecionado?.clienteNome || ''}`;
-      if (selecionado && chavePedido !== chaveSelecionado) {
+      const clientePedido = chaveClientePedido(pedido);
+      const clientesSelecionados = new Set([...proximo.values()].map(chaveClientePedido));
+      if (clientesSelecionados.size > 0 && !clientesSelecionados.has(clientePedido)) {
         return showToast('Selecione apenas pedidos do mesmo cliente', 'warning');
       }
       if (pedido?.status === 'pago' || pedido?.status === 'cancelado') {
         return showToast('Selecione apenas pedidos em aberto', 'warning');
       }
-      proximo.add(id);
+      if (pedido) proximo.set(id, pedido);
     }
-    setSelecionados(proximo);
+    setPedidosSelecionados(proximo);
   };
 
 
   // ✅ Calcular valor total a receber dos selecionados
   const valorTotalSelecionados = useMemo(() => {
-    return pedidos
-      .filter(p => selecionados.has(p._id))
+    return [...pedidosSelecionados.values()]
       .reduce((soma, pedido) => soma + saldoRecebivelPedido(pedido), 0);
-  }, [pedidos, selecionados]);
+  }, [pedidosSelecionados]);
 
 
   // ✅ Abrir modal de RECEBIMENTO MÚLTIPLO dos marcados
@@ -288,9 +357,8 @@ export default function ContasReceber() {
     if (selecionados.size === 0) {
       return showToast('Selecione pelo menos um pedido!', 'warning');
     }
-    const pedidosSelecionados = pedidos.filter(p => selecionados.has(p._id));
-    if (pedidosSelecionados.length !== selecionados.size) return;
-    const clientes = new Set(pedidosSelecionados.map(p => p.clienteId || `nome:${p.clienteNome || ''}`));
+    const selecionadosAtuais = [...pedidosSelecionados.values()];
+    const clientes = new Set(selecionadosAtuais.map(chaveClientePedido));
     if (clientes.size > 1) return showToast('Selecione apenas pedidos do mesmo cliente', 'warning');
     setPagamentoMultiploModal(true);
     setFormPagamentoMultiplo({
@@ -318,16 +386,15 @@ export default function ContasReceber() {
   const registrarPagamentoMultiplo = async () => {
     if (aba !== 'pedidos' || carregandoPedidos || erroPedidos || selecionados.size === 0) return;
     if (recebendoRef.current) return;
-    const pedidosSelecionados = pedidos.filter(p => selecionados.has(p._id));
-    if (pedidosSelecionados.length !== selecionados.size
-      || pedidosSelecionados.some(pedido => pedido.status !== 'pendente' && pedido.status !== 'parcial')) return;
+    const selecionadosAtuais = [...pedidosSelecionados.values()];
+    if (selecionadosAtuais.some(pedido => pedido.status !== 'pendente' && pedido.status !== 'parcial')) return;
     recebendoRef.current = true;
     setRecebendo(true);
     const pedidosRecebidos = [];
     let sucessos = 0;
     let falhas = 0;
 
-    for (const pedido of pedidosSelecionados) {
+    for (const pedido of selecionadosAtuais) {
       try {
         const valorAReceber = saldoRecebivelPedido(pedido);
 
@@ -343,7 +410,7 @@ export default function ContasReceber() {
       }
     }
 
-    if (falhas === 0) { setPagamentoMultiploModal(null); setSelecionados(new Set()); }
+    if (falhas === 0) { setPagamentoMultiploModal(null); setPedidosSelecionados(new Map()); }
     if (falhas === 0 && pedidosRecebidos.length > 0) {
       setPagamentoConcluido(consolidarPedidos(pedidosRecebidos));
     }
@@ -472,27 +539,39 @@ export default function ContasReceber() {
 
 
   // ✅ Relatório completo do cliente
-  const gerarRelatorioCompleto = () => {
+  const gerarRelatorioCompleto = async () => {
     if (!clienteFiltro) return showToast('Selecione um cliente primeiro!', 'warning');
-    if (pedidos.length === 0) return showToast('Nenhum pedido encontrado', 'warning');
+    const janela = window.open('', '_blank', 'width=350,height=600');
+    if (!janela) return showToast('Permita a abertura de pop-ups para imprimir o relatório.', 'warning');
+    try {
+      const { data: todosPedidos } = await api.get('/orders', {
+        params: {
+          clienteId: clienteFiltro,
+          ...buildOrdersQuery({ status: statusFiltro, inicio, fim, paginada: false }),
+        },
+      });
+      if (!Array.isArray(todosPedidos) || todosPedidos.length === 0) {
+        janela.close();
+        return showToast('Nenhum pedido encontrado', 'warning');
+      }
 
-    const data = new Date().toLocaleString('pt-BR');
-    const clienteNome = clientes.find(c => c._id === clienteFiltro)?.nome || 'Cliente';
+      const data = new Date().toLocaleString('pt-BR');
+      const clienteNome = clientes.find(c => c._id === clienteFiltro)?.nome || 'Cliente';
 
-    const totaisRel = {
-      bruto: pedidos.reduce((s, p) => s + (parseFloat(p.total) || 0), 0),
-      pago: pedidos.reduce((s, p) => s + somarPagamentos(p.pagamentos), 0),
-      aberto: pedidos.reduce((s, p) => {
-        const st = String(p.status || '').toLowerCase();
-        if (st === 'pago' || st === 'cancelado') return s;
-        return s + saldoRecebivelPedido(p);
-      }, 0)
-    };
+      const totaisRel = {
+        bruto: todosPedidos.reduce((s, p) => s + (parseFloat(p.total) || 0), 0),
+        pago: todosPedidos.reduce((s, p) => s + somarPagamentos(p.pagamentos), 0),
+        aberto: todosPedidos.reduce((s, p) => {
+          const st = String(p.status || '').toLowerCase();
+          if (st === 'pago' || st === 'cancelado') return s;
+          return s + saldoRecebivelPedido(p);
+        }, 0)
+      };
 
-    const pedidosHtml = pedidos.map(p => {
-      const falta = saldoRecebivelPedido(p);
+      const pedidosHtml = todosPedidos.map(p => {
+        const falta = saldoRecebivelPedido(p);
 
-      return `
+        return `
         <div style="border-bottom: 1px dashed #000; padding: 6px 0;">
           <div style="display:flex; justify-content:space-between; font-weight:bold;">
             <span>#${textoSeguro(p.numero)} - ${textoSeguro(p.clienteNome)}</span>
@@ -503,8 +582,8 @@ export default function ContasReceber() {
             ${falta > 0 ? `Falta: R$ ${falta.toFixed(2).replace('.',',')}` : 'Quitado'}
           </div>
         </div>
-      `;
-    }).join('');
+        `;
+      }).join('');
 
     const relatorio = `
       <!DOCTYPE html>
@@ -526,7 +605,7 @@ export default function ContasReceber() {
         <div class="linha"></div>
         <div><span class="bold">Data:</span> ${data}</div>
         <div><span class="bold">Cliente:</span> ${textoSeguro(clienteNome)}</div>
-        <div><span class="bold">Qtde Pedidos:</span> ${pedidos.length}</div>
+        <div><span class="bold">Qtde Pedidos:</span> ${todosPedidos.length}</div>
         <div class="linha"></div>
         ${pedidosHtml}
         <div class="linha"></div>
@@ -546,28 +625,51 @@ export default function ContasReceber() {
       </body>
       </html>
     `;
-    const janela = window.open('', '_blank', 'width=350,height=600');
-    janela.document.write(relatorio);
-    janela.document.close();
+      janela.document.write(relatorio);
+      janela.document.close();
+    } catch (error) {
+      janela.close();
+      showToast(error.response?.data?.msg || 'Não foi possível gerar o relatório completo do cliente.', 'error');
+    }
   };
 
 
-  const exportarContas = () => {
-    const dados = aba === 'comandas'
-      ? comandasAbertas.map((comanda) => ({
+  const exportarContas = async () => {
+    try {
+      const { data } = aba === 'comandas'
+        ? await api.get('/comandas/a-receber', {
+          params: {
+            ...(clienteFiltro ? { clienteId: clienteFiltro } : {}),
+            ...(inicio ? { dataInicio: inicio } : {}),
+            ...(fim ? { dataFim: fim } : {}),
+          },
+        })
+        : await api.get('/orders', {
+          params: {
+            ...(clienteFiltro ? { clienteId: clienteFiltro } : {}),
+            ...buildOrdersQuery({ status: statusFiltro, inicio, fim, paginada: false }),
+          },
+        });
+      const registros = Array.isArray(data) ? data : data.dados;
+      if (!Array.isArray(registros)) throw new Error('O servidor retornou um formato inválido para a exportação.');
+      const dados = aba === 'comandas'
+        ? registros.map((comanda) => ({
         ...comanda, createdAt: new Date(comanda.dataAbertura || comanda.createdAt),
         total: Number(comanda.valorTotal || 0), recebido: somarPagamentos(comanda.historicoPagamentos),
         saldo: saldoDevedor(comanda.valorTotal, comanda.historicoPagamentos),
       }))
-      : pedidos.map((pedido) => ({
+        : registros.map((pedido) => ({
         ...pedido, createdAt: new Date(pedido.createdAt), total: Number(pedido.total || 0),
         recebido: somarPagamentos(pedido.pagamentos), saldo: saldoRecebivelPedido(pedido),
       }));
-    exportarCSV(dados, [
-      ...colunasCSV.vendas,
-      { rotulo: 'Recebido', chave: 'recebido' },
-      { rotulo: 'Saldo devedor', chave: 'saldo' },
-    ], `contas_a_receber_${dataArquivoCSV()}.csv`);
+      exportarCSV(dados, [
+        ...colunasCSV.vendas,
+        { rotulo: 'Recebido', chave: 'recebido' },
+        { rotulo: 'Saldo devedor', chave: 'saldo' },
+      ], `contas_a_receber_${dataArquivoCSV()}.csv`);
+    } catch (error) {
+      showToast(error.response?.data?.msg || error.message || 'Não foi possível exportar as contas a receber.', 'error');
+    }
   };
 
   return (
@@ -596,7 +698,7 @@ export default function ContasReceber() {
       }}>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Cliente</label>
-          <SearchableSelect value={clienteFiltro} onChange={e => { invalidarSelecaoPedidos(); setClienteFiltro(e.target.value); }} style={{
+          <SearchableSelect value={clienteFiltro} onChange={e => atualizarFiltro('clienteId', e.target.value)} style={{
             width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
           }}>
             <option value="">Todos os clientes</option>
@@ -605,7 +707,7 @@ export default function ContasReceber() {
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Status</label>
-          <SearchableSelect value={statusFiltro} onChange={e => { invalidarSelecaoPedidos(); setStatusFiltro(e.target.value); }} style={{
+          <SearchableSelect value={statusFiltro} onChange={e => atualizarFiltro('status', e.target.value)} style={{
             width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
           }}>
             <option value="abertas">Todos em A Receber</option>
@@ -616,13 +718,13 @@ export default function ContasReceber() {
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Data Início</label>
-          <DateInput value={inicio} onChange={value => { invalidarSelecaoPedidos(); setInicio(value); }} style={{
+          <DateInput value={inicio} onChange={value => atualizarFiltro('inicio', value)} style={{
             width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
           }} />
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Data Fim</label>
-          <DateInput value={fim} onChange={value => { invalidarSelecaoPedidos(); setFim(value); }} style={{
+          <DateInput value={fim} onChange={value => atualizarFiltro('fim', value)} style={{
             width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
           }} />
         </div>
@@ -645,18 +747,18 @@ export default function ContasReceber() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {/* ✅ Selecionar Todos */}
-            {aba === 'pedidos' && pedidos.length > 0 && (
+            {aba === 'pedidos' && pedidosRecebiveisNaPagina.length > 0 && (
               <button
                 onClick={toggleSelecionarTodos}
                 disabled={carregandoPedidos || Boolean(erroPedidos)}
                 style={{
                   padding: '6px 12px',
-                  background: selecionados.size === pedidos.length && pedidos.length > 0 ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.2)',
+                  background: todosPedidosRecebiveisSelecionados ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.2)',
                   color: '#fff', border: '1px solid rgba(255,255,255,.3)', borderRadius: 8,
                   fontSize: 12, fontWeight: 600, cursor: 'pointer'
                 }}
               >
-                {selecionados.size === pedidos.filter(p => p.status === 'pendente' || p.status === 'parcial').length && pedidos.some(p => p.status === 'pendente' || p.status === 'parcial') ? '✓ Desmarcar Todos' : '☑ Selecionar Todos'}
+                {todosPedidosRecebiveisSelecionados ? '✓ Desmarcar Todos' : '☑ Selecionar Todos'}
               </button>
             )}
             <div style={{ display: 'flex', gap: 6 }}>
@@ -701,11 +803,11 @@ export default function ContasReceber() {
           tituloVazio={clienteFiltro || inicio || fim ? 'Nenhuma comanda encontrada para os filtros atuais' : 'Nenhuma comanda com saldo em aberto'}
           mensagemVazia={(clienteFiltro || inicio || fim) ? 'Ajuste ou limpe os filtros para ver outras comandas.' : undefined}
           acaoVaziaTexto={(clienteFiltro || inicio || fim) ? 'Limpar filtros' : undefined}
-          onAcaoVazia={(clienteFiltro || inicio || fim) ? () => { invalidarSelecaoPedidos(); setClienteFiltro(''); setInicio(''); setFim(''); } : undefined}
+          onAcaoVazia={(clienteFiltro || inicio || fim) ? limparFiltros : undefined}
           onRetry={carregarComandas}
         >
           <div style={{ display: 'grid', gap: 12 }}>
-            {paginacaoComandas.itensPagina.map((comanda) => {
+            {comandasAbertas.map((comanda) => {
               const info = statusPagamentoInfo(comanda.statusPagamento);
               const valorTotal = Number(comanda.valorTotal || 0);
               const recebido = somarPagamentos(comanda.historicoPagamentos);
@@ -755,7 +857,7 @@ export default function ContasReceber() {
                 </div>
               );
             })}
-            <Paginacao prefixo="comandas-a-receber" total={paginacaoComandas.total} paginaAtual={paginacaoComandas.paginaAtual} limiteAtual={paginacaoComandas.limiteAtual} onChangePagina={paginacaoComandas.alterarPagina} onChangeLimite={paginacaoComandas.alterarLimite} />
+            <Paginacao prefixo="comandas-a-receber" total={totalComandas} paginaAtual={paginaComandas} limiteAtual={limiteComandas} onChangePagina={alterarPaginaComandas} onChangeLimite={paginacaoComandas.alterarLimite} />
           </div>
         </EstadoLista>
       )}
@@ -769,11 +871,11 @@ export default function ContasReceber() {
           tituloVazio={clienteFiltro || inicio || fim || statusFiltro !== 'abertas' ? 'Nenhum pedido encontrado para os filtros atuais' : 'Nenhum pedido em aberto'}
           mensagemVazia={clienteFiltro || inicio || fim || statusFiltro !== 'abertas' ? 'Ajuste ou limpe os filtros para ver outros pedidos.' : undefined}
           acaoVaziaTexto={clienteFiltro || inicio || fim || statusFiltro !== 'abertas' ? 'Limpar filtros' : undefined}
-          onAcaoVazia={clienteFiltro || inicio || fim || statusFiltro !== 'abertas' ? () => { invalidarSelecaoPedidos(); setClienteFiltro(''); setStatusFiltro('abertas'); setInicio(''); setFim(''); } : undefined}
+          onAcaoVazia={clienteFiltro || inicio || fim || statusFiltro !== 'abertas' ? limparFiltros : undefined}
           onRetry={carregarPedidos}
         >
         <div style={{ display: 'grid', gap: 12 }}>
-          {paginacaoPedidos.itensPagina.map(pedido => {
+          {pedidos.map(pedido => {
             const st = statusCor[pedido.status];
             const totalPago = somarPagamentos(pedido.pagamentos);
             const falta = saldoRecebivelPedido(pedido);
@@ -917,7 +1019,7 @@ export default function ContasReceber() {
               </div>
             );
           })}
-          <Paginacao prefixo="pedidos-a-receber" total={paginacaoPedidos.total} paginaAtual={paginacaoPedidos.paginaAtual} limiteAtual={paginacaoPedidos.limiteAtual} onChangePagina={paginacaoPedidos.alterarPagina} onChangeLimite={paginacaoPedidos.alterarLimite} />
+          <Paginacao prefixo="pedidos-a-receber" total={totalPedidos} paginaAtual={paginaPedidos} limiteAtual={limitePedidos} onChangePagina={alterarPaginaPedidos} onChangeLimite={paginacaoPedidos.alterarLimite} />
         </div>
         </EstadoLista>
       )}

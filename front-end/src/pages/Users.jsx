@@ -9,7 +9,7 @@ import AreaTabs from '../components/AreaTabs.jsx';
 import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
-import usePagination from '../hooks/usePagination.js';
+import useUrlPagination from '../hooks/useUrlPagination.js';
 import Paginacao from '../components/Paginacao.jsx';
 import EstadoLista from '../components/EstadoLista.jsx';
 
@@ -28,6 +28,7 @@ export default function Users() {
   const { solicitar: solicitarEditar, renderizarModal: renderizarAutorizacaoEditar } = useAutorizacaoGerente('editar_usuario');
   const [form, setForm] = useState(emptyForm);
   const [users, setUsers] = useState([]);
+  const [totalUsers, setTotalUsers] = useState(0);
   const [couriers, setCouriers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(true);
@@ -38,13 +39,20 @@ export default function Users() {
   const [editingId, setEditingId] = useState(null);
   const [edit, setEdit] = useState(emptyEdit);
   const [courierEdit, setCourierEdit] = useState(null);
-  const paginacaoUsuarios = usePagination(users);
-  const paginacaoEntregadores = usePagination(couriers);
+  const paginacaoUsuarios = useUrlPagination('usuarios');
+  const { paginaAtual, limiteAtual } = paginacaoUsuarios;
 
-  const loadUsers = useCallback(() => api.get('/auth/users')
-    .then(({ data }) => { setUsers(data); setListError(''); })
+  const loadUsers = useCallback(() => {
+    setListLoading(true);
+    return api.get('/auth/users', { params: { pagina: paginaAtual, limite: limiteAtual } })
+    .then(({ data }) => {
+      setUsers(Array.isArray(data) ? data : data.dados);
+      setTotalUsers(Array.isArray(data) ? data.length : data.total);
+      setListError('');
+    })
     .catch(error => { setListError(errorMessage(error)); })
-    .finally(() => { setListLoading(false); }), []);
+    .finally(() => { setListLoading(false); });
+  }, [paginaAtual, limiteAtual]);
 
   const loadCouriers = useCallback(() => api.get('/entregas/entregadores')
     .then(({ data }) => { setCouriers(data || []); setCouriersError(''); })
@@ -56,8 +64,11 @@ export default function Users() {
 
   useEffect(() => {
     if (user?.role !== 'admin') return;
-    void loadUsers();
-    void loadCouriers();
+    const task = window.setTimeout(() => {
+      void loadUsers();
+      void loadCouriers();
+    }, 0);
+    return () => window.clearTimeout(task);
   }, [loadUsers, loadCouriers, user?.role]);
 
   if (user && user.role !== 'admin') return <Navigate to="/pdv" replace />;
@@ -184,7 +195,7 @@ export default function Users() {
           <div style={{ overflowX: 'auto' }}>
             <table style={tableStyle}>
               <thead><tr><th scope="col">Usuário</th><th scope="col">Perfil</th><th scope="col">Estado</th><th scope="col">Ações</th></tr></thead>
-              <tbody>{paginacaoUsuarios.itensPagina.map(account => <tr key={account.id}>
+              <tbody>{users.map(account => <tr key={account.id}>
               <td style={cellStyle}>{account.username}{account.id === user?.id && <span className="users-current-user"> Você</span>}</td>
               <td style={cellStyle}>{roles[account.role]}</td>
               <td style={cellStyle}>{account.ativo ? 'Ativo' : 'Bloqueado'}</td>
@@ -202,7 +213,7 @@ export default function Users() {
               </tr>)}</tbody>
             </table>
           </div>
-          <Paginacao prefixo="usuarios" total={paginacaoUsuarios.total} paginaAtual={paginacaoUsuarios.paginaAtual} limiteAtual={paginacaoUsuarios.limiteAtual} onChangePagina={paginacaoUsuarios.alterarPagina} onChangeLimite={paginacaoUsuarios.alterarLimite} />
+          <Paginacao prefixo="usuarios" total={totalUsers} paginaAtual={paginacaoUsuarios.paginaAtual} limiteAtual={paginacaoUsuarios.limiteAtual} onChangePagina={paginacaoUsuarios.alterarPagina} onChangeLimite={paginacaoUsuarios.alterarLimite} />
           </>
         </EstadoLista>
         {editingId && <form onSubmit={handleUpdate} style={{ marginTop: 24 }} key={editingId}>
@@ -240,7 +251,7 @@ export default function Users() {
           <div style={{ overflowX: 'auto' }}>
             <table style={tableStyle}>
               <thead><tr><th scope="col">Entregador</th><th scope="col">Telefone</th><th scope="col">Estado</th><th scope="col">Ações</th></tr></thead>
-              <tbody>{paginacaoEntregadores.itensPagina.map(courier => {
+              <tbody>{couriers.map(courier => {
               const canManage = courierBelongsToTenant(courier);
               return <tr key={courier._id}>
                 <td style={cellStyle}>{courier.nome}{!canManage && <span className="users-current-user"> Compartilhado</span>}</td>
@@ -261,7 +272,6 @@ export default function Users() {
               })}</tbody>
             </table>
           </div>
-          <Paginacao prefixo="entregadores" total={paginacaoEntregadores.total} paginaAtual={paginacaoEntregadores.paginaAtual} limiteAtual={paginacaoEntregadores.limiteAtual} onChangePagina={paginacaoEntregadores.alterarPagina} onChangeLimite={paginacaoEntregadores.alterarLimite} />
           </>
         </EstadoLista>
         {courierEdit && <form onSubmit={event => void saveCourier(event)} style={{ marginTop: 24 }} key={courierEdit._id}>
