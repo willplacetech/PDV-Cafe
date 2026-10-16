@@ -80,9 +80,10 @@ describe('Barra de comanda no mobile', () => {
   it('fecha o painel e remove o fundo ao cancelar uma comanda ainda não salva', () => {
     const tokenAutorizacao = `header.${btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 300 }))}.signature`;
     cy.intercept('POST', '**/api/auth/autorizar', { tokenAutorizacao, autorizado: true });
-    cy.on('window:confirm', () => true);
     cy.get('.product-card').contains(product.nome).click();
     cy.get('.pdv-cart-panel').contains('button', 'Cancelar comanda').click();
+    cy.get('[role="dialog"]').should('contain', 'Cancelar esta comanda e descartar os itens?');
+    cy.get('[role="dialog"]').contains('button', 'Cancelar comanda').click();
     cy.get('[role="dialog"]').should('contain', 'cancelar venda');
     cy.get('[role="dialog"] input[type="password"]').type('senha-gerente');
     cy.get('[role="dialog"]').contains('button', 'Confirmar').click();
@@ -95,7 +96,6 @@ describe('Barra de comanda no mobile', () => {
 
   it('fecha o painel somente depois de cancelar uma comanda salva', () => {
     cy.intercept('GET', '**/api/comandas*', [savedOrder]);
-    cy.on('window:confirm', () => true);
     cy.intercept('PATCH', '**/api/comandas/comanda-mobile/cancelar', { statusCode: 200, body: { msg: 'Comanda cancelada.' } }).as('cancel');
     cy.get('.product-card').contains(product.nome).click();
     cy.get('.pdv-cart-panel').contains('button', 'Salvar em aberto').click();
@@ -104,26 +104,26 @@ describe('Barra de comanda no mobile', () => {
     cy.get('.pdv-mobile-mesas-trigger').click();
     cy.get('.mesas-drawer-orders').contains('button', '#1').click();
     cy.get('.pdv-cart-panel').contains('button', 'Cancelar comanda').click();
+    cy.get('[role="dialog"]').contains('button', 'Cancelar comanda').click();
     cy.wait('@cancel');
     cy.get('.pdv-cart-panel').should('not.be.visible');
     cy.get('.pdv-mobile-cart-backdrop, .pdv-mobile-cart-trigger').should('not.exist');
   });
 
   it('preserva painel e itens ao desistir do cancelamento ou quando o servidor falha', () => {
-    let confirmar = false;
     cy.intercept('GET', '**/api/comandas*', [savedOrder]);
-    cy.on('window:confirm', () => confirmar);
     cy.intercept('PATCH', '**/api/comandas/comanda-mobile/cancelar', { statusCode: 500, body: { msg: 'Falha ao cancelar.' } }).as('cancelFailed');
     cy.get('.product-card').contains(product.nome).click();
     cy.get('.pdv-cart-panel').contains('button', 'Cancelar comanda').click();
+    cy.get('[role="dialog"]').contains('button', 'Cancelar').click();
     cy.get('.pdv-cart-panel').should('be.visible').and('contain', 'Café mobile');
     cy.get('.pdv-cart-items').contains(product.nome).should('be.visible');
     cy.get('.pdv-cart-panel').contains('button', 'Salvar em aberto').click();
     cy.wait('@save');
     cy.get('.pdv-mobile-mesas-trigger').click();
     cy.get('.mesas-drawer-orders').contains('button', '#1').click();
-    cy.then(() => { confirmar = true; });
     cy.get('.pdv-cart-panel').contains('button', 'Cancelar comanda').click();
+    cy.get('[role="dialog"]').contains('button', 'Cancelar comanda').click();
     cy.wait('@cancelFailed');
     cy.contains('Comanda cancelada.').should('not.exist');
     cy.get('.pdv-cart-panel').should('be.visible').and('contain', 'Café mobile');

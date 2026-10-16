@@ -104,7 +104,7 @@ describe('Formas de pagamento cadastradas', () => {
     cy.get('.payment-settings-grid article').contains(custom.label).closest('article').should('contain', '4%');
   });
 
-  it('edita nome no card, cancela edição e confirma exclusão', () => {
+  it('edita nome no card, cancela edição, desiste da exclusão e confirma depois', () => {
     addMethod();
     receipts = [{ tipo: custom.value, rotuloPagamento: custom.label, bruto: 100, taxa: 3, total: 97 }];
     const card = () => cy.get('.payment-settings-grid article').contains(custom.label).closest('article');
@@ -122,16 +122,16 @@ describe('Formas de pagamento cadastradas', () => {
     cy.wait('@edit');
     const renamed = () => cy.get('.payment-settings-grid article').contains('Vale Alimentação').closest('article');
     renamed().should('contain', '3%');
-    cy.on('window:confirm', () => false);
     renamed().contains('button', 'Excluir').click();
+    cy.get('[role="dialog"]').should('contain', 'Excluir a forma de pagamento "Vale Alimentação"? Os pagamentos já registrados serão preservados.');
+    cy.get('[role="dialog"]').contains('button', 'Cancelar').click();
     renamed().should('exist');
-    cy.removeAllListeners('window:confirm');
-    cy.on('window:confirm', () => true);
     cy.intercept('DELETE', `**/api/payment-settings/${custom.value}`, req => {
       methods = methods.filter(method => method.value !== custom.value);
       req.reply({ formasPagamento: methods });
     }).as('delete');
     renamed().contains('button', 'Excluir').click();
+    cy.get('[role="dialog"]').contains('button', 'Excluir forma de pagamento').click();
     cy.wait('@delete');
     cy.get('.payment-settings-grid').should('not.contain', 'Vale Alimentação');
     cy.reload();
@@ -154,8 +154,8 @@ describe('Formas de pagamento cadastradas', () => {
     cy.get('.payment-settings-grid input[type="text"]').should('have.value', 'PIX');
     cy.get('.payment-settings-grid').contains('button', 'Cancelar').click();
     cy.intercept('DELETE', `**/api/payment-settings/${custom.value}`, { statusCode: 500, body: { msg: 'Falha ao excluir.' } }).as('deleteError');
-    cy.on('window:confirm', () => true);
     cy.get('.payment-settings-grid article').contains(custom.label).closest('article').contains('button', 'Excluir').click();
+    cy.get('[role="dialog"]').contains('button', 'Excluir forma de pagamento').click();
     cy.wait('@deleteError');
     cy.get('.payment-settings-grid').should('contain', custom.label);
   });
