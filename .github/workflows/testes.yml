@@ -2,7 +2,7 @@ name: Testes Automatizados
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, feature/pwa-offline-sincronizacao]
   pull_request:
     branches: [main, master]
 
