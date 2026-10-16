@@ -23,6 +23,8 @@ const UserSchema = new mongoose.Schema({
     default: 'operador',
   },
   ativo: { type: Boolean, default: true },
+  autorizacaoTentativas: { type: Number, default: 0, select: false },
+  autorizacaoBloqueadaAte: { type: Date, select: false },
   tokenVersion: { type: Number, default: 0, min: 0, validate: Number.isSafeInteger },
   email: { type: String, trim: true, lowercase: true, unique: true, sparse: true, maxlength: 254, validate: valor => valor == null || validEmail(valor) },
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },

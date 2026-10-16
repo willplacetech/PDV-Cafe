@@ -7,7 +7,7 @@ const Order = require('../models/Order');
 const Customer = require('../models/Customer');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
-const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
+const { exigirAutorizacao, verificarAutorizacao, exigirPrecoManual } = require('../middleware/exigirAutorizacao');
 const { obterTaxasCartao } = require('../utils/taxasCartao');
 const { calcularStatusPagamento, construirPagamento, formaPagamentoValida, normalizarFormaPagamento, normalizarPagamentos, saldoDevedor, totalPago, validarCancelamentoFinanceiro } = require('../utils/pagamento');
 const { precoPorUnidade } = require('../utils/pesoProduto');
@@ -175,7 +175,7 @@ router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (
   }
 });
 
-router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), exigirPrecoManual, async (req, res) => {
   const origemOffline = req.body.origemOffline;
   const origemConfere = (user) => origemOffline && typeof origemOffline === 'object' && !Array.isArray(origemOffline)
     && typeof origemOffline.ownerId === 'string' && origemOffline.ownerId === String(user?.id ?? user?._id ?? '')
@@ -287,7 +287,7 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (re
       const anterior = await buscarAnterior();
       if (anterior) return responderAnterior(anterior);
     }
-    res.status(400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   } finally { await session.endSession(); }
 });
 
@@ -301,7 +301,7 @@ router.patch('/:id/balcao/status', auth, auth.allowRoles('admin', 'operador', 'c
   } catch (error) { res.status(400).json({ msg: error.message }); }
 });
 
-router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), exigirPrecoManual, async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -332,7 +332,7 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
     res.json(comanda);
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
-    res.status(400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   } finally { await session.endSession(); }
 });
 
@@ -346,11 +346,16 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'g
     const item = comanda.itens.id(req.params.itemId);
     if (!item) return res.status(404).json({ msg: 'Item não encontrado' });
     if (!Number.isFinite(quantidade) || quantidade < 0.001) return res.status(400).json({ msg: 'Quantidade inválida' });
+    const mudouPreco = Object.hasOwn(req.body, 'precoUnitarioManual') && req.body.precoUnitarioManual !== item.precoUnitarioManual;
+    if (mudouPreco && quantidade < item.quantidade) return res.status(400).json({ msg: 'Altere o preço e reduza a quantidade em operações separadas' });
+    if (mudouPreco) await verificarAutorizacao(req, 'alterar_preco');
+    else if (quantidade < item.quantidade) await verificarAutorizacao(req, 'excluir_item');
     const product = await Product.findById(item.produtoId).session(session);
     if (product && !permiteFracionar(product) && !Number.isInteger(quantidade)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
     const porPeso = item.tipoVenda === 'peso';
     const pesoNovo = porPeso ? (req.body.pesoVendidoKg == null ? Number(item.pesoVendidoKg) * quantidade / Number(item.quantidade) : Number(req.body.pesoVendidoKg)) : 0;
     if (porPeso && (!Number.isFinite(pesoNovo) || pesoNovo <= 0)) throw new Error('Informe o peso vendido');
+    if (porPeso && pesoNovo < Number(item.pesoVendidoKg) && quantidade >= item.quantidade) await verificarAutorizacao(req, 'excluir_item');
     const estoqueBaixado = comanda.estoqueBaixado;
     if (estoqueBaixado) await ajustarEstoque([item], 'devolver', session);
     item.quantidade = quantidade;
@@ -369,11 +374,11 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'g
     res.json(comanda);
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
-    res.status(400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   } finally { await session.endSession(); }
 });
 
-router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'garcom'), exigirAutorizacao('excluir_item'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -389,7 +394,7 @@ router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', '
     res.json(comanda);
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
-    res.status(400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   } finally { await session.endSession(); }
 });
 
@@ -436,7 +441,7 @@ router.post('/:id/mover', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
     res.json({ novaComanda, comandaOrigem });
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
-    res.status(400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   } finally { await session.endSession(); }
 });
 
@@ -457,7 +462,7 @@ router.patch('/:id/cancelar', auth, auth.allowRoles('admin', 'operador', 'gerent
     res.json(comanda);
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
-    res.status(err.status || 400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   } finally { await session.endSession(); }
 });
 
@@ -514,7 +519,7 @@ router.patch('/:id/receber-parcial', auth, auth.allowRoles('admin', 'operador', 
     }
     res.json(resultado);
   } catch (err) {
-    res.status(err.status || 400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   }
 });
 
@@ -551,7 +556,7 @@ router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador', 'garcom'
     res.json({ customer, order });
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
-    res.status(400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   } finally { await session.endSession(); }
 });
 
@@ -619,7 +624,27 @@ router.patch('/:id/detalhes', auth, auth.allowRoles('admin', 'operador', 'garcom
   } finally { await session.endSession(); }
 });
 
-router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.post('/:id/reabrir', auth, auth.allowRoles('admin', 'gerente', 'operador'), exigirAutorizacao('reabrir_comanda'), async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+    const comanda = await Comanda.findById(req.params.id).session(session);
+    if (!comanda || comanda.status !== 'fechada') return res.status(409).json({ msg: 'Somente comandas fechadas podem ser reabertas' });
+    if (comanda.utilizacaoInterna || comanda.entrega) return res.status(409).json({ msg: 'Consumo interno e delivery exigem regularização específica antes de reabrir' });
+    const pedido = await Order.findById(comanda.pedidoId).session(session);
+    if (!pedido || pedido.status === 'cancelado' || ['autorizada', 'processando'].includes(pedido.nfce?.status)) return res.status(409).json({ msg: 'Regularize o pedido e a situação fiscal antes de reabrir' });
+    if (comanda.mesa && await Comanda.exists({ _id: { $ne: comanda._id }, mesa: comanda.mesa, status: 'aberta' }).session(session)) return res.status(409).json({ msg: 'A mesa já possui outra comanda aberta' });
+    comanda.status = 'aberta';
+    await comanda.save({ session });
+    await session.commitTransaction();
+    res.json(comanda);
+  } catch (error) {
+    if (session.inTransaction()) await session.abortTransaction();
+    res.status(error.status || 400).json({ msg: error.message });
+  } finally { await session.endSession(); }
+});
+
+router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador', 'gerente'), async (req, res) => {
   try {
     const resultado = await executarOperacaoFinanceira({ req, tipo: 'comanda-fechar', recursoId: req.params.id, executar: async (session, dataRecebimento) => {
     const comanda = await Comanda.findById(req.params.id).session(session);
@@ -636,6 +661,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     const subtotal = calcularSubtotalComanda(comanda.itens);
     const discount = money(req.body.desconto || 0);
     if (!Number.isFinite(discount) || discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
+    if (discount > money(subtotal * 0.1)) await verificarAutorizacao(req, 'desconto_acima_10');
     const total = utilizacaoInterna ? 0 : money(subtotal + Number(comanda.taxaEntrega || 0) - discount);
 
     const historico = Array.isArray(comanda.historicoPagamentos) ? comanda.historicoPagamentos : [];
@@ -684,7 +710,10 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
       if (enderecoEntrega) customer.enderecoEntrega = enderecoEntrega;
       await customer.save({ session });
     }
-    const order = new Order({
+    const pedidoAnterior = comanda.pedidoId ? await Order.findById(comanda.pedidoId).session(session) : null;
+    if (comanda.pedidoId && !pedidoAnterior) throw new Error('Pedido vinculado ausente; regularize antes de fechar');
+    const order = pedidoAnterior || new Order();
+    order.set({
       itens: comanda.itens,
       tipoAtendimento: comanda.tipoAtendimento || 'mesa',
       subtotal,
@@ -701,7 +730,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
       pagamentos: [],
     });
     await order.save({ session });
-    if (customer && !utilizacaoInterna) {
+    if (customer && !utilizacaoInterna && !pedidoAnterior) {
       await Customer.findByIdAndUpdate(customer.id, { $inc: { cafesFidelidade: 1 } }, { session });
       comanda.clienteId = customer.id;
       comanda.clienteTelefone = customer.telefone || telefone;
@@ -720,7 +749,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     } });
     res.json(resultado);
   } catch (err) {
-    res.status(err.status || 400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   }
 });
 

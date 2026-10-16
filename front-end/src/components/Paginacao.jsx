@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLimite }) => {
-  const [searchParams, setSearchParams] = useSearchParams();
+const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLimite, prefixo = '' }) => {
+  const [, setSearchParams] = useSearchParams();
   const [limitOptions] = useState([10, 25, 50, 100]);
+  const parametroPagina = prefixo ? `pagina_${prefixo}` : 'pagina';
+  const parametroLimite = prefixo ? `limite_${prefixo}` : 'limite';
+  const idLimite = prefixo ? `limite-select-${prefixo}` : 'limite-select';
   const totalPaginas = Math.ceil(total / limiteAtual);
   const paginaAtualNum = parseInt(paginaAtual, 10) || 1;
   const limiteAtualNum = parseInt(limiteAtual, 10) || 25;
@@ -12,7 +15,7 @@ const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLi
     if (novaPagina < 1 || novaPagina > totalPaginas || novaPagina === paginaAtualNum) return;
     onChangePagina(novaPagina);
     setSearchParams(prev => {
-      prev.set('pagina', novaPagina.toString());
+      prev.set(parametroPagina, novaPagina.toString());
       return prev;
     }, { replace: true });
     window.scrollTo(0, 0);
@@ -23,8 +26,8 @@ const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLi
     onChangeLimite(novoLimite);
     onChangePagina(1);
     setSearchParams(prev => {
-      prev.set('pagina', '1');
-      prev.set('limite', novoLimite.toString());
+      prev.set(parametroPagina, '1');
+      prev.set(parametroLimite, novoLimite.toString());
       return prev;
     }, { replace: true });
     window.scrollTo(0, 0);
@@ -135,9 +138,9 @@ const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLi
       </div>
       <div className="paginacao-controles">
         <div>
-          <label htmlFor="limite-select">Itens por pagina:</label>
+          <label htmlFor={idLimite}>Itens por pagina:</label>
           <select
-            id="limite-select"
+            id={idLimite}
             className="paginacao-limite-select"
             value={limiteAtualNum}
             onChange={(e) => handleLimitChange(parseInt(e.target.value, 10))}

@@ -5,6 +5,7 @@ import { useCallback, useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
+import { solicitarAutorizacao } from '../services/managerApproval.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { estoqueDisponivelComanda } from '../utils/estoqueComanda.js';
@@ -84,6 +85,7 @@ export default function PDV() {
   const carrinho = comandaAtual.itens;
   const [produtos, setProdutos] = useState([]);
   const [carregandoProdutos, setCarregandoProdutos] = useState(true);
+  const [erroProdutos, setErroProdutos] = useState('');
   const [maisVendidos, setMaisVendidos] = useState([]);
   const [quantidadesRascunho, setQuantidadesRascunho] = useState({});
   const [precosRascunho, setPrecosRascunho] = useState({});
@@ -163,20 +165,28 @@ export default function PDV() {
       api.get('/products/pdv'), api.get('/customers'), api.get('/products/mais-vendidos?limite=8')
     ]) : [];
     const resultadoProdutos = resultados[0];
-    if (resultadoProdutos?.status === 'fulfilled') {
+    if (resultadoProdutos?.status === 'fulfilled' && Array.isArray(resultadoProdutos.value.data)) {
       setProdutos(resultadoProdutos.value.data);
+      setErroProdutos('');
       try { localStorage.setItem('pdv_catalogo_offline', JSON.stringify(resultadoProdutos.value.data)); } catch { /* cache auxiliar não deve bloquear o PDV */ }
     } else {
+      let produtosOffline = [];
       try {
-        const produtosOffline = JSON.parse(localStorage.getItem('pdv_catalogo_offline') || '[]');
-        if (Array.isArray(produtosOffline)) setProdutos(produtosOffline);
+        const cache = JSON.parse(localStorage.getItem('pdv_catalogo_offline') || '[]');
+        if (Array.isArray(cache)) produtosOffline = cache;
       } catch { /* catálogo local inválido; mantém a lista vazia */ }
+      setProdutos(produtosOffline);
+      setErroProdutos(produtosOffline.length
+        ? ''
+        : resultadoProdutos?.status === 'rejected'
+          ? resultadoProdutos.reason?.response?.data?.msg || 'Não foi possível carregar os produtos.'
+          : 'A resposta do catálogo de produtos é inválida.');
     }
     if (resultados[1]?.status === 'fulfilled') setClientes(resultados[1].value.data);
     if (resultados[2]?.status === 'fulfilled') setMaisVendidos(resultados[2].value.data);
     let temCatalogoOffline = false;
     try { temCatalogoOffline = JSON.parse(localStorage.getItem('pdv_catalogo_offline') || '[]').length > 0; } catch { /* ignora armazenamento local inválido */ }
-    if (resultados.every((resultado) => resultado.status === 'rejected') && !temCatalogoOffline) {
+    if (resultados.length && resultados.every((resultado) => resultado.status === 'rejected') && !temCatalogoOffline) {
       showToast('Sem conexão e sem catálogo salvo neste dispositivo', 'warning');
     }
     setCarregandoProdutos(false);
@@ -278,7 +288,7 @@ export default function PDV() {
   };
 
 
-  const alterarQtd = (idx, qtd) => {
+  const alterarQtd = async (idx, qtd) => {
     const quantidade = Number(qtd);
     if (!Number.isFinite(quantidade) || quantidade < 0.001) {
       setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[idx]; return proximas; });
@@ -292,13 +302,17 @@ export default function PDV() {
     const quantidadeOutrasLinhas = carrinho.reduce((total, item, itemIndex) => itemIndex !== idx && item.produtoId === novos[idx].produtoId ? total + item.quantidade : total, 0);
     const estoqueDisponivel = estoqueDisponivelComanda(prod, comandaAtual);
     if (!prod.permitirVendaSemInsumo && quantidadeOutrasLinhas + quantidade > estoqueDisponivel) return showToast(`Máximo: ${estoqueDisponivel}`, 'warning');
+    if (quantidade < novos[idx].quantidade) {
+      try { await solicitarAutorizacao('excluir_item'); }
+      catch { setQuantidadesRascunho({}); return; }
+    }
     novos[idx].quantidade = quantidade;
     setCarrinho(recalcularPrecosCarrinho(novos));
     setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[idx]; return proximas; });
   };
 
 
-  const alterarPreco = (idx, valor) => {
+  const alterarPreco = async (idx, valor) => {
     if (precosRascunho[idx] === undefined) return;
     const preco = Number(String(valor).replace(',', '.'));
     setPrecosRascunho({});
@@ -306,12 +320,15 @@ export default function PDV() {
       showToast('Informe um preço unitário válido.', 'warning');
       return;
     }
+    if (preco === carrinho[idx]?.precoUnitario) return;
+    try { await solicitarAutorizacao('alterar_preco'); } catch { return; }
     setCarrinho(itens => itens.map((item, index) => index === idx ? {
       ...item, precoUnitario: Math.round(preco * 100) / 100, precoUnitarioManual: Math.round(preco * 100) / 100,
     } : item));
   };
 
-  const removerItem = (idx) => {
+  const removerItem = async (idx) => {
+    try { await solicitarAutorizacao('excluir_item'); } catch { return; }
     setCarrinho((atuais) => recalcularPrecosCarrinho(atuais.filter((_, i) => i !== idx)));
     setQuantidadesRascunho({});
     setPrecosRascunho({});
@@ -994,7 +1011,7 @@ export default function PDV() {
               }}>{filtrados.length}</span>
             </div>
             {carregandoProdutos ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10, maxHeight: 420, overflowY: 'auto', padding: 2 }}>
+              <div data-testid="pdv-product-skeleton" role="status" aria-label="Carregando produtos" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10, maxHeight: 420, overflowY: 'auto', padding: 2 }}>
                 {Array.from({ length: 8 }).map((_, i) => (
                   <div key={i} style={{ background: 'var(--bg-tertiary)', borderRadius: 14, padding: 12, minHeight: 120, animation: 'pulse 1.5s ease-in-out infinite' }}>
                     <div style={{ background: 'var(--border-color)', borderRadius: 4, height: 16, width: '60%', marginBottom: 8 }}></div>
@@ -1002,6 +1019,11 @@ export default function PDV() {
                     <div style={{ background: 'var(--border-color)', borderRadius: 4, height: 12, width: '80%' }}></div>
                   </div>
                 ))}
+              </div>
+            ) : erroProdutos ? (
+              <div role="alert" style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px 20px', fontSize: 14 }}>
+                <p>{erroProdutos}</p>
+                <button type="button" onClick={() => { setErroProdutos(''); setCarregandoProdutos(true); void carregarDados(); }}>Tentar novamente</button>
               </div>
             ) : filtrados.length === 0 ? (
               <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px 20px', fontSize: 14 }}>
@@ -1136,7 +1158,7 @@ export default function PDV() {
                             background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)',
                             border: 'none', borderRadius: 8, padding: '6px 10px',
                             cursor: 'pointer', fontWeight: 700, fontSize: 12, minHeight: 32
-                          }}>✕</button>
+                          }}>🔒 ✕</button>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 10, overflow: 'hidden' }}>
@@ -1160,7 +1182,7 @@ export default function PDV() {
                             }}>+</button>
                           </div>
                           <div style={{ flex: 1, textAlign: 'right' }}>
-                            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Unitário</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>🔒 Unitário</div>
                             <input type="number" min="0" step="0.01" aria-label={`Preço unitário de ${item.nome}`} value={precosRascunho[i] ?? item.precoUnitario} onChange={event => setPrecosRascunho(atuais => ({ ...atuais, [i]: event.target.value }))} onBlur={event => alterarPreco(i, event.target.value)} style={{ width: '100%', maxWidth: 110, fontSize: 15, fontWeight: 700, background: 'var(--input-bg)', color: 'var(--input-text)', textAlign: 'right', padding: '8px 10px', border: '1px solid var(--border-color)', borderRadius: 8, minHeight: 38 }} />
                           </div>
                         </div>

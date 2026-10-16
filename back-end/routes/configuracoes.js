@@ -14,7 +14,7 @@ router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
       configuracao = await Configuracoes.create({ _id: 'principal', exigirAutorizacaoGerente: true });
     }
     res.json({
-      exigirAutorizacaoGerente: configuracao.exigirAutorizacaoGerente,
+      exigirAutorizacaoGerente: true,
       bloqueadoPorSuporte: process.env.FORCAR_AUTORIZACAO_GERENTE === 'true'
     });
   } catch (error) {
@@ -23,7 +23,7 @@ router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
 });
 
 // PATCH /api/configuracoes/autorizacao-gerente
-router.patch('/autorizacao-gerente', auth, auth.allowRoles('admin'), async (req, res) => {
+router.patch('/autorizacao-gerente', auth, auth.allowRoles('admin'), exigirAutorizacao('alterar_configuracao'), async (req, res) => {
   // Check for override environment variable
   if (process.env.FORCAR_AUTORIZACAO_GERENTE === 'true') {
     return res.status(403).json({ msg: 'Bloqueado pelo suporte' });
@@ -33,6 +33,7 @@ router.patch('/autorizacao-gerente', auth, auth.allowRoles('admin'), async (req,
   if (typeof valor !== 'boolean') {
     return res.status(400).json({ msg: 'O campo valor deve ser booleano' });
   }
+  if (!valor) return res.status(400).json({ msg: 'A autorização de gerente é obrigatória para ações críticas' });
   if (!valor && (!motivo || motivo.trim().length < 10)) {
     return res.status(400).json({ msg: 'Motivo obrigatorio com no minimo 10 caracteres ao desligar' });
   }

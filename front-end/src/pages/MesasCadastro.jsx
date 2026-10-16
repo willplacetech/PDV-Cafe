@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/useToast.js';
+import Paginacao from '../components/Paginacao.jsx';
+import usePagination from '../hooks/usePagination.js';
 
 const criarMesaInicial = (numero) => ({
   id: numero,
@@ -12,6 +14,7 @@ const criarMesaInicial = (numero) => ({
 
 export default function MesasCadastro() {
   const [mesas, setMesas] = useState([]);
+  const paginacao = usePagination(mesas);
   const [oferecerBalcao, setOferecerBalcao] = useState(true);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -98,7 +101,7 @@ export default function MesasCadastro() {
             </tr>
           </thead>
           <tbody>
-            {mesas.map((mesa) => (
+            {paginacao.itensPagina.map((mesa) => (
               <tr key={mesa.id} style={{ borderTop: '1px solid var(--border-color)' }}>
                 <td style={{ padding: '12px 8px', fontWeight: 700 }}>{mesa.numero}</td>
                 <td style={{ padding: '12px 8px' }}>
@@ -134,6 +137,7 @@ export default function MesasCadastro() {
             ))}
           </tbody>
         </table>
+        <Paginacao total={paginacao.total} paginaAtual={paginacao.paginaAtual} limiteAtual={paginacao.limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
       </div>
 
       <button type="button" onClick={adicionarMesa} disabled={carregando || salvando} style={{ background: 'var(--accent-primary)', color: '#fff', border: 0, borderRadius: 10, minHeight: 46, padding: '0 18px', fontWeight: 800, cursor: 'pointer', marginBottom: 16 }}>

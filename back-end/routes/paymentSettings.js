@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const auth = require('../middleware/auth');
+const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
 const PaymentSettings = require('../models/PaymentSettings');
 const { ROTULOS_PAGAMENTO, catalogoDaConfiguracao, normalizarNome, formaPersonalizada } = require('../utils/formasPagamento');
 
@@ -12,7 +13,7 @@ router.get('/', async (req, res) => {
     res.json({ formasPagamento: catalogoDaConfiguracao(configuracao) });
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
-router.post('/', auth.allowRoles('admin'), async (req, res) => {
+router.post('/', auth.allowRoles('admin'), exigirAutorizacao('alterar_taxas_cartao'), async (req, res) => {
   const nome = typeof req.body.nome === 'string' ? req.body.nome.trim().replace(/\s+/g, ' ') : '';
   const nomeNormalizado = normalizarNome(nome);
   const taxaPercentual = Number(req.body.taxaPercentual);
@@ -28,7 +29,7 @@ router.post('/', auth.allowRoles('admin'), async (req, res) => {
   } catch (error) { res.status(error.code === 11000 ? 409 : 500).json({ msg: error.code === 11000 ? 'Tente novamente o cadastro da forma de pagamento.' : error.message }); }
 });
 
-router.delete('/:tipo', auth.allowRoles('admin'), async (req, res) => {
+router.delete('/:tipo', auth.allowRoles('admin'), exigirAutorizacao('alterar_taxas_cartao'), async (req, res) => {
   const { tipo } = req.params;
   if (!formaPersonalizada(tipo)) return res.status(400).json({ msg: 'Somente formas de pagamento personalizadas podem ser excluídas.' });
   try {

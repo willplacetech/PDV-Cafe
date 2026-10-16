@@ -114,7 +114,8 @@ export function ComandaProvider({ children }) {
       if (!atualItem) {
         await api.delete(`/comandas/${atual._id}/itens/${item._id}`);
       } else if (Number(atualItem.quantidade) !== Number(item.quantidade) || atualItem.precoUnitarioManual !== item.precoUnitarioManual) {
-        await api.patch(`/comandas/${atual._id}/itens/${item._id}`, { quantidade: atualItem.quantidade, precoUnitarioManual: atualItem.precoUnitarioManual });
+        if (Number(atualItem.quantidade) !== Number(item.quantidade)) await api.patch(`/comandas/${atual._id}/itens/${item._id}`, { quantidade: atualItem.quantidade });
+        if (atualItem.precoUnitarioManual !== item.precoUnitarioManual) await api.patch(`/comandas/${atual._id}/itens/${item._id}`, { quantidade: atualItem.quantidade, precoUnitarioManual: atualItem.precoUnitarioManual });
       }
     }
     const idsOriginais = new Set(originais.map(item => String(item._id)));

@@ -56,7 +56,7 @@ router.get('/me', auth, (req, res) => {
 
 router.post('/refresh', ...sessions.refresh('pdv'));
 
-router.post('/register', auth, auth.allowRoles('admin'), async (req, res) => {
+router.post('/register', auth, auth.allowRoles('admin'), exigirAutorizacao('criar_usuario'), async (req, res) => {
   try {
     const body = req.body || {};
     const username = typeof body.username === 'string' ? body.username.toLowerCase().trim() : '';
@@ -140,11 +140,8 @@ router.post('/logout', sessions.logoutAuth('pdv', auth), async (req, res, next) 
 });
 
 router.post('/autorizar', auth, async (req, res, next) => {
-  const EXIGIR = process.env.EXIGIR_AUTORIZACAO_GERENTE !== 'false';
-  if (!EXIGIR) return res.json({ tokenAutorizacao: null, autorizado: true });
-
   const { senha, acao } = req.body || {};
-  if (typeof senha !== 'string' || typeof acao !== 'string' || !acao.trim()) {
+  if (typeof senha !== 'string' || !validLoginPassword(senha) || typeof acao !== 'string' || !acao.trim()) {
     return res.status(400).json({ msg: 'Informe a senha e a ação a autorizar' });
   }
 
@@ -152,20 +149,49 @@ router.post('/autorizar', auth, async (req, res, next) => {
     'cancelar_venda', 'alterar_preco', 'sangria_suprimento', 'fechar_caixa',
     'excluir_produto', 'excluir_cliente', 'excluir_insumo',
     'alterar_taxas_cartao', 'alterar_configuracao', 'criar_usuario', 'editar_usuario',
-    'desativar_usuario', 'trocar_perfil_usuario', 'exportar_dados',
+    'desativar_usuario', 'trocar_perfil_usuario', 'exportar_dados', 'excluir_item', 'reabrir_comanda', 'reabrir_caixa', 'desconto_acima_10',
   ];
   if (!acoesValidas.includes(acao)) {
     return res.status(400).json({ msg: `Ação "${acao}" não reconhecida` });
   }
 
   try {
-    const user = await User.findById(req.user.id).select('+password');
-    if (!user || user.ativo === false) return res.status(401).json({ msg: 'Usuário inválido' });
-
-    const senhaCorreta = await user.matchPassword(senha);
-    if (!senhaCorreta) {
+    const solicitante = await User.findById(req.user.id).select('+autorizacaoTentativas +autorizacaoBloqueadaAte');
+    if (!solicitante || solicitante.ativo === false) return res.status(401).json({ msg: 'Usuário inválido' });
+    const bloqueio = ate => {
+      const segundos = Math.max(1, Math.ceil((new Date(ate).getTime() - Date.now()) / 1000));
+      res.set('Retry-After', String(segundos));
+      return res.status(429).json({ msg: `Autorização bloqueada. Aguarde ${segundos}s.`, bloqueadoAte: new Date(ate).getTime() });
+    };
+    if (solicitante.autorizacaoBloqueadaAte > new Date()) return bloqueio(solicitante.autorizacaoBloqueadaAte);
+    const filtro = ['admin', 'gerente'].includes(solicitante.role)
+      ? { _id: solicitante._id }
+      : { role: { $in: ['admin', 'gerente'] }, tenantId: solicitante.tenantId || null };
+    const candidatos = await User.find({ ...filtro, ativo: { $ne: false } }).select('+password');
+    let user;
+    for (const candidato of candidatos) {
+      if (await candidato.matchPassword(senha)) { user = candidato; break; }
+    }
+    if (!user) {
+      const agora = new Date();
+      // Incremento e bloqueio atômicos: requisições paralelas não contornam o limite.
+      const tentativa = await User.findByIdAndUpdate(solicitante._id, [
+        { $set: { autorizacaoTentativas: { $cond: [
+          { $and: [{ $ne: [{ $ifNull: ['$autorizacaoBloqueadaAte', null] }, null] }, { $lte: ['$autorizacaoBloqueadaAte', agora] }] },
+          1, { $add: [{ $ifNull: ['$autorizacaoTentativas', 0] }, 1] },
+        ] } } },
+        { $set: { autorizacaoBloqueadaAte: { $cond: [
+          { $gte: ['$autorizacaoTentativas', 3] },
+          { $cond: [{ $gt: ['$autorizacaoBloqueadaAte', agora] }, '$autorizacaoBloqueadaAte', new Date(agora.getTime() + 60_000)] },
+          '$$REMOVE',
+        ] } } },
+      ], { new: true }).select('+autorizacaoTentativas +autorizacaoBloqueadaAte');
       await registrarAuditoria(req.user.id, null, acao, `tentativa falhou — senha incorreta`, false, req.ip, 'senha_incorreta');
-      return res.status(403).json({ msg: 'Senha incorreta' });
+      if (tentativa.autorizacaoTentativas >= 3) {
+        await registrarAuditoria(req.user.id, null, acao, 'Três tentativas inválidas; bloqueio de 60 segundos', false, req.ip, 'bloqueio_60s');
+        return bloqueio(tentativa.autorizacaoBloqueadaAte);
+      }
+      return res.status(403).json({ msg: 'Senha incorreta', tentativasRestantes: 3 - tentativa.autorizacaoTentativas });
     }
 
     if (!['admin', 'gerente'].includes(user.role)) {
@@ -173,11 +199,16 @@ router.post('/autorizar', auth, async (req, res, next) => {
     }
 
     const tokenAutorizacao = jwt.sign(
-      { id: user.id, username: user.username, role: user.role, acao },
+      { tipo: 'autorizacao-gerente', id: user.id, acao, solicitante: req.user.id, sessao: req.user.sid || null, versaoSolicitante: req.user.tokenVersion ?? 0, versaoGerente: user.tokenVersion ?? 0 },
       getJwtSecret(),
       { algorithm: 'HS256', expiresIn: '5m' }
     );
 
+    const liberado = await User.updateOne({ _id: solicitante._id, $or: [{ autorizacaoBloqueadaAte: { $exists: false } }, { autorizacaoBloqueadaAte: { $lte: new Date() } }] }, { $set: { autorizacaoTentativas: 0 }, $unset: { autorizacaoBloqueadaAte: '' } });
+    if (!liberado.matchedCount) {
+      const atual = await User.findById(solicitante._id).select('+autorizacaoBloqueadaAte');
+      return bloqueio(atual.autorizacaoBloqueadaAte);
+    }
     await registrarAuditoria(req.user.id, user.id, acao, `autorizado pela senha`, true, req.ip);
     return res.json({ tokenAutorizacao, autorizado: true });
   } catch (error) { next(error); }

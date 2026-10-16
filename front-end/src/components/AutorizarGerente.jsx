@@ -1,36 +1,15 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import api from '../services/api.jsx';
-
-const EXIGIR_LOCAL = typeof import.meta !== 'undefined' && import.meta.env?.VITE_EXIGIR_AUTORIZACAO_GERENTE !== 'false';
-
-const autorizacaoCache = new Map();
-const CACHE_MS = 4 * 60 * 1000;
-
-export function limparCacheAutorizacao(acao) {
-  if (acao) autorizacaoCache.delete(acao);
-  else autorizacaoCache.clear();
-}
-
-export function getAutorizacaoCache(acao, userRole) {
-  if (!EXIGIR_LOCAL) return { token: null, reaproveitado: true };
-  const entry = autorizacaoCache.get(acao);
-  if (!entry) return null;
-  if (Date.now() - entry.timestamp > CACHE_MS) {
-    autorizacaoCache.delete(acao);
-    return null;
-  }
-  if (entry.role === 'operador' && userRole !== entry.userRole) return null;
-  return entry;
-}
+import { guardarAutorizacao } from '../services/managerApproval.js';
 
 export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCancelar, onConfirmado }) {
   const { user } = useContext(AuthContext);
   const [senha, setSenha] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
-  const [tentativas, setTentativas] = useState(0);
-  const [bloqueado, setBloqueado] = useState(false);
+  const [bloqueadoAte, setBloqueadoAte] = useState(0);
+  const bloqueado = bloqueadoAte > 0;
   const inputRef = useRef(null);
 
   const eGerenteOuAdmin = user?.role === 'admin' || user?.role === 'gerente';
@@ -40,48 +19,34 @@ export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCa
 
   useEffect(() => {
     if (aberto) {
-      setSenha('');
-      setErro('');
-      setTentativas(0);
-      setBloqueado(false);
-      setTimeout(() => inputRef.current?.focus(), 100);
+      const timer = setTimeout(() => { setSenha(''); setErro(''); inputRef.current?.focus(); }, 0);
+      return () => clearTimeout(timer);
     }
   }, [aberto]);
 
   useEffect(() => {
     if (!aberto || !bloqueado) return;
-    const timer = setTimeout(() => setBloqueado(false), 60_000);
+    const timer = setTimeout(() => { setBloqueadoAte(0); setErro(''); }, Math.max(0, bloqueadoAte - Date.now()));
     return () => clearTimeout(timer);
-  }, [aberto, bloqueado]);
+  }, [aberto, bloqueado, bloqueadoAte]);
 
   const confirmar = async (event) => {
     event?.preventDefault();
     if (carregando || bloqueado) return;
-    if (tentativas >= 3) { setBloqueado(true); return; }
 
     setCarregando(true);
     setErro('');
     try {
       const { data } = await api.post('/auth/autorizar', { senha, acao });
-      if (!data.tokenAutorizacao && !data.autorizado) {
+      if (!data.tokenAutorizacao) {
         throw new Error('Autorização rejeitada');
       }
-      autorizacaoCache.set(acao, {
-        token: data.tokenAutorizacao,
-        timestamp: Date.now(),
-        role: eGerenteOuAdmin ? user.role : user.role,
-        userRole: user.role,
-      });
+      guardarAutorizacao(acao, data.tokenAutorizacao);
       onConfirmado(data.tokenAutorizacao);
     } catch (error) {
-      const proximas = tentativas + 1;
-      setTentativas(proximas);
-      if (proximas >= 3) {
-        setBloqueado(true);
-        setErro(`Senha incorreta. Bloqueado por 60s. ${proximas} tentativa(s).`);
-      } else {
-        setErro(`Senha incorreta. Tentativas restantes: ${3 - proximas}.`);
-      }
+      const data = error.response?.data;
+      if (error.response?.status === 429) setBloqueadoAte(data.bloqueadoAte);
+      setErro(`${data?.msg || 'Não foi possível autorizar. Tente novamente.'}${data?.tentativasRestantes != null ? ` Tentativas restantes: ${data.tentativasRestantes}.` : ''}`);
     } finally {
       setCarregando(false);
       setSenha('');
@@ -99,17 +64,17 @@ export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCa
       <form onSubmit={confirmar} onClick={(e) => e.stopPropagation()} style={{
         background: 'var(--bg-secondary)', borderRadius: 16, padding: 24,
         width: '100%', maxWidth: 360, boxShadow: 'var(--shadow-lg)',
-      }}>
-        <h3 style={{ margin: '0 0 8px', fontSize: 18, color: 'var(--text-primary)' }}>Confirmação necessária</h3>
-        <p style={{ margin: '0 0 16px', fontSize: 14, color: 'var(--text-secondary)' }}>{titulo || descricao}</p>
+      }} role="dialog" aria-modal="true" aria-label="Autorização de gerente" onKeyDown={event => { if (event.key === 'Escape') onCancelar(); }}>
+        <h3 style={{ margin: '0 0 8px', fontSize: 18, color: 'var(--text-primary)' }}>🔒 Confirmação necessária</h3>
+        <p style={{ margin: '0 0 16px', fontSize: 14, color: 'var(--text-secondary)' }}>{titulo || descricao || acao.replaceAll('_', ' ')}</p>
         <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>{hint}</p>
         <input
           ref={inputRef}
           type="password"
+          aria-label="Senha do gerente ou administrador"
           autoComplete="current-password"
           value={senha}
           onChange={(e) => setSenha(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
           placeholder="Senha"
           style={{
             width: '100%', padding: '12px', marginBottom: 12,
@@ -138,24 +103,4 @@ export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCa
       </form>
     </div>
   );
-}
-
-export function useAutorizacao(acao) {
-  const { user } = useContext(AuthContext);
-  const [autorizado, setAutorizado] = useState(null);
-
-  useEffect(() => {
-    const cached = getAutorizacaoCache(acao, user?.role);
-    setAutorizado(cached ? { token: cached.token, reaproveitado: true } : null);
-  }, [acao, user?.role]);
-
-  const solicitar = () => new Promise((resolve, reject) => {
-    setAutorizado({ token: null, aberto: true, resolver: resolve, rejeitar: reject });
-  });
-
-  const confirmado = (token) => {
-    setAutorizado(token ? { token } : null);
-  };
-
-  return { autorizado, solicitar, confirmado };
 }

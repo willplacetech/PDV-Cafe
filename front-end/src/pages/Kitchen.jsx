@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/useToast.js';
+import Paginacao from '../components/Paginacao.jsx';
+import usePagination from '../hooks/usePagination.js';
 
 const formatTime = (value) => new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const formatQuantity = (item) => `${Number(item.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${item.unidadeVenda || 'un'}`;
 
 export default function Kitchen() {
   const [comandas, setComandas] = useState([]);
+  const paginacao = usePagination(comandas);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
@@ -38,7 +41,7 @@ export default function Kitchen() {
 
   return <div className="kitchen-page">
     <header className="kitchen-heading page-heading"><div><span className="kitchen-eyebrow">PRODUÇÃO DO MOMENTO</span><h1>Cozinha</h1><p>Itens marcados como A Fazer nas comandas em aberto.</p></div><strong>{comandas.reduce((total, comanda) => total + comanda.itens.length, 0)} itens</strong></header>
-    {loading ? <div className="kitchen-empty">Carregando comandas...</div> : comandas.length ? <div className="kitchen-grid">{comandas.map((comanda) => <article className="kitchen-card" key={comanda._id}><div className="kitchen-card-heading"><div><span>{comanda.tipoAtendimento === 'delivery' ? '🛵 Delivery' : comanda.tipoAtendimento === 'balcao' ? '📦 Balcão' : `🪑 Mesa ${comanda.mesa || 'não informada'}`}</span><h2>#{comanda.numero}</h2></div><time>{formatTime(comanda.createdAt)}</time></div><div className="kitchen-client">{comanda.clienteNome || 'Cliente não identificado'}</div><div className="kitchen-items">{comanda.itens.map((item) => <div className="kitchen-item" key={item._id}><strong>{formatQuantity(item)}</strong><span>{item.nome}</span>{item.modificadores?.length ? <small>{item.modificadores.join(' · ')}</small> : null}</div>)}</div>{comanda.observacao && <p className="kitchen-note">Observação: {comanda.observacao}</p>}<div className="kitchen-pending">{comanda.entrega ? (comanda.entrega.preparoPronto ? 'Entrega pronta — aguardando fechamento da comanda' : 'Entrega Delivery em preparo') : comanda.tipoAtendimento === 'balcao' ? `Balcão · ${comanda.statusBalcao || 'aguardando'}` : 'Pendente até concluir a comanda'}</div>{comanda.entrega && !comanda.entrega.preparoPronto && <button type="button" className="kitchen-ready-button" onClick={() => void marcarEntregaPronta(comanda)}>Marcar entrega pronta</button>}</article>)}</div> : <div className="kitchen-empty"><strong>Nenhum preparo pendente</strong><span>Novos itens A Fazer aparecerão aqui automaticamente.</span></div>}
+    {loading ? <div className="kitchen-empty">Carregando comandas...</div> : comandas.length ? <><div className="kitchen-grid">{paginacao.itensPagina.map((comanda) => <article className="kitchen-card" key={comanda._id}><div className="kitchen-card-heading"><div><span>{comanda.tipoAtendimento === 'delivery' ? '🛵 Delivery' : comanda.tipoAtendimento === 'balcao' ? '📦 Balcão' : `🪑 Mesa ${comanda.mesa || 'não informada'}`}</span><h2>#{comanda.numero}</h2></div><time>{formatTime(comanda.createdAt)}</time></div><div className="kitchen-client">{comanda.clienteNome || 'Cliente não identificado'}</div><div className="kitchen-items">{comanda.itens.map((item) => <div className="kitchen-item" key={item._id}><strong>{formatQuantity(item)}</strong><span>{item.nome}</span>{item.modificadores?.length ? <small>{item.modificadores.join(' · ')}</small> : null}</div>)}</div>{comanda.observacao && <p className="kitchen-note">Observação: {comanda.observacao}</p>}<div className="kitchen-pending">{comanda.entrega ? (comanda.entrega.preparoPronto ? 'Entrega pronta — aguardando fechamento da comanda' : 'Entrega Delivery em preparo') : comanda.tipoAtendimento === 'balcao' ? `Balcão · ${comanda.statusBalcao || 'aguardando'}` : 'Pendente até concluir a comanda'}</div>{comanda.entrega && !comanda.entrega.preparoPronto && <button type="button" className="kitchen-ready-button" onClick={() => void marcarEntregaPronta(comanda)}>Marcar entrega pronta</button>}</article>)}</div><Paginacao prefixo="cozinha" total={paginacao.total} paginaAtual={paginacao.paginaAtual} limiteAtual={paginacao.limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} /></> : <div className="kitchen-empty"><strong>Nenhum preparo pendente</strong><span>Novos itens A Fazer aparecerão aqui automaticamente.</span></div>}
     <style>{styles}</style>
   </div>;
 }

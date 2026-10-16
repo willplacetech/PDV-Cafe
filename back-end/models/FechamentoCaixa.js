@@ -22,6 +22,7 @@ const fechamentoCaixaSchema = new mongoose.Schema({
   fechamentoOriginalId: { type: mongoose.Schema.Types.ObjectId, ref: 'FechamentoCaixa' },
   ajusteValor: { type: Number, default: 0 },
   ajusteMotivo: { type: String, default: '' },
+  reaberturas: [{ usuarioId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, data: Date, fechamento: mongoose.Schema.Types.Mixed }],
   sistema: {
     saldoAnterior: { type: Number, default: 0 },
     entradasDinheiro: { type: Number, default: 0 },

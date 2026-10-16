@@ -18,8 +18,12 @@ beforeEach(async () => {
 });
 afterEach(() => { jest.restoreAllMocks(); });
 
-const api = (path, body, role = 'operador') => request(app).post(`/api/caixa${path}`)
-  .set('Authorization', `Bearer ${tokens[role]}`).send(body);
+const api = (path, body, role = 'operador') => {
+  const req = request(app).post(`/api/caixa${path}`).set('Authorization', `Bearer ${tokens[role]}`);
+  const acao = path.endsWith('/fechar') ? 'fechar_caixa' : /\/(movimentos|ajuste)$/.test(path) ? 'sangria_suprimento' : null;
+  if (acao) req.set('X-Autorizacao-Gerente', require('../approvalFixture')(tokens[role], acao, jwt.decode(tokens.admin).id));
+  return req.send(body);
+};
 
 const abrir = async () => {
   const response = await api('/abrir', { data: dia });

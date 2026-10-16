@@ -3,6 +3,8 @@ import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
+import Paginacao from '../components/Paginacao.jsx';
+import usePagination from '../hooks/usePagination.js';
 import { imprimirEntrega } from '../utils/imprimirEntrega.js';
 import '../styles/delivery.css';
 
@@ -86,6 +88,7 @@ export default function Entregas() {
   const [despachando, setDespachando] = useState('');
   const carregamentoAtivo = useRef(false);
   const pedidoFocado = useRef(null);
+  const paginacaoEntregadores = usePagination(entregadores, 25, 'delivery-couriers');
 
   const carregar = useCallback(async (silencioso = false) => {
     if (carregamentoAtivo.current) return;
@@ -341,8 +344,9 @@ export default function Entregas() {
         <label><span>Ativo</span><input name="ativo" type="checkbox" defaultChecked={entregadorEdicao?.ativo !== false} /></label>
         <div className="delivery-actions"><button disabled={ocupado}>{entregadorEdicao ? 'Salvar alterações' : 'Cadastrar entregador'}</button>{entregadorEdicao && <button type="button" className="delivery-secondary" onClick={() => setEntregadorEdicao(null)}>Cancelar edição</button>}</div>
       </form>
-      <div className="delivery-grid">
-        {entregadores.map(entregador => {
+      <div>
+        <div className="delivery-grid">
+        {paginacaoEntregadores.itensPagina.map(entregador => {
           const pertenceAoComercio = String(entregador.tenantId) === String(comercio?._id);
           return <article className="delivery-card" key={entregador._id}>
           <span className="delivery-badge">{!pertenceAoComercio ? 'Livre · compartilhado' : entregador.ativo === false ? 'Desativado' : entregador.status}</span>
@@ -351,6 +355,8 @@ export default function Entregas() {
         </article>;
         })}
         {!entregadores.length && <p className="delivery-empty">Nenhum entregador cadastrado.</p>}
+        </div>
+        <Paginacao total={paginacaoEntregadores.total} paginaAtual={paginacaoEntregadores.paginaAtual} limiteAtual={paginacaoEntregadores.limiteAtual} onChangePagina={paginacaoEntregadores.alterarPagina} onChangeLimite={paginacaoEntregadores.alterarLimite} prefixo="delivery-couriers" />
       </div>
     </section>}
 

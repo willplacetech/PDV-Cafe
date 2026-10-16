@@ -126,3 +126,45 @@ describe('Barra de comanda no mobile', () => {
     cy.get('.pdv-mobile-cart-backdrop').should('be.visible');
   });
 });
+
+describe('Estados do catálogo de produtos no PDV', () => {
+  beforeEach(() => {
+    cy.viewport(390, 844);
+    cy.intercept('POST', '**/api/auth/refresh', { token: 'test-token', user: profile });
+    cy.intercept('GET', '**/api/**', req => {
+      const path = new URL(req.url).pathname;
+      if (path.endsWith('/mesas')) return req.reply({ mesas: [] });
+      if (path.endsWith('/products/pdv')) return;
+      if (path.endsWith('/products') || path.endsWith('/entregas/estatisticas')) return req.reply([]);
+      return req.reply([]);
+    });
+  });
+
+  it('mantém o skeleton visível enquanto o catálogo ainda está carregando', () => {
+    cy.intercept('GET', '**/products/pdv', { delay: 500, body: [product] }).as('catalog');
+    cy.visit('/pdv', { onBeforeLoad(win) { win.localStorage.setItem('pdv_user', JSON.stringify(profile)); } });
+    cy.get('[data-testid="pdv-product-skeleton"]').should('be.visible');
+    cy.contains('Nenhum produto cadastrado.').should('not.exist');
+    cy.wait('@catalog');
+    cy.get('.product-card').contains(product.nome).should('be.visible');
+  });
+
+  it('exibe o estado vazio somente após receber um catálogo vazio', () => {
+    cy.intercept('GET', '**/products/pdv', { statusCode: 200, body: [] }).as('catalog');
+    cy.visit('/pdv', { onBeforeLoad(win) { win.localStorage.setItem('pdv_user', JSON.stringify(profile)); } });
+    cy.wait('@catalog');
+    cy.contains('Nenhum produto cadastrado.').should('be.visible');
+  });
+
+  it('exibe erro e opção de tentar novamente quando falha sem catálogo offline', () => {
+    cy.intercept('GET', '**/products/pdv', { statusCode: 503, body: { msg: 'Catálogo indisponível.' } }).as('catalog');
+    cy.visit('/pdv', { onBeforeLoad(win) {
+      win.localStorage.setItem('pdv_user', JSON.stringify(profile));
+      win.localStorage.removeItem('pdv_catalogo_offline');
+    } });
+    cy.wait('@catalog');
+    cy.contains('O servidor encontrou um problema. Aguarde um instante e tente novamente.').should('be.visible');
+    cy.contains('button', 'Tentar novamente').should('be.visible');
+    cy.contains('Nenhum produto cadastrado.').should('not.exist');
+  });
+});

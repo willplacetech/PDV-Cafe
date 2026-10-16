@@ -8,6 +8,8 @@ import AreaTabs from '../components/AreaTabs.jsx';
 import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
+import usePagination from '../hooks/usePagination.js';
+import Paginacao from '../components/Paginacao.jsx';
 
 const roles = { operador: 'Operador', cozinha: 'Cozinha', garcom: 'Garçom', gerente: 'Gerente', admin: 'Administrador' };
 const policyMessage = 'Use pelo menos 12 caracteres e no máximo 72 bytes UTF-8 (acentos e emojis usam mais bytes).';
@@ -33,6 +35,8 @@ export default function Users() {
   const [editingId, setEditingId] = useState(null);
   const [edit, setEdit] = useState(emptyEdit);
   const [courierEdit, setCourierEdit] = useState(null);
+  const paginacaoUsuarios = usePagination(users);
+  const paginacaoEntregadores = usePagination(couriers);
 
   const loadUsers = useCallback(() => api.get('/auth/users')
     .then(({ data }) => { setUsers(data); setListError(''); })
@@ -164,20 +168,23 @@ export default function Users() {
         {listLoading && <p role="status">Carregando usuários...</p>}
         {listError && <div role="alert" className="users-error"><p>{listError}</p><button type="button" className="users-secondary-button" onClick={() => { setListLoading(true); setListError(''); void loadUsers(); }}>Tentar novamente</button></div>}
         {!listLoading && !listError && users.length === 0 && <p>Nenhum usuário cadastrado.</p>}
-        {!listLoading && !listError && users.length > 0 && <div style={{ overflowX: 'auto' }}>
-          <table style={tableStyle}>
-            <thead><tr><th scope="col">Usuário</th><th scope="col">Perfil</th><th scope="col">Estado</th><th scope="col">Ações</th></tr></thead>
-            <tbody>{users.map(account => <tr key={account.id}>
+        {!listLoading && !listError && users.length > 0 && <>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={tableStyle}>
+              <thead><tr><th scope="col">Usuário</th><th scope="col">Perfil</th><th scope="col">Estado</th><th scope="col">Ações</th></tr></thead>
+              <tbody>{paginacaoUsuarios.itensPagina.map(account => <tr key={account.id}>
               <td style={cellStyle}>{account.username}{account.id === user?.id && <span className="users-current-user"> Você</span>}</td>
               <td style={cellStyle}>{roles[account.role]}</td>
               <td style={cellStyle}>{account.ativo ? 'Ativo' : 'Bloqueado'}</td>
               <td style={cellStyle}><div className="users-actions">
                 <button type="button" className="users-secondary-button" disabled={busy} aria-label={`Editar ${account.username}`} onClick={() => { setEditingId(account.id); setEdit({ role: account.role, ativo: account.ativo, password: '' }); }}>Editar</button>
-                <button type="button" className="users-danger-button" disabled={busy || account.id === user?.id} title={account.id === user?.id ? 'Não é possível excluir o usuário conectado' : undefined} aria-label={`Excluir ${account.username}`} onClick={() => void deleteUser(account)}>Excluir</button>
+                <button type="button" className="users-danger-button" disabled={busy || account.id === user?.id} title={account.id === user?.id ? 'Não é possível excluir o usuário conectado' : undefined} aria-label={`Excluir ${account.username}`} onClick={() => void deleteUser(account)}>🔒 Excluir</button>
               </div></td>
-            </tr>)}</tbody>
-          </table>
-        </div>}
+              </tr>)}</tbody>
+            </table>
+          </div>
+          <Paginacao prefixo="usuarios" total={paginacaoUsuarios.total} paginaAtual={paginacaoUsuarios.paginaAtual} limiteAtual={paginacaoUsuarios.limiteAtual} onChangePagina={paginacaoUsuarios.alterarPagina} onChangeLimite={paginacaoUsuarios.alterarLimite} />
+        </>}
         {editingId && <form onSubmit={handleUpdate} style={{ marginTop: 24 }} key={editingId}>
           <h3>Editar {users.find(account => account.id === editingId)?.username}</h3>
           <label style={labelStyle}>Perfil
@@ -202,10 +209,11 @@ export default function Users() {
         {couriersLoading && <p role="status">Carregando entregadores...</p>}
         {couriersError && <div role="alert" className="users-error"><p>{couriersError}</p><button type="button" className="users-secondary-button" onClick={() => { setCouriersLoading(true); setCouriersError(''); void loadCouriers(); }}>Tentar novamente</button></div>}
         {!couriersLoading && !couriersError && couriers.length === 0 && <p>Nenhum entregador cadastrado para este comércio.</p>}
-        {!couriersLoading && !couriersError && couriers.length > 0 && <div style={{ overflowX: 'auto' }}>
-          <table style={tableStyle}>
-            <thead><tr><th scope="col">Entregador</th><th scope="col">Telefone</th><th scope="col">Estado</th><th scope="col">Ações</th></tr></thead>
-            <tbody>{couriers.map(courier => {
+        {!couriersLoading && !couriersError && couriers.length > 0 && <>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={tableStyle}>
+              <thead><tr><th scope="col">Entregador</th><th scope="col">Telefone</th><th scope="col">Estado</th><th scope="col">Ações</th></tr></thead>
+              <tbody>{paginacaoEntregadores.itensPagina.map(courier => {
               const canManage = courierBelongsToTenant(courier);
               return <tr key={courier._id}>
                 <td style={cellStyle}>{courier.nome}{!canManage && <span className="users-current-user"> Compartilhado</span>}</td>
@@ -213,12 +221,14 @@ export default function Users() {
                 <td style={cellStyle}>{courier.ativo === false ? 'Desativado' : courier.status === 'offline' ? 'Offline' : courier.status === 'em_entrega' ? 'Em entrega' : 'Disponível'}</td>
                 <td style={cellStyle}>{canManage ? <div className="users-actions">
                   <button type="button" className="users-secondary-button" disabled={busy} aria-label={`Editar ${courier.nome}`} onClick={() => setCourierEdit(courier)}>Editar</button>
-                  <button type="button" className="users-danger-button" disabled={busy} aria-label={`Excluir ${courier.nome}`} onClick={() => void deleteCourier(courier)}>Excluir</button>
+                  <button type="button" className="users-danger-button" disabled={busy} aria-label={`Excluir ${courier.nome}`} onClick={() => void deleteCourier(courier)}>🔒 Excluir</button>
                 </div> : <span className="users-muted">Gerenciado pelo cadastro de origem</span>}</td>
               </tr>;
-            })}</tbody>
-          </table>
-        </div>}
+              })}</tbody>
+            </table>
+          </div>
+          <Paginacao prefixo="entregadores" total={paginacaoEntregadores.total} paginaAtual={paginacaoEntregadores.paginaAtual} limiteAtual={paginacaoEntregadores.limiteAtual} onChangePagina={paginacaoEntregadores.alterarPagina} onChangeLimite={paginacaoEntregadores.alterarLimite} />
+        </>}
         {courierEdit && <form onSubmit={event => void saveCourier(event)} style={{ marginTop: 24 }} key={courierEdit._id}>
           <h3>Editar entregador: {courierEdit.nome}</h3>
           <label style={labelStyle}>Nome<input name="nome" required maxLength={160} defaultValue={courierEdit.nome} style={inputStyle} /></label>

@@ -32,7 +32,7 @@ services:
       - key: DELIVERY_PUBLIC_URL
         value: https://pdv-delivery-9j0a.onrender.com
       - key: EXIGIR_AUTORIZACAO_GERENTE
-        value: 'false'
+        value: 'true'
       - key: JWT_SECRET
         sync: false
       - key: SENTRY_DSN
@@ -55,3 +55,5 @@ services:
         value: '22'
       - key: API_PUBLIC_URL
         value: https://pdv-completo-z6ly.onrender.com
+      - key: VITE_SENTRY_DSN
+        sync: false

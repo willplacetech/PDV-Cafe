@@ -4,7 +4,7 @@ const User = require('../models/User');
 const { getJwtSecret } = require('../utils/authConfig');
 const Auditoria = require('../models/Auditoria');
 
-const EXIGIR_AUTORIZACAO = process.env.EXIGIR_AUTORIZACAO_GERENTE !== 'false';
+const EXIGIR_AUTORIZACAO = true;
 
 const detalhesAuditoria = (req, acao) => {
   const parts = [];
@@ -27,33 +27,43 @@ const registrarAuditoria = async (usuarioSolicitante, usuarioAutorizou, acao, de
   } catch { /* Auditoria não deve bloquear fluxo de negócio. */ }
 };
 
-const exigirAutorizacao = (acao) => async (req, res, next) => {
-  if (!EXIGIR_AUTORIZACAO) return next();
-
+const verificarAutorizacao = async (req, acao) => {
   const token = req.headers['x-autorizacao-gerente'];
+  const recusar = () => { throw Object.assign(new Error('Autorização do gerente necessária'), { status: 403, acao }); };
 
   try {
     const claims = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
-    if (claims.acao !== acao) {
+    if (claims.tipo !== 'autorizacao-gerente' || claims.acao !== acao || claims.solicitante !== req.user?.id || claims.sessao !== (req.user?.sid || null) || claims.versaoSolicitante !== (req.user?.tokenVersion ?? 0)) {
       await registrarAuditoria(
         req.user?.id, claims.id, acao, detalhesAuditoria(req, acao), false, req.ip, 'acao_invalida'
       );
-      return res.status(403).json({ msg: 'Autorização inválida para esta ação' });
+      return recusar();
     }
 
-    const user = await User.findById(claims.id).select('username role').lean();
-    if (!user || !['admin', 'gerente'].includes(user.role)) {
+    const user = await User.findById(claims.id).select('username role ativo tokenVersion').lean();
+    if (!user || user.ativo === false || claims.versaoGerente !== (user.tokenVersion ?? 0) || !['admin', 'gerente'].includes(user.role)) {
       await registrarAuditoria(req.user?.id, claims.id, acao, detalhesAuditoria(req, acao), false, req.ip, 'perfil_invalido');
-      return res.status(403).json({ msg: 'Autorização inválida para esta ação' });
+      return recusar();
     }
 
-    req.gerenteAutorizou = { id: user.id, username: user.username, role: user.role };
-    await registrarAuditoria(req.user?.id, user.id, acao, detalhesAuditoria(req, acao), true, req.ip);
-    next();
+    req.gerenteAutorizou = { id: String(user._id), username: user.username, role: user.role };
+    await registrarAuditoria(req.user?.id, user._id, acao, detalhesAuditoria(req, acao), true, req.ip);
+    return claims;
   } catch (error) {
     await registrarAuditoria(req.user?.id, null, acao, detalhesAuditoria(req, acao), false, req.ip, 'token_invalido');
-    return res.status(403).json({ msg: 'Autorização do gerente necessária' });
+    return recusar();
   }
 };
 
-module.exports = { exigirAutorizacao, registrarAuditoria, EXIGIR_AUTORIZACAO };
+const exigirAutorizacao = acao => async (req, res, next) => {
+  try { await verificarAutorizacao(req, acao); next(); }
+  catch (error) { res.status(error.status || 500).json({ msg: error.message, acao: error.acao }); }
+};
+
+const exigirPrecoManual = (req, res, next) => {
+  const itens = [req.body, ...(Array.isArray(req.body?.itens) ? req.body.itens : [])];
+  if (itens.some(item => item && Object.hasOwn(item, 'precoUnitarioManual'))) return exigirAutorizacao('alterar_preco')(req, res, next);
+  next();
+};
+
+module.exports = { exigirAutorizacao, verificarAutorizacao, exigirPrecoManual, registrarAuditoria, EXIGIR_AUTORIZACAO };

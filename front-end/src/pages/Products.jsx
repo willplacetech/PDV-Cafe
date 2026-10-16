@@ -6,6 +6,8 @@ import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
+import Paginacao from '../components/Paginacao.jsx';
+import usePagination from '../hooks/usePagination.js';
 
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Outros'];
 const filtrosTipo = ['Todos', 'Estoque de Venda', 'Estoque de Insumos'];
@@ -363,6 +365,7 @@ export default function Products() {
     const textoOk = [produto.nome, produto.codigo].join(' ').toLowerCase().includes(filtroTexto.toLowerCase());
     return tipoOk && categoriaOk && fichaOk && textoOk && (!filtrarEstoqueBaixo || abaixoDoMinimo(produto));
   });
+  const paginacao = usePagination(filtrados, 25, `${filtroTexto}|${filtroTipo}|${filtroCategoria}|${filtroFicha}|${filtrarEstoqueBaixo}`);
 
   return (
     <div className="products-page">
@@ -574,7 +577,7 @@ export default function Products() {
 
           <div className="product-form-actions">
             <button type="submit" className="product-submit-button">
-              {editing ? 'Atualizar' : 'Cadastrar'}
+              {editing ? '🔒 Atualizar' : 'Cadastrar'}
             </button>
             {editing && (
               <button type="button" className="product-cancel-button" onClick={cancelar}>
@@ -615,7 +618,7 @@ export default function Products() {
           <div style={{ textAlign: 'center', padding: 36, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum produto nesta visão</div>
         ) : (
           <div className="product-admin-grid">
-            {filtrados.map((produto) => (
+            {paginacao.itensPagina.map((produto) => (
               <article key={produto._id} className="product-admin-card">
                 <div>
                   <span style={{ background: produto.tipo === 'insumo' ? 'var(--category-supply-bg)' : 'var(--category-hot-bg)', color: produto.tipo === 'insumo' ? 'var(--category-supply-text)' : 'var(--category-hot-text)', padding: '3px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700 }}>
@@ -670,13 +673,14 @@ export default function Products() {
                   </div>
                   <div className="product-card-actions">
                     <button type="button" className="product-card-edit" onClick={() => editarProduto(produto)}>Editar</button>
-                    <button type="button" className="product-card-delete" onClick={() => remover(produto._id)}>Excluir</button>
+                    <button type="button" className="product-card-delete" onClick={() => remover(produto._id)}>🔒 Excluir</button>
                   </div>
                 </div>
               </article>
             ))}
           </div>
         )}
+        <Paginacao total={paginacao.total} paginaAtual={paginacao.paginaAtual} limiteAtual={paginacao.limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
       </div>
 
       <style>{`

@@ -8,6 +8,8 @@ import AreaTabs from '../components/AreaTabs.jsx';
 import { criarXmlClientes } from '../utils/customersXml.js';
 import { exportarCSV, colunasCSV } from '../utils/exportarCsv.js';
 import { calcularMultiplicadorFidelidade } from '../utils/fidelidade.js';
+import Paginacao from '../components/Paginacao.jsx';
+import usePagination from '../hooks/usePagination.js';
 
 // 🎯 Máscaras
 const aplicarMascaraTelefone = (valor) => {
@@ -39,6 +41,7 @@ const aplicarMascaraData = (valor) => {
 
 export default function Customers() {
   const [clientes, setClientes] = useState([]);
+  const paginacao = usePagination(clientes);
   const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '' }, cpf: '', aniversario: '', cafesFidelidade: '0' });
   const [editing, setEditing] = useState(null);
   const { showToast } = useToast();
@@ -271,7 +274,7 @@ export default function Customers() {
               flex: 1, padding: '12px', background: 'var(--accent-primary)', color: '#fff',
               border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700,
               cursor: 'pointer', minHeight: 46
-            }}>{editing ? 'Atualizar' : 'Cadastrar'}</button>
+            }}>{editing ? '🔒 Atualizar' : 'Cadastrar'}</button>
             {editing && <button type="button" onClick={() => { 
               setEditing(null); 
       setForm({ nome: '', telefone: '', endereco: '', enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '' }, cpf: '', aniversario: '', cafesFidelidade: '0' });
@@ -312,7 +315,7 @@ export default function Customers() {
             <tbody>
               {clientes.length === 0 ? (
                 <tr><td colSpan={6} style={{ textAlign: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum cliente cadastrado</td></tr>
-              ) : clientes.map(c => (
+              ) : paginacao.itensPagina.map(c => (
                 <tr key={c._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
                   <td style={{ padding: '10px 8px', fontWeight: 600, fontSize: 13 }}>{c.nome}{c.clienteInterno && <small style={{ display: 'block', fontWeight: 400 }}>Consumo da equipe · sem pagamento</small>}</td>
                   <td style={{ padding: '10px 8px', fontSize: 13, fontFamily: 'monospace' }}>
@@ -330,7 +333,7 @@ export default function Customers() {
                   <td style={{ padding: '10px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {c.clienteInterno ? <span>Cliente do sistema</span> : <>
                       <button onClick={() => alterar(c)} style={btnTable}>Editar</button>
-                      <button onClick={() => remover(c._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>Excluir</button>
+                      <button onClick={() => remover(c._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>🔒 Excluir</button>
                     </>}
                   </td>
                 </tr>
@@ -338,6 +341,7 @@ export default function Customers() {
             </tbody>
           </table>
         </div>
+        <Paginacao total={paginacao.total} paginaAtual={paginacao.paginaAtual} limiteAtual={paginacao.limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
       </div>
 
 

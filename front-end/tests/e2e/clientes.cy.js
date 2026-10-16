@@ -21,4 +21,21 @@
     cy.contains('th', 'Aniv.').should('exist');
     cy.contains('th', 'Endereço').should('not.exist');
   });
+
+  it('pagina a lista de clientes sem limitar os registros carregados', () => {
+    const customers = Array.from({ length: 30 }, (_, index) => ({
+      _id: `cliente-paginacao-${index + 1}`,
+      nome: `Cliente ${index + 1}`,
+      telefone: '11999887766',
+      cafesFidelidade: 0,
+    }));
+    cy.intercept('GET', '**/api/customers', { statusCode: 200, body: customers }).as('customers');
+    cy.visit('/clientes');
+    cy.wait('@customers');
+    cy.contains('tbody tr', 'Cliente 1').should('be.visible');
+    cy.contains('tbody tr', 'Cliente 26').should('not.exist');
+    cy.get('.paginacao').contains('button', '2').click();
+    cy.contains('tbody tr', 'Cliente 26').should('be.visible');
+    cy.contains('tbody tr', 'Cliente 1').should('not.exist');
+  });
 });

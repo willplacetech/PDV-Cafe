@@ -1,4 +1,5 @@
 require('dotenv').config();
+require('./instrument');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -27,7 +28,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-CSRF-Protection'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-CSRF-Protection', 'X-Autorizacao-Gerente'],
 };
 
 // Middlewares
@@ -48,6 +49,7 @@ app.use((req, res, next) => {
     registrado = true;
     const duracaoMs = Date.now() - iniciadoEm;
     const erroServidor = res.statusCode >= 500;
+    if (erroServidor && !req.sentryCaptured) require('./instrument').captureException(new Error('HTTP 5xx'), req.user?.id);
     if (!aborted && !erroServidor && duracaoMs < limiteLogApiLentaMs) return;
     const registro = JSON.stringify({
       evento: aborted ? 'api_aborted' : erroServidor ? 'api_error' : 'api_slow',
@@ -93,6 +95,7 @@ app.use('/api/compras', require('./routes/purchases'));
 app.use('/api/receitas', require('./routes/receitas'));
 app.use('/api/produtos', require('./routes/products'));
 app.use('/api/mesas', require('./routes/mesas'));
+app.use('/api/configuracoes', require('./routes/configuracoes'));
 
 app.use('/api', require('./routes/delivery'));
 

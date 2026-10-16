@@ -14,6 +14,8 @@ const errorHandler = (err, req, res, next) => {
   const contexto = capturarContextoRequisicao(req);
 
   if (status >= 500) {
+    require('../instrument').captureException(err, req.user?.id);
+    req.sentryCaptured = true;
     console.error(JSON.stringify({
       evento: 'ServerError',
       status,
@@ -34,7 +36,7 @@ const errorHandler = (err, req, res, next) => {
     ? 'Erro interno do servidor'
     : err.message || 'Erro interno do servidor';
 
-  res.status(status).json({ msg });
+  res.status(status).json({ msg, ...(err.acao ? { acao: err.acao } : {}) });
 };
 
 module.exports = errorHandler;

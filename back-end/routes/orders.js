@@ -5,7 +5,7 @@ const Comanda = require('../models/Comanda');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const auth = require('../middleware/auth');
-const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
+const { exigirAutorizacao, verificarAutorizacao } = require('../middleware/exigirAutorizacao');
 const { obterTaxasCartao, calcularPagamento } = require('../utils/taxasCartao');
 const { precoPorUnidade } = require('../utils/pesoProduto');
 const { produtoControlaPeso } = require('../utils/estoqueProduto');
@@ -122,7 +122,8 @@ router.post('/', auth, auth.allowRoles('admin'), async (req, res) => {
     const items = await buildOrderItems(req.body.itens, session);
     const subtotal = money(items.reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0));
     const discount = money(req.body.desconto || 0);
-    if (discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
+    if (!Number.isFinite(discount) || discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
+    if (discount > money(subtotal * 0.1)) await verificarAutorizacao(req, 'desconto_acima_10');
     const customer = req.body.clienteId ? await Customer.findById(req.body.clienteId).session(session) : null;
     if (req.body.clienteId && !customer) throw new Error('Cliente não encontrado');
     const utilizacaoInterna = Boolean(customer?.clienteInterno);
@@ -136,7 +137,7 @@ router.post('/', auth, auth.allowRoles('admin'), async (req, res) => {
       const existente = await Order.findOne({ idTemporario });
       if (existente) return res.status(200).json(existente);
     }
-    res.status(400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   } finally { await session.endSession(); }
 });
 
@@ -182,7 +183,7 @@ router.get('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ msg: 'Pedido não encontrado' });
     res.json(order);
-  } catch (err) { res.status(400).json({ msg: err.message }); }
+  } catch (err) { res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) }); }
 });
 
 router.patch('/:id/alterar-comanda', auth, auth.allowRoles('admin'), async (req, res) => {
@@ -261,7 +262,7 @@ router.patch('/:id/alterar-comanda', auth, auth.allowRoles('admin'), async (req,
     });
     res.json(resultado);
   } catch (err) {
-    res.status(err.status || 400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   } finally { await session.endSession(); }
 });
 
@@ -299,7 +300,7 @@ router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req,
     res.json(order);
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
-    res.status(400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   } finally { await session.endSession(); }
 });
 
@@ -322,7 +323,7 @@ router.patch('/:id/pagar', auth, auth.allowRoles('admin'), async (req, res) => {
     } });
     res.json(resultado);
   } catch (err) {
-    res.status(err.status || 400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   }
 });
 
@@ -344,7 +345,7 @@ router.patch('/:id/quitar', auth, auth.allowRoles('admin'), async (req, res) => 
     } });
     res.json(resultado);
   } catch (err) {
-    res.status(err.status || 400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   }
 });
 
@@ -371,7 +372,7 @@ router.patch('/cliente/:clienteId/quitar', auth, auth.allowRoles('admin'), async
     } });
     res.json(resultado);
   } catch (err) {
-    res.status(err.status || 400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   }
 });
 
@@ -402,7 +403,7 @@ router.patch('/:id/cancelar', auth, auth.allowRoles('admin'), exigirAutorizacao(
     res.json(order);
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
-    res.status(err.status || 400).json({ msg: err.message });
+    res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   } finally { await session.endSession(); }
 });
 

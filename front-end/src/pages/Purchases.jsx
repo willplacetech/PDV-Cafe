@@ -2,6 +2,8 @@ import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useEffect, useState } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/useToast.js';
+import Paginacao from '../components/Paginacao.jsx';
+import usePagination from '../hooks/usePagination.js';
 
 const units = ['kg', 'L', 'un'];
 const decimalStep = (unit) => unit === 'un' ? '0.01' : '0.001';
@@ -39,6 +41,7 @@ const getNextProductCode = (productList) => {
 export default function Purchases() {
   const [products, setProducts] = useState([]);
   const [purchases, setPurchases] = useState([]);
+  const paginacaoCompras = usePagination(purchases);
   const [form, setForm] = useState({ fornecedor: '', numeroNF: '', data: today(), metodoCusteio: 'media_ponderada', itens: [newItem()] });
   const [supplyForm, setSupplyForm] = useState(newSupply());
   const [supplyModalOpen, setSupplyModalOpen] = useState(false);
@@ -252,7 +255,7 @@ export default function Purchases() {
     </form>
     <section className="purchases-history">
       <div className="purchases-section-heading"><h2>Historico de compras</h2><span>{purchases.length} registro(s)</span></div>
-      {purchases.length ? purchases.map((purchase) => {
+      {purchases.length ? paginacaoCompras.itensPagina.map((purchase) => {
         const isExpanded = expandedPurchaseId === purchase._id;
         const itens = purchase.itens || [];
         return (
@@ -310,6 +313,7 @@ export default function Purchases() {
           </article>
         );
       }) : <p>Nenhuma compra registrada.</p>}
+      <Paginacao total={paginacaoCompras.total} paginaAtual={paginacaoCompras.paginaAtual} limiteAtual={paginacaoCompras.limiteAtual} onChangePagina={paginacaoCompras.alterarPagina} onChangeLimite={paginacaoCompras.alterarLimite} />
     </section>
     {supplyModalOpen && <div className="purchase-supply-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSupplyModalOpen(false); }}>
       <form onSubmit={saveSupply} className="purchase-supply-modal" role="dialog" aria-modal="true" aria-labelledby="new-supply-title">

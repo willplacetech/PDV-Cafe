@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { setAccessSession, getAccessToken, logoutAccessSession, waitForLogout, refreshAccessSession, runSessionLogin } from '../src/services/accessSession.js';
 
 const setup = (online = true) => {
-  const values = new Map([['pdv_fila_offline', '[{"id":"pending-sale","total":23}]'], ['pdv_catalogo', '[{"id":"coffee"}]'], ['other_app_session', 'other-token']]);
+  const values = new Map([['pdv_rascunho', 'draft'], ['pdv_carrinho', 'cart'], ['pdv_token', 'legacy-token'], ['pdv_fila_offline', '[{"id":"pending-sale","total":23}]'], ['pdv_catalogo', '[{"id":"coffee"}]'], ['other_app_session', 'other-token']]);
   globalThis.localStorage = { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: online } });
   setAccessSession('pdv', { token: 'old-token', user: { id: 'old-user', role: 'admin' } });
@@ -17,6 +17,9 @@ test('offline logout removes only PDV identity and preserves pending sales and c
   assert.equal(logoutAccessSession('pdv', 'https://example.test/api/'), undefined);
   assert.equal(getAccessToken(), null);
   assert.equal(values.has('pdv_user'), false);
+  assert.equal(values.has('pdv_rascunho'), false);
+  assert.equal(values.has('pdv_carrinho'), false);
+  assert.equal(values.has('pdv_token'), false);
   assert.equal(values.get('pdv_fila_offline'), '[{"id":"pending-sale","total":23}]');
   assert.equal(values.get('pdv_catalogo'), '[{"id":"coffee"}]');
   assert.equal(values.get('other_app_session'), 'other-token');

@@ -12,6 +12,8 @@ import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/useToast.js';
 import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 import { dataBR, normalizarPagamentos, saldoDevedor, statusPagamentoInfo, totalPago } from '../utils/formasPagamento.jsx';
+import Paginacao from '../components/Paginacao.jsx';
+import usePagination from '../hooks/usePagination.js';
 import {
   carregarConfiguracaoImpressao,
   carregarPreferenciaImpressora,
@@ -39,6 +41,7 @@ export default function Comandas() {
   const { comandaAtual, salvarComandaAberta, carregarComanda, limparComanda, setMesa, setTipo } = useComanda();
   const navigate = useNavigate();
   const [comandas, setComandas] = useState([]);
+  const paginacaoComandas = usePagination(comandas);
   const [products, setProducts] = useState([]);
   const [selected, setSelected] = useState(null);
   const [selectedItemIds, setSelectedItemIds] = useState([]);
@@ -594,7 +597,7 @@ export default function Comandas() {
         <section className={`comandas-card comandas-list-card ${mobileView === 'detail' ? 'mobile-hidden' : ''}`}>
           <div className="comandas-card-heading"><div><h2>Em aberto</h2><p>Selecione uma comanda para editar.</p></div><span className="comandas-count">{comandas.length}</span></div>
           <div className="comandas-quick-products"><strong>Lançamento rápido</strong><div>{products.filter((product) => product.categoria !== 'Insumos').slice(0, 8).map((product) => <button key={product._id} type="button" onClick={() => { setProductId(product._id); setQuantity('1'); }} className={productId === product._id ? 'selected' : ''}>{product.nome}</button>)}</div></div>
-          {comandas.map((command) => {
+          {paginacaoComandas.itensPagina.map((command) => {
             const info = statusPagamentoInfo(command.statusPagamento);
             const saldo = saldoDevedor(command.valorTotal, command.historicoPagamentos);
             return (
@@ -607,6 +610,7 @@ export default function Comandas() {
               </button>
             );
           })}
+          <Paginacao prefixo="comandas" total={paginacaoComandas.total} paginaAtual={paginacaoComandas.paginaAtual} limiteAtual={paginacaoComandas.limiteAtual} onChangePagina={paginacaoComandas.alterarPagina} onChangeLimite={paginacaoComandas.alterarLimite} />
         </section>
 
         <section className={`comandas-card comandas-detail-card ${mobileView === 'list' ? 'mobile-hidden' : ''}`}>

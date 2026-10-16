@@ -3,6 +3,8 @@ import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useCallback, useEffect, useState } from 'react';
 import DeliveryPortal from '../components/DeliveryPortal.jsx';
 import { deliveryApi, erroDelivery } from '../services/deliveryApi.js';
+import Paginacao from '../components/Paginacao.jsx';
+import usePagination from '../hooks/usePagination.js';
 
 function PainelPlataforma() {
   const [tenants, setTenants] = useState([]);
@@ -12,6 +14,8 @@ function PainelPlataforma() {
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
   const [ocupado, setOcupado] = useState(false);
+  const paginacaoTenants = usePagination(tenants);
+  const paginacaoEntregadores = usePagination(entregadores);
   const carregar = useCallback(async () => {
     try {
       const [empresas, equipe] = await Promise.all([
@@ -63,7 +67,8 @@ function PainelPlataforma() {
       <label>E-mail do administrador<input name="adminEmail" type="email" required defaultValue={edicao?.adminEmail || ''} /></label>
       <label><FieldLabel hintId="senha-inicial-ajuda" hint={<> {edicao ? 'Deixe em branco para manter a senha atual. Se a empresa ainda não tiver administrador, informe uma senha com pelo menos 12 caracteres.' : 'Obrigatória ao cadastrar a loja: pelo menos 12 caracteres. Será usada no acesso do comércio.'} </>}> {edicao ? 'Nova senha do administrador' : 'Senha inicial do administrador'} </FieldLabel><input name="adminSenha" type="password" minLength={12} maxLength={72} autoComplete="new-password" aria-describedby="senha-inicial-ajuda" required={!edicao || !edicao.adminEmail} /></label>
     </div><div className="delivery-actions"><button disabled={ocupado}>{edicao ? 'Salvar alterações' : 'Criar comércio'}</button>{edicao && <button type="button" className="delivery-secondary" onClick={() => setEdicao(null)}>Cancelar edição</button>}</div></form>
-    <div className="delivery-grid" style={{ marginTop: 24 }}>{tenants.map(tenant => <article className="delivery-card" key={tenant._id}><h2>{tenant.nome}</h2><span className="delivery-badge">{tenant.ativo ? 'Ativo' : 'Desativado'} · {tenant.plano}{tenant.pdvIntegrado ? ' · PDV integrado' : ''}</span><p>{tenant.slug}<br />Vencimento: {tenant.dataVencimento ? new Date(tenant.dataVencimento).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'Não definido'}</p><div className="delivery-actions"><button className="delivery-secondary" onClick={() => setEdicao(tenant)}>Editar</button><button className="delivery-danger" disabled={ocupado} onClick={() => { if (window.confirm(`Excluir permanentemente ${tenant.nome} e os cadastros Delivery vinculados? Esta ação não pode ser desfeita.`)) void agir(async () => { await deliveryApi.delete(`/plataforma/tenants/${tenant._id}`); if (edicao?._id === tenant._id) setEdicao(null); setAviso('Empresa excluída.'); }); }}>Excluir</button></div><button className="delivery-secondary" disabled={ocupado || !tenant.ativo || tenant.pdvIntegrado} onClick={() => { if (window.confirm(`Definir ${tenant.nome} como o comércio do PDV e associar todos os usuários existentes com perfil admin ou operador? Isso substitui qualquer vínculo atual desses perfis.`)) void agir(async () => { const { data } = await deliveryApi.post(`/plataforma/tenants/${tenant._id}/vincular-pdv`, {}); setAviso(`${data.usuariosVinculados} usuário(s) admin/operador associado(s). Peça que saiam e entrem novamente no PDV para atualizar a sessão.`); }); }}>{tenant.pdvIntegrado ? 'Comércio do PDV' : 'Usar como comércio do PDV'}</button></article>)}</div>
+    <div className="delivery-grid" style={{ marginTop: 24 }}>{paginacaoTenants.itensPagina.map(tenant => <article className="delivery-card" key={tenant._id}><h2>{tenant.nome}</h2><span className="delivery-badge">{tenant.ativo ? 'Ativo' : 'Desativado'} · {tenant.plano}{tenant.pdvIntegrado ? ' · PDV integrado' : ''}</span><p>{tenant.slug}<br />Vencimento: {tenant.dataVencimento ? new Date(tenant.dataVencimento).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'Não definido'}</p><div className="delivery-actions"><button className="delivery-secondary" onClick={() => setEdicao(tenant)}>Editar</button><button className="delivery-danger" disabled={ocupado} onClick={() => { if (window.confirm(`Excluir permanentemente ${tenant.nome} e os cadastros Delivery vinculados? Esta ação não pode ser desfeita.`)) void agir(async () => { await deliveryApi.delete(`/plataforma/tenants/${tenant._id}`); if (edicao?._id === tenant._id) setEdicao(null); setAviso('Empresa excluída.'); }); }}>Excluir</button></div><button className="delivery-secondary" disabled={ocupado || !tenant.ativo || tenant.pdvIntegrado} onClick={() => { if (window.confirm(`Definir ${tenant.nome} como o comércio do PDV e associar todos os usuários existentes com perfil admin ou operador? Isso substitui qualquer vínculo atual desses perfis.`)) void agir(async () => { const { data } = await deliveryApi.post(`/plataforma/tenants/${tenant._id}/vincular-pdv`, {}); setAviso(`${data.usuariosVinculados} usuário(s) admin/operador associado(s). Peça que saiam e entrem novamente no PDV para atualizar a sessão.`); }); }}>{tenant.pdvIntegrado ? 'Comércio do PDV' : 'Usar como comércio do PDV'}</button></article>)}</div>
+    <Paginacao prefixo="comercios" total={paginacaoTenants.total} paginaAtual={paginacaoTenants.paginaAtual} limiteAtual={paginacaoTenants.limiteAtual} onChangePagina={paginacaoTenants.alterarPagina} onChangeLimite={paginacaoTenants.alterarLimite} />
     <section className="delivery-grid" style={{ marginTop: 24 }}>
       <form className="delivery-card" onSubmit={salvarEntregador} key={edicaoEntregador?._id || 'novo-entregador'}>
         <h2>{edicaoEntregador ? `Editar ${edicaoEntregador.nome}` : 'Cadastrar entregador livre'}</h2>
@@ -77,11 +82,12 @@ function PainelPlataforma() {
       </form>
       <div className="delivery-card">
         <h2>Entregadores cadastrados</h2>
-        {entregadores.map(entregador => <article key={entregador._id} style={{ borderTop: '1px solid #dce4dc', padding: '12px 0' }}>
+        {paginacaoEntregadores.itensPagina.map(entregador => <article key={entregador._id} style={{ borderTop: '1px solid #dce4dc', padding: '12px 0' }}>
           <strong>{entregador.nome}</strong><p className="delivery-muted">{entregador.telefone} · {entregador.tenantId?.nome || 'Livre'} · {entregador.ativo === false ? 'Desativado' : entregador.status === 'offline' ? 'Offline' : entregador.status === 'em_entrega' ? 'Em entrega' : 'Disponível'}</p>
           <div className="delivery-actions"><button type="button" className="delivery-secondary" onClick={() => setEdicaoEntregador(entregador)}>Editar</button><button type="button" className="delivery-secondary" disabled={ocupado} onClick={() => void agir(async () => { await deliveryApi.put(`/plataforma/entregadores/${entregador._id}`, { ativo: entregador.ativo === false }); setAviso(entregador.ativo === false ? 'Entregador ativado.' : 'Entregador desativado.'); })}>{entregador.ativo === false ? 'Ativar' : 'Desativar'}</button><button type="button" className="delivery-danger" disabled={ocupado} onClick={() => { if (window.confirm(`Excluir permanentemente ${entregador.nome}?`)) void agir(async () => { await deliveryApi.delete(`/plataforma/entregadores/${entregador._id}`); if (edicaoEntregador?._id === entregador._id) setEdicaoEntregador(null); setAviso('Entregador excluído.'); }); }}>Excluir</button></div>
         </article>)}
         {!entregadores.length && <p>Nenhum entregador cadastrado.</p>}
+        <Paginacao prefixo="plataforma-entregadores" total={paginacaoEntregadores.total} paginaAtual={paginacaoEntregadores.paginaAtual} limiteAtual={paginacaoEntregadores.limiteAtual} onChangePagina={paginacaoEntregadores.alterarPagina} onChangeLimite={paginacaoEntregadores.alterarLimite} />
       </div>
     </section>
   </>;

@@ -99,7 +99,7 @@ export default function PaymentSettings() {
         </> : <>
           <label htmlFor={`taxa-${forma.value}`}>Taxa (%)</label>
           <div><input id={`taxa-${forma.value}`} type="number" min="0" max="100" step="0.01" disabled={bloqueado} value={taxas[forma.value] ?? forma.taxaPercentual} onChange={event => setTaxas(atual => ({ ...atual, [forma.value]: event.target.value }))} aria-label={`Taxa de ${forma.label}`} /><span>%</span></div>
-          <button type="button" onClick={() => void salvar(forma)} disabled={bloqueado}>{salvando === forma.value ? 'Salvando...' : 'Salvar taxa'}</button>
+          <button type="button" onClick={() => void salvar(forma)} disabled={bloqueado}>{salvando === forma.value ? 'Salvando...' : '🔒 Salvar taxa'}</button>
         </>}
       </article>)}
     </section>

@@ -302,6 +302,7 @@ describe('API Endpoints', () => {
 
     const alterado = await request(app)
       .put(`/api/products/${criado.body._id}`)
+      .set('X-Autorizacao-Gerente', require('../approvalFixture')(adminToken, 'alterar_preco'))
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ tipoProduto: 'revenda', precoCompra: 100, conteudoPorEmbalagem: 10, unidade: 'un', unidadeCompra: 'un', unidadeVenda: 'un' });
     expect(alterado.statusCode).toBe(200);

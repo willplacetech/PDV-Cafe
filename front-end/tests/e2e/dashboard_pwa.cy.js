@@ -8,6 +8,73 @@ describe('Dashboard e PWA', () => {
     cy.get('.dashboard-tabs').should('contain', 'Vendas').and('contain', 'Produção');
   });
 
+  it('exibe skeletons locais enquanto o dashboard inicial carrega', () => {
+    cy.intercept('GET', '**/api/dashboard', request => {
+      request.on('response', response => response.setDelay(500));
+    }).as('dashboardPayload');
+    cy.visit('/dashboard');
+    cy.get('[data-testid="dashboard-loading"]').should('be.visible');
+    cy.wait('@dashboardPayload');
+    cy.get('.dashboard-heading h1').should('be.visible');
+  });
+
+  it('exibe skeletons nos indicadores de Delivery enquanto a consulta está pendente', () => {
+    cy.clearLocalStorage();
+    cy.intercept('POST', '**/api/auth/login', {
+      user: { id: 'user-e2e', username: 'admin-e2e', role: 'admin', tenantId: 'tenant-e2e' },
+      token: 'isolated-access-token',
+    }).as('tenantLogin');
+    cy.intercept('GET', '**/dashboard/delivery*', request => {
+      request.on('response', response => response.setDelay(500));
+    }).as('deliverySummary');
+    cy.visit('/login');
+    cy.get('input[autocomplete="username"]').type('admin-e2e');
+    cy.get('input[autocomplete="current-password"]').type('isolated-test-password');
+    cy.get('button[type="submit"]').click();
+    cy.wait('@tenantLogin');
+    cy.visit('/dashboard');
+    cy.get('[aria-label="Carregando indicadores de Delivery"]').should('be.visible');
+    cy.wait('@deliverySummary');
+    cy.get('.delivery-summary-grid').should('be.visible');
+  });
+
+  it('pagina produtos na lista de estoque do dashboard', () => {
+    const products = Array.from({ length: 30 }, (_, index) => ({
+      _id: `dashboard-product-${index + 1}`,
+      nome: `Produto ${index + 1}`,
+      codigo: `P${index + 1}`,
+      categoria: 'Bebidas',
+      estoque: index,
+      tipo: 'venda',
+    }));
+    cy.intercept('GET', '**/api/products', { statusCode: 200, body: products }).as('dashboardProducts');
+    cy.visit('/dashboard');
+    cy.wait('@dashboardProducts');
+    cy.contains('.dashboard-stock .dashboard-toggle-button', 'Mostrar').click();
+    cy.get('.dashboard-stock-item').should('have.length', 25);
+    cy.get('.dashboard-stock .paginacao').contains('button', '2').click();
+    cy.get('.dashboard-stock-item').should('have.length', 5);
+  });
+
+  it('mantém o carregamento do gráfico até receber uma resposta vazia', () => {
+    cy.intercept('GET', '**/dashboard/receita-7-dias', { delay: 500, body: [] }).as('weeklyRevenue');
+    cy.visit('/dashboard');
+    cy.get('[data-testid="delivery-chart-loading"]').should('be.visible');
+    cy.contains('Nenhum dado de receita nos últimos 7 dias.').should('not.exist');
+    cy.wait('@weeklyRevenue');
+    cy.contains('Nenhum dado de receita nos últimos 7 dias.').should('be.visible');
+  });
+
+  it('permite tentar novamente após erro no gráfico de receita', () => {
+    cy.intercept('GET', '**/dashboard/receita-7-dias', { statusCode: 503, body: { msg: 'Indisponível' } }).as('weeklyRevenue');
+    cy.visit('/dashboard');
+    cy.wait('@weeklyRevenue');
+    cy.get('.delivery-chart-card [role="alert"]').should('be.visible');
+    cy.contains('.delivery-chart-card button', 'Tentar novamente').click();
+    cy.wait('@weeklyRevenue');
+    cy.get('.delivery-chart-card [role="alert"]').should('be.visible');
+  });
+
   it('oferece apenas produtos de venda no histórico', () => {
     cy.visit('/dashboard');
     cy.get('.product-sales-history').contains('button', 'Consultar').click();

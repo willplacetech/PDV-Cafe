@@ -6,6 +6,8 @@ import { useToast } from '../components/useToast.js';
 import AreaTabs from '../components/AreaTabs.jsx';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import DateInput from '../components/DateInput.jsx';
+import Paginacao from '../components/Paginacao.jsx';
+import usePagination from '../hooks/usePagination.js';
 
 const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const statusColors = { pago: '#16a34a', pendente: '#d97706', atrasado: '#dc2626' };
@@ -93,6 +95,7 @@ export default function Financeiro() {
     const matchesFim = !filtro.dataFim || vencimento <= filtro.dataFim;
     return matchesStatus && matchesCategoria && matchesInicio && matchesFim;
   }), [despesas, filtro]);
+  const paginacaoDespesas = usePagination(despesasFiltradas, 25, `${filtro.status}|${filtro.categoria}|${filtro.dataInicio}|${filtro.dataFim}`);
 
   const recarregarDespesas = async () => {
     const [despesasResponse, resumoResponse] = await Promise.all([
@@ -413,7 +416,7 @@ export default function Financeiro() {
                 </thead>
                 <tbody>
                   {despesasFiltradas.length ? (
-                    despesasFiltradas.map((item) => (
+                    paginacaoDespesas.itensPagina.map((item) => (
                       <tr key={item._id}>
                         <td>{item.descricao}</td>
                         <td>{item.categoria}</td>
@@ -445,6 +448,7 @@ export default function Financeiro() {
                 </tbody>
               </table>
             </div>
+            <Paginacao total={paginacaoDespesas.total} paginaAtual={paginacaoDespesas.paginaAtual} limiteAtual={paginacaoDespesas.limiteAtual} onChangePagina={paginacaoDespesas.alterarPagina} onChangeLimite={paginacaoDespesas.alterarLimite} />
           </section>
 
           <section className="financeiro-panel" id="nova-despesa">

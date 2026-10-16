@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { attachSessionInterceptors } from './sessionInterceptors.js';
 import { attachRequestTracker } from './requestTracker.js';
+import { solicitarAutorizacao, limparCacheAutorizacao } from './managerApproval.js';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'https://pdv-completo-z6ly.onrender.com/api',
@@ -13,6 +14,11 @@ attachRequestTracker(api);
 attachSessionInterceptors(api);
 
 api.interceptors.response.use(undefined, err => {
+  const acao = err.response?.data?.acao;
+  if (err.response?.status === 403 && acao && !err.config?._gerenteRetry) {
+    if (err.config.headers?.['X-Autorizacao-Gerente']) limparCacheAutorizacao(acao);
+    return solicitarAutorizacao(acao).then(token => api.request({ ...err.config, _gerenteRetry: true, headers: { ...err.config.headers, 'X-Autorizacao-Gerente': token } }));
+  }
   console.error('[API]', {
     method: err.config?.method?.toUpperCase(),
     path: err.config?.url?.split('?')[0],

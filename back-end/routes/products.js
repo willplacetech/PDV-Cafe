@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
-const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
+const { exigirAutorizacao, verificarAutorizacao } = require('../middleware/exigirAutorizacao');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
@@ -568,12 +568,14 @@ router.put('/:id', auth, auth.allowRoles('admin'), exigirAutorizacao('alterar_pr
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
-router.delete('/:id', auth, auth.allowRoles('admin'), exigirAutorizacao('excluir_produto'), async (req, res) => {
+router.delete('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
-    const product = await Product.findByIdAndDelete(req.params.id);
+    const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
+    await verificarAutorizacao(req, product.tipo === 'insumo' ? 'excluir_insumo' : 'excluir_produto');
+    await product.deleteOne();
     res.json({ msg: 'Produto removido com sucesso' });
-  } catch (err) { res.status(400).json({ msg: err.message }); }
+  } catch (err) { res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) }); }
 });
 
 // Rota para recalcular custo de todos os produtos que usam um insumo (quando preço do insumo muda)

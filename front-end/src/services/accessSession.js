@@ -43,6 +43,16 @@ export const clearAccessSession = (scope = 'pdv', expectedGeneration) => {
   if (expectedGeneration !== undefined && sessions[scope].generation !== expectedGeneration) return false;
   sessions[scope].generation++;
   sessions[scope].token = null;
+  if (scope === 'pdv') {
+    // Vendas já registradas na fila offline não são rascunhos e não podem ser perdidas.
+    const keys = ['pdv_rascunho', 'pdv_rascunhos', 'pdv_carrinho', 'pdv_draft'];
+    try {
+      for (let index = 0; index < globalThis.localStorage?.length; index++) keys.push(globalThis.localStorage.key(index));
+    } catch { /* Armazenamento pode estar bloqueado pelo navegador. */ }
+    for (const key of keys) {
+      if (/^pdv[_:]/.test(key) && /rascunho|carrinho|draft|token|formas_pagamento/i.test(key)) storage().removeItem(key);
+    }
+  }
   storage()?.removeItem('pdv_token');
   storage()?.removeItem(settings[scope].key);
   storage()?.setItem(`${settings[scope].key}:logged-out`, '1');

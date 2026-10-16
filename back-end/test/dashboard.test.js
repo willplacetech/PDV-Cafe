@@ -1,7 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { normalizarStatusFiltro } = require('../routes/orders');
 const { calcularStatusPagamentoComanda, calcularSubtotalComanda, normalizarTelefoneCliente } = require('../routes/comandas');
+const dashboardRouter = require('../routes/dashboard');
+const auth = require('../middleware/auth');
+const Despesa = require('../models/Despesa');
+const Product = require('../models/Product');
+const Comanda = require('../models/Comanda');
 
 const pagamentoRecebido = (pagamento) => {
   if (!pagamento || pagamento.tipo === 'credito_loja') return 0;
@@ -88,4 +95,53 @@ test('telefone do cliente é normalizado corretamente no fechamento da comanda',
   assert.equal(normalizarTelefoneCliente(' 11 99999-8888 '), '11999998888');
   assert.equal(normalizarTelefoneCliente(''), '');
   assert.equal(normalizarTelefoneCliente(null), '');
+});
+
+test('urgencias e montada em /api/dashboard, exige admin e retorna array', async (t) => {
+  const serverSource = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+  assert.match(serverSource, /app\.use\(['"]\/api\/dashboard['"],\s*require\(['"]\.\/routes\/dashboard['"]\)\)/);
+
+  const authLayer = dashboardRouter.stack.find((layer) => layer.handle === auth);
+  assert.ok(authLayer, 'router must authenticate dashboard requests');
+  const adminLayer = dashboardRouter.stack.find((layer) => !layer.route && layer.handle !== auth);
+  assert.ok(adminLayer, 'router must apply the administrator role guard');
+
+  const denied = { statusCode: 200, body: null };
+  adminLayer.handle(
+    { user: { role: 'operador' } },
+    {
+      status(code) { denied.statusCode = code; return this; },
+      json(body) { denied.body = body; return body; },
+    },
+    () => assert.fail('non-admin request must be denied'),
+  );
+  assert.equal(denied.statusCode, 403);
+
+  const originalFinds = [Despesa.find, Product.find, Comanda.find];
+  t.after(() => {
+    [Despesa, Product, Comanda].forEach((model, index) => { model.find = originalFinds[index]; });
+  });
+  const emptyQuery = {
+    select() { return this; },
+    lean: async () => [],
+  };
+  Despesa.find = () => emptyQuery;
+  Product.find = () => emptyQuery;
+  Comanda.find = () => emptyQuery;
+
+  const routeLayer = dashboardRouter.stack.find((layer) => layer.route?.path === '/urgencias');
+  assert.ok(routeLayer?.route?.methods?.get, 'GET /urgencias must exist');
+  const getHandler = routeLayer.route.stack.find((layer) => layer.method === 'get')?.handle;
+  assert.equal(typeof getHandler, 'function');
+
+  const response = { body: null };
+  await getHandler(
+    { user: { role: 'admin' } },
+    {
+      json(body) { response.body = body; return body; },
+      status(code) { response.statusCode = code; return this; },
+    },
+  );
+  assert.equal(response.statusCode, undefined);
+  assert.ok(Array.isArray(response.body));
 });

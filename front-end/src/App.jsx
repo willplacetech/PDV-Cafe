@@ -6,6 +6,7 @@ import { FormasPagamentoProvider } from './context/FormasPagamentoContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import { ToastProvider } from './components/Toast.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
+import AutorizacaoGerenteGlobal from './components/AutorizacaoGerenteGlobal.jsx';
 import PrivateRoute from './components/PrivateRoute.jsx';
 import RoleRoute from './components/RoleRoute.jsx';
 import Layout from './components/Layout.jsx';
@@ -110,6 +111,7 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
           <ErrorBoundary>
+          <AutorizacaoGerenteGlobal />
           <AppVersionGuard />
           <Router>
             <Suspense fallback={<p role="status" style={{ padding: 24 }}>Carregando…</p>}>

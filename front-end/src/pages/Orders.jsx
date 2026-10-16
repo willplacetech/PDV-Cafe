@@ -3,8 +3,14 @@ import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
+import Paginacao from '../components/Paginacao.jsx';
+import usePagination from '../hooks/usePagination.js';
+import { useNavigate } from 'react-router-dom';
+import { useComanda } from '../context/ComandaContext.jsx';
 
 export default function Orders() {
+  const navigate = useNavigate();
+  const { carregarComanda } = useComanda();
   const [pedidos, setPedidos] = useState([]);
   const [selecionado, setSelecionado] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState('todos');
@@ -12,6 +18,7 @@ export default function Orders() {
   const [cancelando, setCancelando] = useState(false);
   const { showToast } = useToast();
   const { solicitar: solicitarAutorizacao, renderizarModal: renderizarAutorizacao } = useAutorizacaoGerente('cancelar_venda');
+  const paginacao = usePagination(pedidos, 25, filtroStatus);
 
   const carregar = useCallback(async () => {
     try {
@@ -55,6 +62,17 @@ export default function Orders() {
   };
 
   // ✅ Só permite cancelar se NÃO estiver pago e NÃO já cancelado
+  const reabrirComanda = async () => {
+    if (!window.confirm('Reabrir esta comanda preservando os recebimentos?')) return;
+    setCancelando(true);
+    try {
+      await api.post(`/comandas/${selecionado.comandaId}/reabrir`);
+      await carregarComanda(selecionado.comandaId);
+      navigate('/pdv');
+    } catch (error) { showToast(error.response?.data?.msg || error.message, 'error'); }
+    finally { setCancelando(false); }
+  };
+
   const podeCancelar = (status) => {
     return ['pendente', 'parcial'].includes(status);
   };
@@ -147,19 +165,20 @@ export default function Orders() {
             ⏳ Carregando pedidos...
           </div>
         ) : (
-          <div style={{ overflowX: 'auto', margin: '0 -16px', padding: '0 16px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 650 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  {['Nº', 'Data', 'Status', 'Cliente', 'Itens', 'Total', 'Ver'].map(h => (
-                    <th key={h} style={{ padding: '10px 8px', textAlign: ['Total','Ver'].includes(h) ? 'right' : 'left', fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {pedidos.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum pedido realizado</td></tr>
-                ) : pedidos.slice(0, 100).map(p => {
+          <>
+            <div style={{ overflowX: 'auto', margin: '0 -16px', padding: '0 16px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 650 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    {['Nº', 'Data', 'Status', 'Cliente', 'Itens', 'Total', 'Ver'].map(h => (
+                      <th key={h} style={{ padding: '10px 8px', textAlign: ['Total','Ver'].includes(h) ? 'right' : 'left', fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pedidos.length === 0 ? (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum pedido realizado</td></tr>
+                  ) : paginacao.itensPagina.map(p => {
                   const statusInfo = getStatusInfo(p.status);
                   const valorTotal = Number(p?.total || p?.valorTotal || p?.subtotal || 0);
                   return (
@@ -191,9 +210,11 @@ export default function Orders() {
                     </tr>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+                </tbody>
+              </table>
+            </div>
+            <Paginacao total={paginacao.total} paginaAtual={paginacao.paginaAtual} limiteAtual={paginacao.limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
+          </>
         )}
       </div>
 
@@ -257,6 +278,7 @@ export default function Orders() {
               </div>
             </div>
 
+            {selecionado.comandaId && selecionado.status !== 'cancelado' && <button type="button" onClick={reabrirComanda} disabled={cancelando}>🔒 Reabrir comanda</button>}
             {/* ✅ BOTÃO CANCELAR — SÓ APARECE SE PENDENTE OU PARCIAL */}
             {podeCancelar(selecionado.status) && (
               <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border-light)' }}>

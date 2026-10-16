@@ -1,22 +1,12 @@
+import { captureException as reportException } from '../services/sentry.js';
+
 export function captureException(error, contexto) {
+  reportException(error);
   console.error('[ErrorBoundary]', {
     mensagem: error?.message,
     stack: error?.stack,
     contexto,
   });
-  if (import.meta.env?.PROD && typeof fetch === 'function') {
-    void fetch('/api/log-client-error', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mensagem: error?.message,
-        stack: error?.stack,
-        contexto,
-        userAgent: navigator.userAgent,
-        timestamp: new Date().toISOString(),
-      }),
-    }).catch(() => {});
-  }
 }
 
 export function captureMessage(mensagem, nivel = 'warning') {

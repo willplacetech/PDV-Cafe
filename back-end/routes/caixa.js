@@ -151,7 +151,23 @@ router.post('/:id/fechar', exigirAutorizacao('fechar_caixa'), async (req, res) =
   } catch (error) { res.status(400).json({ msg: error.message }); }
 });
 
-router.post('/:id/ajuste', auth.allowRoles('admin'), async (req, res) => {
+router.post('/:id/reabrir', exigirAutorizacao('reabrir_caixa'), async (req, res) => {
+  try {
+    const original = await FechamentoCaixa.findById(req.params.id);
+    if (!original || original.status !== 'fechado' || original.tipoRegistro === 'ajuste') return res.status(409).json({ msg: 'Somente fechamentos concluídos podem ser reabertos' });
+    const snapshot = original.toObject();
+    delete snapshot.reaberturas;
+    const atualizado = await FechamentoCaixa.findOneAndUpdate(
+      { _id: original._id, status: 'fechado', __v: original.__v },
+      { $set: { status: 'aberto' }, $inc: { __v: 1 }, $push: { reaberturas: { usuarioId: req.user.id, data: new Date(), fechamento: snapshot } } },
+      { new: true, runValidators: true },
+    );
+    if (!atualizado) return conflitoCaixa(res);
+    res.json(atualizado);
+  } catch (error) { res.status(400).json({ msg: error.message }); }
+});
+
+router.post('/:id/ajuste', auth.allowRoles('admin'), exigirAutorizacao('sangria_suprimento'), async (req, res) => {
   try {
     const original = await FechamentoCaixa.findById(req.params.id);
     if (!original) return res.status(404).json({ msg: 'Fechamento não encontrado' });

@@ -9,7 +9,12 @@ const AuthSession = require('../../models/AuthSession');
 
 const password = 'senha-de-teste-123';
 const assinar = (user, claims = {}) => jwt.sign({ id: user.id, username: user.username, role: user.role, ...claims }, process.env.JWT_SECRET, { algorithm: 'HS256' });
-const api = (method, path, token) => request(app)[method](`/api${path}`).set('Authorization', `Bearer ${token}`);
+const api = (method, path, token) => {
+  const req = request(app)[method](`/api${path}`).set('Authorization', `Bearer ${token}`);
+  const acao = path === '/auth/register' ? 'criar_usuario' : path.startsWith('/auth/users/') ? (method === 'delete' ? 'desativar_usuario' : 'editar_usuario') : null;
+  if (acao) req.set('X-Autorizacao-Gerente', require('../approvalFixture')(token, acao, admin.id));
+  return req;
+};
 let admin, operador, adminToken, token;
 
 beforeEach(async () => {

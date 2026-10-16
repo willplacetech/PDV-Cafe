@@ -20,6 +20,7 @@ const auth = async (req, res, next) => {
   }
 
   const caminho = (req.originalUrl || '').split('?')[0];
+  if (claims.tipo === 'autorizacao-gerente') return res.status(401).json({ msg: 'Sessão inválida ou expirada' });
   if (claims.sid) {
     if (!mongoose.isObjectIdOrHexString(claims.sid)) return res.status(401).json({ msg: 'Sessão inválida ou expirada' });
     try {

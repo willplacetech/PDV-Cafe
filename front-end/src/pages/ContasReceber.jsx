@@ -10,6 +10,8 @@ import { buildNotaVendaHtml, compartilharNotaWhatsApp, textoSeguro } from '../ut
 import PagamentoResultadoModal from '../components/PagamentoResultadoModal.jsx';
 import DateInput from '../components/DateInput.jsx';
 import { dataBR, normalizarPagamentos, saldoDevedor, statusPagamentoInfo, totalPago as somarPagamentos } from '../utils/formasPagamento.jsx';
+import Paginacao from '../components/Paginacao.jsx';
+import usePagination from '../hooks/usePagination.js';
 
 
 const statusCor = {
@@ -48,6 +50,9 @@ export default function ContasReceber() {
   const [formPagamentoMultiplo, setFormPagamentoMultiplo] = useState({ tipo: 'dinheiro', observacao: '' });
   const [formComanda, setFormComanda] = useState(null);
   const [selecionados, setSelecionados] = useState(new Set());
+  const chaveFiltros = `${aba}|${clienteFiltro}|${statusFiltro}|${inicio}|${fim}`;
+  const paginacaoPedidos = usePagination(pedidos, 25, chaveFiltros);
+  const paginacaoComandas = usePagination(comandasAbertas, 25, chaveFiltros);
   const operacoesRef = useRef(null);
   if (operacoesRef.current === null) { operacoesRef.current = criarOperacoesFinanceiras(api); }
   const recebendoRef = useRef(false);
@@ -643,7 +648,7 @@ export default function ContasReceber() {
           </div>
         ) : (
           <div style={{ display: 'grid', gap: 12 }}>
-            {comandasAbertas.map((comanda) => {
+            {paginacaoComandas.itensPagina.map((comanda) => {
               const info = statusPagamentoInfo(comanda.statusPagamento);
               const valorTotal = Number(comanda.valorTotal || 0);
               const recebido = somarPagamentos(comanda.historicoPagamentos);
@@ -693,6 +698,7 @@ export default function ContasReceber() {
                 </div>
               );
             })}
+            <Paginacao prefixo="comandas-a-receber" total={paginacaoComandas.total} paginaAtual={paginacaoComandas.paginaAtual} limiteAtual={paginacaoComandas.limiteAtual} onChangePagina={paginacaoComandas.alterarPagina} onChangeLimite={paginacaoComandas.alterarLimite} />
           </div>
         )
       )}
@@ -704,7 +710,7 @@ export default function ContasReceber() {
         </div>
       ) : (
         <div style={{ display: 'grid', gap: 12 }}>
-          {pedidos.map(pedido => {
+          {paginacaoPedidos.itensPagina.map(pedido => {
             const st = statusCor[pedido.status];
             const totalPago = somarPagamentos(pedido.pagamentos);
             const falta = saldoRecebivelPedido(pedido);
@@ -847,6 +853,7 @@ export default function ContasReceber() {
               </div>
             );
           })}
+          <Paginacao prefixo="pedidos-a-receber" total={paginacaoPedidos.total} paginaAtual={paginacaoPedidos.paginaAtual} limiteAtual={paginacaoPedidos.limiteAtual} onChangePagina={paginacaoPedidos.alterarPagina} onChangeLimite={paginacaoPedidos.alterarLimite} />
         </div>
       ))}
 
