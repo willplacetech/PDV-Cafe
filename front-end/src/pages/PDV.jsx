@@ -1,9 +1,11 @@
 import FieldLabel from '../components/FieldLabel.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
-import { useCallback, useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef, useContext } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
+import EstadoLista from '../components/EstadoLista.jsx';
+import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { solicitarAutorizacao as solicitarAcaoGerente } from '../services/managerApproval.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
@@ -81,6 +83,7 @@ const precoComDescontoGrupo = (produto, quantidade, cartItens, precoBase) => {
 
 export default function PDV() {
   const { formasPagamento: FORMAS_PAGAMENTO } = useFormasPagamento();
+  const { user } = useContext(AuthContext);
   const { comandaAtual, setComandaAtual, setTipo, setMesa, salvarComandaAberta, fecharComanda, carregarComanda, limparComanda } = useComanda();
   const { solicitar: solicitarAutorizacao, renderizarModal: renderizarAutorizacao } = useAutorizacaoGerente('cancelar_venda');
   const carrinho = comandaAtual.itens;
@@ -896,6 +899,19 @@ export default function PDV() {
     if (grupoAtivo === 'Favoritos') return idsMaisVendidos.has(String(produto._id));
     return normalizarTexto(produto.categoria) === normalizarTexto(grupoAtivo);
   });
+  const catalogoFiltrado = Boolean(termoBusca || grupoAtivo !== 'Todos');
+  const tituloListaVazia = produtos.length === 0
+    ? 'Nenhum produto cadastrado'
+    : catalogoFiltrado ? 'Nenhum produto encontrado' : 'Nenhum produto disponível para venda';
+  const mensagemListaVazia = produtos.length === 0
+    ? 'Cadastre produtos para começar a registrar vendas.'
+    : catalogoFiltrado ? 'Ajuste a busca ou a categoria para encontrar produtos.' : 'Cadastre produtos de venda para montar o catálogo do PDV.';
+  const textoAcaoListaVazia = catalogoFiltrado
+    ? 'Limpar filtros'
+    : user?.role === 'admin' ? 'Abrir cadastro de produtos' : undefined;
+  const acaoListaVazia = catalogoFiltrado
+    ? () => { setBusca(''); setGrupoAtivo('Todos'); }
+    : user?.role === 'admin' ? () => navigate('/produtos') : undefined;
   const rotuloComandaAtual = comandaAtual.tipo === 'mesa'
     ? `Mesa ${comandaAtual.mesaNumero || '—'}`
     : comandaAtual.tipo === 'delivery'
@@ -1009,27 +1025,19 @@ export default function PDV() {
               }}>{filtrados.length}</span>
             </div>
             {carregandoProdutos ? (
-              <div data-testid="pdv-product-skeleton" role="status" aria-label="Carregando produtos" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10, maxHeight: 420, overflowY: 'auto', padding: 2 }}>
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} style={{ background: 'var(--bg-tertiary)', borderRadius: 14, padding: 12, minHeight: 120, animation: 'pulse 1.5s ease-in-out infinite' }}>
-                    <div style={{ background: 'var(--border-color)', borderRadius: 4, height: 16, width: '60%', marginBottom: 8 }}></div>
-                    <div style={{ background: 'var(--border-color)', borderRadius: 4, height: 12, width: '40%', marginBottom: 8 }}></div>
-                    <div style={{ background: 'var(--border-color)', borderRadius: 4, height: 12, width: '80%' }}></div>
-                  </div>
-                ))}
+              <div data-testid="pdv-product-skeleton">
+                <EstadoLista carregando />
               </div>
-            ) : erroProdutos ? (
-              <div role="alert" style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px 20px', fontSize: 14 }}>
-                <p>{erroProdutos}</p>
-                <button type="button" onClick={() => { setErroProdutos(''); setCarregandoProdutos(true); void carregarDados(); }}>Tentar novamente</button>
-              </div>
-            ) : filtrados.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px 20px', fontSize: 14 }}>
-                {grupoAtivo === 'Todos'
-                  ? (termoBusca ? 'Nenhum produto encontrado para esta busca.' : 'Nenhum produto cadastrado.')
-                  : `Nenhum produto em ${grupoAtivo}${termoBusca ? ' para esta busca' : ''}.`}
-              </p>
             ) : (
+              <EstadoLista
+                erro={erroProdutos}
+                vazio={filtrados.length === 0}
+                tituloVazio={tituloListaVazia}
+                mensagemVazia={mensagemListaVazia}
+                acaoVaziaTexto={textoAcaoListaVazia}
+                onAcaoVazia={acaoListaVazia}
+                onRetry={() => { setErroProdutos(''); setCarregandoProdutos(true); void carregarDados(); }}
+              >
               <div style={{
                 display: 'grid', gap: 10,
                 gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
@@ -1077,6 +1085,7 @@ export default function PDV() {
                   );
                 })}
               </div>
+              </EstadoLista>
             )}
           </div>
         </div>

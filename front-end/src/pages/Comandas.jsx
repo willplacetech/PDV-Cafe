@@ -15,6 +15,7 @@ import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 import { dataBR, normalizarPagamentos, saldoDevedor, statusPagamentoInfo, totalPago } from '../utils/formasPagamento.jsx';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
+import EstadoLista from '../components/EstadoLista.jsx';
 import {
   carregarConfiguracaoImpressao,
   carregarPreferenciaImpressora,
@@ -43,6 +44,8 @@ export default function Comandas() {
   const navigate = useNavigate();
   const [comandas, setComandas] = useState([]);
   const paginacaoComandas = usePagination(comandas);
+  const [carregandoLista, setCarregandoLista] = useState(true);
+  const [erroLista, setErroLista] = useState('');
   const [products, setProducts] = useState([]);
   const [selected, setSelected] = useState(null);
   const [selectedItemIds, setSelectedItemIds] = useState([]);
@@ -194,18 +197,30 @@ export default function Comandas() {
   };
 
   const load = useCallback(async (preferredId) => {
+    setCarregandoLista(true);
+    setErroLista('');
     try {
       const [commands, catalog, tables] = await Promise.all([api.get('/comandas?status=aberta'), api.get('/products'), api.get('/mesas')]);
       setConfiguracaoMesas(tables.data);
       setComandas(commands.data);
       setProducts(catalog.data);
       setSelected((current) => commands.data.find((c) => c._id === preferredId) || commands.data.find((c) => c._id === current?._id) || commands.data[0] || null);
-    } catch { showToast('Não foi possível carregar as comandas', 'error'); }
-  }, [showToast]);
+    } catch (error) {
+      setErroLista(error.response?.data?.msg || error.message || 'Não foi possível carregar as comandas.');
+    } finally {
+      setCarregandoLista(false);
+    }
+  }, []);
   useEffect(() => {
     const inicializar = async () => { await load(); };
     inicializar();
   }, [load]);
+
+  const focarCadastroComanda = () => {
+    const campoCliente = document.querySelector('.comandas-open-form input[placeholder="Nome do cliente"]');
+    campoCliente?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    campoCliente?.focus({ preventScroll: true });
+  };
 
   const subtotal = useMemo(() => (selected?.itens || []).reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0), [selected]);
   const total = selected?.utilizacaoInterna ? 0 : Math.max(0, subtotal + Number(selected?.taxaEntrega || 0) - (Number(discount) || 0));
@@ -604,20 +619,33 @@ export default function Comandas() {
         <section className={`comandas-card comandas-list-card ${mobileView === 'detail' ? 'mobile-hidden' : ''}`}>
           <div className="comandas-card-heading"><div><h2>Em aberto</h2><p>Selecione uma comanda para editar.</p></div><span className="comandas-count">{comandas.length}</span></div>
           <div className="comandas-quick-products"><strong>Lançamento rápido</strong><div>{products.filter((product) => product.categoria !== 'Insumos').slice(0, 8).map((product) => <button key={product._id} type="button" onClick={() => { setProductId(product._id); setQuantity('1'); }} className={productId === product._id ? 'selected' : ''}>{product.nome}</button>)}</div></div>
-          {paginacaoComandas.itensPagina.map((command) => {
-            const info = statusPagamentoInfo(command.statusPagamento);
-            const saldo = saldoDevedor(command.valorTotal, command.historicoPagamentos);
-            return (
-            <button className="comanda-select-button" key={command._id} onClick={() => { setSelected(command); setSelectedItemIds([]); setMobileView('detail'); }} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
-                <b>{command.tipoAtendimento === 'delivery' ? '🛵' : command.tipoAtendimento === 'balcao' ? '📦' : '🪑'} #{command.numero}</b>
-                {command.statusPagamento === 'parcial' && <span className="comanda-status-pill" style={{ background: info.bg, color: info.txt }}>{info.label}</span>}
-                <br />
-                <small>{command.tipoAtendimento === 'delivery' ? 'Delivery' : command.tipoAtendimento === 'balcao' ? `Balcão · ${command.statusBalcao || 'aguardando'}` : command.tipoAtendimento === 'retirada' ? 'Retirada' : `Mesa ${command.mesa || ''}`} · {command.clienteNome} · {command.itens.length} itens</small>
-                {saldo > 0 && <small style={{ display: 'block', marginTop: 4, fontWeight: 700 }}>A receber: {formatMoney(saldo)}</small>}
-              </button>
-            );
-          })}
-          <Paginacao prefixo="comandas" total={paginacaoComandas.total} paginaAtual={paginacaoComandas.paginaAtual} limiteAtual={paginacaoComandas.limiteAtual} onChangePagina={paginacaoComandas.alterarPagina} onChangeLimite={paginacaoComandas.alterarLimite} />
+          <EstadoLista
+            carregando={carregandoLista}
+            erro={erroLista}
+            vazio={comandas.length === 0}
+            tituloVazio="Nenhuma comanda em aberto"
+            mensagemVazia="Abra uma comanda para começar o atendimento."
+            acaoVaziaTexto="Abrir a primeira comanda"
+            onAcaoVazia={focarCadastroComanda}
+            onRetry={() => { void load(); }}
+          >
+            <>
+              {paginacaoComandas.itensPagina.map((command) => {
+                const info = statusPagamentoInfo(command.statusPagamento);
+                const saldo = saldoDevedor(command.valorTotal, command.historicoPagamentos);
+                return (
+                  <button className="comanda-select-button" key={command._id} onClick={() => { setSelected(command); setSelectedItemIds([]); setMobileView('detail'); }} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
+                    <b>{command.tipoAtendimento === 'delivery' ? '🛵' : command.tipoAtendimento === 'balcao' ? '📦' : '🪑'} #{command.numero}</b>
+                    {command.statusPagamento === 'parcial' && <span className="comanda-status-pill" style={{ background: info.bg, color: info.txt }}>{info.label}</span>}
+                    <br />
+                    <small>{command.tipoAtendimento === 'delivery' ? 'Delivery' : command.tipoAtendimento === 'balcao' ? `Balcão · ${command.statusBalcao || 'aguardando'}` : command.tipoAtendimento === 'retirada' ? 'Retirada' : `Mesa ${command.mesa || ''}`} · {command.clienteNome} · {command.itens.length} itens</small>
+                    {saldo > 0 && <small style={{ display: 'block', marginTop: 4, fontWeight: 700 }}>A receber: {formatMoney(saldo)}</small>}
+                  </button>
+                );
+              })}
+              <Paginacao prefixo="comandas" total={paginacaoComandas.total} paginaAtual={paginacaoComandas.paginaAtual} limiteAtual={paginacaoComandas.limiteAtual} onChangePagina={paginacaoComandas.alterarPagina} onChangeLimite={paginacaoComandas.alterarLimite} />
+            </>
+          </EstadoLista>
         </section>
 
         <section className={`comandas-card comandas-detail-card ${mobileView === 'list' ? 'mobile-hidden' : ''}`}>

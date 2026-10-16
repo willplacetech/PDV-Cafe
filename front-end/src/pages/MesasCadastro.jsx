@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/useToast.js';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
+import EstadoLista from '../components/EstadoLista.jsx';
 
 const criarMesaInicial = (numero) => ({
   id: numero,
@@ -17,17 +18,28 @@ export default function MesasCadastro() {
   const paginacao = usePagination(mesas);
   const [oferecerBalcao, setOferecerBalcao] = useState(true);
   const [carregando, setCarregando] = useState(true);
+  const [erroLista, setErroLista] = useState('');
   const [salvando, setSalvando] = useState(false);
   const { showToast } = useToast();
   const quantidadeTotal = mesas.length;
 
-  useEffect(() => {
-    api.get('/mesas').then(({ data }) => {
+  const carregar = useCallback(async () => {
+    setCarregando(true);
+    setErroLista('');
+    try {
+      const { data } = await api.get('/mesas');
       setMesas(data.mesas);
       setOferecerBalcao(data.oferecerBalcao);
+    } catch (error) {
+      setErroLista(error.response?.data?.msg || error.message || 'Não foi possível carregar as mesas.');
+    } finally {
       setCarregando(false);
-    }).catch(() => showToast('Não foi possível carregar as mesas. Tente recarregar a página.', 'error'));
-  }, [showToast]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void carregar();
+  }, [carregar]);
 
   const proximoNumero = useMemo(() => {
     return Math.max(0, ...mesas.map((mesa) => Number(mesa.numero || 0))) + 1;
@@ -89,55 +101,68 @@ export default function MesasCadastro() {
         </label>
       </div>
 
-      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 20, boxShadow: 'var(--shadow-sm)', marginBottom: 20, overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
-          <thead>
-            <tr style={{ textAlign: 'left', color: 'var(--text-secondary)', fontSize: 12, textTransform: 'uppercase' }}>
-              <th style={{ padding: '10px 8px' }}>Nº</th>
-              <th style={{ padding: '10px 8px' }}>Nome / Rótulo</th>
-              <th style={{ padding: '10px 8px' }}>Lugares</th>
-              <th style={{ padding: '10px 8px' }}>Status</th>
-              <th style={{ padding: '10px 8px' }}>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginacao.itensPagina.map((mesa) => (
-              <tr key={mesa.id} style={{ borderTop: '1px solid var(--border-color)' }}>
-                <td style={{ padding: '12px 8px', fontWeight: 700 }}>{mesa.numero}</td>
-                <td style={{ padding: '12px 8px' }}>
-                  <input
-                    value={mesa.nome}
-                    onChange={(e) => editarNome(mesa.id, e.target.value)}
-                    style={{ width: '100%', minHeight: 42, padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--input-text)' }}
-                  />
-                </td>
-                <td style={{ padding: '12px 8px' }}>
-                  <input
-                    type="number"
-                    min="1"
-                    value={mesa.lugares}
-                    onChange={(e) => editarLugares(mesa.id, e.target.value)}
-                    style={{ width: 90, minHeight: 42, padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--input-text)' }}
-                  />
-                </td>
-                <td style={{ padding: '12px 8px', fontWeight: 700, color: mesa.ativa ? 'var(--success-bg)' : 'var(--text-secondary)' }}>
-                  {mesa.ativa ? '✅ Ativa' : '⚫ Inativa'}
-                </td>
-                <td style={{ padding: '12px 8px' }}>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button type="button" style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer' }}>
-                      Editar
-                    </button>
-                    <button type="button" onClick={() => alternarStatus(mesa.id)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', background: mesa.ativa ? 'var(--warning-bg)' : 'var(--success-bg)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
-                      {mesa.ativa ? 'Desativar' : 'Ativar'}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <Paginacao total={paginacao.total} paginaAtual={paginacao.paginaAtual} limiteAtual={paginacao.limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
+      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 20, boxShadow: 'var(--shadow-sm)', marginBottom: 20 }}>
+        <EstadoLista
+          carregando={carregando}
+          erro={erroLista}
+          vazio={mesas.length === 0}
+          tituloVazio="Nenhuma mesa cadastrada"
+          mensagemVazia="Adicione mesas para organizar os atendimentos presenciais."
+          acaoVaziaTexto="Adicionar Mesa"
+          onAcaoVazia={adicionarMesa}
+          onRetry={() => { void carregar(); }}
+        >
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+              <thead>
+                <tr style={{ textAlign: 'left', color: 'var(--text-secondary)', fontSize: 12, textTransform: 'uppercase' }}>
+                  <th style={{ padding: '10px 8px' }}>Nº</th>
+                  <th style={{ padding: '10px 8px' }}>Nome / Rótulo</th>
+                  <th style={{ padding: '10px 8px' }}>Lugares</th>
+                  <th style={{ padding: '10px 8px' }}>Status</th>
+                  <th style={{ padding: '10px 8px' }}>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginacao.itensPagina.map((mesa) => (
+                  <tr key={mesa.id} style={{ borderTop: '1px solid var(--border-color)' }}>
+                    <td style={{ padding: '12px 8px', fontWeight: 700 }}>{mesa.numero}</td>
+                    <td style={{ padding: '12px 8px' }}>
+                      <input
+                        value={mesa.nome}
+                        onChange={(e) => editarNome(mesa.id, e.target.value)}
+                        style={{ width: '100%', minHeight: 42, padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--input-text)' }}
+                      />
+                    </td>
+                    <td style={{ padding: '12px 8px' }}>
+                      <input
+                        type="number"
+                        min="1"
+                        value={mesa.lugares}
+                        onChange={(e) => editarLugares(mesa.id, e.target.value)}
+                        style={{ width: 90, minHeight: 42, padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--input-text)' }}
+                      />
+                    </td>
+                    <td style={{ padding: '12px 8px', fontWeight: 700, color: mesa.ativa ? 'var(--success-bg)' : 'var(--text-secondary)' }}>
+                      {mesa.ativa ? '✅ Ativa' : '⚫ Inativa'}
+                    </td>
+                    <td style={{ padding: '12px 8px' }}>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button type="button" style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer' }}>
+                          Editar
+                        </button>
+                        <button type="button" onClick={() => alternarStatus(mesa.id)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', background: mesa.ativa ? 'var(--warning-bg)' : 'var(--success-bg)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+                          {mesa.ativa ? 'Desativar' : 'Ativar'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <Paginacao total={paginacao.total} paginaAtual={paginacao.paginaAtual} limiteAtual={paginacao.limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
+          </div>
+        </EstadoLista>
       </div>
 
       <button type="button" onClick={adicionarMesa} disabled={carregando || salvando} style={{ background: 'var(--accent-primary)', color: '#fff', border: 0, borderRadius: 10, minHeight: 46, padding: '0 18px', fontWeight: 800, cursor: 'pointer', marginBottom: 16 }}>

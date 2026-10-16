@@ -149,6 +149,7 @@ describe('Estados do catálogo de produtos no PDV', () => {
     cy.intercept('GET', '**/products/pdv', { delay: 500, body: [product] }).as('catalog');
     cy.visit('/pdv', { onBeforeLoad(win) { win.localStorage.setItem('pdv_user', JSON.stringify(profile)); } });
     cy.get('[data-testid="pdv-product-skeleton"]').should('be.visible');
+    cy.get('[role="status"][aria-label="Carregando lista"]').should('be.visible').and('have.attr', 'aria-busy', 'true');
     cy.contains('Nenhum produto cadastrado.').should('not.exist');
     cy.wait('@catalog');
     cy.get('.product-card').contains(product.nome).should('be.visible');
@@ -158,11 +159,22 @@ describe('Estados do catálogo de produtos no PDV', () => {
     cy.intercept('GET', '**/products/pdv', { statusCode: 200, body: [] }).as('catalog');
     cy.visit('/pdv', { onBeforeLoad(win) { win.localStorage.setItem('pdv_user', JSON.stringify(profile)); } });
     cy.wait('@catalog');
-    cy.contains('Nenhum produto cadastrado.').should('be.visible');
+    cy.get('.estado-lista--vazio').within(() => {
+      cy.contains('h3', 'Nenhum produto cadastrado').should('be.visible');
+      cy.contains('Cadastre produtos para começar a registrar vendas.').should('be.visible');
+      cy.contains('button', 'Abrir cadastro de produtos').should('be.visible').click();
+    });
+    cy.location('pathname').should('equal', '/produtos');
   });
 
   it('exibe erro e opção de tentar novamente quando falha sem catálogo offline', () => {
-    cy.intercept('GET', '**/products/pdv', { statusCode: 503, body: { msg: 'Catálogo indisponível.' } }).as('catalog');
+    let attempts = 0;
+    cy.intercept('GET', '**/products/pdv', (request) => {
+      attempts += 1;
+      request.reply(attempts <= 2
+        ? { statusCode: 503, body: { msg: 'Catálogo indisponível.' } }
+        : { statusCode: 200, body: [] });
+    }).as('catalog');
     cy.visit('/pdv', { onBeforeLoad(win) {
       win.localStorage.setItem('pdv_user', JSON.stringify(profile));
       win.localStorage.removeItem('pdv_catalogo_offline');
@@ -171,5 +183,9 @@ describe('Estados do catálogo de produtos no PDV', () => {
     cy.contains('O servidor encontrou um problema. Aguarde um instante e tente novamente.').should('be.visible');
     cy.contains('button', 'Tentar novamente').should('be.visible');
     cy.contains('Nenhum produto cadastrado.').should('not.exist');
+    cy.contains('[role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@catalog');
+    cy.get('@catalog.all').should('have.length', 3);
+    cy.contains('.estado-lista--vazio h3', 'Nenhum produto cadastrado').should('be.visible');
   });
 });

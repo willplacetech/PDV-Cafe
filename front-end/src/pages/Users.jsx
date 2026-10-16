@@ -1,7 +1,7 @@
 import FieldLabel from '../components/FieldLabel.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useCallback, useContext, useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { useToast } from '../components/useToast.js';
 import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
@@ -11,6 +11,7 @@ import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import usePagination from '../hooks/usePagination.js';
 import Paginacao from '../components/Paginacao.jsx';
+import EstadoLista from '../components/EstadoLista.jsx';
 
 const roles = { operador: 'Operador', cozinha: 'Cozinha', garcom: 'Garçom', gerente: 'Gerente', admin: 'Administrador' };
 const policyMessage = 'Use pelo menos 12 caracteres e no máximo 72 bytes UTF-8 (acentos e emojis usam mais bytes).';
@@ -21,6 +22,7 @@ const emptyEdit = { role: 'operador', ativo: true, password: '' };
 
 export default function Users() {
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const { solicitar: solicitarExcluir, renderizarModal: renderizarAutorizacaoExcluir } = useAutorizacaoGerente('desativar_usuario');
   const { solicitar: solicitarEditar, renderizarModal: renderizarAutorizacaoEditar } = useAutorizacaoGerente('editar_usuario');
@@ -47,7 +49,6 @@ export default function Users() {
   const loadCouriers = useCallback(() => api.get('/entregas/entregadores')
     .then(({ data }) => { setCouriers(data || []); setCouriersError(''); })
     .catch(error => {
-      setCouriers([]);
       setCouriersError(error.response?.status === 403
         ? 'Associe este usuário administrador a um comércio do Delivery para consultar os entregadores.'
         : errorMessage(error));
@@ -138,6 +139,11 @@ export default function Users() {
   };
 
   const courierBelongsToTenant = courier => Boolean(courier.tenantId);
+  const focarCadastroUsuario = () => {
+    const campoUsuario = document.querySelector('#users-new-user-form input[autocomplete="username"]');
+    campoUsuario?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    campoUsuario?.focus({ preventScroll: true });
+  };
 
   return (
     <section className="users-page" style={{ maxWidth: 1000, margin: '0 auto' }}>
@@ -145,7 +151,7 @@ export default function Users() {
       {renderizarAutorizacaoEditar()}
       <AreaTabs area="pessoas" />
       <div className="page-heading"><div><h1>Usuários</h1><p>Cadastre e gerencie os acessos da equipe e os entregadores do comércio.</p></div></div>
-      <form onSubmit={handleSubmit} style={panelStyle}>
+      <form id="users-new-user-form" onSubmit={handleSubmit} style={panelStyle}>
         <h2>Novo usuário</h2>
         <label style={labelStyle}>Usuário
           <input value={form.username} onChange={event => setForm({ ...form, username: event.target.value })} minLength={2} maxLength={254} required autoComplete="username" style={inputStyle} />
@@ -164,10 +170,17 @@ export default function Users() {
       <div className="users-panel" style={{ ...panelStyle, marginTop: 24 }}>
         <h2>Acessos da equipe</h2>
         <p>Alterar perfil, bloquear ou redefinir senha encerra as sessões anteriores desse usuário.</p>
-        {listLoading && <p role="status">Carregando usuários...</p>}
-        {listError && <div role="alert" className="users-error"><p>{listError}</p><button type="button" className="users-secondary-button" onClick={() => { setListLoading(true); setListError(''); void loadUsers(); }}>Tentar novamente</button></div>}
-        {!listLoading && !listError && users.length === 0 && <p>Nenhum usuário cadastrado.</p>}
-        {!listLoading && !listError && users.length > 0 && <>
+        <EstadoLista
+          carregando={listLoading}
+          erro={listError}
+          vazio={users.length === 0}
+          tituloVazio="Nenhum usuário cadastrado"
+          mensagemVazia="Cadastre o primeiro acesso da equipe para começar."
+          acaoVaziaTexto="Cadastrar primeiro usuário"
+          onAcaoVazia={focarCadastroUsuario}
+          onRetry={() => { setListLoading(true); setListError(''); void loadUsers(); }}
+        >
+          <>
           <div style={{ overflowX: 'auto' }}>
             <table style={tableStyle}>
               <thead><tr><th scope="col">Usuário</th><th scope="col">Perfil</th><th scope="col">Estado</th><th scope="col">Ações</th></tr></thead>
@@ -190,7 +203,8 @@ export default function Users() {
             </table>
           </div>
           <Paginacao prefixo="usuarios" total={paginacaoUsuarios.total} paginaAtual={paginacaoUsuarios.paginaAtual} limiteAtual={paginacaoUsuarios.limiteAtual} onChangePagina={paginacaoUsuarios.alterarPagina} onChangeLimite={paginacaoUsuarios.alterarLimite} />
-        </>}
+          </>
+        </EstadoLista>
         {editingId && <form onSubmit={handleUpdate} style={{ marginTop: 24 }} key={editingId}>
           <h3>Editar {users.find(account => account.id === editingId)?.username}</h3>
           <label style={labelStyle}>Perfil
@@ -212,10 +226,17 @@ export default function Users() {
       <div className="users-panel" style={{ ...panelStyle, marginTop: 24 }}>
         <h2>Entregadores cadastrados</h2>
         <p>Entregadores com pedidos associados não podem ser excluídos; desative o cadastro para preservar o histórico.</p>
-        {couriersLoading && <p role="status">Carregando entregadores...</p>}
-        {couriersError && <div role="alert" className="users-error"><p>{couriersError}</p><button type="button" className="users-secondary-button" onClick={() => { setCouriersLoading(true); setCouriersError(''); void loadCouriers(); }}>Tentar novamente</button></div>}
-        {!couriersLoading && !couriersError && couriers.length === 0 && <p>Nenhum entregador cadastrado para este comércio.</p>}
-        {!couriersLoading && !couriersError && couriers.length > 0 && <>
+        <EstadoLista
+          carregando={couriersLoading}
+          erro={couriersError}
+          vazio={couriers.length === 0}
+          tituloVazio="Nenhum entregador cadastrado"
+          mensagemVazia="Cadastre entregadores pela área de Entregas para associar a equipe ao comércio."
+          acaoVaziaTexto="Gerenciar entregadores"
+          onAcaoVazia={() => navigate('/entregas')}
+          onRetry={() => { setCouriersLoading(true); setCouriersError(''); void loadCouriers(); }}
+        >
+          <>
           <div style={{ overflowX: 'auto' }}>
             <table style={tableStyle}>
               <thead><tr><th scope="col">Entregador</th><th scope="col">Telefone</th><th scope="col">Estado</th><th scope="col">Ações</th></tr></thead>
@@ -241,7 +262,8 @@ export default function Users() {
             </table>
           </div>
           <Paginacao prefixo="entregadores" total={paginacaoEntregadores.total} paginaAtual={paginacaoEntregadores.paginaAtual} limiteAtual={paginacaoEntregadores.limiteAtual} onChangePagina={paginacaoEntregadores.alterarPagina} onChangeLimite={paginacaoEntregadores.alterarLimite} />
-        </>}
+          </>
+        </EstadoLista>
         {courierEdit && <form onSubmit={event => void saveCourier(event)} style={{ marginTop: 24 }} key={courierEdit._id}>
           <h3>Editar entregador: {courierEdit.nome}</h3>
           <label style={labelStyle}>Nome<input name="nome" required maxLength={160} defaultValue={courierEdit.nome} style={inputStyle} /></label>

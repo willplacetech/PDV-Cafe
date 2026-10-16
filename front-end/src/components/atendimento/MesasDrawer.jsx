@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../../services/api.jsx';
+import EstadoLista from '../EstadoLista.jsx';
 
 const formatMoney = value => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -9,6 +10,7 @@ export default function MesasDrawer({ open, onClose, onSelect, embedded = false 
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(true);
   const [agora, setAgora] = useState(() => Date.now());
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -30,7 +32,7 @@ export default function MesasDrawer({ open, onClose, onSelect, embedded = false 
     void carregar();
     const intervalo = embedded ? window.setInterval(() => { void carregar(true); }, 30000) : null;
     return () => { ativo = false; window.clearTimeout(loadingTimer); window.clearInterval(intervalo); };
-  }, [open, embedded]);
+  }, [open, embedded, reloadKey]);
 
   if (!open) return null;
   const comandaDaMesa = mesa => comandas.find(comanda => String(comanda.mesa) === String(mesa.numero) && comanda.tipoAtendimento === 'mesa');
@@ -45,34 +47,55 @@ export default function MesasDrawer({ open, onClose, onSelect, embedded = false 
           {!embedded && <button type="button" onClick={onClose} aria-label="Fechar mesas e comandas">×</button>}
         </header>
         <div className="mesas-drawer-content">
-          {erro && <p role="alert" className="mesas-drawer-error">{erro}</p>}
-          {carregando ? <p role="status">Carregando mesas...</p> : <>
+          <EstadoLista
+            carregando={carregando}
+            erro={erro}
+            onRetry={() => { setCarregando(true); setErro(''); setReloadKey((key) => key + 1); }}
+          >
+            <>
             <div className="mesas-drawer-types">
               <button type="button" onClick={() => selecionarTipo('balcao')}>Balcão</button>
               <button type="button" onClick={() => selecionarTipo('retirada')}>Retirada</button>
               <button type="button" onClick={() => selecionarTipo('delivery')}>Delivery</button>
             </div>
             <h3>Mesas</h3>
-            <div className="mesas-drawer-grid">
-              {mesas.map(mesa => {
-                const comanda = comandaDaMesa(mesa);
-                const quantidadeItens = comanda?.itens?.reduce((soma, item) => soma + Number(item.quantidade || 0), 0) || 0;
-                const minutosAberta = comanda?.createdAt ? Math.max(0, Math.floor((agora - new Date(comanda.createdAt).getTime()) / 60000)) : null;
-                return <button key={mesa.id} type="button" className={`mesas-drawer-table ${comanda ? 'occupied' : 'free'}`} onClick={() => selecionarMesa(mesa)}>
-                  <strong>{mesa.nome || `Mesa ${mesa.numero}`}</strong>
-                  <span>{comanda ? 'Ocupada' : 'Livre'} · {formatMoney(comanda?.valorTotal)}</span>
-                  <small>{quantidadeItens} {quantidadeItens === 1 ? 'item' : 'itens'}{comanda?.numero ? ` · Comanda #${comanda.numero}` : ''}{minutosAberta !== null ? ` · ${minutosAberta} min` : ''}</small>
-                </button>;
-              })}
-            </div>
+            <EstadoLista
+              vazio={mesas.length === 0}
+              tituloVazio="Nenhuma mesa cadastrada"
+              mensagemVazia="Inicie outro tipo de atendimento ou cadastre mesas para o salão."
+              acaoVaziaTexto="Iniciar atendimento no balcão"
+              onAcaoVazia={() => selecionarTipo('balcao')}
+            >
+              <div className="mesas-drawer-grid">
+                {mesas.map(mesa => {
+                  const comanda = comandaDaMesa(mesa);
+                  const quantidadeItens = comanda?.itens?.reduce((soma, item) => soma + Number(item.quantidade || 0), 0) || 0;
+                  const minutosAberta = comanda?.createdAt ? Math.max(0, Math.floor((agora - new Date(comanda.createdAt).getTime()) / 60000)) : null;
+                  return <button key={mesa.id} type="button" className={`mesas-drawer-table ${comanda ? 'occupied' : 'free'}`} onClick={() => selecionarMesa(mesa)}>
+                    <strong>{mesa.nome || `Mesa ${mesa.numero}`}</strong>
+                    <span>{comanda ? 'Ocupada' : 'Livre'} · {formatMoney(comanda?.valorTotal)}</span>
+                    <small>{quantidadeItens} {quantidadeItens === 1 ? 'item' : 'itens'}{comanda?.numero ? ` · Comanda #${comanda.numero}` : ''}{minutosAberta !== null ? ` · ${minutosAberta} min` : ''}</small>
+                  </button>;
+                })}
+              </div>
+            </EstadoLista>
             <h3>Comandas abertas</h3>
-            <div className="mesas-drawer-orders">
-              {comandas.length ? comandas.map(comanda => <button key={comanda._id} type="button" onClick={() => onSelect({ comanda })}>
-                <span><strong>#{comanda.numero}</strong> · {comanda.clienteNome || (comanda.tipoAtendimento === 'mesa' ? `Mesa ${comanda.mesa}` : comanda.tipoAtendimento)}</span>
-                <small>{(comanda.itens || []).reduce((soma, item) => soma + Number(item.quantidade || 0), 0)} itens · {formatMoney(comanda.valorTotal)}</small>
-              </button>) : <p>Nenhuma comanda aberta.</p>}
-            </div>
-          </>}
+            <EstadoLista
+              vazio={comandas.length === 0}
+              tituloVazio="Nenhuma comanda aberta"
+              mensagemVazia="Você pode iniciar um atendimento pelo balcão, retirada ou delivery."
+              acaoVaziaTexto="Iniciar atendimento no balcão"
+              onAcaoVazia={() => selecionarTipo('balcao')}
+            >
+              <div className="mesas-drawer-orders">
+                {comandas.map(comanda => <button key={comanda._id} type="button" onClick={() => onSelect({ comanda })}>
+                  <span><strong>#{comanda.numero}</strong> · {comanda.clienteNome || (comanda.tipoAtendimento === 'mesa' ? `Mesa ${comanda.mesa}` : comanda.tipoAtendimento)}</span>
+                  <small>{(comanda.itens || []).reduce((soma, item) => soma + Number(item.quantidade || 0), 0)} itens · {formatMoney(comanda.valorTotal)}</small>
+                </button>)}
+              </div>
+            </EstadoLista>
+            </>
+          </EstadoLista>
         </div>
       </aside>
       <style>{`

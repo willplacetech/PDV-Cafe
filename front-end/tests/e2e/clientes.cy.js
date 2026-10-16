@@ -55,5 +55,35 @@
     cy.get('.paginacao').contains('button', '2').click();
     cy.contains('tbody tr', 'Cliente 26').should('be.visible');
     cy.contains('tbody tr', 'Cliente 1').should('not.exist');
+    cy.contains('tbody tr', 'Cliente 26').contains('button', 'Editar').click();
+    cy.get('input[placeholder="Nome completo"]').should('have.value', 'Cliente 26');
+  });
+
+  it('mostra skeleton e permite iniciar o cadastro após uma resposta vazia válida', () => {
+    cy.intercept('GET', '**/api/customers', { delay: 300, statusCode: 200, body: [] }).as('customers');
+    cy.visit('/clientes');
+    cy.get('[role="status"][aria-label="Carregando lista"]').should('be.visible');
+    cy.wait('@customers');
+    cy.contains('.estado-lista--vazio h3', 'Nenhum cliente cadastrado').should('be.visible');
+    cy.contains('.estado-lista--vazio button', 'Cadastrar primeiro cliente').click();
+    cy.get('input[placeholder="Nome completo"]').should('be.focused');
+  });
+
+  it('mostra erro de carga com retry e troca para vazio após a consulta repetir', () => {
+    let attempts = 0;
+    cy.intercept('GET', '**/api/customers', (request) => {
+      attempts += 1;
+      request.reply(attempts <= 2
+        ? { statusCode: 503, body: { msg: 'Falha temporária ao carregar clientes.' } }
+        : { statusCode: 200, body: [] });
+    }).as('customers');
+    cy.visit('/clientes');
+    cy.wait('@customers').its('response.statusCode').should('equal', 503);
+    cy.get('@customers.all').should('have.length', 2);
+    cy.get('[role="alert"]').should('contain.text', 'tente novamente');
+    cy.contains('[role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@customers');
+    cy.get('@customers.all').should('have.length', 3);
+    cy.contains('.estado-lista--vazio h3', 'Nenhum cliente cadastrado').should('be.visible');
   });
 });

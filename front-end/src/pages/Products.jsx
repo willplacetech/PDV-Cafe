@@ -1,7 +1,7 @@
 import FieldLabel from '../components/FieldLabel.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { exportarCSV, colunasCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { requestAutorizado } from '../services/apiAutorizada.js';
@@ -10,6 +10,7 @@ import { useToast } from '../components/useToast.js';
 import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
+import EstadoLista from '../components/EstadoLista.jsx';
 
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Outros'];
 const filtrosTipo = ['Todos', 'Estoque de Venda', 'Estoque de Insumos'];
@@ -56,8 +57,11 @@ const vazio = {
 
 export default function Products() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [produtos, setProdutos] = useState([]);
   const [fichas, setFichas] = useState([]);
+  const [carregandoLista, setCarregandoLista] = useState(true);
+  const [erroLista, setErroLista] = useState('');
   const [form, setForm] = useState(() => searchParams.get('tipo') === 'insumo' ? { ...vazio, tipo: 'insumo', categoria: 'Insumos' } : vazio);
   const [editing, setEditing] = useState(null);
   const [filtroTexto, setFiltroTexto] = useState('');
@@ -84,9 +88,17 @@ export default function Products() {
     : null;
 
   const carregar = async () => {
-    const [productsResponse, recipesResponse] = await Promise.all([api.get('/products'), api.get('/production/recipes')]);
-    setProdutos(productsResponse.data);
-    setFichas(recipesResponse.data || []);
+    setCarregandoLista(true);
+    setErroLista('');
+    try {
+      const [productsResponse, recipesResponse] = await Promise.all([api.get('/products'), api.get('/production/recipes')]);
+      setProdutos(productsResponse.data);
+      setFichas(recipesResponse.data || []);
+    } catch (error) {
+      setErroLista(error.response?.data?.msg || error.message || 'Não foi possível carregar produtos.');
+    } finally {
+      setCarregandoLista(false);
+    }
   };
 
   useEffect(() => {
@@ -368,6 +380,18 @@ export default function Products() {
   });
   const paginacao = usePagination(filtrados, 25, `${filtroTexto}|${filtroTipo}|${filtroCategoria}|${filtroFicha}|${filtrarEstoqueBaixo}`);
 
+  const focarCadastro = () => {
+    document.getElementById('product-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const limparFiltros = () => {
+    setFiltroTexto('');
+    setFiltroTipo('Todos');
+    setFiltroCategoria('Todos');
+    setFiltroFicha('Todos');
+    navigate('/produtos');
+  };
+  const retryLista = () => { void carregar(); };
+
   return (
     <div className="products-page">
       {renderizarAutorizacaoExcluir()}
@@ -379,7 +403,7 @@ export default function Products() {
         <button type="button" onClick={() => exportarCSV(filtrados, colunasCSV.estoque, `estoque_${dataArquivoCSV()}.csv`)}>Exportar CSV</button>
       </div>
 
-      <section className="product-form-card">
+      <section className="product-form-card" id="product-form">
         <h2 className="product-form-heading">{editing ? '✏️ Editar Produto' : '➕ Novo Produto'}</h2>
         <form onSubmit={submit}>
             <div className="product-form-grid product-essential-grid">
@@ -616,9 +640,18 @@ export default function Products() {
           </div>
         </div>
 
-        {filtrados.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 36, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum produto nesta visão</div>
-        ) : (
+        <EstadoLista
+          carregando={carregandoLista}
+          erro={erroLista}
+          vazio={filtrados.length === 0}
+          tituloVazio={produtos.length === 0 ? 'Nenhum produto cadastrado' : 'Nenhum produto nesta seleção'}
+          mensagemVazia={produtos.length === 0
+            ? 'Cadastre produtos para montar o catálogo de vendas.'
+            : 'Ajuste os filtros para encontrar produtos cadastrados.'}
+          acaoVaziaTexto={produtos.length === 0 ? 'Cadastrar primeiro produto' : 'Mostrar todos os produtos'}
+          onAcaoVazia={produtos.length === 0 ? focarCadastro : limparFiltros}
+          onRetry={retryLista}
+        >
           <div className="product-admin-grid">
             {paginacao.itensPagina.map((produto) => (
               <article key={produto._id} className="product-admin-card">
@@ -683,8 +716,8 @@ export default function Products() {
               </article>
             ))}
           </div>
-        )}
-        <Paginacao total={paginacao.total} paginaAtual={paginacao.paginaAtual} limiteAtual={paginacao.limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
+          <Paginacao total={paginacao.total} paginaAtual={paginacao.paginaAtual} limiteAtual={paginacao.limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
+        </EstadoLista>
       </div>
 
       <style>{`

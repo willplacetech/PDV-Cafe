@@ -4,6 +4,7 @@ import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
+import EstadoLista from '../components/EstadoLista.jsx';
 import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import AreaTabs from '../components/AreaTabs.jsx';
 import { criarXmlClientes } from '../utils/customersXml.js';
@@ -42,6 +43,8 @@ const aplicarMascaraData = (valor) => {
 
 export default function Customers() {
   const [clientes, setClientes] = useState([]);
+  const [carregandoLista, setCarregandoLista] = useState(true);
+  const [erroLista, setErroLista] = useState('');
   const paginacao = usePagination(clientes);
   const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', enderecoEntrega: { rua: '', numero: '', bairro: '', complemento: '', referencia: '' }, cpf: '', aniversario: '', cafesFidelidade: '0' });
   const [editing, setEditing] = useState(null);
@@ -50,8 +53,16 @@ export default function Customers() {
 
 
   const carregar = async () => {
-    const res = await api.get('/customers');
-    setClientes(res.data);
+    setCarregandoLista(true);
+    setErroLista('');
+    try {
+      const res = await api.get('/customers');
+      setClientes(res.data);
+    } catch (error) {
+      setErroLista(error.response?.data?.msg || error.message || 'Não foi possível carregar clientes.');
+    } finally {
+      setCarregandoLista(false);
+    }
   };
   useEffect(() => {
     const carregarInicial = async () => { await carregar(); };
@@ -169,6 +180,12 @@ export default function Customers() {
     setForm({ ...form, cpf: aplicarMascaraCPF(valor) });
   };
 
+  const focarCadastro = () => {
+    const campoNome = document.querySelector('#customer-form input[placeholder="Nome completo"]');
+    campoNome?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    campoNome?.focus({ preventScroll: true });
+  };
+
 
   return (
     <div>
@@ -190,7 +207,7 @@ export default function Customers() {
         <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 14px', color: 'var(--text-primary)' }}>
           {editing ? '✏️ Editar Cliente' : '➕ Novo Cliente'}
         </h3>
-        <form onSubmit={submit}>
+        <form id="customer-form" onSubmit={submit}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }} className="form-grid-cli">
             <div>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}><FieldLabel hint={<> (obrigatório) </>}> Nome * </FieldLabel></label>
@@ -313,8 +330,21 @@ export default function Customers() {
               </tr>
             </thead>
             <tbody>
-              {clientes.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum cliente cadastrado</td></tr>
+              {carregandoLista || erroLista || clientes.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>
+                    <EstadoLista
+                      carregando={carregandoLista}
+                      erro={erroLista}
+                      vazio={clientes.length === 0}
+                      tituloVazio="Nenhum cliente cadastrado"
+                      mensagemVazia="Cadastre o primeiro cliente para manter sua base organizada."
+                      acaoVaziaTexto="Cadastrar primeiro cliente"
+                      onAcaoVazia={focarCadastro}
+                      onRetry={() => { void carregar(); }}
+                    />
+                  </td>
+                </tr>
               ) : paginacao.itensPagina.map(c => (
                 <tr key={c._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
                   <td style={{ padding: '10px 8px', fontWeight: 600, fontSize: 13 }}>{c.nome}{c.clienteInterno && <small style={{ display: 'block', fontWeight: 400 }}>Consumo da equipe · sem pagamento</small>}</td>
@@ -324,9 +354,9 @@ export default function Customers() {
                   <td style={{ padding: '10px 8px', fontSize: 13, fontFamily: 'monospace' }}>
                     {aplicarMascaraCPF(c.cpf) || '-'}
                   </td>
-                   <td style={{ padding: '10px 8px', fontSize: 13, fontFamily: 'monospace', color: 'var(--accent-primary)' }}>
-                     {c.aniversario || '-'}
-                   </td>
+                  <td style={{ padding: '10px 8px', fontSize: 13, fontFamily: 'monospace', color: 'var(--accent-primary)' }}>
+                    {c.aniversario || '-'}
+                  </td>
                   <td style={{ padding: '10px 8px', fontSize: 13, whiteSpace: 'nowrap' }}>
                     {c.clienteInterno ? '-' : <>{c.cafesFidelidade || 0} comandas · x{calcularMultiplicadorFidelidade(c.cafesFidelidade)}</>}
                   </td>

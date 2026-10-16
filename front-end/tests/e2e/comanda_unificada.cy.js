@@ -198,4 +198,34 @@ describe('Comanda unificada sem serviços externos', () => {
     cy.get('.pdv-payment-dialog').should('be.visible');
     cy.then(() => { expect(orders).to.have.length(1); expect(orders[0].tipoAtendimento).to.equal('balcao'); });
   });
+
+  it('mostra skeleton e ação para iniciar atendimento quando não há comandas abertas', () => {
+    cy.intercept('GET', '**/api/comandas?status=aberta', { delay: 300, statusCode: 200, body: [] }).as('openCommands');
+    cy.visit('/comandas', { onBeforeLoad(win) { win.localStorage.setItem('pdv_user', JSON.stringify(profile)); } });
+
+    cy.get('[role="status"][aria-label="Carregando lista"]').should('be.visible');
+    cy.wait('@openCommands');
+    cy.contains('.estado-lista--vazio h3', 'Nenhuma comanda em aberto').should('be.visible');
+    cy.contains('.estado-lista--vazio button', 'Abrir a primeira comanda').click();
+    cy.get('.comandas-open-form input[placeholder="Nome do cliente"]').should('be.focused');
+  });
+
+  it('permite tentar novamente ao falhar a consulta de comandas abertas', () => {
+    let attempts = 0;
+    cy.intercept('GET', '**/api/comandas?status=aberta', (request) => {
+      attempts += 1;
+      request.reply(attempts <= 2
+        ? { statusCode: 503, body: { msg: 'Falha temporária das comandas.' } }
+        : { statusCode: 200, body: [] });
+    }).as('openCommands');
+    cy.visit('/comandas', { onBeforeLoad(win) { win.localStorage.setItem('pdv_user', JSON.stringify(profile)); } });
+
+    cy.wait('@openCommands').its('response.statusCode').should('equal', 503);
+    cy.get('@openCommands.all').should('have.length', 2);
+    cy.get('[role="alert"]').should('contain.text', 'tente novamente');
+    cy.contains('[role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@openCommands');
+    cy.get('@openCommands.all').should('have.length', 3);
+    cy.contains('.estado-lista--vazio h3', 'Nenhuma comanda em aberto').should('be.visible');
+  });
 });

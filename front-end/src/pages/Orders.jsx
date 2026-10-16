@@ -9,6 +9,7 @@ import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
 import { useNavigate } from 'react-router-dom';
 import { useComanda } from '../context/ComandaContext.jsx';
+import EstadoLista from '../components/EstadoLista.jsx';
 
 export default function Orders() {
   const navigate = useNavigate();
@@ -23,12 +24,15 @@ export default function Orders() {
   const [selecionado, setSelecionado] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [carregando, setCarregando] = useState(true);
+  const [erroLista, setErroLista] = useState('');
   const [cancelando, setCancelando] = useState(false);
   const { showToast } = useToast();
   const { solicitar: solicitarAutorizacao, renderizarModal: renderizarAutorizacao } = useAutorizacaoGerente('cancelar_venda');
   const paginacao = usePagination(pedidosFiltrados, 25, `${filtroStatus}|${inicio}|${fim}`);
 
   const carregar = useCallback(async () => {
+    setCarregando(true);
+    setErroLista('');
     try {
       const url = filtroStatus === 'todos' 
         ? '/orders' 
@@ -37,7 +41,7 @@ export default function Orders() {
       setPedidos(res.data || []);
     } catch (err) {
       console.error('Erro ao carregar pedidos:', err);
-      setPedidos([]);
+      setErroLista(err.response?.data?.msg || err.message || 'Não foi possível carregar os pedidos.');
     } finally {
       setCarregando(false);
     }
@@ -99,6 +103,7 @@ export default function Orders() {
 
     return soma;
   }, [pedidosFiltrados]);
+  const filtrosPedidosAtivos = Boolean(filtroStatus !== 'todos' || inicio || fim);
 
   const getStatusInfo = (status) => {
     const map = {
@@ -106,6 +111,18 @@ export default function Orders() {
       pago: { cor: 'var(--success-bg)', texto: 'Pago' },
       parcial: { cor: 'var(--info-bg)', texto: 'Parcial' },
       cancelado: { cor: 'var(--error-bg)', texto: 'Cancelado' }
+    };
+    const acaoListaVazia = () => {
+      if (filtrosPedidosAtivos) {
+        setInicio('');
+        setFim('');
+        if (filtroStatus !== 'todos') {
+          setCarregando(true);
+          setFiltroStatus('todos');
+        }
+        return;
+      }
+      navigate('/pdv');
     };
     return map[status] || { cor: 'var(--text-tertiary)', texto: status || '—' };
   };
@@ -171,11 +188,18 @@ export default function Orders() {
           </div>
         </div>
 
-        {carregando ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-            ⏳ Carregando pedidos...
-          </div>
-        ) : (
+        <EstadoLista
+          carregando={carregando}
+          erro={erroLista}
+          vazio={pedidosFiltrados.length === 0}
+          tituloVazio={filtrosPedidosAtivos ? 'Nenhum pedido corresponde aos filtros' : 'Nenhum pedido realizado'}
+          mensagemVazia={filtrosPedidosAtivos
+            ? 'Limpe os filtros para voltar a consultar todos os pedidos.'
+            : 'As vendas concluídas aparecerão aqui.'}
+          acaoVaziaTexto={filtrosPedidosAtivos ? 'Limpar filtros' : 'Ir ao PDV'}
+          onAcaoVazia={acaoListaVazia}
+          onRetry={() => { void carregar(); }}
+        >
           <>
             <div style={{ overflowX: 'auto', margin: '0 -16px', padding: '0 16px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 650 }}>
@@ -187,9 +211,7 @@ export default function Orders() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pedidosFiltrados.length === 0 ? (
-                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum pedido realizado</td></tr>
-                  ) : paginacao.itensPagina.map(p => {
+                  {paginacao.itensPagina.map(p => {
                   const statusInfo = getStatusInfo(p.status);
                   const valorTotal = Number(p?.total || p?.valorTotal || p?.subtotal || 0);
                   return (
@@ -226,7 +248,7 @@ export default function Orders() {
             </div>
             <Paginacao total={paginacao.total} paginaAtual={paginacao.paginaAtual} limiteAtual={paginacao.limiteAtual} onChangePagina={paginacao.alterarPagina} onChangeLimite={paginacao.alterarLimite} />
           </>
-        )}
+        </EstadoLista>
       </div>
 
       {/* Modal Detalhes */}
