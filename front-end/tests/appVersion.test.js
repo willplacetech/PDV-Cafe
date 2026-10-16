@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchPublishedAppVersion, waitForServiceWorkerUpdate } from '../src/services/appVersion.js';
+import { APP_GIT_HASH, fetchPublishedAppVersion, waitForServiceWorkerUpdate } from '../src/services/appVersion.js';
+
+test('uses dev as the local hash fallback when Vite does not inject a git hash', () => {
+  assert.equal(APP_GIT_HASH, 'dev');
+});
 
 test('fetches the published version without browser or service-worker caching', async () => {
   let request;

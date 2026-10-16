@@ -2,9 +2,19 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { env } from 'node:process'
 
-const appVersion = env.RENDER_GIT_COMMIT || execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+const gitCommit = env.RENDER_GIT_COMMIT || (() => {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+  } catch {
+    return ''
+  }
+})()
+const appVersion = gitCommit || 'dev'
+const gitHash = (gitCommit || 'dev').slice(0, 7)
+const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8')
 
 const appVersionPlugin = {
   name: 'app-version',
@@ -14,6 +24,10 @@ const appVersionPlugin = {
       response.setHeader('Content-Type', 'application/json')
       response.end(JSON.stringify({ version: appVersion }))
     })
+    server.middlewares.use('/CHANGELOG.md', (_request, response) => {
+      response.setHeader('Content-Type', 'text/markdown; charset=utf-8')
+      response.end(changelog)
+    })
   },
   generateBundle() {
     this.emitFile({
@@ -21,12 +35,18 @@ const appVersionPlugin = {
       fileName: 'version.json',
       source: JSON.stringify({ version: appVersion }),
     })
+    this.emitFile({
+      type: 'asset',
+      fileName: 'CHANGELOG.md',
+      source: changelog,
+    })
   },
 }
 
 export default defineConfig({
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+    __GIT_HASH__: JSON.stringify(gitHash),
   },
   plugins: [
     react(),

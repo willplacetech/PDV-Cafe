@@ -4,7 +4,7 @@ import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { ThemeContext } from '../context/ThemeContextDefinition.js';
 import StatusConexao from './StatusConexao.jsx';
 import api from '../services/api.jsx';
-import { APP_VERSION } from '../services/appVersion.js';
+import { APP_GIT_HASH } from '../services/appVersion.js';
 import NovidadesModal from './NovidadesModal.jsx';
 
 const gruposMenu = [
@@ -763,7 +763,9 @@ export default function Layout({ children }) {
        `}</style>
 
       <footer style={{ padding: '8px 16px', fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center' }}>
-        Sabor de Abraço · v{APP_VERSION}
+        <span>Sabor de Abraço · v{APP_GIT_HASH}</span>
+        {' · '}
+        <a href="/CHANGELOG.md" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>Novidades</a>
       </footer>
     </div>
   );

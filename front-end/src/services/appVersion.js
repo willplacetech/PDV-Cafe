@@ -1,4 +1,5 @@
 export const APP_VERSION = import.meta.env?.VITE_APP_VERSION || 'development';
+export const APP_GIT_HASH = typeof __GIT_HASH__ === 'string' ? __GIT_HASH__ : 'dev';
 
 export const fetchPublishedAppVersion = async (fetchImpl = globalThis.fetch) => {
   if (typeof fetchImpl !== 'function') throw new Error('A verificação de versão não está disponível neste navegador.');
