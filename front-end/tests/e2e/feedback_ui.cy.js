@@ -454,6 +454,84 @@ describe('Estados das listas administrativas', () => {
       .and('contain.text', 'R$ 66,00');
   });
 
+  it('ignora o resumo de uma mutação do mês anterior se o mês ativo já mudou', () => {
+    cy.login();
+    const dataInicial = new Date();
+    dataInicial.setDate(1);
+    const mesInicial = dataInicial.toISOString().slice(0, 7);
+    dataInicial.setMonth(dataInicial.getMonth() - 1);
+    const mesAlvo = dataInicial.toISOString().slice(0, 7);
+    let consultasDoMesInicial = 0;
+
+    cy.intercept('GET', '**/api/despesas', {
+      statusCode: 200,
+      body: [{
+        _id: 'despesa-round-2',
+        descricao: 'Despesa para marcar como paga',
+        categoria: 'Outros',
+        valor: 25,
+        dataVencimento: `${mesInicial}-10`,
+        status: 'pendente',
+      }],
+    }).as('expenses');
+    cy.intercept('PUT', '**/api/despesas/despesa-round-2/pagar', {
+      statusCode: 200,
+      body: { _id: 'despesa-round-2', status: 'pago' },
+    }).as('markPaid');
+    cy.intercept('GET', '**/api/despesas/resumo*', (request) => {
+      const mes = new URL(request.url).searchParams.get('mes');
+      if (mes === mesInicial) {
+        consultasDoMesInicial += 1;
+        if (consultasDoMesInicial <= 2) {
+          request.alias = 'initialSummary';
+          return request.reply({
+            statusCode: 200,
+            body: { totalPago: 10, totalPendente: 20, totalAtrasado: 30, porCategoria: [] },
+          });
+        }
+
+        request.alias = 'staleMutationSummary';
+        return request.reply({
+          delay: 2000,
+          statusCode: 200,
+          body: { totalPago: 777, totalPendente: 888, totalAtrasado: 999, porCategoria: [] },
+        });
+      }
+
+      request.alias = 'targetSummary';
+      return request.reply({
+        statusCode: 200,
+        body: { totalPago: 44, totalPendente: 55, totalAtrasado: 66, porCategoria: [] },
+      });
+    });
+    cy.visit('/financeiro');
+
+    cy.wait('@expenses');
+    cy.wait('@expenses');
+    cy.wait('@initialSummary');
+    cy.wait('@initialSummary');
+    cy.get('.financeiro-kpis').should('contain.text', 'R$ 10,00');
+    cy.contains('button', 'Marcar Pago').click();
+    cy.wait('@markPaid');
+    cy.get('@staleMutationSummary.all').should('have.length', 1);
+
+    cy.get('input[type="month"]').clear().type(mesAlvo);
+    cy.wait('@targetSummary').its('response.statusCode').should('equal', 200);
+    cy.get('.financeiro-kpis').should('contain.text', 'R$ 44,00')
+      .and('contain.text', 'R$ 55,00')
+      .and('contain.text', 'R$ 66,00');
+
+    cy.get('@staleMutationSummary.all').its('0.response').should('be.undefined');
+    cy.wait('@staleMutationSummary').its('response.statusCode').should('equal', 200);
+    cy.get('[aria-label="Carregando indicadores financeiros"]').should('not.exist');
+    cy.get('.financeiro-kpis').should('contain.text', 'R$ 44,00')
+      .and('contain.text', 'R$ 55,00')
+      .and('contain.text', 'R$ 66,00')
+      .and('not.contain.text', 'R$ 777,00')
+      .and('not.contain.text', 'R$ 888,00')
+      .and('not.contain.text', 'R$ 999,00');
+  });
+
   it('repete a carga do estoque de produção sem recarregar a página', () => {
     cy.login();
     let attempts = 0;

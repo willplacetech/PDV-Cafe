@@ -1,5 +1,5 @@
 import SearchableSelect from '../components/SearchableSelect.jsx';
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { exportarCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
@@ -49,6 +49,8 @@ export default function Financeiro() {
   const [erroCarregamento, setErroCarregamento] = useState('');
   const [tentativaCarregamento, setTentativaCarregamento] = useState(0);
   const [tentativaResumo, setTentativaResumo] = useState(0);
+  const resumoRequestIdRef = useRef(0);
+  const mesSelecionadoRef = useRef(mesSelecionado);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -91,16 +93,17 @@ export default function Financeiro() {
     if (!user || user.role !== 'admin' || tab !== 'despesas') return undefined;
 
     let active = true;
+    const requestId = ++resumoRequestIdRef.current;
     const carregarResumo = async () => {
       setEstadoResumo({ mes: mesSelecionado, status: 'loading', erro: '' });
       try {
         const response = await api.get('/despesas/resumo', { params: { mes: mesSelecionado } });
-        if (active) {
+        if (active && requestId === resumoRequestIdRef.current && mesSelecionado === mesSelecionadoRef.current) {
           setResumo(response.data || { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
           setEstadoResumo({ mes: mesSelecionado, status: 'success', erro: '' });
         }
       } catch (error) {
-        if (active) {
+        if (active && requestId === resumoRequestIdRef.current && mesSelecionado === mesSelecionadoRef.current) {
           const mensagem = error.response?.data?.msg || 'Não foi possível carregar o resumo das despesas.';
           setEstadoResumo({ mes: mesSelecionado, status: 'error', erro: mensagem });
           showToast(mensagem, 'error');
@@ -124,6 +127,7 @@ export default function Financeiro() {
 
   const recarregarDespesas = async () => {
     const mesConsultado = mesSelecionado;
+    const requestId = ++resumoRequestIdRef.current;
     setEstadoResumo({ mes: mesConsultado, status: 'loading', erro: '' });
     try {
       const [despesasResponse, resumoResponse] = await Promise.all([
@@ -131,14 +135,18 @@ export default function Financeiro() {
         api.get('/despesas/resumo', { params: { mes: mesConsultado } }),
       ]);
       setDespesas(despesasResponse.data || []);
-      setResumo(resumoResponse.data || { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
-      setEstadoResumo({ mes: mesConsultado, status: 'success', erro: '' });
+      if (requestId === resumoRequestIdRef.current && mesConsultado === mesSelecionadoRef.current) {
+        setResumo(resumoResponse.data || { totalPendente: 0, totalPago: 0, totalAtrasado: 0, porCategoria: [] });
+        setEstadoResumo({ mes: mesConsultado, status: 'success', erro: '' });
+      }
     } catch (error) {
-      setEstadoResumo({
-        mes: mesConsultado,
-        status: 'error',
-        erro: error.response?.data?.msg || 'Não foi possível carregar o resumo das despesas.',
-      });
+      if (requestId === resumoRequestIdRef.current && mesConsultado === mesSelecionadoRef.current) {
+        setEstadoResumo({
+          mes: mesConsultado,
+          status: 'error',
+          erro: error.response?.data?.msg || 'Não foi possível carregar o resumo das despesas.',
+        });
+      }
       throw error;
     }
   };
@@ -359,7 +367,14 @@ export default function Financeiro() {
         <div className="financeiro-period">
           <label>
             Mês
-            <input type="month" value={mesSelecionado} onChange={(event) => setMesSelecionado(event.target.value)} />
+            <input
+              type="month"
+              value={mesSelecionado}
+              onChange={(event) => {
+                mesSelecionadoRef.current = event.target.value;
+                setMesSelecionado(event.target.value);
+              }}
+            />
           </label>
         </div>
       </header>
