@@ -103,7 +103,7 @@ test('salvar mesas confirma sucesso só depois de persistir no servidor', async 
   let success = false;
   const noop = () => {};
   const code = 'const salvar = ' + section('MesasCadastro', 'const salvar = ', 'return (');
-  const fn = evaluate(code, { mesas: [{ id: 1, numero: 1, nome: 'Mesa 1', lugares: 4, ativa: true }], quantidadeTotal: 1, oferecerBalcao: true, salvando: false, carregando: false, setSalvando: noop, setMesas: noop, showToast: () => { success = true; }, alert: () => { success = true; }, api: { put: async (url, payload) => { saved = { url, payload }; return { data: payload }; } } }, 'salvar');
+  const fn = evaluate(code, { mesas: [{ id: 1, numero: 1, nome: 'Mesa 1', lugares: 4, ativa: true }], quantidadeTotal: 1, oferecerBalcao: true, salvando: false, carregando: false, podeAlterar: true, setSalvando: noop, setMesas: noop, showToast: () => { success = true; }, alert: () => { success = true; }, api: { put: async (url, payload) => { saved = { url, payload }; return { data: payload }; } } }, 'salvar');
   await fn();
   assert.equal(saved?.url, '/mesas');
   assert.equal(saved.payload.mesas.length, 1);

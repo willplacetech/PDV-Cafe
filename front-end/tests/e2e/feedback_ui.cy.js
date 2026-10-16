@@ -37,10 +37,17 @@ function mountFeedback(confirmar) {
   });
 }
 
+function mountOrders() {
+  return cy.window()
+    .then((win) => win.eval("import('/tests/e2e/ordersTestMount.js')"))
+    .then(({ mountOrders: mount }) => mount());
+}
+
 describe('Feedback compartilhado acessível', () => {
   afterEach(() => {
     root?.unmount();
     root = null;
+    cy.window({ log: false }).then((win) => win.__ordersTestCleanup?.());
   });
 
   it('expõe toasts comuns como status e erros como alertas', () => {
@@ -246,18 +253,76 @@ describe('Estados das listas administrativas', () => {
     let attempts = 0;
     cy.intercept('GET', '**/api/mesas', (request) => {
       attempts += 1;
-      request.reply(attempts <= 2
+      request.reply(attempts === 1
         ? { statusCode: 503, body: { msg: 'Falha temporária das mesas.' } }
         : { statusCode: 200, body: { mesas: [], oferecerBalcao: true } });
     }).as('tables');
     cy.visit('/cadastro/mesas');
 
     cy.wait('@tables').its('response.statusCode').should('equal', 503);
-    cy.get('@tables.all').should('have.length', 2);
+    cy.get('@tables.all').should('have.length', 1);
     cy.get('[role="alert"]').should('contain.text', 'tente novamente');
     cy.contains('[role="alert"] button', 'Tentar novamente').click();
     cy.wait('@tables');
-    cy.get('@tables.all').should('have.length', 3);
+    cy.get('@tables.all').should('have.length', 2);
     cy.contains('.estado-lista--vazio h3', 'Nenhuma mesa cadastrada').should('be.visible');
+  });
+
+  it('permite repetir a carga de pedidos após erro e executa a ação do estado vazio', () => {
+    cy.login();
+    let attempts = 0;
+    cy.intercept('GET', '**/api/orders', (request) => {
+      attempts += 1;
+      request.reply(attempts === 1
+        ? { statusCode: 503, body: { msg: 'Falha temporária dos pedidos.' } }
+        : { statusCode: 200, body: [] });
+    }).as('orders');
+    mountOrders();
+
+    cy.wait('@orders').its('response.statusCode').should('equal', 503);
+    cy.get('[role="alert"]').should('contain.text', 'tente novamente');
+    cy.contains('[role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@orders').its('response.statusCode').should('equal', 200);
+
+    cy.contains('.estado-lista--vazio h3', 'Nenhum pedido realizado').should('be.visible');
+    cy.contains('.estado-lista--vazio button', 'Ir ao PDV').click();
+    cy.get('[data-testid="orders-path"]').should('have.text', '/pdv');
+    cy.get('@orders.all').should('have.length', 2);
+  });
+
+  it('bloqueia alterações de mesas após erro de carga e as libera após nova leitura válida', () => {
+    cy.login();
+    let attempts = 0;
+    cy.intercept('GET', '**/api/mesas', (request) => {
+      attempts += 1;
+      request.reply(attempts === 1
+        ? { statusCode: 503, body: { msg: 'Falha temporária das mesas.' } }
+        : {
+            statusCode: 200,
+            body: {
+              mesas: [{ id: 'mesa-7', numero: '7', nome: 'Mesa 7', lugares: 4, ativa: true }],
+              oferecerBalcao: false,
+            },
+          });
+    }).as('tables');
+    cy.intercept('PUT', '**/api/mesas', { statusCode: 200, body: { mesas: [] } }).as('saveTables');
+    cy.visit('/cadastro/mesas');
+
+    cy.wait('@tables').its('response.statusCode').should('equal', 503);
+    cy.get('[role="alert"]').should('contain.text', 'tente novamente');
+    cy.contains('button', 'Adicionar Mesa').should('be.disabled');
+    cy.get('input[type="checkbox"]').should('be.disabled');
+    cy.contains('button', 'Salvar').should('be.disabled');
+    cy.get('table').should('not.exist');
+    cy.get('@saveTables.all').should('have.length', 0);
+
+    cy.contains('[role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@tables').its('response.statusCode').should('equal', 200);
+    cy.get('tbody input').first().should('be.visible').and('have.value', 'Mesa 7').and('be.enabled');
+    cy.get('input[type="checkbox"]').should('be.enabled').and('not.be.checked');
+    cy.contains('button', 'Editar').should('be.enabled');
+    cy.contains('button', 'Adicionar Mesa').should('be.enabled');
+    cy.contains('button', 'Salvar').should('be.enabled');
+    cy.get('@saveTables.all').should('have.length', 0);
   });
 });

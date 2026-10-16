@@ -104,6 +104,18 @@ export default function Orders() {
     return soma;
   }, [pedidosFiltrados]);
   const filtrosPedidosAtivos = Boolean(filtroStatus !== 'todos' || inicio || fim);
+  const acaoListaVazia = useCallback(() => {
+    if (filtrosPedidosAtivos) {
+      setInicio('');
+      setFim('');
+      if (filtroStatus !== 'todos') {
+        setCarregando(true);
+        setFiltroStatus('todos');
+      }
+      return;
+    }
+    navigate('/pdv');
+  }, [filtrosPedidosAtivos, filtroStatus, navigate]);
 
   const getStatusInfo = (status) => {
     const map = {
@@ -111,18 +123,6 @@ export default function Orders() {
       pago: { cor: 'var(--success-bg)', texto: 'Pago' },
       parcial: { cor: 'var(--info-bg)', texto: 'Parcial' },
       cancelado: { cor: 'var(--error-bg)', texto: 'Cancelado' }
-    };
-    const acaoListaVazia = () => {
-      if (filtrosPedidosAtivos) {
-        setInicio('');
-        setFim('');
-        if (filtroStatus !== 'todos') {
-          setCarregando(true);
-          setFiltroStatus('todos');
-        }
-        return;
-      }
-      navigate('/pdv');
     };
     return map[status] || { cor: 'var(--text-tertiary)', texto: status || '—' };
   };
