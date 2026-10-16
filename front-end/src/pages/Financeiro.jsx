@@ -2,6 +2,7 @@ import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import api from '../services/api.jsx';
+import { exportarCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { useToast } from '../components/useToast.js';
 import AreaTabs from '../components/AreaTabs.jsx';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
@@ -278,13 +279,11 @@ export default function Financeiro() {
       ['Lucro Líquido', dre.lucroLiquido],
     ];
 
-    const blob = new Blob([linhas.map((linha) => linha.join(';')).join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `dre-${mesSelecionado}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    exportarCSV(linhas.map(([indicador, valor]) => ({ mes: mesSelecionado, indicador, valor })), [
+      { rotulo: 'Mês', chave: 'mes' },
+      { rotulo: 'Indicador', chave: 'indicador' },
+      { rotulo: 'Valor', chave: 'valor' },
+    ], `dre_${dataArquivoCSV()}.csv`);
   };
 
   const renderStatusBadge = (status) => (

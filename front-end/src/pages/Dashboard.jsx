@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import api from '../services/api.jsx';
+import { exportarCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { useToast } from '../components/useToast.js';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { compartilharNotaWhatsApp, textoSeguro } from '../utils/notaVenda.js';
@@ -285,18 +286,10 @@ export default function Dashboard() {
   };
 
   const exportarClientesMailing = () => {
-    const escaparCsv = (valor) => `"${String(valor || '').replace(/"/g, '""')}"`;
-    const linhas = [
-      ['Nome', 'Telefone'],
-      ...relatorioClientes.clientes.map((cliente) => [cliente.nome, cliente.telefone || '']),
-    ].map((linha) => linha.map(escaparCsv).join(';'));
-    const blob = new Blob([`\uFEFF${linhas.join('\r\n')}`], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `clientes-mailing-${dataLocal}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    exportarCSV(relatorioClientes.clientes, [
+      { rotulo: 'Nome', chave: 'nome' },
+      { rotulo: 'Telefone', chave: 'telefone' },
+    ], `clientes_${dataArquivoCSV()}.csv`);
   };
 
   return <div className="dashboard-page">

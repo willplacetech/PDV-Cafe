@@ -3,6 +3,7 @@ import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
+import { exportarCSV, colunasCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
@@ -375,6 +376,7 @@ export default function Products() {
           <h1>📦 Cadastro de Produtos</h1>
           <p>Produtos à venda e insumos ficam em grupos diferentes.</p>
         </div>
+        <button type="button" onClick={() => exportarCSV(filtrados, colunasCSV.estoque, `estoque_${dataArquivoCSV()}.csv`)}>Exportar CSV</button>
       </div>
 
       <section className="product-form-card">

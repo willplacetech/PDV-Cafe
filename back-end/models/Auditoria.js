@@ -10,4 +10,11 @@ const auditoriaSchema = new mongoose.Schema({
   motivoFalha: { type: String },
 }, { timestamps: { createdAt: true, updatedAt: false } });
 
+auditoriaSchema.virtual('data').get(function () { return this.createdAt; });
+auditoriaSchema.set('toJSON', { virtuals: true });
+auditoriaSchema.index({ createdAt: -1, _id: -1 });
+auditoriaSchema.index({ acao: 1, createdAt: -1 });
+auditoriaSchema.index({ usuarioSolicitante: 1, createdAt: -1 });
+auditoriaSchema.index({ usuarioAutorizou: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Auditoria', auditoriaSchema);

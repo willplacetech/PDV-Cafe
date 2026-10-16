@@ -4,6 +4,7 @@ import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { criarOperacoesFinanceiras } from '../utils/operacaoFinanceira';
 import { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import api from '../services/api.jsx';
+import { exportarCSV, colunasCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { useToast } from '../components/useToast.js';
 import { buildNotaVendaHtml, compartilharNotaWhatsApp, textoSeguro } from '../utils/notaVenda.js';
@@ -520,11 +521,30 @@ export default function ContasReceber() {
   };
 
 
+  const exportarContas = () => {
+    const dados = aba === 'comandas'
+      ? comandasAbertas.map((comanda) => ({
+        ...comanda, createdAt: new Date(comanda.dataAbertura || comanda.createdAt),
+        total: Number(comanda.valorTotal || 0), recebido: somarPagamentos(comanda.historicoPagamentos),
+        saldo: saldoDevedor(comanda.valorTotal, comanda.historicoPagamentos),
+      }))
+      : pedidos.map((pedido) => ({
+        ...pedido, createdAt: new Date(pedido.createdAt), total: Number(pedido.total || 0),
+        recebido: somarPagamentos(pedido.pagamentos), saldo: saldoRecebivelPedido(pedido),
+      }));
+    exportarCSV(dados, [
+      ...colunasCSV.vendas,
+      { rotulo: 'Recebido', chave: 'recebido' },
+      { rotulo: 'Saldo devedor', chave: 'saldo' },
+    ], `contas_a_receber_${dataArquivoCSV()}.csv`);
+  };
+
   return (
     <div>
       <div className="page-heading">
           <h1>📊 Contas a Receber</h1>
           <p>Acerto de pendências por cliente</p>
+          <button type="button" disabled={carregando} onClick={exportarContas}>Exportar CSV</button>
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
             {[['pedidos', '📄 Pedidos'], ['comandas', '🧾 Comandas em aberto']].map(([chave, label]) => (
               <button key={chave} type="button" onClick={() => setAba(chave)} style={{

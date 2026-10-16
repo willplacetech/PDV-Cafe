@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect, useMemo } from 'react';
 import api from '../services/api.jsx';
+import { exportarCSV, colunasCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
@@ -12,13 +13,19 @@ export default function Orders() {
   const navigate = useNavigate();
   const { carregarComanda } = useComanda();
   const [pedidos, setPedidos] = useState([]);
+  const [inicio, setInicio] = useState('');
+  const [fim, setFim] = useState('');
+  const pedidosFiltrados = useMemo(() => pedidos.filter((pedido) => {
+    const dia = dataArquivoCSV(new Date(pedido.createdAt));
+    return (!inicio || dia >= inicio) && (!fim || dia <= fim);
+  }), [pedidos, inicio, fim]);
   const [selecionado, setSelecionado] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [carregando, setCarregando] = useState(true);
   const [cancelando, setCancelando] = useState(false);
   const { showToast } = useToast();
   const { solicitar: solicitarAutorizacao, renderizarModal: renderizarAutorizacao } = useAutorizacaoGerente('cancelar_venda');
-  const paginacao = usePagination(pedidos, 25, filtroStatus);
+  const paginacao = usePagination(pedidosFiltrados, 25, `${filtroStatus}|${inicio}|${fim}`);
 
   const carregar = useCallback(async () => {
     try {
@@ -78,9 +85,9 @@ export default function Orders() {
   };
 
   const totalVendido = useMemo(() => {
-    if (!Array.isArray(pedidos) || pedidos.length === 0) return 0;
+    if (pedidosFiltrados.length === 0) return 0;
 
-    const soma = pedidos.reduce((ac, p) => {
+    const soma = pedidosFiltrados.reduce((ac, p) => {
       const valor = parseFloat(
         p.total || 
         p.valorTotal || 
@@ -93,7 +100,7 @@ export default function Orders() {
     }, 0);
 
     return soma;
-  }, [pedidos]);
+  }, [pedidosFiltrados]);
 
   const getStatusInfo = (status) => {
     const map = {
@@ -113,6 +120,12 @@ export default function Orders() {
           <h1>📋 Histórico de Pedidos</h1>
           <p>Acompanhe todas as vendas realizadas</p>
         </div>
+        <button type="button" disabled={carregando} onClick={() => exportarCSV(pedidosFiltrados.map((pedido) => ({ ...pedido, createdAt: new Date(pedido.createdAt), total: Number(pedido.total ?? pedido.valorTotal ?? pedido.totalPedido ?? pedido.valor ?? pedido.subtotal ?? 0) })), colunasCSV.vendas, `vendas_${dataArquivoCSV()}.csv`)}>Exportar CSV</button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <label>De <input type="date" value={inicio} max={fim || undefined} onChange={(event) => setInicio(event.target.value)} /></label>
+        <label>Até <input type="date" value={fim} min={inicio || undefined} onChange={(event) => setFim(event.target.value)} /></label>
       </div>
 
       {/* FILTRO DE STATUS */}
@@ -145,7 +158,7 @@ export default function Orders() {
           <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             Pedidos
             <span style={{ background: 'var(--accent-light)', color: 'var(--accent-primary)', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
-              {pedidos.length}
+              {pedidosFiltrados.length}
             </span>
           </h3>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -176,7 +189,7 @@ export default function Orders() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pedidos.length === 0 ? (
+                  {pedidosFiltrados.length === 0 ? (
                     <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum pedido realizado</td></tr>
                   ) : paginacao.itensPagina.map(p => {
                   const statusInfo = getStatusInfo(p.status);

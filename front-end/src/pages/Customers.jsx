@@ -6,7 +6,7 @@ import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
 import AreaTabs from '../components/AreaTabs.jsx';
 import { criarXmlClientes } from '../utils/customersXml.js';
-import { exportarCSV, colunasCSV } from '../utils/exportarCsv.js';
+import { exportarCSV, colunasCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { calcularMultiplicadorFidelidade } from '../utils/fidelidade.js';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
@@ -179,7 +179,7 @@ export default function Customers() {
            <h1>👤 Cadastro de Clientes</h1>
            <p>Gerencie sua base de clientes</p>
          </div>
-         <button type="button" className="customers-secondary-button" onClick={() => exportarCSV(clientes, colunasCSV.clientes, 'clientes.csv')}>⬇️ CSV</button>
+         <button type="button" className="customers-secondary-button" onClick={() => exportarCSV(clientes, colunasCSV.clientes, `clientes_${dataArquivoCSV()}.csv`)}>Exportar CSV</button>
        </div>
 
 
