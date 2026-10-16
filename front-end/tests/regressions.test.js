@@ -71,6 +71,21 @@ for (const valor of ['', '0', '0,00']) {
   });
 }
 
+for (const [digitado, esperado] of [['12,50', '12,50'], ['12.50', '12,50']]) {
+  test(`campo de recebimento parcial normaliza ${digitado} para moeda brasileira`, () => {
+    let formAtualizado;
+    const code = 'const digitarValorComanda = ' + section('ContasReceber', 'const digitarValorComanda = ', 'const registrarRecebimentoComanda');
+    const digitarValorComanda = evaluate(code, {
+      setFormComanda: atualizar => { formAtualizado = atualizar({ valor: '' }); },
+    }, 'digitarValorComanda');
+
+    digitarValorComanda(digitado);
+
+    assert.equal(formAtualizado.valor, esperado);
+    assert.equal(Number(formAtualizado.valor.replace(',', '.')), 12.5);
+  });
+}
+
 test('remover linha retira desconto quando grupo perde mínimo', async () => {
   const functions = source('PDV').split('const precoPorUnidade = ')[1].split('export default function PDV')[0];
   const recalculate = section('PDV', 'const recalcularPrecosCarrinho = ', 'const setCarrinho');

@@ -270,11 +270,13 @@ export default function ContasReceber() {
   };
 
 
-  /** Aceita só dígitos e uma vírgula, evitando que o campo congele como number input. */
+  /** Normaliza ponto e vírgula decimal para o formato brasileiro. */
   const digitarValorComanda = (texto) => {
-    const limpo = String(texto ?? '').replace(/[^\d,]/g, '').replace(/^,+/, '');
-    const partes = limpo.split(',');
-    const normalizado = partes.length > 1 ? `${partes[0]},${partes.slice(1).join('')}` : partes[0];
+    const limpo = String(texto ?? '').replace(/[^\d,.]/g, '');
+    const separador = limpo.search(/[,.]/);
+    const normalizado = separador < 0
+      ? limpo
+      : `${limpo.slice(0, separador)},${limpo.slice(separador + 1).replace(/[,.]/g, '')}`;
     setFormComanda((atual) => ({ ...atual, valor: normalizado }));
   };
 
