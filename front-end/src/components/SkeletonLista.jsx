@@ -1,34 +1,50 @@
-import React from 'react';
+const estilos = `
+  .skeleton-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .skeleton-lista__item {
+    min-height: 40px;
+    border-radius: 6px;
+    background: linear-gradient(
+      90deg,
+      var(--bg-tertiary, #efe2d0) 25%,
+      var(--border-color, #ddc9b5) 50%,
+      var(--bg-tertiary, #efe2d0) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-lista-loading 1.5s ease-in-out infinite;
+  }
+  @keyframes skeleton-lista-loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-lista__item { animation: none; }
+  }
+`;
 
-const SkeletonLista = ({ itemCount, itemHeight }) => {
-  const skeletonItems = Array.from({ length: itemCount }, (_, index) => (
-    <div key={index} style={{ height: itemHeight, marginBottom: '12px' }}></div>
+const SkeletonLista = ({ itemCount = 5, itemHeight = 56 }) => {
+  const count = Number.isFinite(itemCount) ? Math.max(0, Math.floor(itemCount)) : 5;
+  const skeletonItems = Array.from({ length: count }, (_, index) => (
+    <div
+      key={index}
+      className="skeleton-lista__item"
+      aria-hidden="true"
+      style={{ height: itemHeight }}
+    />
   ));
 
   return (
-    <div className="skeleton-lista">
-      {skeletonItems}
-      <style>{
-        .skeleton-lista {
-          display: flex;
-          flex-direction: column;
-        }
-        .skeleton-lista > div {
-          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-          background-size: 200% 100%;
-          animation: loading 1.5s infinite;
-          border-radius: 4px;
-        }
-        @keyframes loading {
-          0% {
-            background-position: 200% 0;
-          }
-          100% {
-            background-position: -200% 0;
-          }
-        }
-      }</style>
-    </div>
+    <>
+      <div className="skeleton-lista" role="status" aria-label="Carregando lista" aria-busy="true">
+        {skeletonItems}
+      </div>
+      <style>{estilos}</style>
+    </>
   );
 };
 
