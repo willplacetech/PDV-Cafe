@@ -37,3 +37,43 @@ pnpm-debug.log*
 *.swo
 # Banco descartável das verificações locais
 .test-mongodb-cache/
+
+# Artefatos gerados por agentes e ferramentas auxiliares
+.agents/
+.aider-desk/
+.xgrok/
+.playwright-mcp/
+
+# Saídas de análises e relatórios gerados
+graphify-out/
+reports/
+
+# Cache local de testes
+.test-mongodb-cache/
+
+# Dependências e builds
+node_modules/
+dist/
+build/
+coverage/
+
+# Arquivos locais de ambiente
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Arquivos de sistema e IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.aider-desk/
+.continue/
+.kilo/
+.superpowers/
