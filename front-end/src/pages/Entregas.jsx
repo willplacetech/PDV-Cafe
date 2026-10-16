@@ -6,6 +6,7 @@ import api from '../services/api.jsx';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
 import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
+import EstadoLista from '../components/EstadoLista.jsx';
 import { useToast } from '../components/useToast.js';
 import { imprimirEntrega } from '../utils/imprimirEntrega.js';
 import '../styles/delivery.css';
@@ -84,7 +85,9 @@ export default function Entregas() {
   const [entregadorEdicao, setEntregadorEdicao] = useState(null);
   const [whatsapp, setWhatsapp] = useState(null);
   const [erro, setErro] = useState('');
+  const [erroLista, setErroLista] = useState('');
   const [aviso, setAviso] = useState('');
+  const [motivoCancelamento, setMotivoCancelamento] = useState('');
   const [carregando, setCarregando] = useState(true);
   const [agora, setAgora] = useState(Date.now);
   const [ocupado, setOcupado] = useState(false);
@@ -115,9 +118,9 @@ export default function Entregas() {
       setEstatisticas(estatisticasResponse.data || {});
       setComercio(comercioResponse.data || null);
       setAgora(Date.now());
-      setErro('');
+      setErroLista('');
     } catch (error) {
-      setErro(error.response?.data?.msg || 'Não foi possível carregar as entregas.');
+      setErroLista(error.response?.data?.msg || 'Não foi possível carregar as entregas.');
     } finally {
       setCarregando(false);
       carregamentoAtivo.current = false;
@@ -229,11 +232,10 @@ export default function Entregas() {
     }, 'Mensagem de rastreamento pronta para compartilhar.');
   };
 
-  const cancelar = pedido => {
-    const motivo = window.prompt('Qual o motivo do cancelamento?');
-    if (!motivo?.trim()) return;
-    void executar(() => api.post(`/entregas/pedidos/${pedido._id}/cancelar`, { motivo }), 'Pedido cancelado.');
-  };
+  const cancelar = (pedido, motivo) => executar(
+    () => api.post(`/entregas/pedidos/${pedido._id}/cancelar`, { motivo }),
+    'Pedido cancelado.'
+  );
 
   const marcarPronto = pedido => {
     void executar(() => api.post(`/entregas/pedidos/${pedido._id}/pronto`, {}), 'Pedido marcado como pronto.');
@@ -380,7 +382,16 @@ export default function Entregas() {
       <button disabled={ocupado}>{ocupado ? 'Salvando…' : 'Salvar configurações'}</button>
     </form>}
 
-    {['fila', 'historico'].includes(aba) && (carregando ? <p role="status" className="delivery-empty">Carregando pedidos…</p> : (
+    {['fila', 'historico'].includes(aba) && <EstadoLista
+      carregando={carregando}
+      erro={erroLista}
+      vazio={(aba === 'historico' ? pedidos : pedidosDaFila).length === 0}
+      onRetry={() => void carregar()}
+      tituloVazio={aba === 'historico' ? 'Nenhum pedido encontrado para este filtro.' : 'Não há pedidos nesta etapa.'}
+      mensagemVazia={aba === 'fila' ? 'Os pedidos aparecerão aqui conforme avançarem na operação.' : undefined}
+      acaoVaziaTexto={aba === 'fila' ? 'Criar pedido' : undefined}
+      onAcaoVazia={aba === 'fila' ? () => setAba('novo') : undefined}
+    >
       <section className="delivery-grid">
         {(aba === 'historico' ? pedidos : pedidosDaFila).map(pedido => {
           const entregador = typeof pedido.entregadorId === 'object' ? pedido.entregadorId : null;
@@ -410,13 +421,17 @@ export default function Entregas() {
                 if (!imprimirEntrega(pedido, comercio?.nome)) setErro('Permita janelas pop-up para imprimir o pedido.');
               }}>Reimprimir</button>}
               <button type="button" className="delivery-secondary" disabled={ocupado} onClick={() => void enviarWhatsApp(pedido)}>WhatsApp</button>
-              {podeCancelar && <ConfirmarAcao titulo="Cancelar pedido de entrega" mensagem={`Cancelar o pedido de ${pedido.origem.nomeCliente}?`} acaoTexto="Cancelar pedido" onConfirmar={() => cancelar(pedido)}>{({ onClick }) => <button type="button" className="delivery-danger" disabled={ocupado} onClick={onClick}>Cancelar</button>}</ConfirmarAcao>}
+              {podeCancelar && <ConfirmarAcao titulo="Cancelar pedido de entrega" mensagem={`Cancelar o pedido de ${pedido.origem.nomeCliente}? Motivo: ${motivoCancelamento}`} acaoTexto="Confirmar cancelamento" onConfirmar={() => cancelar(pedido, motivoCancelamento)}>{({ onClick }) => <button type="button" className="delivery-danger" disabled={ocupado} onClick={() => {
+                const motivo = window.prompt('Qual o motivo do cancelamento?');
+                if (!motivo?.trim()) return;
+                setMotivoCancelamento(motivo.trim());
+                onClick();
+              }}>Cancelar</button>}</ConfirmarAcao>}
             </div>
           </article>;
         })}
-        {(aba === 'historico' ? pedidos : pedidosDaFila).length === 0 && <p className="delivery-empty">{aba === 'historico' ? 'Nenhum pedido encontrado para este filtro.' : 'Não há pedidos nesta etapa.'}</p>}
       </section>
-    ))}
+    </EstadoLista>}
 
     {aba === 'historico' && paginas > 1 && <div className="delivery-actions" aria-label="Paginação do histórico">
       <button type="button" className="delivery-secondary" disabled={pagina <= 1 || carregando} onClick={() => setPagina(value => value - 1)}>Anterior</button>

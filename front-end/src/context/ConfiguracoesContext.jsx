@@ -23,20 +23,23 @@ export const ConfiguracoesProvider = ({ children }) => {
     const fetchConfiguracoes = async () => {
       setExigirAutorizacaoGerente(true);
       setBloqueadoPorSuporte(false);
-      if (authLoading || user?.role !== 'admin') {
-        setLoading(authLoading);
+      if (authLoading) {
+        setLoading(true);
+        return;
+      }
+      if (user?.role !== 'admin') {
+        setLoading(false);
         return;
       }
       setLoading(true);
       try {
         const { data } = await api.get('/configuracoes');
         if (!active) return;
-        setExigirAutorizacaoGerente(data.exigirAutorizacaoGerente);
-        setBloqueadoPorSuporte(data.bloqueadoPorSuporte);
+        setExigirAutorizacaoGerente(data.exigirAutorizacaoGerente !== false);
+        setBloqueadoPorSuporte(Boolean(data.bloqueadoPorSuporte));
       } catch (error) {
         if (!active) return;
         console.error('Erro ao buscar configurações:', error);
-        // Default to true (safe side)
         setExigirAutorizacaoGerente(true);
         setBloqueadoPorSuporte(false);
       } finally {
@@ -51,7 +54,7 @@ export const ConfiguracoesProvider = ({ children }) => {
   const updateConfiguracoes = async (valor, motivo) => {
     try {
       const { data } = await api.patch('/configuracoes/autorizacao-gerente', { valor, motivo });
-      setExigirAutorizacaoGerente(data.exigirAutorizacaoGerente);
+      setExigirAutorizacaoGerente(data.exigirAutorizacaoGerente !== false);
       return data;
     } catch (error) {
       throw error;

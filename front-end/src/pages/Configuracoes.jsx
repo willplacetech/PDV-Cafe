@@ -1,4 +1,4 @@
-import { useState, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { useConfiguracoes } from '../context/ConfiguracoesContext.jsx';
 import { useToast } from '../components/useToast.js';
 
@@ -9,6 +9,10 @@ const ConfiguracoesPage = () => {
   const [modalAberto, setModalAberto] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [valorToggle, setValorToggle] = useState(exigirAutorizacaoGerente);
+
+  useEffect(() => {
+    setValorToggle(exigirAutorizacaoGerente);
+  }, [exigirAutorizacaoGerente]);
 
   const handleChange = async (valor) => {
     if (bloqueadoPorSuporte) {

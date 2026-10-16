@@ -3,29 +3,31 @@ const router = express.Router();
 const Configuracoes = require('../models/Configuracoes');
 const Auditoria = require('../models/Auditoria');
 const auth = require('../middleware/auth');
-const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
+const { exigirAutorizacao, invalidarCacheConfiguracaoGerente } = require('../middleware/exigirAutorizacao');
+
+const isSupportOverrideActive = () => process.env.FORCAR_AUTORIZACAO_GERENTE === 'true';
 
 // GET /api/configuracoes
 router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
     let configuracao = await Configuracoes.findOne({ _id: 'principal' });
     if (!configuracao) {
-      // Create default if not exists
       configuracao = await Configuracoes.create({ _id: 'principal', exigirAutorizacaoGerente: true });
     }
+
     res.json({
-      exigirAutorizacaoGerente: true,
-      bloqueadoPorSuporte: process.env.FORCAR_AUTORIZACAO_GERENTE === 'true'
+      exigirAutorizacaoGerente: configuracao.exigirAutorizacaoGerente,
+      bloqueadoPorSuporte: isSupportOverrideActive(),
     });
   } catch (error) {
+    console.error('Erro ao buscar configuracoes:', error);
     res.status(500).json({ msg: 'Erro ao buscar configuracoes' });
   }
 });
 
 // PATCH /api/configuracoes/autorizacao-gerente
 router.patch('/autorizacao-gerente', auth, auth.allowRoles('admin'), exigirAutorizacao('alterar_configuracao'), async (req, res) => {
-  // Check for override environment variable
-  if (process.env.FORCAR_AUTORIZACAO_GERENTE === 'true') {
+  if (isSupportOverrideActive()) {
     return res.status(403).json({ msg: 'Bloqueado pelo suporte' });
   }
 
@@ -33,9 +35,8 @@ router.patch('/autorizacao-gerente', auth, auth.allowRoles('admin'), exigirAutor
   if (typeof valor !== 'boolean') {
     return res.status(400).json({ msg: 'O campo valor deve ser booleano' });
   }
-  if (!valor) return res.status(400).json({ msg: 'A autorização de gerente é obrigatória para ações críticas' });
-  if (!valor && (!motivo || motivo.trim().length < 10)) {
-    return res.status(400).json({ msg: 'Motivo obrigatorio com no minimo 10 caracteres ao desligar' });
+  if (!valor && (!motivo || typeof motivo !== 'string' || motivo.trim().length < 10)) {
+    return res.status(400).json({ msg: 'Motivo obrigatório com no mínimo 10 caracteres ao desligar' });
   }
 
   try {
@@ -44,23 +45,22 @@ router.patch('/autorizacao-gerente', auth, auth.allowRoles('admin'), exigirAutor
       configuracao = await Configuracoes.create({ _id: 'principal', exigirAutorizacaoGerente: true });
     }
 
-    const valorAntigo = configuracao.exigirAutorizacaoGerente;
     configuracao.exigirAutorizacaoGerente = valor;
     await configuracao.save();
+    invalidarCacheConfiguracaoGerente();
 
-    // Log to audit
     await Auditoria.create({
       usuarioSolicitante: req.user.id,
-      usuarioAutorizou: req.user.id, // same as solicitant for this action
+      usuarioAutorizou: req.user.id,
       acao: 'toggle_autorizacao_gerente',
-      detalhes: { valor, motivo: motivo || '' },
+      detalhes: { valor, motivo: valor ? '' : motivo.trim() },
       ip: req.ip,
       sucesso: true,
     });
 
     res.json({ msg: 'Configuracao atualizada com sucesso', exigirAutorizacaoGerente: valor });
   } catch (error) {
-    console.error(error);
+    console.error('Erro ao atualizar configuracao:', error);
     res.status(500).json({ msg: 'Erro ao atualizar configuracao' });
   }
 });

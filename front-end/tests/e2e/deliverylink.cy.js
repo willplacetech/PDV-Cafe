@@ -6,7 +6,9 @@ describe('DeliveryLink', () => {
   it('rastreio público carrega sem autenticação e mantém polling quando SSE falha', () => {
     cy.intercept('GET', `**/api/rastreio/${token}`, { status: 'a_caminho', nomeComercio: tenant.nome, tempoEstimado: 30, statusHistorico: [{ status: 'pendente', data: new Date().toISOString() }], whatsappComercio: 'https://wa.me/5511999999999' }).as('rastreio');
     cy.intercept('GET', `**/api/rastreio/${token}/stream`, { statusCode: 503, body: {} });
-    cy.visit(`/pedido/${token}`);
+    cy.visit(`/pedido/${token}`, { onBeforeLoad(win) {
+      win.localStorage.setItem('delivery_admin:logged-out', '1');
+    } });
     cy.wait('@rastreio');
     cy.contains('Café da Praça').should('be.visible');
     cy.contains('Chega em aproximadamente 30 min').should('be.visible');
@@ -54,9 +56,31 @@ describe('DeliveryLink', () => {
     cy.wait('@pedidosProntos');
     cy.wait('@estatisticas');
     cy.contains('Fila de entregas').should('be.visible');
-    cy.get('.delivery-order select').select('courier');
+    cy.get('.delivery-order .searchable-select-input').click();
+    cy.get('[role="option"]').contains('João').click();
     cy.contains('button', 'Despachar').click();
     cy.wait('@despacharPronto');
+    cy.get('[role="status"]').contains('Pedido de Maria despachado.').should('be.visible');
+    cy.contains('.delivery-success', 'Pedido de Maria despachado.').should('be.visible');
+  });
+
+  it('mantém o pedido visível e informa falha ao não conseguir marcar como pronto', () => {
+    const pendente = { ...pedido, status: 'pendente' };
+    cy.intercept('GET', '**/api/entregas/pedidos?*', { pedidos: [pendente], paginas: 0 });
+    cy.intercept('GET', '**/api/entregas/entregadores', []);
+    cy.intercept('GET', '**/api/entregas/estatisticas', {});
+    cy.intercept('GET', '**/api/entregas/configuracao', tenant);
+    cy.intercept('POST', '**/api/entregas/pedidos/pedido/pronto', { statusCode: 503, body: { msg: 'Falha temporária ao preparar.' } }).as('marcarPronto');
+    cy.visit('/entregas', { onBeforeLoad(win) {
+      win.localStorage.setItem('pdv_token', 'fake');
+      win.localStorage.setItem('pdv_user', JSON.stringify({ username: 'operador', role: 'admin', tenantId: 'tenant' }));
+    } });
+    cy.contains('button', 'Aguardando preparo').click();
+    cy.contains('.delivery-order', 'Maria').contains('button', 'Marcar como pronto').click();
+    cy.wait('@marcarPronto').its('response.statusCode').should('eq', 503);
+    cy.get('[role="alert"]').contains('O servidor encontrou um problema.').should('be.visible');
+    cy.contains('.delivery-order', 'Maria').should('be.visible');
+    cy.get('[role="alert"] button').should('not.exist');
   });
 
   it('permite configurar entregas no módulo integrado do PDV', () => {
@@ -154,15 +178,142 @@ describe('DeliveryLink', () => {
     cy.location('search').should('contain', 'pedido=delivery-id');
   });
 
-  it('entregador confirma entrega com confirmação explícita no celular', () => {
+  it('entregador confirma entrega em diálogo acessível e mantém a ação cancelável', () => {
     cy.viewport(375, 812);
     cy.intercept('GET', '**/api/entregador/pedidos', { pedidos: [{ ...pedido, status: 'a_caminho', tenantId: tenant }], status: 'em_entrega' });
     cy.intercept('POST', '**/api/entregador/pedido/pedido/status', { ...pedido, status: 'entregue' }).as('entregar');
     cy.visit('/entregador', { onBeforeLoad(win) { win.localStorage.setItem('delivery_entregador', JSON.stringify({ token: 'fake', user: { role: 'entregador' } })); } });
-    cy.on('window:confirm', () => true);
     cy.contains('button', 'Confirmar entrega').click();
+    cy.get('[role="dialog"][aria-modal="true"]').should('contain.text', 'Confirmar que o pedido foi entregue ao cliente?');
+    cy.get('[role="dialog"]').contains('button', 'Cancelar').click();
+    cy.get('@entregar.all').should('have.length', 0);
+
+    cy.contains('button', 'Confirmar entrega').click();
+    cy.get('[role="dialog"]').contains('button', 'Confirmar entrega').click();
     cy.wait('@entregar').its('request.body.novoStatus').should('eq', 'entregue');
-    cy.contains('Entrega confirmada!').should('be.visible');
+    cy.get('[role="status"]').contains('Entrega confirmada!').should('be.visible');
+    cy.contains('.delivery-success', 'Entrega confirmada!').should('be.visible');
+  });
+
+  it('Entregas exibe skeleton e mantém filtro e página do servidor ao tentar novamente', () => {
+    let falhaPaginaDois = true;
+    const pedidos = {
+      paginaUm: { pedidos: [{ ...pedido, _id: 'pedido-pagina-1', status: 'entregue' }], paginas: 2 },
+      paginaDois: { pedidos: [{ ...pedido, _id: 'pedido-pagina-2', status: 'entregue', origem: { ...pedido.origem, nomeCliente: 'Maria da segunda página' } }], paginas: 2 },
+    };
+    cy.intercept('GET', '**/api/entregas/pedidos?*', request => {
+      const query = new URL(request.url).searchParams;
+      if (query.get('status') === 'entregue' && query.get('pagina') === '2' && falhaPaginaDois) {
+        falhaPaginaDois = false;
+        request.reply({ statusCode: 503, body: { msg: 'Falha temporária do histórico.' } });
+        return;
+      }
+      request.reply({
+        delay: query.get('status') ? 0 : 300,
+        statusCode: 200,
+        body: query.get('pagina') === '2' ? pedidos.paginaDois : query.get('status') ? pedidos.paginaUm : { pedidos: [], paginas: 0 },
+      });
+    }).as('pedidos');
+    cy.intercept('GET', '**/api/entregas/entregadores', []);
+    cy.intercept('GET', '**/api/entregas/estatisticas', {});
+    cy.intercept('GET', '**/api/entregas/configuracao', tenant);
+    cy.visit('/entregas', { onBeforeLoad(win) {
+      win.localStorage.setItem('pdv_token', 'fake');
+      win.localStorage.setItem('pdv_user', JSON.stringify({ username: 'operador', role: 'admin', tenantId: 'tenant' }));
+    } });
+
+    cy.get('[role="status"][aria-label="Carregando lista"]').should('be.visible');
+    cy.wait('@pedidos');
+    cy.contains('button', 'Histórico').click();
+    cy.wait('@pedidos');
+    cy.get('input.searchable-select-input').first().click();
+    cy.get('[role="option"]').contains('Entregue').click();
+    cy.wait('@pedidos').its('request.url').should('contain', 'status=entregue');
+    cy.get('input[type="date"]').type('2026-10-16');
+    cy.wait('@pedidos').its('request.url').should('contain', 'data=2026-10-16');
+    cy.contains('button', 'Próxima').click();
+    cy.wait('@pedidos').its('response.statusCode').should('eq', 503);
+
+    cy.get('[role="alert"]').should('contain.text', 'O servidor encontrou um problema.');
+    cy.contains('[role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@pedidos').then(({ request, response }) => {
+      const query = new URL(request.url).searchParams;
+      expect(response.statusCode).to.equal(200);
+      expect(query.get('pagina')).to.equal('2');
+      expect(query.get('limite')).to.equal('30');
+      expect(query.get('status')).to.equal('entregue');
+      expect(query.get('data')).to.equal('2026-10-16');
+    });
+    cy.get('.delivery-order').should('have.length', 1);
+    cy.contains('.delivery-order', 'Maria da segunda página').should('be.visible');
+    cy.contains('Página 2 de 2').should('be.visible');
+  });
+
+  it('cancela pedido de entrega somente após confirmação customizada e preserva o motivo', () => {
+    const pendente = { ...pedido, status: 'pendente' };
+    cy.intercept('GET', '**/api/entregas/pedidos?*', { pedidos: [pendente], paginas: 0 }).as('pedidosCancelaveis');
+    cy.intercept('GET', '**/api/entregas/entregadores', []);
+    cy.intercept('GET', '**/api/entregas/estatisticas', {});
+    cy.intercept('GET', '**/api/entregas/configuracao', tenant);
+    cy.intercept('POST', '**/api/entregas/pedidos/pedido/cancelar', { statusCode: 200, body: { ...pendente, status: 'cancelado' } }).as('cancelarPedido');
+    cy.visit('/entregas', { onBeforeLoad(win) {
+      win.localStorage.setItem('pdv_token', 'fake');
+      win.localStorage.setItem('pdv_user', JSON.stringify({ username: 'operador', role: 'admin', tenantId: 'tenant' }));
+    } });
+    cy.wait('@pedidosCancelaveis');
+    cy.contains('button', 'Aguardando preparo').click();
+    cy.window().then(win => cy.stub(win, 'prompt').returns('Cliente solicitou cancelamento'));
+    cy.contains('.delivery-order', 'Maria').contains('button', 'Cancelar').click();
+    cy.get('[role="dialog"][aria-modal="true"]').should('contain.text', 'Cliente solicitou cancelamento');
+    cy.get('[role="dialog"]').contains('button', 'Cancelar').click();
+    cy.get('@cancelarPedido.all').should('have.length', 0);
+
+    cy.contains('.delivery-order', 'Maria').contains('button', 'Cancelar').click();
+    cy.get('[role="dialog"]').contains('button', 'Confirmar cancelamento').click();
+    cy.wait('@cancelarPedido').its('request.body.motivo').should('eq', 'Cliente solicitou cancelamento');
+    cy.get('[role="status"]').contains('Pedido cancelado.').should('be.visible');
+  });
+
+  it('courier diferencia falha de lista vazia e permite retry', () => {
+    let tentativas = 0;
+    cy.intercept('GET', '**/api/entregador/pedidos', request => {
+      tentativas += 1;
+      request.reply(tentativas === 1
+        ? { statusCode: 503, body: { msg: 'Falha temporária das entregas atribuídas.' } }
+        : { statusCode: 200, body: { pedidos: [], status: 'offline' } });
+    }).as('entregasAtribuidas');
+    cy.visit('/entregador', { onBeforeLoad(win) {
+      win.localStorage.setItem('delivery_entregador', JSON.stringify({ token: 'fake', user: { role: 'entregador' } }));
+    } });
+
+    cy.get('[role="status"][aria-label="Carregando lista"]').should('be.visible');
+    cy.wait('@entregasAtribuidas').its('response.statusCode').should('eq', 503);
+    cy.get('[role="alert"]').should('contain.text', 'Falha temporária das entregas atribuídas.');
+    cy.contains('[role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@entregasAtribuidas').its('response.statusCode').should('eq', 200);
+    cy.contains('.estado-lista--vazio', 'Nenhuma entrega atribuída.').should('be.visible');
+  });
+
+  it.only('rastreio oferece retry após erro inicial sem interromper o fallback de atualização', () => {
+    let tentativas = 0;
+    cy.intercept('GET', `**/api/rastreio/${token}`, request => {
+      tentativas += 1;
+      request.reply(tentativas <= 2
+        ? { statusCode: 503, body: { msg: 'Falha temporária do rastreio.' } }
+        : { statusCode: 200, body: { status: 'a_caminho', nomeComercio: tenant.nome, tempoEstimado: 30, statusHistorico: [], whatsappComercio: 'https://wa.me/5511999999999' } });
+    }).as('rastreioComRetry');
+    cy.intercept('GET', `**/api/rastreio/${token}/stream`, { statusCode: 503, body: {} });
+    cy.visit(`/pedido/${token}`, { onBeforeLoad(win) {
+      win.localStorage.setItem('delivery_admin:logged-out', '1');
+    } });
+
+    cy.get('[role="status"][aria-label="Carregando lista"]').should('be.visible');
+    cy.wait('@rastreioComRetry').its('response.statusCode').should('eq', 503);
+    cy.get('[role="alert"]').should('contain.text', 'Falha temporária do rastreio.');
+    cy.contains('[role="alert"] button', 'Tentar novamente').click();
+    cy.wait('@rastreioComRetry.3').its('response.statusCode').should('eq', 200);
+    cy.contains('h1', tenant.nome).should('be.visible');
+    cy.contains('Atualização automática a cada 15 segundos').should('be.visible');
   });
 
   it('plataforma cadastra comércio com acesso inicial do dono', () => {

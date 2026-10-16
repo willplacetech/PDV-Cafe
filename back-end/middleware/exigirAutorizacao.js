@@ -1,8 +1,38 @@
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const Configuracoes = require('../models/Configuracoes');
 const { getJwtSecret } = require('../utils/authConfig');
 const Auditoria = require('../models/Auditoria');
+
+const cacheConfiguracao = { valor: null, expiracao: 0 };
+const TTL_CONFIGURACAO_MS = 30 * 1000;
+
+const INVALIDAR_CACHE = () => {
+  cacheConfiguracao.valor = null;
+  cacheConfiguracao.expiracao = 0;
+};
+
+const obterConfiguracaoGerente = async () => {
+  if (process.env.FORCAR_AUTORIZACAO_GERENTE === 'true') {
+    return true;
+  }
+
+  const agora = Date.now();
+  if (cacheConfiguracao.valor !== null && cacheConfiguracao.expiracao > agora) {
+    return cacheConfiguracao.valor;
+  }
+
+  let configuracao = await Configuracoes.findOne({ _id: 'principal' }).lean();
+  if (!configuracao) {
+    configuracao = await Configuracoes.create({ _id: 'principal', exigirAutorizacaoGerente: true });
+  }
+
+  const valor = configuracao.exigirAutorizacaoGerente !== false;
+  cacheConfiguracao.valor = valor;
+  cacheConfiguracao.expiracao = agora + TTL_CONFIGURACAO_MS;
+  return valor;
+};
 
 const EXIGIR_AUTORIZACAO = true;
 
@@ -58,7 +88,14 @@ const verificarAutorizacao = async (req, acao) => {
 };
 
 const exigirAutorizacao = acao => async (req, res, next) => {
-  try { await verificarAutorizacao(req, acao); next(); }
+  try {
+    if (!(await obterConfiguracaoGerente())) {
+      return next();
+    }
+
+    await verificarAutorizacao(req, acao);
+    next();
+  }
   catch (error) {
     if (error.status !== 403) return next(error);
     res.status(403).json({ msg: error.message, acao: error.acao });
@@ -71,4 +108,12 @@ const exigirPrecoManual = (req, res, next) => {
   next();
 };
 
-module.exports = { exigirAutorizacao, verificarAutorizacao, exigirPrecoManual, registrarAuditoria, EXIGIR_AUTORIZACAO };
+module.exports = {
+  exigirAutorizacao,
+  verificarAutorizacao,
+  exigirPrecoManual,
+  registrarAuditoria,
+  EXIGIR_AUTORIZACAO,
+  obterConfiguracaoGerente,
+  invalidarCacheConfiguracaoGerente: INVALIDAR_CACHE,
+};

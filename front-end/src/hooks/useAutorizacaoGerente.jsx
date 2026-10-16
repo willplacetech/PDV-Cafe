@@ -1,9 +1,18 @@
 import { useCallback } from 'react';
+import { useConfiguracoes } from '../context/ConfiguracoesContext.jsx';
 import { solicitarAutorizacao } from '../services/managerApproval.js';
 
 // eslint-disable-next-line react-refresh/only-export-components -- API existente usada pelas telas.
 export function useAutorizacaoGerente(acao) {
-  const solicitar = useCallback(() => solicitarAutorizacao(acao), [acao]);
+  const { exigirAutorizacaoGerente } = useConfiguracoes();
+
+  const solicitar = useCallback(async () => {
+    if (exigirAutorizacaoGerente === false) {
+      return null;
+    }
+    return solicitarAutorizacao(acao);
+  }, [acao, exigirAutorizacaoGerente]);
+
   return { solicitar, renderizarModal: () => null };
 }
 

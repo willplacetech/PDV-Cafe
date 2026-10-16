@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { deliveryApi, erroDelivery } from '../services/deliveryApi.js';
+import EstadoLista from '../components/EstadoLista.jsx';
 import '../styles/delivery.css';
 
 const etapas = [['pendente', 'Pedido recebido'], ['pronto', 'Pronto'], ['despachado', 'Despachado'], ['a_caminho', 'A caminho'], ['entregue', 'Entregue']];
@@ -9,16 +10,23 @@ export default function RastreioEntrega() {
   const { token } = useParams();
   const [pedido, setPedido] = useState(null);
   const [erro, setErro] = useState('');
+  const [carregando, setCarregando] = useState(true);
   const [conexao, setConexao] = useState('Conectando…');
+  const consultarRef = useRef(null);
   useEffect(() => {
     let ativo = true;
     let polling;
     let stream;
+    let solicitando = false;
     const atualizar = dados => { if (ativo) { setPedido(dados); setErro(''); } };
     const consultar = async () => {
+      if (solicitando) return false;
+      solicitando = true;
       try { const { data } = await deliveryApi.get(`/rastreio/${encodeURIComponent(token)}`); atualizar(data); return true; }
       catch (error) { if (ativo) setErro(erroDelivery(error)); return false; }
+      finally { solicitando = false; if (ativo) setCarregando(false); }
     };
+    consultarRef.current = consultar;
     const iniciar = async () => {
       const carregado = await consultar();
       if (!ativo) return;
@@ -39,16 +47,18 @@ export default function RastreioEntrega() {
       };
     };
     void iniciar();
-    return () => { ativo = false; stream?.close(); clearInterval(polling); };
+    return () => { ativo = false; consultarRef.current = null; stream?.close(); clearInterval(polling); };
   }, [token]);
   const atual = etapas.findIndex(([status]) => status === pedido?.status);
   const posicao = pedido?.posicaoEntregador;
   const mapa = posicao && Number.isFinite(posicao.lat) && Number.isFinite(posicao.lng) ? `https://www.openstreetmap.org/export/embed.html?bbox=${posicao.lng - .01},${posicao.lat - .01},${posicao.lng + .01},${posicao.lat + .01}&layer=mapnik&marker=${posicao.lat},${posicao.lng}` : null;
   return <div className="delivery-app"><header className="delivery-header"><span className="delivery-brand">Delivery<span>Link</span></span><span>Sua entrega, passo a passo</span></header><main className="delivery-main delivery-tracking">
     <p className="delivery-eyebrow">ACOMPANHE SEU PEDIDO</p><h1>{pedido?.nomeComercio || 'Preparando seu rastreio'}</h1>
-    {erro && <p role="alert" className="delivery-error">{erro}</p>}
-    {!pedido && !erro && <p role="status">Carregando entrega…</p>}
-    {pedido && <>
+    {pedido && erro && <p role="alert" className="delivery-error">{erro}</p>}
+    {!pedido ? <EstadoLista carregando={carregando} erro={erro} vazio={false} onRetry={() => {
+      setCarregando(true);
+      void consultarRef.current?.();
+    }} /> : <>
       <p className="delivery-muted" role="status">{conexao}</p>
       {pedido.status === 'cancelado' ? <div className="delivery-card"><h2>Pedido cancelado</h2><p>Entre em contato com o comércio para saber mais.</p></div> : <>
         {pedido.status === 'a_caminho' && <div className="delivery-card"><p className="delivery-eyebrow">ESTÁ CHEGANDO</p><h2>Chega em aproximadamente {pedido.tempoEstimado} min</h2><p>Seu pedido já saiu para entrega.</p></div>}

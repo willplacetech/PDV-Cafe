@@ -96,7 +96,7 @@ app.use('/api/receitas', require('./routes/receitas'));
 app.use('/api/produtos', require('./routes/products'));
 app.use('/api/mesas', require('./routes/mesas'));
 app.use('/api/configuracoes', require('./routes/configuracoes'));
-
+app.use('/api/auditoria', require('./routes/auditoria'));
 app.use('/api', require('./routes/delivery'));
 
 // Rota base da API
@@ -114,6 +114,10 @@ app.get('/api', (req, res) => {
       fiscal: '/api/fiscal'
     }
   });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ ok: true, status: 'healthy' });
 });
 
 // ============================================================

@@ -65,6 +65,7 @@ const gruposMenu = [
     chave: 'configuracoes',
     label: '⚙️ CONFIGURAÇÕES',
     items: [
+      { label: 'Autorização de gerente', icon: '🔐', to: '/configuracoes', admin: true },
       { label: 'Impressoras', icon: '🖨️', to: '/ajustes/impressoras', admin: true },
       { label: 'Pagamentos', icon: '💳', to: '/configuracoes/pagamentos', admin: true },
     ],
@@ -87,6 +88,7 @@ const pageIcons = {
   '/financeiro': { icon: '💵', title: 'Financeiro' },
   '/ajustes/impressoras': { icon: '🖨️', title: 'Impressoras' },
   '/configuracoes/pagamentos': { icon: '💳', title: 'Pagamentos' },
+  '/configuracoes': { icon: '🔐', title: 'Autorização de gerente' },
 };
 
 export default function Layout({ children }) {

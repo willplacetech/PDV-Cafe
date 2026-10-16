@@ -3,12 +3,16 @@ import DeliveryPortal from '../components/DeliveryPortal.jsx';
 import { courierApi, erroDelivery } from '../services/deliveryApi.js';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
+import EstadoLista from '../components/EstadoLista.jsx';
+import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import { useToast } from '../components/useToast.js';
 
 function PainelEntregador() {
   const { showToast } = useToast();
   const [dados, setDados] = useState({ pedidos: [], status: 'offline' });
   const [dadosCarregados, setDadosCarregados] = useState(false);
+  const [carregando, setCarregando] = useState(true);
+  const [erroLista, setErroLista] = useState('');
   const [erro, setErro] = useState('');
   const [erroLocalizacao, setErroLocalizacao] = useState('');
   const [aviso, setAviso] = useState('');
@@ -18,11 +22,20 @@ function PainelEntregador() {
   useEffect(() => {
     ultimaPosicaoRef.current = dados.posicaoAtual?.atualizadoEm || null;
   }, [dados.posicaoAtual?.atualizadoEm]);
-  const carregar = useCallback(async () => {
-    try { const { data } = await courierApi.get('/entregador/pedidos'); setDados(data); setDadosCarregados(true); setErro(''); }
-    catch (error) { setErro(erroDelivery(error)); }
+  const carregar = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCarregando(true);
+    try {
+      const { data } = await courierApi.get('/entregador/pedidos');
+      setDados(data);
+      setDadosCarregados(true);
+      setErroLista('');
+    } catch (error) {
+      setErroLista(erroDelivery(error));
+    } finally {
+      if (!silencioso) setCarregando(false);
+    }
   }, []);
-  useEffect(() => { const inicio = setTimeout(() => { void carregar(); }, 0); const timer = setInterval(carregar, 15000); return () => { clearTimeout(inicio); clearInterval(timer); }; }, [carregar]);
+  useEffect(() => { const inicio = setTimeout(() => { void carregar(); }, 0); const timer = setInterval(() => { void carregar(true); }, 15000); return () => { clearTimeout(inicio); clearInterval(timer); }; }, [carregar]);
   useEffect(() => {
     if (!dadosCarregados) return undefined;
     let ativo = true;
@@ -116,12 +129,18 @@ function PainelEntregador() {
     }
     finally { setOcupado(false); }
   };
+  const alterarStatusPedido = pedido => agir(
+    `/entregador/pedido/${pedido._id}/status`,
+    { novoStatus: pedido.status === 'despachado' ? 'a_caminho' : 'entregue' },
+    pedido.status === 'despachado' ? 'Saída registrada. Boa entrega!' : 'Entrega confirmada!'
+  );
   return <><p className="delivery-eyebrow">SEU DIA NA RUA</p><h1>Vamos entregar?</h1><p>Você tem {dados.pedidos.length} entrega(s) atribuída(s).</p>
     <div className="delivery-actions"><button disabled={ocupado} className={dados.status !== 'offline' ? 'delivery-secondary' : ''} onClick={() => agir('/entregador/disponibilidade', { disponivel: dados.status === 'offline' }, 'Disponibilidade atualizada.')}>{dados.status === 'offline' ? 'Estou disponível' : 'Ficar offline'}</button></div><p className="delivery-muted">Localização automática ativa: atualiza a cada 30 segundos enquanto este app estiver aberto e visível.</p>
     {(erro || erroLocalizacao) && <p role="alert" className="delivery-error">{erro || erroLocalizacao}</p>}{aviso && <p role="status" className="delivery-success">{aviso}</p>}
-    {paginacaoPedidos.itensPagina.map(pedido => <article className="delivery-card delivery-order" key={pedido._id}><span className="delivery-badge">{pedido.status === 'despachado' ? 'Aguardando retirada' : 'A caminho'}</span><h2>{pedido.origem.nomeCliente}</h2><p><strong>Retirar em {pedido.tenantId?.nome}</strong><br />{pedido.tenantId?.endereco}</p><p><strong>Entregar em</strong><br />{pedido.origem.endereco.rua}, {pedido.origem.endereco.numero}<br />{pedido.origem.endereco.bairro} {pedido.origem.endereco.complemento}</p>{pedido.origem.endereco.referencia && <p>{pedido.origem.endereco.referencia}</p>}<p>Pedido: {Number(pedido.valorTotal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · Taxa: {Number(pedido.taxaEntrega).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p><div className="delivery-actions"><a className="delivery-button delivery-secondary" href={`tel:${pedido.origem.telefone.replace(/[^\d+]/g, '')}`}>Ligar para cliente</a><button disabled={ocupado} onClick={() => { if (pedido.status === 'a_caminho' && !window.confirm('Confirmar que o pedido foi entregue ao cliente?')) return; void agir(`/entregador/pedido/${pedido._id}/status`, { novoStatus: pedido.status === 'despachado' ? 'a_caminho' : 'entregue' }, pedido.status === 'despachado' ? 'Saída registrada. Boa entrega!' : 'Entrega confirmada!'); }}>{pedido.status === 'despachado' ? 'Retirei / saiu para entrega' : 'Confirmar entrega'}</button></div></article>)}
+    <EstadoLista carregando={carregando} erro={erroLista} vazio={!dados.pedidos.length} onRetry={() => void carregar()} tituloVazio="Nenhuma entrega atribuída." mensagemVazia="Fique disponível para receber novos pedidos.">
+      {paginacaoPedidos.itensPagina.map(pedido => <article className="delivery-card delivery-order" key={pedido._id}><span className="delivery-badge">{pedido.status === 'despachado' ? 'Aguardando retirada' : 'A caminho'}</span><h2>{pedido.origem.nomeCliente}</h2><p><strong>Retirar em {pedido.tenantId?.nome}</strong><br />{pedido.tenantId?.endereco}</p><p><strong>Entregar em</strong><br />{pedido.origem.endereco.rua}, {pedido.origem.endereco.numero}<br />{pedido.origem.endereco.bairro} {pedido.origem.endereco.complemento}</p>{pedido.origem.endereco.referencia && <p>{pedido.origem.endereco.referencia}</p>}<p>Pedido: {Number(pedido.valorTotal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · Taxa: {Number(pedido.taxaEntrega).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p><div className="delivery-actions"><a className="delivery-button delivery-secondary" href={`tel:${pedido.origem.telefone.replace(/[^\d+]/g, '')}`}>Ligar para cliente</a>{pedido.status === 'a_caminho' ? <ConfirmarAcao titulo="Confirmar entrega" mensagem="Confirmar que o pedido foi entregue ao cliente?" acaoTexto="Confirmar entrega" onConfirmar={() => alterarStatusPedido(pedido)}>{({ onClick }) => <button disabled={ocupado} onClick={onClick}>Confirmar entrega</button>}</ConfirmarAcao> : <button disabled={ocupado} onClick={() => void alterarStatusPedido(pedido)}>Retirei / saiu para entrega</button>}</div></article>)}
+    </EstadoLista>
     <Paginacao prefixo="entregas-atribuidas" total={paginacaoPedidos.total} paginaAtual={paginacaoPedidos.paginaAtual} limiteAtual={paginacaoPedidos.limiteAtual} onChangePagina={paginacaoPedidos.alterarPagina} onChangeLimite={paginacaoPedidos.alterarLimite} />
-    {!dados.pedidos.length && <div className="delivery-card delivery-empty">Nenhuma entrega atribuída. Fique disponível para receber novos pedidos.</div>}
   </>;
 }
 
