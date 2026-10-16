@@ -23,6 +23,7 @@ describe('Autorização de gerente', () => {
   });
 
   it('mostra o bloqueio de 60s retornado pelo servidor', () => {
+    cy.clearLocalStorage();
     cy.login('operador-e2e', 'isolated-test-password', 'operador');
     let attempts = 0;
     cy.intercept('POST', '**/api/auth/autorizar', req => {
@@ -46,7 +47,7 @@ describe('Autorização de gerente', () => {
   it('responde ao 403 da API e repete com o header aprovado', () => {
     const approved = token();
     let calls = 0;
-    cy.intercept('GET', '**/api/customers', [{ _id: 'customer-approval', nome: 'Cliente teste', telefone: '11999999999' }]);
+    cy.intercept('GET', '**/api/customers*', [{ _id: 'customer-approval', nome: 'Cliente teste', telefone: '11999999999' }]).as('customers');
     cy.intercept('DELETE', '**/api/customers/customer-approval', req => {
       calls++;
       if (calls === 1) return req.reply({ statusCode: 403, body: { msg: 'Autorização do gerente necessária', acao: 'excluir_cliente' } });
@@ -58,6 +59,7 @@ describe('Autorização de gerente', () => {
       req.reply({ tokenAutorizacao: approved, autorizado: true });
     });
     cy.visit('/clientes');
+    cy.wait('@customers');
     cy.contains('tbody tr', 'Cliente teste').contains('button', 'Excluir').click();
     cy.get('[role="dialog"]').should('contain', 'Excluir este cliente?');
     cy.get('[role="dialog"]').contains('button', 'Excluir').click();

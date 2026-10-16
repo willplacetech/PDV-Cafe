@@ -7,7 +7,7 @@ Cypress.Commands.add('login', (username = 'admin-e2e', password = 'isolated-test
   cy.get('input[autocomplete="current-password"]').type(password);
   cy.get('button[type="submit"]').click();
   cy.wait('@login').its('request.body').should('deep.equal', { username, password });
-  cy.location('pathname').should('equal', '/dashboard');
+  cy.location('pathname').should('equal', role === 'admin' ? '/dashboard' : '/pdv');
   cy.visit('/pdv');
   cy.get('.product-card').should('be.visible');
 });

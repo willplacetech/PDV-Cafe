@@ -53,7 +53,7 @@ router.patch('/autorizacao-gerente', auth, auth.allowRoles('admin'), async (req,
       usuarioSolicitante: req.user.id,
       usuarioAutorizou: req.user.id,
       acao: 'toggle_autorizacao_gerente',
-      detalhes: { valor, motivo: valor ? '' : motivo.trim() },
+      detalhes: valor ? 'Autorização gerencial ativada' : `Autorização gerencial desativada. Motivo: ${motivo.trim()}`,
       ip: req.ip,
       sucesso: true,
     });
