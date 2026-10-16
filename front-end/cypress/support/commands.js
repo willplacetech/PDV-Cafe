@@ -1,6 +1,6 @@
 
-Cypress.Commands.add('login', (username = 'admin-e2e', password = 'isolated-test-password') => {
-  const user = { id: 'user-e2e', username, role: 'admin' };
+Cypress.Commands.add('login', (username = 'admin-e2e', password = 'isolated-test-password', role = 'admin') => {
+  const user = { id: 'user-e2e', username, role };
   cy.intercept('POST', '**/api/auth/login', { user, token: 'isolated-access-token' }).as('login');
   cy.visit('/login');
   cy.get('input[autocomplete="username"]').type(username);

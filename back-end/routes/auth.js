@@ -158,8 +158,8 @@ router.post('/logout', sessions.logoutAuth('pdv', auth), async (req, res, next) 
 
 router.post('/autorizar', auth, async (req, res, next) => {
   const { senha, acao } = req.body || {};
-  if (typeof senha !== 'string' || !validLoginPassword(senha) || typeof acao !== 'string' || !acao.trim()) {
-    return res.status(400).json({ msg: 'Informe a senha e a ação a autorizar' });
+  if (typeof acao !== 'string' || !acao.trim()) {
+    return res.status(400).json({ msg: 'Informe a ação a autorizar' });
   }
 
   const acoesValidas = [
@@ -175,6 +175,18 @@ router.post('/autorizar', auth, async (req, res, next) => {
   try {
     const solicitante = await User.findById(req.user.id).select('+autorizacaoTentativas +autorizacaoBloqueadaAte');
     if (!solicitante || solicitante.ativo === false) return res.status(401).json({ msg: 'Usuário inválido' });
+    if (['admin', 'gerente'].includes(solicitante.role)) {
+      const tokenAutorizacao = jwt.sign(
+        { tipo: 'autorizacao-gerente', id: solicitante.id, acao, solicitante: req.user.id, sessao: req.user.sid || null, versaoSolicitante: req.user.tokenVersion ?? 0, versaoGerente: solicitante.tokenVersion ?? 0 },
+        getJwtSecret(),
+        { algorithm: 'HS256', expiresIn: '5m' }
+      );
+      await registrarAuditoria(req.user.id, solicitante.id, acao, 'autorizado pela sessão autenticada', true, req.ip);
+      return res.json({ tokenAutorizacao, autorizado: true });
+    }
+    if (typeof senha !== 'string' || !validLoginPassword(senha)) {
+      return res.status(400).json({ msg: 'Informe a senha e a ação a autorizar' });
+    }
     const bloqueio = ate => {
       const segundos = Math.max(1, Math.ceil((new Date(ate).getTime() - Date.now()) / 1000));
       res.set('Retry-After', String(segundos));

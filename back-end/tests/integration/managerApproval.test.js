@@ -20,6 +20,7 @@ beforeEach(async () => {
 });
 
 test('operador solicita senha de gerente, JWT dura 5min e não serve como login', async () => {
+  expect((await call('/auth/autorizar', { acao: 'sangria_suprimento' })).status).toBe(400);
   const response = await call('/auth/autorizar', { senha: password, acao: 'sangria_suprimento' });
   expect(response.status).toBe(200);
   const claims = jwt.verify(response.body.tokenAutorizacao, process.env.JWT_SECRET);
@@ -55,10 +56,18 @@ test('token é obrigatório, restrito à ação, solicitante e gerente ativo', a
   expect((await send()).status).toBe(403);
 });
 
-test('gerente/admin precisa informar sua própria senha', async () => {
+test('gerente/admin autenticado autoriza a própria ação sem redigitar senha', async () => {
   const admin = await User.create({ username: 'admin', password: 'senha-admin-teste-123', role: 'admin' });
   const token = jwt.sign({ id: admin.id }, process.env.JWT_SECRET);
-  expect((await call('/auth/autorizar', { senha: password, acao: 'criar_usuario' }, token)).status).toBe(403);
+  for (const [user, bearerToken] of [[manager, jwt.sign({ id: manager.id, tokenVersion: 0 }, process.env.JWT_SECRET)], [admin, token]]) {
+    const response = await call('/auth/autorizar', { acao: 'criar_usuario' }, bearerToken);
+    expect(response.status).toBe(200);
+    const claims = jwt.verify(response.body.tokenAutorizacao, process.env.JWT_SECRET);
+    expect(claims.id).toBe(user.id);
+    expect(claims.solicitante).toBe(user.id);
+    expect(claims.acao).toBe('criar_usuario');
+    expect(await Auditoria.exists({ usuarioSolicitante: user._id, usuarioAutorizou: user._id, acao: 'criar_usuario', sucesso: true })).toBeTruthy();
+  }
 });
 
 test('criação de usuário e remoção de item exigem autorização antes de mutar', async () => {

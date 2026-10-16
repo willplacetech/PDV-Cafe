@@ -3,22 +3,17 @@ const token = () => `header.${btoa(JSON.stringify({ exp: Math.floor(Date.now() /
 describe('Autorização de gerente', () => {
   beforeEach(() => cy.login());
 
-  it('cancela sem remover e reutiliza autorização por ação', () => {
+  it('gerente autoriza sem senha e reutiliza autorização por ação', () => {
     let authorizations = 0;
     cy.intercept('POST', '**/api/auth/autorizar', req => {
-      expect(req.body.acao).to.equal('excluir_item');
+      expect(req.body).to.deep.equal({ acao: 'excluir_item' });
       authorizations++;
       req.reply({ tokenAutorizacao: token(), autorizado: true });
     }).as('approval');
     cy.addToCart('Café');
     cy.get('.pdv-cart-items').contains('button', '✕').click();
-    cy.get('[role="dialog"]').should('contain', 'excluir item').and('contain', 'Informe SUA senha');
-    cy.get('[role="dialog"]').contains('button', 'Cancelar').click();
-    cy.get('.pdv-cart-items').should('contain', 'Café');
-    cy.get('.pdv-cart-items').contains('button', '✕').click();
-    cy.get('[role="dialog"] input[type="password"]').type('senha-gerente');
-    cy.get('[role="dialog"]').contains('button', 'Confirmar').click();
     cy.wait('@approval');
+    cy.get('[role="dialog"]').should('not.exist');
     cy.get('.pdv-cart-items').should('not.exist');
     cy.addToCart('Café');
     cy.get('.pdv-cart-items').contains('button', '✕').click();
@@ -28,6 +23,7 @@ describe('Autorização de gerente', () => {
   });
 
   it('mostra o bloqueio de 60s retornado pelo servidor', () => {
+    cy.login('operador-e2e', 'isolated-test-password', 'operador');
     let attempts = 0;
     cy.intercept('POST', '**/api/auth/autorizar', req => {
       attempts++;
@@ -57,15 +53,15 @@ describe('Autorização de gerente', () => {
       expect(req.headers['x-autorizacao-gerente']).to.equal(approved);
       req.reply({ statusCode: 204 });
     }).as('delete');
-    cy.intercept('POST', '**/api/auth/autorizar', { tokenAutorizacao: approved, autorizado: true });
+    cy.intercept('POST', '**/api/auth/autorizar', req => {
+      expect(req.body).to.deep.equal({ acao: 'excluir_cliente' });
+      req.reply({ tokenAutorizacao: approved, autorizado: true });
+    });
     cy.visit('/clientes');
     cy.contains('tbody tr', 'Cliente teste').contains('button', 'Excluir').click();
     cy.get('[role="dialog"]').should('contain', 'Excluir este cliente?');
     cy.get('[role="dialog"]').contains('button', 'Excluir').click();
     cy.wait('@delete');
-    cy.get('[role="dialog"]').should('contain', 'excluir cliente');
-    cy.get('[role="dialog"] input[type="password"]').type('senha-gerente');
-    cy.get('[role="dialog"]').contains('button', 'Confirmar').click();
     cy.wait('@delete');
     cy.get('[role="dialog"]').should('not.exist');
     cy.then(() => expect(calls).to.equal(2));
