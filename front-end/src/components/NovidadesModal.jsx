@@ -6,23 +6,27 @@ export default function NovidadesModal() {
   const [versaoServidor, setVersaoServidor] = useState(null);
   const [carregando, setCarregando] = useState(false);
 
-  const checkVersion = async () => {
-    try {
-      const versao = await fetchPublishedAppVersion();
-      if (versao && versao !== APP_VERSION) {
-        setVersaoServidor(versao);
-        setAberto(true);
-      }
-    } catch {
-      // versão não verificável — silencioso
-    }
-  };
-
   useEffect(() => {
     if (APP_VERSION === 'development') return;
-    checkVersion();
-    const intervalo = setInterval(checkVersion, 60_000);
-    return () => clearInterval(intervalo);
+    let ativo = true;
+    const verificarVersao = () => {
+      void fetchPublishedAppVersion()
+        .then(versao => {
+          if (ativo && versao && versao !== APP_VERSION) {
+            setVersaoServidor(versao);
+            setAberto(true);
+          }
+        })
+        .catch(() => {
+          // versão não verificável — silencioso
+        });
+    };
+    verificarVersao();
+    const intervalo = setInterval(verificarVersao, 60_000);
+    return () => {
+      ativo = false;
+      clearInterval(intervalo);
+    };
   }, []);
 
   const aplicarAtualizacao = async () => {

@@ -1,16 +1,7 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { useContext, useState, useEffect } from 'react';
 import api from '../services/api.jsx';
 import { AuthContext } from './AuthContextDefinition.jsx';
-
-const ConfiguracoesContext = createContext();
-
-export const useConfiguracoes = () => {
-  const context = useContext(ConfiguracoesContext);
-  if (!context) {
-    throw new Error('useConfiguracoes must be used within a ConfiguracoesProvider');
-  }
-  return context;
-};
+import { ConfiguracoesContext } from './ConfiguracoesContextDefinition.js';
 
 export const ConfiguracoesProvider = ({ children }) => {
   const { user, loading: authLoading } = useContext(AuthContext);
@@ -52,13 +43,9 @@ export const ConfiguracoesProvider = ({ children }) => {
   }, [authLoading, user?.id, user?.role]);
 
   const updateConfiguracoes = async (valor, motivo) => {
-    try {
-      const { data } = await api.patch('/configuracoes/autorizacao-gerente', { valor, motivo });
-      setExigirAutorizacaoGerente(data.exigirAutorizacaoGerente !== false);
-      return data;
-    } catch (error) {
-      throw error;
-    }
+    const { data } = await api.patch('/configuracoes/autorizacao-gerente', { valor, motivo });
+    setExigirAutorizacaoGerente(data.exigirAutorizacaoGerente !== false);
+    return data;
   };
 
   return (

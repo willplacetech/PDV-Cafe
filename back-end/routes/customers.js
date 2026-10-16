@@ -23,7 +23,7 @@ const normalizarEnderecoEntrega = (endereco) => {
 // @route   GET api/customers
 // @desc    Listar clientes com busca
 // @access  Privado
-router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.get('/', auth, auth.allowRoles('admin', 'gerente'), async (req, res) => {
   try {
     const { search } = req.query;
     await Customer.findOneAndUpdate(
@@ -50,7 +50,33 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
   }
 });
 
-router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.get('/pdv', auth, auth.allowRoles('admin', 'gerente', 'operador', 'garcom'), async (req, res) => {
+  try {
+    const { search } = req.query;
+    const query = {};
+    await Customer.findOneAndUpdate(
+      { clienteInterno: true },
+      { $setOnInsert: { nome: 'Cliente Interno', clienteInterno: true, createdBy: req.user.id } },
+      { upsert: true, setDefaultsOnInsert: true },
+    );
+    if (search) {
+      if (typeof search !== 'string') return res.status(400).json({ msg: 'Busca inválida' });
+      query.$or = [
+        { nome: { $regex: search, $options: 'i' } },
+        { telefone: { $regex: search, $options: 'i' } },
+      ];
+    }
+    const customers = await Customer.find(query)
+      .select('_id nome telefone enderecoEntrega cafesFidelidade clienteInterno')
+      .sort({ nome: 1 });
+    res.json(customers);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ msg: 'Erro ao buscar clientes do PDV' });
+  }
+});
+
+router.get('/:id', auth, auth.allowRoles('admin', 'gerente'), async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id);
     if (!customer) return res.status(404).json({ msg: 'Cliente não encontrado' });

@@ -1,9 +1,8 @@
 import { useSearchParams } from 'react-router-dom';
 
-const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLimite, prefixo = '' }) => {
+const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, prefixo = '' }) => {
   const [, setSearchParams] = useSearchParams();
   const parametroPagina = prefixo ? `pagina_${prefixo}` : 'pagina';
-  const parametroLimite = prefixo ? `limite_${prefixo}` : 'limite';
   const totalPaginas = Math.ceil(total / limiteAtual);
   const paginaAtualNum = parseInt(paginaAtual, 10) || 1;
   const limiteAtualNum = parseInt(limiteAtual, 10) || 25;
@@ -13,18 +12,6 @@ const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLi
     onChangePagina(novaPagina);
     setSearchParams(prev => {
       prev.set(parametroPagina, novaPagina.toString());
-      return prev;
-    }, { replace: true });
-    window.scrollTo(0, 0);
-  };
-
-  const handleLimitChange = (novoLimite) => {
-    if (novoLimite === limiteAtualNum) return;
-    onChangeLimite?.(novoLimite);
-    onChangePagina(1);
-    setSearchParams(prev => {
-      prev.set(parametroPagina, '1');
-      prev.set(parametroLimite, novoLimite.toString());
       return prev;
     }, { replace: true });
     window.scrollTo(0, 0);

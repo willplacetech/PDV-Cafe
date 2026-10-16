@@ -166,7 +166,7 @@ export default function PDV() {
 
   const carregarDados = useCallback(async () => {
     const resultados = navigator.onLine ? await Promise.allSettled([
-      api.get('/products/pdv'), api.get('/customers'), api.get('/products/mais-vendidos?limite=8')
+      api.get('/products/pdv'), api.get('/customers/pdv'), api.get('/products/mais-vendidos?limite=8')
     ]) : [];
     const resultadoProdutos = resultados[0];
     if (resultadoProdutos?.status === 'fulfilled' && Array.isArray(resultadoProdutos.value.data)) {

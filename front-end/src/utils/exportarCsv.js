@@ -7,7 +7,11 @@ const sanitizarCelula = (valor) => {
   // Números permanecem numéricos no Excel brasileiro; texto nunca vira fórmula.
   let texto = typeof valor === 'number' ? String(valor).replace('.', ',')
     : valor instanceof Date ? valor.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : String(valor);
-  if (typeof valor === 'string' && /^[\s\u0000-\u001f]*[=+\-@]/.test(texto)) texto = `'${texto}`;
+  if (typeof valor === 'string') {
+    let indice = 0;
+    while (indice < texto.length && (/\s/.test(texto[indice]) || texto.charCodeAt(indice) <= 0x1f)) indice += 1;
+    if (texto[indice] && '=+-@'.includes(texto[indice])) texto = `'${texto}`;
+  }
   if (/[;\r\n"]/.test(texto)) {
     return `"${texto.replace(/"/g, '""')}"`;
   }

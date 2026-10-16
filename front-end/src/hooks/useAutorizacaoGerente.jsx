@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useConfiguracoes } from '../context/ConfiguracoesContext.jsx';
+import { useConfiguracoes } from './useConfiguracoes.js';
 import { solicitarAutorizacao } from '../services/managerApproval.js';
 
 // eslint-disable-next-line react-refresh/only-export-components -- API existente usada pelas telas.

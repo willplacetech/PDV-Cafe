@@ -6,7 +6,7 @@ const { produtoControlaPeso, estoquePesoAtualKg } = require('../utils/estoquePro
 
 const router = express.Router();
 
-router.use(auth, auth.allowRoles('admin'));
+router.use(auth, auth.allowRoles('admin', 'gerente'));
 
 router.get('/baixo', async (req, res) => {
   const limiteInformado = req.query.limite === undefined ? 5 : Number(req.query.limite);

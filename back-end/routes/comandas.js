@@ -83,7 +83,7 @@ async function recalcularPrecosComanda(comanda, session) {
   comanda.saldoDevedor = money(Math.max(0, comanda.valorTotal - pago));
 }
 
-router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.get('/', auth, auth.allowRoles('admin', 'gerente', 'operador', 'garcom'), async (req, res) => {
   try {
     const filter = req.query.status === 'aberta'
       ? { status: { $in: ['aberta', 'rascunho'] } }

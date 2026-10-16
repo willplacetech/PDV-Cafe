@@ -91,27 +91,57 @@ const validations = [
   body('producaoPropria').optional().isBoolean(),
 ];
 
-router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom', 'cozinha'), async (req, res) => {
+router.get('/', auth, auth.allowRoles('admin', 'gerente', 'cozinha'), async (req, res) => {
   try {
-    const { search, categoria, tipo } = req.query;
+    const search = req.query.busca ?? req.query.search;
+    const { categoria, tipo } = req.query;
+    const paginacaoSolicitada = req.query.pagina !== undefined || req.query.limite !== undefined;
+    if ((search !== undefined && typeof search !== 'string')
+      || (categoria !== undefined && typeof categoria !== 'string')
+      || (tipo !== undefined && typeof tipo !== 'string')) {
+      return res.status(400).json({ msg: 'Filtros inválidos' });
+    }
+    const parseInteiroLimitado = (valor, padrao, maximo) => {
+      if (valor === undefined) return padrao;
+      if (typeof valor !== 'string' || !/^-?\d+$/.test(valor)) return null;
+      const numero = Number(valor);
+      if (!Number.isSafeInteger(numero)) return null;
+      return Math.min(Math.max(numero, 1), maximo);
+    };
+    const pagina = parseInteiroLimitado(req.query.pagina, 1, Number.MAX_SAFE_INTEGER);
+    const limite = parseInteiroLimitado(req.query.limite, 25, 100);
+    if (pagina === null || limite === null) {
+      return res.status(400).json({ msg: 'Parâmetros de paginação inválidos' });
+    }
     const query = {};
     if (search) query.$or = [{ nome: { $regex: search, $options: 'i' } }, { codigo: { $regex: search, $options: 'i' } }];
     if (categoria) query.categoria = categoria;
     if (tipo === 'venda' || tipo === 'insumo') query.tipo = tipo;
-    const [produtos, receitas] = await Promise.all([
-      Product.find(query).sort({ nome: 1 }),
-      Recipe.find({ ativa: true }).select('_id produtoId').lean(),
-    ]);
+    const total = paginacaoSolicitada ? await Product.countDocuments(query) : null;
+    const totalPaginas = paginacaoSolicitada ? Math.max(1, Math.ceil(total / limite)) : null;
+    const paginaEfetiva = paginacaoSolicitada ? Math.min(pagina, totalPaginas) : pagina;
+    let buscaProdutos = Product.find(query).sort({ nome: 1 });
+    if (paginacaoSolicitada) {
+      buscaProdutos = buscaProdutos.skip((paginaEfetiva - 1) * limite).limit(limite);
+    }
+    const produtos = await buscaProdutos;
+    const idsProdutos = produtos.map(produto => produto._id);
+    const receitas = await Recipe.find({
+      ativa: true,
+      ...(paginacaoSolicitada ? { produtoId: { $in: idsProdutos } } : {}),
+    }).select('_id produtoId').lean();
     const receitaPorProduto = new Map(receitas.map((receita) => [String(receita.produtoId), receita._id]));
-    res.json(produtos.map((produto) => ({
+    const dados = produtos.map((produto) => ({
       ...produto.toObject(),
       ...(produto.tipo === 'insumo' && produto.unidadeCompra ? { unidadeVenda: produto.unidadeCompra } : {}),
       ...dadosEstoqueProduto(produto),
       tipoProduto: produto.tipo === 'venda' ? (produto.tipoProduto || (produto.aFazer ? 'coz' : produto.producaoPropria ? 'producao' : 'revenda')) : null,
       receitaId: receitaPorProduto.get(String(produto._id)) || null,
       temReceita: receitaPorProduto.has(String(produto._id)),
-       resumoInsumo: produto.tipo === 'insumo' ? calcularResumoCompleto(produto) : null,
-    })));
+      resumoInsumo: produto.tipo === 'insumo' ? calcularResumoCompleto(produto) : null,
+    }));
+    if (!paginacaoSolicitada) return res.json(dados);
+    res.json({ dados, total, pagina: paginaEfetiva, limite, totalPaginas });
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
@@ -433,7 +463,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
   }
 });
 
-router.put('/:id', auth, auth.allowRoles('admin'), exigirAutorizacao('alterar_preco'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoque').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoquePesoKg').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueMinimo').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueEmbalagens').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueConteudoAberto').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueMinimoEmbalagens').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('unidade').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade deve ser kg, L ou un'), body('quantidade').optional().custom((value, { req }) => casasDecimaisValidas(value, req.body.unidade)).withMessage('Quantidade inválida para a unidade selecionada'), body('rendimento').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0.01 }), body('unidadeConteudo').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade do conteúdo deve ser kg, L ou un'), body('estoqueMaximo').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade de venda deve ser kg, L ou un'), body('unidadeCompra').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade de compra deve ser kg, L ou un'), body('pesoPorUnidade').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('unidadePeso').optional().isIn(['kg']).withMessage('Unidade de peso deve ser kg'), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('tipoProduto').optional().isIn(['revenda', 'coz', 'producao']), body('rendimentoPorReceita').optional().isFloat({ min: 0.001 }), body('permitirVendaSemInsumo').optional().isBoolean(), body('fichaTecnica').optional().isArray()], async (req, res) => {
+router.put('/:id', auth, auth.allowRoles('admin', 'gerente'), exigirAutorizacao('alterar_preco'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoque').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoquePesoKg').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueMinimo').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueEmbalagens').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueConteudoAberto').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('estoqueMinimoEmbalagens').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('unidade').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade deve ser kg, L ou un'), body('quantidade').optional().custom((value, { req }) => casasDecimaisValidas(value, req.body.unidade)).withMessage('Quantidade inválida para a unidade selecionada'), body('rendimento').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0.01 }), body('unidadeConteudo').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade do conteúdo deve ser kg, L ou un'), body('estoqueMaximo').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade de venda deve ser kg, L ou un'), body('unidadeCompra').optional().customSanitizer(normalizarUnidade).custom((value) => units.includes(value)).withMessage('Unidade de compra deve ser kg, L ou un'), body('pesoPorUnidade').customSanitizer(limparCampoOpcional).optional().isFloat({ min: 0 }), body('unidadePeso').optional().isIn(['kg']).withMessage('Unidade de peso deve ser kg'), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('tipoProduto').optional().isIn(['revenda', 'coz', 'producao']), body('rendimentoPorReceita').optional().isFloat({ min: 0.001 }), body('permitirVendaSemInsumo').optional().isBoolean(), body('fichaTecnica').optional().isArray()], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {

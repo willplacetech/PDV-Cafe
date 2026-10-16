@@ -61,7 +61,11 @@ router.post('/register', auth, auth.allowRoles('admin'), exigirAutorizacao('cria
     const body = req.body || {};
     const username = typeof body.username === 'string' ? body.username.toLowerCase().trim() : '';
     const password = body.password;
-    const role = ['admin', 'gerente', 'operador', 'cozinha', 'garcom'].includes(body.role) ? body.role : 'operador';
+    const roles = ['admin', 'gerente', 'operador', 'cozinha', 'garcom'];
+    if (body.role !== undefined && !roles.includes(body.role)) {
+      return res.status(400).json({ msg: 'Perfil inválido' });
+    }
+    const role = body.role || 'operador';
     if (!validUsername(username)) return res.status(400).json({ msg: 'Usuário deve ter entre 2 e 254 caracteres válidos' });
     if (!validNewPassword(password)) return res.status(400).json({ msg: PASSWORD_MESSAGE });
     if (await User.exists({ username })) return res.status(409).json({ msg: 'Este usuário já existe' });

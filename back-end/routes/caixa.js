@@ -72,7 +72,7 @@ const carregarCaixa = async (data, turno) => {
   return { fechamento, sistema, outrosMeios: base.outrosMeios };
 };
 
-router.get('/atual', async (req, res) => {
+router.get('/atual', auth.allowRoles('admin', 'gerente'), async (req, res) => {
   try {
     const data = normalizarDataCaixa(req.query.data);
     const turno = String(req.query.turno || 'principal').trim();

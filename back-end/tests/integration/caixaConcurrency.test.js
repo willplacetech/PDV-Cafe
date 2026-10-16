@@ -150,7 +150,7 @@ test('índice de abertura preserva históricos duplicados e permite vários ajus
     expect((await api(`/${id}/ajuste`, { valor, motivo: 'Correção', }, 'admin')).status).toBe(201);
   }
   const atual = await request(app).get(`/api/caixa/atual?data=${dia}`)
-    .set('Authorization', `Bearer ${tokens.operador}`);
+    .set('Authorization', `Bearer ${tokens.admin}`);
   expect(atual.status).toBe(200);
   expect(atual.body.fechamento._id).toBe(id);
   expect(await FechamentoCaixa.countDocuments({ tipoRegistro: 'ajuste' })).toBe(2);
@@ -163,7 +163,7 @@ test('abertura e consulta sem data encontram o mesmo caixa do dia', async () => 
   expect(repetido.status).toBe(200);
   expect(repetido.body._id).toBe(aberto.body._id);
   const atual = await request(app).get('/api/caixa/atual')
-    .set('Authorization', `Bearer ${tokens.operador}`);
+    .set('Authorization', `Bearer ${tokens.admin}`);
   expect(atual.status).toBe(200);
   expect(atual.body.fechamento._id).toBe(aberto.body._id);
 });
@@ -199,4 +199,3 @@ test.each(['/movimentos', '/fechar'])('duas escritas concorrentes %s aceitam som
   expect(salvo.sistema.saldoEsperado).toBe(path === '/movimentos' ? 10 : 0);
   expect(salvo.sistema.suplementacoes).toHaveLength(path === '/movimentos' ? 1 : 0);
 });
-

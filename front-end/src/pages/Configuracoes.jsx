@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useConfiguracoes } from '../context/ConfiguracoesContext.jsx';
+import { useState } from 'react';
+import { useConfiguracoes } from '../hooks/useConfiguracoes.js';
 import { useToast } from '../components/useToast.js';
 
 const ConfiguracoesPage = () => {
@@ -8,12 +8,6 @@ const ConfiguracoesPage = () => {
   const [loading, setLoading] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [motivo, setMotivo] = useState('');
-  const [valorToggle, setValorToggle] = useState(exigirAutorizacaoGerente);
-
-  useEffect(() => {
-    setValorToggle(exigirAutorizacaoGerente);
-  }, [exigirAutorizacaoGerente]);
-
   const handleChange = async (valor) => {
     if (bloqueadoPorSuporte) {
       showToast('Bloqueado pelo suporte', 'error');
@@ -21,7 +15,6 @@ const ConfiguracoesPage = () => {
     }
 
     if (valor === false) {
-      setValorToggle(false);
       setModalAberto(true);
       setMotivo('');
     } else {
@@ -56,7 +49,6 @@ const ConfiguracoesPage = () => {
 
   const handleCancelamento = () => {
     setModalAberto(false);
-    setValorToggle(exigirAutorizacaoGerente);
   };
 
   return (
@@ -76,7 +68,7 @@ const ConfiguracoesPage = () => {
             <label>
               <input
                 type="checkbox"
-                checked={valorToggle}
+                checked={exigirAutorizacaoGerente && !modalAberto}
                 onChange={e => handleChange(e.target.checked)}
                 disabled={bloqueadoPorSuporte || loading}
               />
