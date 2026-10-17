@@ -26,9 +26,6 @@ const cookieOptions = {
 
 const { trustedOrigin } = require('../utils/sessionOrigins');
 
-// @route   POST api/auth/login
-// @desc    Login e retornar token
-// @access  Público
 router.post('/login', async (req, res, next) => {
   const origin = req?.headers?.origin;
   if (typeof origin === 'string' && !trustedOrigin(req)) {
@@ -48,9 +45,6 @@ router.post('/login', async (req, res, next) => {
   } catch (error) { return next(error); }
 });
 
-// @route   GET api/auth/me
-// @desc    Informar o operador autenticado
-// @access  Privado
 router.get('/me', auth, (req, res) => {
   res.json({ id: req.user.id, username: req.user.username, role: req.user.role, ...(req.user.tenantId ? { tenantId: req.user.tenantId } : {}) });
 });
@@ -78,7 +72,6 @@ router.post('/register', auth, auth.allowRoles('admin'), exigirAutorizacao('cria
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
-// Administração de contas PDV; cada alteração revoga as sessões anteriores.
 router.get('/users', auth, auth.allowRoles('admin'), async (req, res, next) => {
   try {
     const pagination = parsePagination(req.query);
@@ -115,7 +108,6 @@ router.patch('/users/:id', auth, auth.allowRoles('admin'), exigirAutorizacao('ed
       const tenant = await Tenant.findOne({ pdvIntegrado: true, ativo: true }).select('_id').lean();
       if (tenant) alteracoes.tenantId = tenant._id;
     }
-    // findOneAndUpdate não executa o hook de senha de save; hash antes do update atômico.
     if ('password' in body) alteracoes.password = await bcrypt.hash(body.password, 10);
     const user = await User.findOneAndUpdate(
       { _id: req.params.id, role: { $in: pdvRoles } },
@@ -173,27 +165,33 @@ router.post('/autorizar', auth, async (req, res, next) => {
   }
 
   try {
-    const solicitante = await User.findById(req.user.id).select('+autorizacaoTentativas +autorizacaoBloqueadaAte');
+    const solicitante = await User.findById(req.user.id).select('+autorizacaoTentativas +autorizacaoBloqueadaAte +password');
     if (!solicitante || solicitante.ativo === false) return res.status(401).json({ msg: 'Usuário inválido' });
-    if (['admin', 'gerente'].includes(solicitante.role)) {
+
+    // Admin: isento de senha (token só para fluxos legados que ainda enviam header)
+    if (solicitante.role === 'admin') {
       const tokenAutorizacao = jwt.sign(
         { tipo: 'autorizacao-gerente', id: solicitante.id, acao, solicitante: req.user.id, sessao: req.user.sid || null, versaoSolicitante: req.user.tokenVersion ?? 0, versaoGerente: solicitante.tokenVersion ?? 0 },
         getJwtSecret(),
         { algorithm: 'HS256', expiresIn: '5m' }
       );
-      await registrarAuditoria(req.user.id, solicitante.id, acao, 'autorizado pela sessão autenticada', true, req.ip);
+      await registrarAuditoria(req.user.id, solicitante.id, acao, 'autorizado como admin (isento de senha)', true, req.ip);
       return res.json({ tokenAutorizacao, autorizado: true });
     }
+
     if (typeof senha !== 'string' || !validLoginPassword(senha)) {
       return res.status(400).json({ msg: 'Informe a senha e a ação a autorizar' });
     }
+
     const bloqueio = ate => {
       const segundos = Math.max(1, Math.ceil((new Date(ate).getTime() - Date.now()) / 1000));
       res.set('Retry-After', String(segundos));
       return res.status(429).json({ msg: `Autorização bloqueada. Aguarde ${segundos}s.`, bloqueadoAte: new Date(ate).getTime() });
     };
     if (solicitante.autorizacaoBloqueadaAte > new Date()) return bloqueio(solicitante.autorizacaoBloqueadaAte);
-    const filtro = ['admin', 'gerente'].includes(solicitante.role)
+
+    // Gerente: valida a própria senha. Demais: senha de admin/gerente do mesmo tenant.
+    const filtro = solicitante.role === 'gerente'
       ? { _id: solicitante._id }
       : { role: { $in: ['admin', 'gerente'] }, tenantId: solicitante.tenantId || null };
     const candidatos = await User.find({ ...filtro, ativo: { $ne: false } }).select('+password');
@@ -203,7 +201,6 @@ router.post('/autorizar', auth, async (req, res, next) => {
     }
     if (!user) {
       const agora = new Date();
-      // Incremento e bloqueio atômicos: requisições paralelas não contornam o limite.
       const tentativa = await User.findByIdAndUpdate(solicitante._id, [
         { $set: { autorizacaoTentativas: { $cond: [
           { $and: [{ $ne: [{ $ifNull: ['$autorizacaoBloqueadaAte', null] }, null] }, { $lte: ['$autorizacaoBloqueadaAte', agora] }] },
@@ -215,7 +212,7 @@ router.post('/autorizar', auth, async (req, res, next) => {
           '$$REMOVE',
         ] } } },
       ], { new: true }).select('+autorizacaoTentativas +autorizacaoBloqueadaAte');
-      await registrarAuditoria(req.user.id, null, acao, `tentativa falhou — senha incorreta`, false, req.ip, 'senha_incorreta');
+      await registrarAuditoria(req.user.id, null, acao, 'tentativa falhou — senha incorreta', false, req.ip, 'senha_incorreta');
       if (tentativa.autorizacaoTentativas >= 3) {
         await registrarAuditoria(req.user.id, null, acao, 'Três tentativas inválidas; bloqueio de 60 segundos', false, req.ip, 'bloqueio_60s');
         return bloqueio(tentativa.autorizacaoBloqueadaAte);
@@ -238,7 +235,7 @@ router.post('/autorizar', auth, async (req, res, next) => {
       const atual = await User.findById(solicitante._id).select('+autorizacaoBloqueadaAte');
       return bloqueio(atual.autorizacaoBloqueadaAte);
     }
-    await registrarAuditoria(req.user.id, user.id, acao, `autorizado pela senha`, true, req.ip);
+    await registrarAuditoria(req.user.id, user.id, acao, 'autorizado pela senha', true, req.ip);
     return res.json({ tokenAutorizacao, autorizado: true });
   } catch (error) { next(error); }
 });
