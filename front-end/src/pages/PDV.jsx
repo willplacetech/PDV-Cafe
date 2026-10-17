@@ -26,6 +26,8 @@ import {
   imprimirCupomVenda,
   imprimirPedidoCozinha,
 } from '../services/impressaoService.js';
+import TrocoAuxiliar from '../components/TrocoAuxiliar.jsx';
+
 
 const ENDERECO_VAZIO = { rua: '', numero: '', bairro: '', complemento: '', referencia: '' };
 
@@ -1222,7 +1224,7 @@ export default function PDV() {
                     <span>Total</span>
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>R$ {total.toFixed(2).replace('.', ',')}</span>
                   </div>
-                  
+
                   <div className="pdv-command-actions">
                   <button type="button" onClick={salvarComandaEmAberto} disabled={enviando} style={{
                     width: '100%', padding: '13px', background: 'var(--bg-tertiary)', color: 'var(--accent-primary)',
@@ -1238,7 +1240,7 @@ export default function PDV() {
                   {comandaAtual.tipo === 'mesa' && <button type="button" onClick={() => { setTransferindoMesa(true); setMesasDrawerOpen(true); }} disabled={enviando}>Transferir mesa</button>}
                   {!navigator.onLine && <button type="button" onClick={finalizar} disabled={enviando} className="pdv-offline-save">Salvar fila offline</button>}
                   </div>
-                  
+
                 </div>
               </>
             )}
@@ -1356,6 +1358,7 @@ export default function PDV() {
               {FORMAS_PAGAMENTO.map(forma => <option value={forma.value} key={forma.value}>{forma.label}</option>)}
             </SearchableSelect>
           </label>
+          <TrocoAuxiliar formaPagamento={comandaPagamento?.metodoPagamento || metodoPagamento} totalAPagar={saldoFechamento} />
           <label><FieldLabel hint={<> (opcional) </>}> Nome do cliente </FieldLabel><input type="text" placeholder="Nome do cliente" disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={nomeFechamento} onChange={event => setNomeFechamento(event.target.value)} />
           </label>
           <label><FieldLabel hint={<> (opcional) </>}> Telefone para WhatsApp </FieldLabel><input type="tel" placeholder="DDD + número" disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={telefoneFechamento} onChange={event => setTelefoneFechamento(event.target.value)} />

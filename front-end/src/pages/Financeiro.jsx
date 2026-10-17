@@ -11,6 +11,7 @@ import DateInput from '../components/DateInput.jsx';
 import Paginacao from '../components/Paginacao.jsx';
 import useUrlPagination from '../hooks/useUrlPagination.js';
 import EstadoLista from '../components/EstadoLista.jsx';
+import PreviaCapitalProLabore from '../components/PreviaCapitalProLabore.jsx';
 
 const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const statusColors = { pago: '#16a34a', pendente: '#d97706', atrasado: '#dc2626' };
@@ -772,6 +773,8 @@ export default function Financeiro() {
               </table>
             </div>
           </section>
+
+          <PreviaCapitalProLabore dre={dre} />
 
           {dre.produtosSemCusto?.length > 0 && (
             <section className="financeiro-panel warning-panel">
