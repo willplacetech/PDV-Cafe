@@ -17,7 +17,18 @@ api.interceptors.response.use(undefined, err => {
   const acao = err.response?.data?.acao;
   if (err.response?.status === 403 && acao && !err.config?._gerenteRetry) {
     if (err.config.headers?.['X-Autorizacao-Gerente']) limparCacheAutorizacao(acao);
-    return solicitarAutorizacao(acao).then(token => api.request({ ...err.config, _gerenteRetry: true, headers: { ...err.config.headers, 'X-Autorizacao-Gerente': token } }));
+    return solicitarAutorizacao(acao).then(token => {
+      if (!token) {
+        // Toggle desligado no frontend: reenvia sem header (backend decide).
+        const { 'X-Autorizacao-Gerente': _ignored, ...headers } = err.config.headers || {};
+        return api.request({ ...err.config, _gerenteRetry: true, headers });
+      }
+      return api.request({
+        ...err.config,
+        _gerenteRetry: true,
+        headers: { ...err.config.headers, 'X-Autorizacao-Gerente': token },
+      });
+    });
   }
   console.error('[API]', {
     method: err.config?.method?.toUpperCase(),

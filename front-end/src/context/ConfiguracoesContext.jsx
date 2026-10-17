@@ -18,7 +18,7 @@ export const ConfiguracoesProvider = ({ children }) => {
         setLoading(true);
         return;
       }
-      if (user?.role !== 'admin') {
+      if (!user?.id) {
         setLoading(false);
         return;
       }
@@ -31,6 +31,7 @@ export const ConfiguracoesProvider = ({ children }) => {
       } catch (error) {
         if (!active) return;
         console.error('Erro ao buscar configurações:', error);
+        // Lado seguro: exige autorização se não conseguir ler o setting
         setExigirAutorizacaoGerente(true);
         setBloqueadoPorSuporte(false);
       } finally {
@@ -53,7 +54,7 @@ export const ConfiguracoesProvider = ({ children }) => {
       exigirAutorizacaoGerente,
       bloqueadoPorSuporte,
       loading,
-      updateConfiguracoes
+      updateConfiguracoes,
     }}>
       {children}
     </ConfiguracoesContext.Provider>

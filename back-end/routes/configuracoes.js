@@ -7,8 +7,8 @@ const { invalidarCacheConfiguracaoGerente } = require('../middleware/exigirAutor
 
 const isSupportOverrideActive = () => process.env.FORCAR_AUTORIZACAO_GERENTE === 'true';
 
-// GET /api/configuracoes
-router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
+// GET /api/configuracoes — qualquer autenticado (operador precisa saber se o modal deve aparecer)
+router.get('/', auth, async (req, res) => {
   try {
     let configuracao = await Configuracoes.findOne({ _id: 'principal' });
     if (!configuracao) {
@@ -16,7 +16,7 @@ router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
     }
 
     res.json({
-      exigirAutorizacaoGerente: configuracao.exigirAutorizacaoGerente,
+      exigirAutorizacaoGerente: configuracao.exigirAutorizacaoGerente !== false,
       bloqueadoPorSuporte: isSupportOverrideActive(),
     });
   } catch (error) {
@@ -25,7 +25,7 @@ router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
   }
 });
 
-// PATCH /api/configuracoes/autorizacao-gerente
+// PATCH /api/configuracoes/autorizacao-gerente — somente admin
 router.patch('/autorizacao-gerente', auth, auth.allowRoles('admin'), async (req, res) => {
   if (isSupportOverrideActive()) {
     return res.status(403).json({ msg: 'Bloqueado pelo suporte' });
@@ -53,7 +53,9 @@ router.patch('/autorizacao-gerente', auth, auth.allowRoles('admin'), async (req,
       usuarioSolicitante: req.user.id,
       usuarioAutorizou: req.user.id,
       acao: 'toggle_autorizacao_gerente',
-      detalhes: valor ? 'Autorização gerencial ativada' : `Autorização gerencial desativada. Motivo: ${motivo.trim()}`,
+      detalhes: valor
+        ? 'Autorização gerencial ativada'
+        : `Autorização gerencial desativada. Motivo: ${motivo.trim()}`,
       ip: req.ip,
       sucesso: true,
     });
