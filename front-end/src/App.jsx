@@ -5,7 +5,6 @@ import { ComandaProvider } from './context/ComandaContext.jsx';
 import { FormasPagamentoProvider } from './context/FormasPagamentoContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import { ConfiguracoesProvider } from './context/ConfiguracoesContext.jsx';
-import { useConfiguracoes } from './hooks/useConfiguracoes.js';
 import { ToastProvider } from './components/Toast.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import AutorizacaoGerenteGlobal from './components/AutorizacaoGerenteGlobal.jsx';
@@ -108,27 +107,6 @@ function DefaultLanding() {
   return <Navigate to={user?.role === 'admin' ? '/dashboard' : '/pdv'} replace />;
 }
 
-function ConfiguracoesBanner() {
-  const { exigirAutorizacaoGerente } = useConfiguracoes();
-  if (exigirAutorizacaoGerente !== false) return null;
-
-  return (
-    <div style={{
-      background: '#fff3cd',
-      color: '#7a4d00',
-      borderBottom: '1px solid #f0d57d',
-      padding: '10px 16px',
-      fontWeight: 700,
-      textAlign: 'center',
-      position: 'sticky',
-      top: 0,
-      zIndex: 20,
-    }}>
-      ⚠️ Autorização de gerente DESLIGADA — risco de fraude. Reative em Configurações.
-    </div>
-  );
-}
-
 export default function App() {
   return (
     <ThemeProvider>
@@ -138,7 +116,6 @@ export default function App() {
             <ErrorBoundary>
               <AutorizacaoGerenteGlobal />
               <AppVersionGuard />
-              <ConfiguracoesBanner />
               <Router>
                 <Suspense fallback={<p role="status" style={{ padding: 24 }}>Carregando…</p>}>
                   <Routes>
