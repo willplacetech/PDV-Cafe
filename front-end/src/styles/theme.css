@@ -15,19 +15,15 @@
   --bg-secondary: #fffaf2;
   --bg-tertiary: #efe2d0;
   --bg-hover: #ead8c2;
-  
   --text-primary: #38251d;
   --text-secondary: #765f50;
   --text-tertiary: #a99383;
-  
   --border-color: #ddc9b5;
   --border-light: #eddfd1;
-  
   --accent-primary: #a94f2b;
   --accent-secondary: #d18a3d;
   --accent-light: rgba(169, 79, 43, 0.12);
   --accent-border: rgba(169, 79, 43, 0.35);
-  
   --success-bg: #16a34a;
   --success-text: #ffffff;
   --error-bg: #dc2626;
@@ -36,16 +32,13 @@
   --warning-text: #ffffff;
   --info-bg: #0ea5e9;
   --info-text: #ffffff;
-  
   --shadow-sm: rgba(0, 0, 0, 0.05) 0 2px 4px;
   --shadow-md: rgba(0, 0, 0, 0.08) 0 8px 16px;
   --shadow-lg: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-  
   --input-bg: #fffdf8;
   --input-border: #ddc9b5;
   --input-text: #38251d;
   --input-placeholder: #a99383;
-
   --category-hot-bg: rgba(169, 79, 43, .14);
   --category-hot-text: #8f3f20;
   --category-hot-border: rgba(169, 79, 43, .30);
@@ -69,9 +62,6 @@
   --category-other-border: rgba(100, 116, 139, .25);
 }
 
-/* ========================================
-   MODO ESCURO
-   ======================================== */
 [data-theme="dark"] {
   --brand-brown: #f1d2aa;
   --brand-gold: #c59a5d;
@@ -80,19 +70,15 @@
   --bg-secondary: #2d201a;
   --bg-tertiary: #402b21;
   --bg-hover: #50372a;
-  
   --text-primary: #fff3df;
   --text-secondary: #d9bda1;
   --text-tertiary: #a98972;
-  
   --border-color: #624333;
   --border-light: #3d2a21;
-  
   --accent-primary: #e7a35d;
   --accent-secondary: #8fbd9a;
   --accent-light: rgba(231, 163, 93, 0.16);
   --accent-border: rgba(231, 163, 93, 0.42);
-  
   --success-bg: #10b981;
   --success-text: #ffffff;
   --error-bg: #ef4444;
@@ -101,16 +87,13 @@
   --warning-text: #ffffff;
   --info-bg: #06b6d4;
   --info-text: #ffffff;
-  
   --shadow-sm: rgba(0, 0, 0, 0.3) 0 2px 4px;
   --shadow-md: rgba(0, 0, 0, 0.4) 0 8px 16px;
   --shadow-lg: rgba(0, 0, 0, 0.5) 0 10px 15px -3px, rgba(0, 0, 0, 0.3) 0 4px 6px -2px;
-  
   --input-bg: #241914;
   --input-border: #624333;
   --input-text: #fff3df;
   --input-placeholder: #a98972;
-
   --category-hot-bg: rgba(231, 163, 93, .18);
   --category-hot-text: #f3c0aa;
   --category-hot-border: rgba(231, 163, 93, .44);
@@ -134,9 +117,6 @@
   --category-other-border: rgba(166, 184, 204, .34);
 }
 
-/* ========================================
-   ESTILOS GLOBAIS COM TEMAS
-   ======================================== */
 body,
 html {
   background: var(--bg-primary);
@@ -149,30 +129,25 @@ body {
     radial-gradient(circle at 92% 88%, rgba(139, 169, 130, 0.1) 0, transparent 22rem);
 }
 
-/* Links */
-a {
-  color: var(--accent-primary);
-  text-decoration: none;
-}
+a { color: var(--accent-primary); text-decoration: none; }
+a:hover { opacity: 0.8; }
 
-a:hover {
-  opacity: 0.8;
-}
-
-/* Inputs */
 input,
 textarea,
 :is(select, .searchable-select-input) {
   background: var(--input-bg);
   color: var(--input-text);
-  border: 1px solid var(--input-border);
+  border: 1.5px solid var(--input-border);
+  border-radius: 10px;
+  min-height: 48px;
+  padding: 12px 14px;
+  font-size: 16px;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
 input::placeholder,
-textarea::placeholder {
-  color: var(--input-placeholder);
-}
+textarea::placeholder { color: var(--input-placeholder); }
 
 input:focus,
 textarea:focus,
@@ -189,17 +164,94 @@ textarea:required:user-invalid,
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
 }
 
-/* Botões */
 button {
   transition: all 0.2s ease;
   background: var(--bg-secondary);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
+  border-radius: 10px;
+  min-height: 48px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
 }
 
-button:hover {
-  background: var(--bg-hover);
+button:hover { background: var(--bg-hover); border-color: var(--accent-primary); }
+button:active { transform: scale(0.98); }
+button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+/* Utilitários padrão Nova Venda / PDV */
+.input-field {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--input-border);
+  border-radius: 10px;
+  background: var(--input-bg);
+  color: var(--input-text);
+  font-size: 16px;
+  box-sizing: border-box;
+  outline: none;
+  font-family: inherit;
+}
+.input-field:focus {
   border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+.btn-primary { background: var(--accent-primary); color: #fff; border: none; }
+.btn-primary:hover { filter: brightness(1.05); border-color: transparent; background: var(--accent-primary); }
+.btn-secondary { background: var(--bg-secondary); color: var(--text-primary); border: 1.5px solid var(--border-color); }
+.btn-secondary:hover { background: var(--bg-hover); border-color: var(--accent-primary); }
+.btn-ghost { background: var(--accent-light); color: var(--accent-primary); border: 1px solid var(--accent-border); }
+.btn-ghost:hover { background: var(--accent-light); border-color: var(--accent-primary); filter: brightness(0.98); }
+.btn-danger { background: var(--error-bg); color: #fff; border: none; }
+.btn-danger:hover { background: var(--error-bg); filter: brightness(1.05); border-color: transparent; }
+.btn-sm { min-height: 40px; padding: 8px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; }
+
+.btn-chip {
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+.btn-chip.is-active,
+.btn-chip[aria-pressed="true"] {
+  background: var(--accent-primary);
+  color: #fff;
+  font-weight: 700;
+}
+.btn-chip:hover { border-color: transparent; }
+
+.ui-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
 }
 
 .dashboard-tabs {
@@ -208,39 +260,33 @@ button:hover {
   margin-bottom: 22px;
   border-bottom: 1px solid var(--border-color);
 }
-
 .dashboard-tabs button {
   min-height: 40px;
   padding: 8px 14px;
   border: 0;
   border-bottom: 2px solid transparent;
+  border-radius: 0;
   background: transparent;
   color: var(--text-secondary) !important;
   font: 700 12px var(--font-body);
   cursor: pointer;
 }
-
 .dashboard-tabs button.active {
   border-color: var(--accent-primary);
   color: var(--accent-primary) !important;
   background: transparent !important;
 }
-
 .dashboard-tabs button:hover {
   border-color: transparent;
   background: transparent;
   color: var(--text-secondary) !important;
 }
-
 .dashboard-tabs button.active:hover {
   border-color: var(--accent-primary);
   color: var(--accent-primary) !important;
 }
 
-.dashboard-page {
-  color: var(--text-primary);
-}
-
+.dashboard-page { color: var(--text-primary); }
 .dashboard-heading {
   display: flex;
   align-items: flex-end;
@@ -248,26 +294,22 @@ button:hover {
   gap: 16px;
   margin-bottom: 22px;
 }
-
 .dashboard-eyebrow {
   color: var(--accent-primary);
   font-size: 10px;
   font-weight: 800;
   letter-spacing: .1em;
 }
-
 .dashboard-heading h1 {
   margin: 4px 0;
   color: var(--brand-brown);
   font: 700 26px var(--font-heading);
 }
-
 .dashboard-heading p {
   margin: 0;
   color: var(--text-secondary);
   font-size: 13px;
 }
-
 .dashboard-open {
   padding: 10px 13px;
   border: 1px solid var(--accent-border);
@@ -278,11 +320,6 @@ button:hover {
   font-weight: 800;
 }
 
-button:active {
-  transform: scale(0.98);
-}
-
-/* Estrutura visual compartilhada pelas telas do sistema */
 .page-heading {
   display: flex;
   align-items: flex-end;
@@ -291,31 +328,21 @@ button:active {
   margin-bottom: 20px;
   color: var(--text-primary);
 }
-
 .page-heading h1 {
   margin: 4px 0;
   color: var(--brand-brown);
   font: 700 26px var(--font-heading);
 }
-
 .page-heading p {
   margin: 0;
   color: var(--text-secondary);
   font-size: 13px;
 }
-
-.page-heading > div:first-child {
-  min-width: 0;
-}
-
+.page-heading > div:first-child { min-width: 0; }
 @media (max-width: 520px) {
-  .page-heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
+  .page-heading { align-items: flex-start; flex-direction: column; }
 }
 
-/* Cards */
 .card,
 [role="dialog"],
 .modal {
@@ -324,114 +351,50 @@ button:active {
   box-shadow: var(--shadow-md);
 }
 
-/* Tables */
 table {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
 }
-
 thead {
   background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-color);
 }
+tbody tr { border-bottom: 1px solid var(--border-light); }
+tbody tr:hover { background: var(--bg-hover); }
 
-tbody tr {
-  border-bottom: 1px solid var(--border-light);
-}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
 
-tbody tr:hover {
-  background: var(--bg-hover);
-}
-
-/* Scroll bar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-tertiary);
-}
-
-/* Desktop compacto: evita colisões em notebooks 1366x768 após a barra lateral. */
 @media (min-width: 769px) and (max-width: 1400px) {
-  #main-content {
-    min-width: 0;
-    overflow-x: hidden;
-  }
-
+  #main-content { min-width: 0; overflow-x: hidden; }
   .page-heading,
   .dashboard-heading,
-  .dashboard-section-heading {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
+  .dashboard-section-heading { align-items: flex-start; flex-wrap: wrap; }
   .page-heading > *,
   .dashboard-heading > *,
-  .dashboard-section-heading > * {
-    min-width: 0;
-  }
-
+  .dashboard-section-heading > * { min-width: 0; }
   .form-grid,
   .product-form-grid,
-  .purchases-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-
-  .purchase-item {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  }
-
-  .dashboard-periods {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-
+  .purchases-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .purchase-item { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .dashboard-periods { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   .dashboard-monthly-summary,
-  .dashboard-sales-summary {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  }
-
-  .dashboard-comparison-controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-
-  .dashboard-comparison-modes {
-    grid-column: 1 / -1;
-  }
-
+  .dashboard-sales-summary { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .dashboard-comparison-controls { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .dashboard-comparison-modes { grid-column: 1 / -1; }
   .dashboard-report-actions,
   .production-header-actions,
-  .financeiro-header {
-    flex-wrap: wrap;
-  }
-
+  .financeiro-header { flex-wrap: wrap; }
   .dashboard-report-actions > *,
   .production-header-actions > *,
-  .financeiro-header > * {
-    max-width: 100%;
-  }
-
+  .financeiro-header > * { max-width: 100%; }
   .dashboard-table-wrap,
   .table-wrap,
-  .compare-table-wrap {
-    max-width: 100%;
-    overflow-x: auto;
-  }
-
+  .compare-table-wrap { max-width: 100%; overflow-x: auto; }
   input,
   :is(select, .searchable-select-input),
   textarea,
-  button {
-    max-width: 100%;
-  }
+  button { max-width: 100%; }
 }
