@@ -77,8 +77,18 @@ export default defineConfig({
               networkTimeoutSeconds: 3,
             },
           },
+          // Scripts/workers: rede primeiro para não servir chunk com hash antigo após deploy
+          // (evita MIME text/html do fallback SPA em imports dinâmicos).
           {
-            urlPattern: ({ request }) => ['style', 'script', 'font', 'image', 'worker'].includes(request.destination),
+            urlPattern: ({ request }) => request.destination === 'script' || request.destination === 'worker',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'static-scripts',
+              networkTimeoutSeconds: 3,
+            },
+          },
+          {
+            urlPattern: ({ request }) => ['style', 'font', 'image'].includes(request.destination),
             handler: 'CacheFirst',
             options: {
               cacheName: 'static-assets',
