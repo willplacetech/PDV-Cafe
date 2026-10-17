@@ -13,7 +13,6 @@ const gruposMenu = [
     label: '🏪 ATENDIMENTO',
     items: [
       { label: 'PDV · Nova venda', icon: '🛒', to: '/pdv' },
-      { label: 'Histórico de Vendas', icon: '📋', to: '/pedidos', admin: true },
       { label: 'Entregas', icon: '🛵', to: '/entregas', roles: ['admin', 'operador'], badge: true },
       { label: 'Mesas / Comandas', icon: '🪑', to: '/comandas', badge: 'comandas' },
       { label: 'A Receber', icon: '💰', to: '/contas-receber', admin: true },
@@ -768,8 +767,6 @@ export default function Layout({ children }) {
 
       <footer style={{ padding: '8px 16px', fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center' }}>
         <span>Sabor de Abraço · v{APP_GIT_HASH}</span>
-        {' · '}
-        <a href="/CHANGELOG.md" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>Novidades</a>
       </footer>
     </div>
   );
