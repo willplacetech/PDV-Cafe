@@ -57,27 +57,7 @@ const registrarAuditoria = async (usuarioSolicitante, usuarioAutorizou, acao, de
   } catch { /* Auditoria não deve bloquear fluxo de negócio. */ }
 };
 
-const liberarAdmin = async (req, acao) => {
-  if (req.user?.role !== 'admin') return false;
-  req.gerenteAutorizou = {
-    id: String(req.user.id),
-    username: req.user.username,
-    role: 'admin',
-  };
-  await registrarAuditoria(
-    req.user.id,
-    req.user.id,
-    acao,
-    `${detalhesAuditoria(req, acao)} — isento (admin)`,
-    true,
-    req.ip,
-  );
-  return true;
-};
-
 const verificarAutorizacao = async (req, acao) => {
-  if (await liberarAdmin(req, acao)) return { tipo: 'admin-isento' };
-
   const token = req.headers['x-autorizacao-gerente'];
   const recusar = () => { throw Object.assign(new Error('Autorização do gerente necessária'), { status: 403, acao }); };
 
@@ -115,10 +95,6 @@ const verificarAutorizacao = async (req, acao) => {
 const exigirAutorizacao = acao => async (req, res, next) => {
   try {
     if (!(await obterConfiguracaoGerente())) {
-      return next();
-    }
-
-    if (await liberarAdmin(req, acao)) {
       return next();
     }
 

@@ -168,14 +168,14 @@ router.post('/autorizar', auth, async (req, res, next) => {
     const solicitante = await User.findById(req.user.id).select('+autorizacaoTentativas +autorizacaoBloqueadaAte +password');
     if (!solicitante || solicitante.ativo === false) return res.status(401).json({ msg: 'Usuário inválido' });
 
-    // Admin: isento de senha (token só para fluxos legados que ainda enviam header)
-    if (solicitante.role === 'admin') {
+    // Admin/gerente autenticado: autoautoriza a própria ação sem redigitar senha
+    if (['admin', 'gerente'].includes(solicitante.role)) {
       const tokenAutorizacao = jwt.sign(
         { tipo: 'autorizacao-gerente', id: solicitante.id, acao, solicitante: req.user.id, sessao: req.user.sid || null, versaoSolicitante: req.user.tokenVersion ?? 0, versaoGerente: solicitante.tokenVersion ?? 0 },
         getJwtSecret(),
         { algorithm: 'HS256', expiresIn: '5m' }
       );
-      await registrarAuditoria(req.user.id, solicitante.id, acao, 'autorizado como admin (isento de senha)', true, req.ip);
+      await registrarAuditoria(req.user.id, solicitante.id, acao, `autorizado como ${solicitante.role} (sem redigitar senha)`, true, req.ip);
       return res.json({ tokenAutorizacao, autorizado: true });
     }
 
@@ -190,11 +190,8 @@ router.post('/autorizar', auth, async (req, res, next) => {
     };
     if (solicitante.autorizacaoBloqueadaAte > new Date()) return bloqueio(solicitante.autorizacaoBloqueadaAte);
 
-    // Gerente: valida a própria senha. Demais: senha de admin/gerente do mesmo tenant.
-    const filtro = solicitante.role === 'gerente'
-      ? { _id: solicitante._id }
-      : { role: { $in: ['admin', 'gerente'] }, tenantId: solicitante.tenantId || null };
-    const candidatos = await User.find({ ...filtro, ativo: { $ne: false } }).select('+password');
+    // Operador e demais: senha de admin/gerente do mesmo tenant
+    const candidatos = await User.find({ role: { $in: ['admin', 'gerente'] }, tenantId: solicitante.tenantId || null, ativo: { $ne: false } }).select('+password');
     let user;
     for (const candidato of candidatos) {
       if (await candidato.matchPassword(senha)) { user = candidato; break; }
