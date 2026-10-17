@@ -75,7 +75,6 @@ const gruposMenu = [
 
 const pageIcons = {
   '/pdv': { icon: '🛒', title: 'Atendimento' },
-  '/pedidos': { icon: '📋', title: 'Histórico de Vendas' },
   '/entregas': { icon: '🛵', title: 'Entregas' },
   '/produtos': { icon: '📦', title: 'Produtos' },
   '/clientes': { icon: '👤', title: 'Clientes' },

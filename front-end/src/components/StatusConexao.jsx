@@ -23,7 +23,9 @@ export default function StatusConexao({ compacto = false }) {
       role="status"
       aria-live="polite"
       style={{
-        display: 'grid',
+        display: 'inline-grid',
+        width: 'fit-content',
+        maxWidth: '100%',
         gap: 3,
         minWidth: 0,
         padding: compacto ? '5px 8px' : '9px 10px',
@@ -33,6 +35,7 @@ export default function StatusConexao({ compacto = false }) {
         fontSize: 11,
         lineHeight: 1.35,
         overflowWrap: 'anywhere',
+        justifySelf: 'flex-end',
       }}
     >
       <strong style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
