@@ -24,6 +24,37 @@ test('recebimento individual apresenta o motivo retornado pelo servidor e libera
   assert.equal(recebendoRef.current, false);
 });
 
+test('quitação total do cliente calcula o total aberto de todos os pedidos sem afetar o pagamento', async () => {
+  let totalCalculadora;
+  let modalAberto = false;
+  const code = 'const quitarTotalCliente = ' + section('ContasReceber', 'const quitarTotalCliente = ', 'const confirmarQuitacaoCliente');
+  const quitarTotalCliente = evaluate(code, {
+    clienteFiltro: 'cliente-1',
+    carregandoQuitacaoCliente: false,
+    setCarregandoQuitacaoCliente() {},
+    api: {
+      get: async (path, options) => {
+        assert.equal(path, '/orders');
+        assert.deepEqual(options.params, { clienteId: 'cliente-1', status: 'abertas' });
+        return { data: [
+          { status: 'pendente', saldoDevedor: 15 },
+          { status: 'parcial', saldoDevedor: 7.5 },
+          { status: 'pago', saldoDevedor: 0 },
+        ] };
+      },
+    },
+    saldoRecebivelPedido: pedido => pedido.saldoDevedor,
+    setTotalQuitacaoCliente: valor => { totalCalculadora = valor; },
+    setQuitarClienteModal: valor => { modalAberto = valor; },
+    showToast: (mensagem, tipo) => { throw new Error(`${tipo}: ${mensagem}`); },
+  }, 'quitarTotalCliente');
+
+  await quitarTotalCliente();
+
+  assert.equal(totalCalculadora, 22.5);
+  assert.equal(modalAberto, true);
+});
+
 test('relatório de clientes imprime nome e telefone como texto', () => {
   let html = '';
   const code = 'const imprimirRelatorioClientes = ' + section('Dashboard', 'const imprimirRelatorioClientes = ', 'const exportarClientesMailing');
