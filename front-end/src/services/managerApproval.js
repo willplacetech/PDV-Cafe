@@ -21,6 +21,15 @@ export function guardarAutorizacao(acao, token) {
   cache.set(acao, { token, expiresAt: claims.exp * 1000, generation: getSessionGeneration() });
 }
 
+export async function emitirAutorizacaoAdmin(acao, requisitar) {
+  const data = await requisitar(acao);
+  if (!data?.tokenAutorizacao) {
+    throw new Error('Não foi possível emitir a autorização do administrador.');
+  }
+  guardarAutorizacao(acao, data.tokenAutorizacao);
+  return data.tokenAutorizacao;
+}
+
 export function solicitarAutorizacao(acao) {
   const cached = getAutorizacaoCache(acao);
   if (cached) return Promise.resolve(cached.token);

@@ -71,6 +71,8 @@ export default function ContasReceber() {
   const [formPagamento, setFormPagamento] = useState({ tipo: 'dinheiro', valorRecebido: '', observacao: '' });
   const [formPagamentoMultiplo, setFormPagamentoMultiplo] = useState({ tipo: 'dinheiro', observacao: '' });
   const [formComanda, setFormComanda] = useState(null);
+  const [totalQuitacaoCliente, setTotalQuitacaoCliente] = useState(0);
+  const [carregandoQuitacaoCliente, setCarregandoQuitacaoCliente] = useState(false);
   const [pedidosSelecionados, setPedidosSelecionados] = useState(new Map());
   const selecionados = useMemo(() => new Set(pedidosSelecionados.keys()), [pedidosSelecionados]);
   const pedidoRequestIdRef = useRef(0);
@@ -470,7 +472,20 @@ export default function ContasReceber() {
 
   const quitarTotalCliente = async () => {
     if (!clienteFiltro) return showToast('Selecione um cliente para quitar todas as pendências', 'warning');
-    setQuitarClienteModal(true);
+    if (carregandoQuitacaoCliente) return;
+    setCarregandoQuitacaoCliente(true);
+    try {
+      const { data } = await api.get('/orders', { params: { clienteId: clienteFiltro, status: 'abertas' } });
+      if (!Array.isArray(data)) throw new Error('Não foi possível consultar as pendências do cliente.');
+      const pendentes = data.filter(pedido => ['pendente', 'parcial'].includes(pedido.status));
+      if (!pendentes.length) return showToast('Este cliente não possui pendências', 'warning');
+      setTotalQuitacaoCliente(pendentes.reduce((totalPendente, pedido) => totalPendente + saldoRecebivelPedido(pedido), 0));
+      setQuitarClienteModal(true);
+    } catch (error) {
+      showToast(error.response?.data?.msg || error.message || 'Não foi possível consultar as pendências do cliente.', 'error');
+    } finally {
+      setCarregandoQuitacaoCliente(false);
+    }
   };
 
   const confirmarQuitacaoCliente = async () => {
@@ -765,10 +780,10 @@ export default function ContasReceber() {
                 }}>💰 Receber Marcados ({selecionados.size})</button>
               )}
               {clienteFiltro && (
-                <button onClick={quitarTotalCliente} style={{
+                <button disabled={carregandoQuitacaoCliente} onClick={quitarTotalCliente} style={{
                   padding: '6px 12px', background: 'var(--success-bg)', color: '#fff',
                   border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer'
-                }}>✅ Quitar Total do Cliente</button>
+                }}>{carregandoQuitacaoCliente ? 'Consultando…' : '✅ Quitar Total do Cliente'}</button>
               )}
 
               {clienteFiltro && (
@@ -1206,6 +1221,10 @@ export default function ContasReceber() {
             <SearchableSelect disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={event => setFormPagamentoMultiplo({ ...formPagamentoMultiplo, tipo: event.target.value })} style={{ width: '100%', marginBottom: 16 }}>
               {FORMAS_PAGAMENTO.filter(forma => forma.value !== 'credito_loja').map(forma => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
             </SearchableSelect>
+            <TrocoAuxiliar
+              formaPagamento={formPagamentoMultiplo.tipo}
+              totalAPagar={totalQuitacaoCliente}
+            />
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => { if (!recebendoRef.current) setQuitarClienteModal(false); }} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
               <button disabled={recebendo} onClick={confirmarQuitacaoCliente} style={{ flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Quitar tudo</button>

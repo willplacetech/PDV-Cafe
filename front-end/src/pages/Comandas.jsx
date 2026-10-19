@@ -16,6 +16,7 @@ import { dataBR, normalizarPagamentos, saldoDevedor, statusPagamentoInfo, totalP
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
 import EstadoLista from '../components/EstadoLista.jsx';
+import TrocoAuxiliar from '../components/TrocoAuxiliar.jsx';
 import {
   carregarConfiguracaoImpressao,
   carregarPreferenciaImpressora,
@@ -813,6 +814,11 @@ export default function Comandas() {
                 {FORMAS_PAGAMENTO.map((forma) => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
               </SearchableSelect>
             </div>
+
+            <TrocoAuxiliar
+              formaPagamento={paymentMethod}
+              totalAPagar={jaRecebido > 0 ? saldoEmAberto : total}
+            />
 
             {/* nome do cliente */}
             <div style={{ marginBottom: 14 }}>

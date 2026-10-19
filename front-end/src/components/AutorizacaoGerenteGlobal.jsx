@@ -2,7 +2,8 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import AutorizarGerente from './AutorizarGerente.jsx';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { useConfiguracoes } from '../hooks/useConfiguracoes.js';
-import { getAutorizacaoCache, guardarAutorizacao } from '../services/managerApproval.js';
+import api from '../services/api.jsx';
+import { emitirAutorizacaoAdmin, getAutorizacaoCache, guardarAutorizacao } from '../services/managerApproval.js';
 
 // Uma fila evita que requisições simultâneas substituam a confirmação umas das outras.
 export default function AutorizacaoGerenteGlobal() {
@@ -43,13 +44,27 @@ export default function AutorizacaoGerenteGlobal() {
     setCurrent(queue.current[0] || null);
   }, []);
 
-  // Admin ou toggle desligado: resolve sem modal e sem senha.
+  useEffect(() => {
+    if (!current || !eAdmin || exigirAutorizacaoGerente === false) return undefined;
+    let active = true;
+    emitirAutorizacaoAdmin(current.acao, async acao => {
+      const { data } = await api.post('/auth/autorizar', { acao });
+      return data;
+    }).then(token => {
+      if (active) finish(current, token);
+    }).catch(error => {
+      if (active) finish(current, null, error);
+    });
+    return () => { active = false; };
+  }, [current, eAdmin, exigirAutorizacaoGerente, finish]);
+
+  // A configuração global desligada dispensa a autorização no servidor.
   useEffect(() => {
     if (!current) return;
-    if (eAdmin || exigirAutorizacaoGerente === false) {
+    if (exigirAutorizacaoGerente === false) {
       finish(current, null);
     }
-  }, [current, eAdmin, exigirAutorizacaoGerente, finish]);
+  }, [current, exigirAutorizacaoGerente, finish]);
 
   if (!current || eAdmin || exigirAutorizacaoGerente === false) return null;
 

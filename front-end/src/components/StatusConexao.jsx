@@ -1,9 +1,15 @@
+import { useState } from 'react';
 import useFilaOffline from '../hooks/useFilaOffline.js';
+import { useConfiguracoes } from '../hooks/useConfiguracoes.js';
 import { useToast } from './useToast.js';
+
+const mensagemAutorizacaoDesligada = 'Autorização de gerente DESLIGADA — risco de fraude. Reative em Configurações.';
 
 export default function StatusConexao({ compacto = false }) {
   const { showToast } = useToast();
   const { pendentes, online, armazenamentoCheio, origensPendentes, resolverOrigem } = useFilaOffline();
+  const { exigirAutorizacaoGerente } = useConfiguracoes();
+  const [avisoAutorizacaoAberto, setAvisoAutorizacaoAberto] = useState(false);
   const confirmarOrigem = async id => {
     const reason = window.prompt('Informe como conferiu a origem desta venda legada. Ela sera vinculada ao seu operador e comercio atuais:');
     if (!reason || reason.trim().length < 3) return;
@@ -53,6 +59,52 @@ export default function StatusConexao({ compacto = false }) {
             boxShadow: `0 0 0 2px color-mix(in srgb, ${cor} 22%, transparent)`,
           }}
         />
+        {exigirAutorizacaoGerente === false && (
+          <span style={{ position: 'relative', display: 'inline-flex' }}>
+            <button
+              type="button"
+              aria-label="Aviso: autorização de gerente desligada"
+              title={mensagemAutorizacaoDesligada}
+              aria-expanded={avisoAutorizacaoAberto}
+              onPointerEnter={event => {
+                if (event.pointerType === 'mouse') setAvisoAutorizacaoAberto(true);
+              }}
+              onPointerLeave={event => {
+                if (event.pointerType === 'mouse') setAvisoAutorizacaoAberto(false);
+              }}
+              onClick={event => {
+                if (event.nativeEvent.pointerType === 'mouse') setAvisoAutorizacaoAberto(true);
+                else setAvisoAutorizacaoAberto(aberto => !aberto);
+              }}
+              style={{ padding: 0, border: 0, background: 'transparent', fontSize: 'inherit', lineHeight: 1, cursor: 'help' }}
+            >
+              <span aria-hidden="true">⚠️</span>
+            </button>
+            {avisoAutorizacaoAberto && (
+              <span
+                role="tooltip"
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  zIndex: 300,
+                  width: 260,
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                  boxShadow: 'var(--shadow-lg)',
+                  color: 'var(--text-primary)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  whiteSpace: 'normal',
+                }}
+              >
+                {mensagemAutorizacaoDesligada}
+              </span>
+            )}
+          </span>
+        )}
         {pendentes > 0 && ` · ⚠️ ${pendentes} venda(s) pendente(s)`}
       </strong>
       {armazenamentoCheio && <span style={{ color: 'var(--error-bg)', fontWeight: 700 }}>Conecte à internet para sincronizar</span>}
