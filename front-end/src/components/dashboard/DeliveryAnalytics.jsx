@@ -110,7 +110,7 @@ export default function DeliveryAnalytics({ section = 'both' }) {
       .delivery-chart-day small{font-size:10px;color:var(--text-secondary)}
       .delivery-period-selector{display:flex;gap:5px;padding:3px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-primary)}
       .delivery-period-selector button{padding:7px 10px;border:0;border-radius:7px;background:transparent;color:var(--text-secondary);font:inherit;font-size:11px;font-weight:700;cursor:pointer}
-      .delivery-period-selector button.active{background:var(--accent-primary);color:#fff}
+      .delivery-period-selector button.active{background:var(--accent-primary);color:var(--accent-text)}
       .delivery-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
       .delivery-summary-loading{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
       .delivery-summary-loading article{display:grid;align-content:start;gap:12px;min-height:86px;padding:13px;border:1px solid var(--border-light);border-radius:12px;background:var(--bg-primary)}

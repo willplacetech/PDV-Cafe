@@ -23,7 +23,7 @@ export default function PagamentoResultadoModal({
         </p>
         <div style={{ display: 'grid', gap: 10 }}>
           <button onClick={onPrint} style={{
-            padding: 12, background: 'var(--brand-brown)', color: '#fff', border: 'none', borderRadius: 10,
+            padding: 12, background: 'var(--brand-brown)', color: 'var(--brand-action-text)', border: 'none', borderRadius: 10,
             fontWeight: 700, cursor: 'pointer'
           }}>🖨️ Imprimir comprovante</button>
           <button onClick={onWhatsApp} style={{

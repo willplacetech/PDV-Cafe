@@ -78,14 +78,14 @@ export default function NovidadesModal() {
         </ul>
         <div style={{ display: 'flex', gap: 10 }}>
           <button type="button" onClick={() => setAberto(false)} disabled={carregando} style={{
-            flex: 1, padding: '12px', background: 'var(--bg-tertiary)',
+            flex: 1, padding: '12px 16px', background: 'var(--bg-tertiary)',
             color: 'var(--text-primary)', border: '1px solid var(--border-color)',
-            borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44,
+            borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 48,
           }}>Agora não</button>
           <button type="button" onClick={aplicarAtualizacao} disabled={carregando} style={{
-            flex: 1, padding: '12px', background: 'var(--accent-primary)',
-            color: '#fff', border: 'none', borderRadius: 10,
-            fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44,
+            flex: 1, padding: '12px 16px', background: 'var(--accent-primary)',
+            color: 'var(--accent-text)', border: 'none', borderRadius: 10,
+            fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 48,
             opacity: carregando ? 0.6 : 1,
           }}>{carregando ? 'Atualizando...' : 'Atualizar'}</button>
         </div>

@@ -262,7 +262,7 @@ export default function ImpressoraManager() {
         <h2 style={{ marginTop: 0 }}>Cupom e automação</h2>
         <label style={{ display: 'block', marginBottom: 12 }}>
           Largura do papel
-          <SearchableSelect value={config.paperWidth} onChange={(event) => setConfig({ ...config, paperWidth: event.target.value })} style={{ display: 'block', marginTop: 5, minHeight: 40 }}>
+          <SearchableSelect value={config.paperWidth} onChange={(event) => setConfig({ ...config, paperWidth: event.target.value })} style={{ display: 'block', marginTop: 5 }}>
             <option value="58mm">58 mm</option>
             <option value="80mm">80 mm</option>
           </SearchableSelect>
@@ -283,7 +283,7 @@ export default function ImpressoraManager() {
           ].map(([field, label]) => (
             <label key={field}>
               {label}
-              <input value={config.empresa[field]} onChange={(event) => setConfig({ ...config, empresa: { ...config.empresa, [field]: event.target.value } })} style={{ display: 'block', width: '100%', minHeight: 38, marginTop: 4, boxSizing: 'border-box' }} />
+              <input value={config.empresa[field]} onChange={(event) => setConfig({ ...config, empresa: { ...config.empresa, [field]: event.target.value } })} style={{ display: 'block', width: '100%', marginTop: 4 }} />
             </label>
           ))}
         </div>
@@ -294,7 +294,7 @@ export default function ImpressoraManager() {
         <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Itens são separados por setor e as observações saem destacadas. Categorias sem setor correspondente usam o setor padrão.</p>
         {sectors.map((sector, index) => (
           <div key={`${sector.nome}-${index}`} style={{ display: 'grid', gridTemplateColumns: 'minmax(140px, 1fr) minmax(180px, 2fr) auto', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-            <input aria-label={`Nome do setor ${index + 1}`} value={sector.nome} onChange={(event) => updateSector(index, { nome: event.target.value })} style={{ minHeight: 38 }} />
+            <input aria-label={`Nome do setor ${index + 1}`} value={sector.nome} onChange={(event) => updateSector(index, { nome: event.target.value })} style={{  }} />
             <div aria-label={`Categorias do setor ${sector.nome}`} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {categoryOptions.map((category) => (
                 <label key={category} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -317,7 +317,7 @@ export default function ImpressoraManager() {
         ))}
         <label style={{ display: 'block', marginBottom: 12 }}>
           Setor padrão
-          <SearchableSelect value={config.setorPadrao} onChange={(event) => setConfig({ ...config, setorPadrao: event.target.value })} style={{ display: 'block', marginTop: 5, minHeight: 38 }}>
+          <SearchableSelect value={config.setorPadrao} onChange={(event) => setConfig({ ...config, setorPadrao: event.target.value })} style={{ display: 'block', marginTop: 5 }}>
             {sectors.map((sector, index) => <option key={`${sector.nome}-${index}`} value={sector.nome}>{sector.nome}</option>)}
           </SearchableSelect>
         </label>

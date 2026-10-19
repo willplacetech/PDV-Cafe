@@ -14,11 +14,13 @@ export default function SearchableSelect({ children, ref, onChange, onInvalid, c
   const [active, setActive] = useState(-1);
   const [position, setPosition] = useState({});
   const [localValue, setLocalValue] = useState(defaultValue);
+  const [invalid, setInvalid] = useState(false);
   const options = selectOptions(children);
   const selectedValue = value ?? localValue ?? options.find(option => !option.disabled)?.value ?? '';
   const selected = options.find(option => option.value === String(selectedValue));
   const matches = filterOptions(options, query);
   const expanded = open && !disabled;
+  const showInvalid = !disabled && (props['aria-invalid'] === true || props['aria-invalid'] === 'true' || (invalid && props.required && !selectedValue));
 
   useImperativeHandle(ref, () => inputRef.current);
 
@@ -116,6 +118,7 @@ export default function SearchableSelect({ children, ref, onChange, onInvalid, c
       inputMode="search" enterKeyHint="search"
       aria-label={props['aria-label']} aria-labelledby={props['aria-labelledby']}
       aria-describedby={props['aria-describedby']} aria-required={props.required || undefined}
+      aria-invalid={showInvalid || undefined}
       aria-expanded={expanded} aria-controls={expanded ? listId : undefined} aria-autocomplete="list"
       aria-activedescendant={expanded && active >= 0 ? `${listId}-${active}` : undefined}
       title={props.title || 'Digite para buscar uma opção'} tabIndex={props.tabIndex}
@@ -125,8 +128,8 @@ export default function SearchableSelect({ children, ref, onChange, onInvalid, c
     />
     <select {...props} ref={selectRef} disabled={disabled} value={value} defaultValue={defaultValue}
       className="searchable-select-native" tabIndex={-1} aria-hidden="true"
-      onChange={event => { setLocalValue(event.target.value); onChange?.(event); }}
-      onInvalid={event => { event.preventDefault(); inputRef.current?.focus(); onInvalid?.(event); }}>
+      onChange={event => { setLocalValue(event.target.value); setInvalid(false); onChange?.(event); }}
+      onInvalid={event => { event.preventDefault(); setInvalid(true); inputRef.current?.focus(); onInvalid?.(event); }}>
       {children}
     </select>
     {expanded && createPortal(<div ref={listRef} id={listId} role="listbox" className="searchable-select-list" style={position}

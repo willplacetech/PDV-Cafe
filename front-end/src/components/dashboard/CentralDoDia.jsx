@@ -172,8 +172,7 @@ const estilos = `
   .day-replenish-overlay{position:fixed;z-index:1000;inset:0;display:grid;place-items:center;padding:16px;background:rgba(25,20,16,.58)}
   .day-replenish-modal{display:grid;gap:10px;width:min(100%,400px);padding:22px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);color:var(--text-primary);box-shadow:var(--shadow-lg)}
   .day-replenish-modal h3,.day-replenish-modal p{margin:0}.day-replenish-modal p,.day-replenish-modal label{color:var(--text-secondary);font-size:12px}
-  .day-replenish-modal input{min-height:42px;padding:9px;border:1px solid var(--border-color);border-radius:8px;background:var(--input-bg);color:var(--input-text);font:inherit}
-  .day-replenish-modal>div{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}.day-replenish-modal button[type=submit]{border-color:var(--accent-primary);background:var(--accent-primary);color:#fff}
+  .day-replenish-modal>div{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}.day-replenish-modal button[type=submit]{border-color:var(--accent-primary);background:var(--accent-primary);color:var(--accent-text)}
   @media(max-width:1050px){.day-center-columns{grid-template-columns:1fr 1fr}}
   @media(max-width:640px){.day-center{padding:13px}.day-center-columns{grid-template-columns:1fr}.day-center-error{align-items:flex-start;flex-direction:column}.day-center-error>button{width:100%}}
 `;

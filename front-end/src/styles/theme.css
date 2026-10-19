@@ -21,6 +21,8 @@
   --border-color: #ddc9b5;
   --border-light: #eddfd1;
   --accent-primary: #a94f2b;
+  --accent-text: #fff;
+  --brand-action-text: #fff;
   --accent-secondary: #d18a3d;
   --accent-light: rgba(169, 79, 43, 0.12);
   --accent-border: rgba(169, 79, 43, 0.35);
@@ -76,6 +78,8 @@
   --border-color: #624333;
   --border-light: #3d2a21;
   --accent-primary: #e7a35d;
+  --accent-text: #2d201a;
+  --brand-action-text: #211713;
   --accent-secondary: #8fbd9a;
   --accent-light: rgba(231, 163, 93, 0.16);
   --accent-border: rgba(231, 163, 93, 0.42);
@@ -132,7 +136,7 @@ body {
 a { color: var(--accent-primary); text-decoration: none; }
 a:hover { opacity: 0.8; }
 
-input,
+input:where(:not([type="checkbox"], [type="radio"], [type="hidden"], [type="file"], [type="range"], [type="color"])),
 textarea,
 :is(select, .searchable-select-input) {
   background: var(--input-bg);
@@ -142,8 +146,13 @@ textarea,
   min-height: 48px;
   padding: 12px 14px;
   font-size: 16px;
+  font-family: inherit;
   box-sizing: border-box;
   transition: all 0.2s ease;
+}
+
+input:where([type="checkbox"], [type="radio"]) {
+  accent-color: var(--accent-primary);
 }
 
 input::placeholder,
@@ -201,6 +210,12 @@ button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
   box-shadow: 0 0 0 3px var(--accent-light);
 }
 
+input.searchable-select-input[aria-invalid="true"],
+input.searchable-select-input[aria-invalid="true"]:focus {
+  border-color: var(--error-bg);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -216,7 +231,7 @@ button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
   transition: all 0.2s ease;
   box-sizing: border-box;
 }
-.btn-primary { background: var(--accent-primary); color: #fff; border: none; }
+.btn-primary { background: var(--accent-primary); color: var(--accent-text); border: none; }
 .btn-primary:hover { filter: brightness(1.05); border-color: transparent; background: var(--accent-primary); }
 .btn-secondary { background: var(--bg-secondary); color: var(--text-primary); border: 1.5px solid var(--border-color); }
 .btn-secondary:hover { background: var(--bg-hover); border-color: var(--accent-primary); }
@@ -241,7 +256,7 @@ button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 .btn-chip.is-active,
 .btn-chip[aria-pressed="true"] {
   background: var(--accent-primary);
-  color: #fff;
+  color: var(--accent-text);
   font-weight: 700;
 }
 .btn-chip:hover { border-color: transparent; }

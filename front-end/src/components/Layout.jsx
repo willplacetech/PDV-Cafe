@@ -449,15 +449,15 @@ export default function Layout({ children }) {
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setShowConfirm(false)} style={{
-                flex: 1, padding: '12px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
-                border: '1px solid var(--border-color)', borderRadius: 10, fontSize: 14, fontWeight: 600,
-                cursor: 'pointer', fontFamily: 'inherit', minHeight: 44,
+                flex: 1, padding: '12px 16px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
+                border: '1px solid var(--border-color)', borderRadius: 10, fontSize: 14, fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'inherit', minHeight: 48,
                 transition: 'all 0.2s ease'
               }}>Cancelar</button>
               <button onClick={sair} style={{
-                flex: 1, padding: '12px', background: 'var(--error-bg)', color: 'var(--error-text)',
+                flex: 1, padding: '12px 16px', background: 'var(--error-bg)', color: 'var(--error-text)',
                 border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700,
-                cursor: 'pointer', fontFamily: 'inherit', minHeight: 44,
+                cursor: 'pointer', fontFamily: 'inherit', minHeight: 48,
                 transition: 'all 0.2s ease'
               }}>Sim, Sair</button>
             </div>
@@ -761,7 +761,6 @@ export default function Layout({ children }) {
           background: rgba(239, 68, 68, 0.05);
         }
 
-         input, :is(select, .searchable-select-input), textarea { font-size: 16px !important; }
        `}</style>
 
       <footer style={{ padding: '8px 16px', fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center' }}>

@@ -950,11 +950,7 @@ export default function PDV() {
                 <input
                   placeholder="Código, nome ou categoria..." value={busca}
                   onChange={e => setBusca(e.target.value)}
-                  style={{
-                    width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)',
-                    borderRadius: 10, fontSize: 16, boxSizing: 'border-box',
-                    outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48
-                  }}
+                  style={{ width: '100%' }}
                 />
                 {clienteSelecionado && <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 9, background: 'var(--accent-light)', color: 'var(--text-secondary)', fontSize: 11 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
@@ -975,11 +971,7 @@ export default function PDV() {
                   ref={selectClienteRef}
                   value={clienteId}
                   onChange={e => selecionarCliente(e.target.value)}
-                  style={{
-                    width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)',
-                    borderRadius: 10, fontSize: 16, boxSizing: 'border-box',
-                    outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48
-                  }}>
+                  style={{ width: '100%' }}>
                   <option value="">Cliente não identificado</option>
                   {clientes.map(c => <option key={c._id} value={c._id}>{c.nome}</option>)}
                 </SearchableSelect>
@@ -987,7 +979,7 @@ export default function PDV() {
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Nome no atendimento</label>
-                <input disabled={fechamentoPendente} placeholder={comandaAtual.tipo === 'delivery' ? 'Digite o nome' : 'Digite o nome (opcional)'} required={comandaAtual.tipo === 'delivery'} value={clienteNome} onChange={e => { setClienteNome(e.target.value); setComandaAtual(atual => ({ ...atual, clienteNome: e.target.value, status: 'rascunho' })); }} style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)', borderRadius: 10, fontSize: 16, boxSizing: 'border-box', outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48 }} />
+                <input disabled={fechamentoPendente} placeholder={comandaAtual.tipo === 'delivery' ? 'Digite o nome' : 'Digite o nome (opcional)'} required={comandaAtual.tipo === 'delivery'} value={clienteNome} onChange={e => { setClienteNome(e.target.value); setComandaAtual(atual => ({ ...atual, clienteNome: e.target.value, status: 'rascunho' })); }} style={{ width: '100%' }} />
               </div>
             </div>
           </div>
@@ -1014,7 +1006,7 @@ export default function PDV() {
             </div>
             <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 12, marginBottom: 2 }}>
               {grupos.map((grupo) => (
-                <button key={grupo} onClick={() => setGrupoAtivo(grupo)} style={{ flexShrink: 0, minHeight: 40, padding: '8px 13px', borderRadius: 20, border: grupoAtivo === grupo ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)', background: grupoAtivo === grupo ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: grupoAtivo === grupo ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                <button key={grupo} onClick={() => setGrupoAtivo(grupo)} style={{ flexShrink: 0, minHeight: 40, padding: '8px 13px', borderRadius: 20, border: grupoAtivo === grupo ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)', background: grupoAtivo === grupo ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: grupoAtivo === grupo ? 'var(--accent-text)' : 'var(--text-secondary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
                   {grupo}
                 </button>
               ))}
@@ -1182,7 +1174,7 @@ export default function PDV() {
                                 width: 48, textAlign: 'center', border: 'none',
                                 borderLeft: '1px solid var(--border-color)',
                                 borderRight: '1px solid var(--border-color)',
-                                padding: '8px 4px', fontSize: 15, fontWeight: 700,
+                                padding: '8px 4px', fontSize: 16, fontWeight: 700,
                                 background: 'var(--input-bg)', color: 'var(--input-text)'
                               }} />
                             <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => alterarQtd(i, quantidadeBase + passoQuantidade)} style={{
@@ -1192,7 +1184,7 @@ export default function PDV() {
                           </div>
                           <div style={{ flex: 1, textAlign: 'right' }}>
                             <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>🔒 Unitário</div>
-                            <input type="number" min="0" step="0.01" aria-label={`Preço unitário de ${item.nome}`} value={precosRascunho[i] ?? item.precoUnitario} onChange={event => setPrecosRascunho(atuais => ({ ...atuais, [i]: event.target.value }))} onBlur={event => alterarPreco(i, event.target.value)} style={{ width: '100%', maxWidth: 110, fontSize: 15, fontWeight: 700, background: 'var(--input-bg)', color: 'var(--input-text)', textAlign: 'right', padding: '8px 10px', border: '1px solid var(--border-color)', borderRadius: 8, minHeight: 38 }} />
+                            <input type="number" min="0" step="0.01" aria-label={`Preço unitário de ${item.nome}`} value={precosRascunho[i] ?? item.precoUnitario} onChange={event => setPrecosRascunho(atuais => ({ ...atuais, [i]: event.target.value }))} onBlur={event => alterarPreco(i, event.target.value)} style={{ width: '100%', maxWidth: 110, fontSize: 16, fontWeight: 700, background: 'var(--input-bg)', color: 'var(--input-text)', textAlign: 'right', padding: '8px 10px', border: '1px solid var(--border-color)', borderRadius: 8, minHeight: 38 }} />
                           </div>
                         </div>
                         {item.faixaDescontoQuantidade && <div style={{ marginTop: 6, color: 'var(--success-bg)', fontSize: 11, fontWeight: 700 }}>🏷️ PROMOÇÃO · Economia: {formatMoney(item.economiaQuantidade)}</div>}
@@ -1227,12 +1219,12 @@ export default function PDV() {
 
                   <div className="pdv-command-actions">
                   <button type="button" onClick={salvarComandaEmAberto} disabled={enviando} style={{
-                    width: '100%', padding: '13px', background: 'var(--bg-tertiary)', color: 'var(--accent-primary)',
-                    border: '1px solid var(--accent-border)', borderRadius: 12, fontSize: 14, fontWeight: 700,
+                    width: '100%', padding: '12px 16px', background: 'var(--bg-tertiary)', color: 'var(--accent-primary)',
+                    border: '1px solid var(--accent-border)', borderRadius: 10, fontSize: 14, fontWeight: 700,
                     cursor: 'pointer', minHeight: 48
                   }}>Salvar em aberto</button>
                   <button type="button" onClick={abrirPagamento} disabled={enviando} style={{
-                    width: '100%', padding: '14px', background: 'var(--accent-primary)', color: '#fff',
+                    width: '100%', padding: '14px', background: 'var(--accent-primary)', color: 'var(--accent-text)',
                     border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
                     cursor: 'pointer', minHeight: 52
                   }}>{consumoInterno ? 'Registrar consumo interno' : 'Fechar venda → pagamento'}</button>
@@ -1304,11 +1296,11 @@ export default function PDV() {
             <div style={{ borderTop: '1px solid rgba(15,23,42,.08)', marginBottom: 20 }}></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {!modalSucesso.utilizacaoInterna && <>
-                <button className="pdv-fiscal-button" type="button" onClick={emitirNfce} disabled={!modalSucesso._id || nfceLoading || comprovanteEnviando || modalSucesso.nfce?.status === 'autorizada'}>{nfceLoading ? 'Emitindo NFC-e...' : modalSucesso.nfce?.status === 'autorizada' ? 'NFC-e autorizada' : 'Emitir NFC-e'}</button>
-                {modalSucesso.nfce?.danfePdf && <button className="pdv-fiscal-button" type="button" onClick={abrirDanfe}>Abrir DANFE PDF</button>}
+                <button className="pdv-fiscal-button btn btn-primary" type="button" onClick={emitirNfce} disabled={!modalSucesso._id || nfceLoading || comprovanteEnviando || modalSucesso.nfce?.status === 'autorizada'}>{nfceLoading ? 'Emitindo NFC-e...' : modalSucesso.nfce?.status === 'autorizada' ? 'NFC-e autorizada' : 'Emitir NFC-e'}</button>
+                {modalSucesso.nfce?.danfePdf && <button className="pdv-fiscal-button btn btn-primary" type="button" onClick={abrirDanfe}>Abrir DANFE PDF</button>}
               </>}
               <button onClick={() => imprimirCupom(modalSucesso)} style={{
-                width: '100%', padding: '14px', background: 'var(--brand-brown)', color: '#fff',
+                width: '100%', padding: '14px', background: 'var(--brand-brown)', color: 'var(--brand-action-text)',
                 border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
                 cursor: 'pointer', minHeight: 52, display: 'flex',
                 alignItems: 'center', justifyContent: 'center', gap: 10
@@ -1320,8 +1312,8 @@ export default function PDV() {
                 alignItems: 'center', justifyContent: 'center', gap: 10
               }}>💬 Enviar pelo WhatsApp</button>
               <button onClick={novaVenda} style={{
-                width: '100%', padding: '13px', background: 'var(--accent-light)', color: 'var(--accent-primary)',
-                border: '1.5px solid var(--accent-border)', borderRadius: 12,
+                width: '100%', padding: '12px 16px', background: 'var(--accent-light)', color: 'var(--accent-primary)',
+                border: '1.5px solid var(--accent-border)', borderRadius: 10,
                 fontSize: 14, fontWeight: 700, cursor: 'pointer', minHeight: 48
               }}>🛒 Iniciar Nova Venda</button>
               <button onClick={() => setModalSucesso(null)} style={{
@@ -1397,14 +1389,14 @@ export default function PDV() {
           .pdv-grid [style*="max-height: 420px"] { max-height: 280px !important; }
           .pdv-grid [style*="position: sticky"] { position: static !important; }
         }
-        .pdv-command-type-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}.pdv-command-type-tabs button,.pdv-command-current button,.pdv-command-actions button{min-height:44px;border:1px solid var(--accent-border);border-radius:10px;padding:8px;background:var(--bg-tertiary);color:var(--accent-primary);font:inherit;font-weight:700;cursor:pointer}.pdv-command-type-tabs button.active{background:var(--accent-primary);color:#fff}.pdv-command-current{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:12px;color:var(--text-secondary)}.pdv-command-name{display:grid;gap:6px;margin-bottom:12px;font-size:12px;font-weight:700;color:var(--text-secondary)}.pdv-command-name input,.pdv-command-name textarea{width:100%;box-sizing:border-box;min-height:40px;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--input-bg);color:var(--input-text);font:inherit}.pdv-command-name textarea{resize:vertical}
+        .pdv-command-type-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}.pdv-command-type-tabs button,.pdv-command-current button,.pdv-command-actions button{min-height:44px;border:1px solid var(--accent-border);border-radius:10px;padding:8px;background:var(--bg-tertiary);color:var(--accent-primary);font:inherit;font-weight:700;cursor:pointer}.pdv-command-type-tabs button.active{background:var(--accent-primary);color:var(--accent-text)}.pdv-command-current{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:12px;color:var(--text-secondary)}.pdv-command-name{display:grid;gap:6px;margin-bottom:12px;font-size:12px;font-weight:700;color:var(--text-secondary)}.pdv-command-name input,.pdv-command-name textarea{width:100%}.pdv-command-name textarea{resize:vertical}
         .product-card:active { transform: scale(0.97); }
         .product-card-added { animation: item-added .35s ease; border-color: var(--accent-primary) !important; }
         @media (min-width: 768px) {
           .pdv-mobile-cart-trigger, .pdv-mobile-mesas-trigger, .pdv-mobile-cart-backdrop { display: none; }
         }
         .pdv-mobile-product-select { display: none; }
-        .pdv-mobile-cart-trigger { width: 100%; min-height: 50px; margin-bottom: 10px; padding: 10px 14px; align-items: center; justify-content: space-between; gap: 12px; border: 0; border-radius: 12px; background: var(--accent-primary); color: #fff; font: inherit; font-size: 14px; cursor: pointer; box-shadow: var(--shadow-sm); }
+        .pdv-mobile-cart-trigger { width: 100%; min-height: 50px; margin-bottom: 10px; padding: 10px 14px; align-items: center; justify-content: space-between; gap: 12px; border: 0; border-radius: 12px; background: var(--accent-primary); color: var(--accent-text); font: inherit; font-size: 14px; cursor: pointer; box-shadow: var(--shadow-sm); }
         .pdv-mobile-cart-trigger strong { font-size: 13px; white-space: nowrap; }
         .pdv-mesas-trigger,.pdv-command-pill{min-height:42px;padding:9px 14px;border:1px solid var(--accent-border);border-radius:999px;background:var(--accent-light);color:var(--accent-primary);font:inherit;font-weight:700;cursor:pointer}
         .pdv-command-selector{position:relative;margin-left:auto}
@@ -1417,15 +1409,15 @@ export default function PDV() {
         .pdv-payment-dialog{width:min(480px,100%);max-height:calc(100dvh - 36px);overflow:auto;padding:22px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);color:var(--text-primary);box-shadow:var(--shadow-lg)}
         .pdv-payment-dialog h2{margin:0 0 12px}.pdv-payment-dialog p{color:var(--text-secondary)}
         .pdv-payment-dialog label{display:grid;gap:7px;margin-top:12px;font-size:13px;font-weight:700}
-        .pdv-payment-dialog :is(select, .searchable-select-input),.pdv-payment-dialog input{width:100%;box-sizing:border-box;min-height:46px;padding:10px;border:1px solid var(--border-color);border-radius:9px;background:var(--input-bg);color:var(--input-text);font:inherit}
+        .pdv-payment-dialog :is(select, .searchable-select-input),.pdv-payment-dialog input{width:100%}
         .pdv-payment-items{max-height:200px;overflow:auto;background:var(--bg-tertiary);padding:10px 14px;border-radius:10px}.pdv-payment-items>div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border-color);font-size:13px}
         .pdv-payment-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}.pdv-payment-heading span{font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--accent-primary)}.pdv-payment-heading h2{font-size:20px;margin:4px 0 0}.pdv-payment-heading button{border:0;background:transparent;font-size:22px;color:var(--text-secondary);cursor:pointer}
         .pdv-payment-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.pdv-payment-summary>div{display:flex;flex-direction:column;justify-content:flex-end;gap:4px;font-size:12px;color:var(--text-secondary)}.pdv-payment-summary strong{font-size:22px;color:var(--accent-primary)}
         .pdv-fiscal-status{padding:12px;margin-bottom:16px;border-radius:10px;background:var(--bg-tertiary);text-align:left}.pdv-fiscal-status small{display:block;margin-top:5px;overflow-wrap:anywhere;color:var(--text-secondary)}
-        .pdv-receipt-contact{text-align:left;margin-bottom:18px}.pdv-receipt-contact label{display:grid;gap:6px;margin-top:12px;font-size:12px;font-weight:700}.pdv-receipt-contact input{width:100%;box-sizing:border-box;min-height:46px;padding:10px;border:1px solid var(--border-color);border-radius:9px;background:var(--input-bg);color:var(--input-text);font:inherit}.pdv-fiscal-button{min-height:50px;padding:13px;border:0;border-radius:12px;background:var(--accent-primary);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+        .pdv-receipt-contact{text-align:left;margin-bottom:18px}.pdv-receipt-contact label{display:grid;gap:6px;margin-top:12px;font-size:12px;font-weight:700}.pdv-receipt-contact input{width:100%}.pdv-fiscal-button{min-height:50px;padding:13px;border:0;border-radius:12px;background:var(--accent-primary);color:var(--accent-text);font:inherit;font-weight:700;cursor:pointer}
         .pdv-payment-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:18px}
-        .pdv-payment-actions button{min-height:46px;padding:8px;border:1px solid var(--border-color);border-radius:9px;background:var(--bg-tertiary);color:var(--text-primary);font:inherit;font-weight:700;cursor:pointer}
-        .pdv-payment-actions button:last-child{border-color:var(--accent-primary);background:var(--accent-primary);color:#fff}
+        .pdv-payment-actions button{min-height:48px;padding:12px 16px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-tertiary);color:var(--text-primary);font:700 14px var(--font-body);font-weight:700;cursor:pointer}
+        .pdv-payment-actions button:last-child{border-color:var(--accent-primary);background:var(--accent-primary);color:var(--accent-text)}
         @keyframes item-added { 50% { transform: scale(1.035); box-shadow: 0 0 0 4px var(--accent-light); } }
         @keyframes pdv-sheet-in{from{transform:translateY(100%)}to{transform:translateY(0)}}
       `}</style>

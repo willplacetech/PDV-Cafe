@@ -35,10 +35,12 @@ describe('Selects pesquisáveis compartilhados', () => {
     cy.contains('button', 'Salvar').click();
     cy.get('#submitted').should('be.empty');
     cy.get('#produto').should('be.focused');
+    cy.get('#produto').should('have.attr', 'aria-invalid', 'true');
     cy.get('[aria-label="Desabilitado"]').should('be.disabled');
     cy.get('#produto').type('{esc}');
     cy.contains('button', 'Atualizar opções').click();
     cy.get('#produto').should('have.value', 'Novo produto');
+    cy.get('#produto').should('not.have.attr', 'aria-invalid', 'true');
     cy.get('#produto').click().type('novo{enter}');
     cy.contains('button', 'Salvar').click();
     cy.get('#submitted').should('have.text', 'novo');
@@ -55,5 +57,14 @@ describe('Selects pesquisáveis compartilhados', () => {
     });
     cy.get('body').click(350, 500);
     cy.get('[role="listbox"]').should('not.exist');
+  });
+
+  it('marca o campo inválido e limpa o erro ao escolher uma opção válida', () => {
+    cy.contains('button', 'Salvar').click();
+    cy.get('#produto').should('have.attr', 'aria-invalid', 'true').and('have.css', 'border-color', 'rgb(220, 38, 38)');
+    cy.get('#produto').type('cafe{enter}');
+    cy.get('#produto').should('not.have.attr', 'aria-invalid', 'true');
+    cy.contains('button', 'Salvar').click();
+    cy.get('#submitted').should('have.text', 'cafe');
   });
 });

@@ -289,7 +289,7 @@ export default function Users() {
       </div>
       <style>{`
         .users-page .users-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-        .users-page .users-secondary-button,.users-page .users-danger-button{min-height:36px;padding:7px 12px;border:1px solid var(--border-color);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}
+        .users-page .users-secondary-button,.users-page .users-danger-button{min-height:40px;padding:7px 12px;border:1px solid var(--border-color);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}
         .users-page .users-secondary-button{background:var(--bg-tertiary);color:var(--text-primary)}
         .users-page .users-danger-button{border-color:rgba(239,68,68,.24);background:var(--error-bg);color:var(--error-text,var(--error-bg))}
         .users-page .users-secondary-button:disabled,.users-page .users-danger-button:disabled{opacity:.55;cursor:not-allowed}
@@ -305,7 +305,7 @@ export default function Users() {
 
 const panelStyle = { background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: 24, borderRadius: 16, boxShadow: 'var(--shadow-sm)' };
 const labelStyle = { display: 'block', marginBottom: 16, color: 'var(--text-secondary)', fontWeight: 600 };
-const inputStyle = { display: 'block', width: '100%', marginTop: 7, padding: '12px 14px', border: '1px solid var(--border-color)', borderRadius: 9, fontSize: 16, boxSizing: 'border-box', background: 'var(--input-bg)', color: 'var(--input-text)' };
-const buttonStyle = { padding: 14, border: 0, borderRadius: 10, background: 'var(--accent-primary)', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer' };
+const inputStyle = { display: 'block', width: '100%', marginTop: 7 };
+const buttonStyle = { padding: '12px 16px', border: 0, borderRadius: 10, background: 'var(--accent-primary)', color: 'var(--accent-text)', fontWeight: 700, fontSize: 14, cursor: 'pointer' };
 const tableStyle = { width: '100%', borderCollapse: 'collapse' };
 const cellStyle = { padding: '12px 8px', borderBottom: '1px solid var(--border-color)', textAlign: 'left' };

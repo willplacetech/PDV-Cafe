@@ -98,7 +98,7 @@ export default function Login() {
         }}>
           {showInstallButton && (
             <button onClick={handleInstallClick} style={{
-              background: 'var(--accent-primary)', color: '#fff',
+              background: 'var(--accent-primary)', color: 'var(--accent-text)',
               border: 'none', padding: '10px 14px', borderRadius: '10px', fontSize: '14px',
               cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700,
               display: 'flex', alignItems: 'center', gap: '6px',
@@ -134,15 +134,9 @@ export default function Login() {
               <input
                 placeholder="Digite seu usuário" value={form.username} autoComplete="username"
                 onChange={e => setForm({ ...form, username: e.target.value })} required
-                style={{
-                  width: '100%', padding: '14px 16px', border: '1.5px solid var(--border-color)',
-                  borderRadius: 12, fontSize: 16, boxSizing: 'border-box',
-                  outline: 'none', transition: 'border-color .2s, background 0.2s, color 0.2s',
-                  background: 'var(--input-bg)', color: 'var(--input-text)',
-                  minHeight: 50
-                }}
-                onFocus={e => e.target.style.borderColor = 'var(--accent-primary)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
+                style={{ width: '100%' }}
+
+
               />
             </div>
 
@@ -151,20 +145,14 @@ export default function Login() {
               <input
                 type="password" placeholder="Digite sua senha" value={form.password} autoComplete="current-password"
                 onChange={e => setForm({ ...form, password: e.target.value })} required
-                style={{
-                  width: '100%', padding: '14px 16px', border: '1.5px solid var(--border-color)',
-                  borderRadius: 12, fontSize: 16, boxSizing: 'border-box',
-                  outline: 'none', transition: 'border-color .2s, background 0.2s, color 0.2s',
-                  background: 'var(--input-bg)', color: 'var(--input-text)',
-                  minHeight: 50
-                }}
-                onFocus={e => e.target.style.borderColor = 'var(--accent-primary)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
+                style={{ width: '100%' }}
+
+
               />
             </div>
 
             <button type="submit" disabled={loading} style={{
-              width: '100%', padding: '14px', background: 'var(--accent-primary)', color: '#fff',
+              width: '100%', padding: '14px', background: 'var(--accent-primary)', color: 'var(--accent-text)',
               border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700,
               cursor: 'pointer', transition: 'all .15s', minHeight: 52
             }}>

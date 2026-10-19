@@ -7,16 +7,7 @@ import Paginacao from '../components/Paginacao.jsx';
 import useUrlPagination from '../hooks/useUrlPagination.js';
 import { updatePaginationParams } from '../utils/paginationUrl.js';
 
-const inputStyle = {
-  width: '100%',
-  minHeight: 40,
-  padding: '8px 10px',
-  border: '1px solid var(--border-color)',
-  borderRadius: 8,
-  background: 'var(--bg-secondary)',
-  color: 'var(--text-primary)',
-  boxSizing: 'border-box',
-};
+const inputStyle = { width: '100%', minHeight: 40, padding: '8px 10px', borderRadius: 8 };
 
 const cellStyle = {
   padding: '10px 12px',

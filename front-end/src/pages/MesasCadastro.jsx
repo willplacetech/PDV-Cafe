@@ -104,7 +104,7 @@ export default function MesasCadastro() {
             min="1"
             value={quantidadeTotal}
             readOnly
-            style={{ minHeight: 46, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--input-text)' }}
+            style={{ background: 'var(--input-bg)' }}
           />
         </label>
       </div>
@@ -140,7 +140,7 @@ export default function MesasCadastro() {
                         value={mesa.nome}
                         onChange={(e) => editarNome(mesa.id, e.target.value)}
                         disabled={!podeAlterar}
-                        style={{ width: '100%', minHeight: 42, padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--input-text)' }}
+                        style={{ width: '100%' }}
                       />
                     </td>
                     <td style={{ padding: '12px 8px' }}>
@@ -150,7 +150,7 @@ export default function MesasCadastro() {
                         value={mesa.lugares}
                         onChange={(e) => editarLugares(mesa.id, e.target.value)}
                         disabled={!podeAlterar}
-                        style={{ width: 90, minHeight: 42, padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--input-text)' }}
+                        style={{ width: 90 }}
                       />
                     </td>
                     <td style={{ padding: '12px 8px', fontWeight: 700, color: mesa.ativa ? 'var(--success-bg)' : 'var(--text-secondary)' }}>
@@ -175,7 +175,7 @@ export default function MesasCadastro() {
         </EstadoLista>
       </div>
 
-      <button type="button" onClick={adicionarMesa} disabled={!podeAlterar} style={{ background: 'var(--accent-primary)', color: '#fff', border: 0, borderRadius: 10, minHeight: 46, padding: '0 18px', fontWeight: 800, cursor: 'pointer', marginBottom: 16 }}>
+      <button type="button" onClick={adicionarMesa} disabled={!podeAlterar} style={{ background: 'var(--accent-primary)', color: 'var(--accent-text)', border: 0, borderRadius: 10, minHeight: 48, padding: '12px 16px', fontWeight: 700, cursor: 'pointer', marginBottom: 16 }}>
         ➕ Adicionar Mesa
       </button>
 
@@ -186,7 +186,7 @@ export default function MesasCadastro() {
         </label>
       </div>
 
-      <button type="button" onClick={salvar} disabled={!podeAlterar} style={{ background: 'var(--success-bg)', color: '#fff', border: 0, borderRadius: 10, minHeight: 48, padding: '0 18px', fontWeight: 800, cursor: 'pointer' }}>
+      <button type="button" onClick={salvar} disabled={!podeAlterar} style={{ background: 'var(--success-bg)', color: '#fff', border: 0, borderRadius: 10, minHeight: 48, padding: '12px 16px', fontWeight: 700, cursor: 'pointer' }}>
         ✅ Salvar
       </button>
     </div>

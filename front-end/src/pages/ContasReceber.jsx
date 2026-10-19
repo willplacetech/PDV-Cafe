@@ -701,18 +701,14 @@ export default function ContasReceber() {
       }}>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Cliente</label>
-          <SearchableSelect value={clienteFiltro} onChange={e => atualizarFiltro('clienteId', e.target.value)} style={{
-            width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
-          }}>
+          <SearchableSelect value={clienteFiltro} onChange={e => atualizarFiltro('clienteId', e.target.value)} style={{ width: '100%' }}>
             <option value="">Todos os clientes</option>
             {clientes.map(c => <option key={c._id} value={c._id}>{c.nome}</option>)}
           </SearchableSelect>
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Status</label>
-          <SearchableSelect value={statusFiltro} onChange={e => atualizarFiltro('status', e.target.value)} style={{
-            width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
-          }}>
+          <SearchableSelect value={statusFiltro} onChange={e => atualizarFiltro('status', e.target.value)} style={{ width: '100%' }}>
             <option value="abertas">Todos em A Receber</option>
             <option value="pendente">Pendentes</option>
             <option value="parcial">Pagamento Parcial</option>
@@ -721,15 +717,11 @@ export default function ContasReceber() {
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Data Início</label>
-          <DateInput value={inicio} onChange={value => atualizarFiltro('inicio', value)} style={{
-            width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
-          }} />
+          <DateInput value={inicio} onChange={value => atualizarFiltro('inicio', value)} style={{ width: '100%' }} />
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Data Fim</label>
-          <DateInput value={fim} onChange={value => atualizarFiltro('fim', value)} style={{
-            width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
-          }} />
+          <DateInput value={fim} onChange={value => atualizarFiltro('fim', value)} style={{ width: '100%' }} />
         </div>
       </div>
 
@@ -963,7 +955,7 @@ export default function ContasReceber() {
                       flex: '1 1 160px',
                       padding: '10px 8px',
                       background: 'var(--brand-brown)',
-                      color: '#fff',
+                      color: 'var(--brand-action-text)',
                       border: 'none', borderRadius: 8,
                       fontSize: 13, fontWeight: 600, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -995,7 +987,7 @@ export default function ContasReceber() {
                         onClick={() => abrirNovoPedido(pedido)}
                         style={{
                           flex: '1 1 180px',
-                          padding: '10px 8px', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: 8,
+                          padding: '10px 8px', background: 'var(--accent-primary)', color: 'var(--accent-text)', border: 'none', borderRadius: 8,
                           fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                           whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'
                         }}
@@ -1043,7 +1035,7 @@ export default function ContasReceber() {
             </p>
 
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Forma de pagamento</label>
-            <SearchableSelect disabled={recebendo} value={formComanda.formaPagamento} onChange={e => setFormComanda(f => ({ ...f, formaPagamento: e.target.value }))} style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', marginBottom: 12, boxSizing: 'border-box' }}>
+            <SearchableSelect disabled={recebendo} value={formComanda.formaPagamento} onChange={e => setFormComanda(f => ({ ...f, formaPagamento: e.target.value }))} style={{ width: '100%', marginBottom: 12 }}>
               {FORMAS_PAGAMENTO.filter((forma) => forma.value !== 'credito_loja').map((forma) => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
             </SearchableSelect>
             <small style={{ display: 'block', margin: '-8px 0 12px', color: 'var(--text-secondary)' }}>Crédito na loja não entra como recebimento: aqui só entra dinheiro de verdade.</small>
@@ -1055,7 +1047,7 @@ export default function ContasReceber() {
                 placeholder="0,00"
                 value={formComanda.valor}
                 onChange={e => digitarValorComanda(e.target.value)}
-                style={{ flex: 1, padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', boxSizing: 'border-box' }}
+                style={{ flex: 1 }}
               />
               <button type="button" onClick={() => digitarValorComanda(saldoDevedor(formComanda.comanda.valorTotal, formComanda.comanda.historicoPagamentos).toFixed(2))} style={{ padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Saldo total</button>
             </div>
@@ -1069,7 +1061,7 @@ export default function ContasReceber() {
             />
 
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Observação</label>
-            <input disabled={recebendo} value={formComanda.observacao} onChange={e => setFormComanda(f => ({ ...f, observacao: e.target.value }))} style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', marginBottom: 16, boxSizing: 'border-box' }} />
+            <input disabled={recebendo} value={formComanda.observacao} onChange={e => setFormComanda(f => ({ ...f, observacao: e.target.value }))} style={{ width: '100%', marginBottom: 16 }} />
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => { if (!recebendoRef.current) setFormComanda(null); }} style={{ padding: '9px 16px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>Cancelar</button>
@@ -1096,9 +1088,7 @@ export default function ContasReceber() {
 
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Forma de Pagamento</label>
-              <SearchableSelect disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={e => setFormPagamentoMultiplo({...formPagamentoMultiplo, tipo: e.target.value})} style={{
-                width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10
-              }}>
+              <SearchableSelect disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={e => setFormPagamentoMultiplo({...formPagamentoMultiplo, tipo: e.target.value})} style={{ width: '100%' }}>
                 {FORMAS_PAGAMENTO.filter(forma => forma.value !== 'credito_loja').map(forma => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
               </SearchableSelect>
             </div>
@@ -1112,7 +1102,7 @@ export default function ContasReceber() {
               <input disabled={recebendo} type="text" placeholder="Ex: Pagamento em lote"
                 value={formPagamentoMultiplo.observacao}
                 onChange={e => setFormPagamentoMultiplo({...formPagamentoMultiplo, observacao: e.target.value})}
-                style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10 }} />
+                style={{ width: '100%' }} />
             </div>
 
             <div style={{ display: 'flex', gap: 10 }}>
@@ -1143,9 +1133,7 @@ export default function ContasReceber() {
 
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Forma de Pagamento</label>
-              <SearchableSelect disabled={recebendo} value={formPagamento.tipo} onChange={e => setFormPagamento({...formPagamento, tipo: e.target.value})} style={{
-                width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10
-              }}>
+              <SearchableSelect disabled={recebendo} value={formPagamento.tipo} onChange={e => setFormPagamento({...formPagamento, tipo: e.target.value})} style={{ width: '100%' }}>
                 {FORMAS_PAGAMENTO.filter(forma => forma.value !== 'credito_loja').map(forma => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
               </SearchableSelect>
             </div>
@@ -1155,7 +1143,7 @@ export default function ContasReceber() {
               <input disabled={recebendo} type="number" min="0.01" max={saldoPagamentoIndividual} step="0.01" autoFocus
                 value={formPagamento.valorRecebido}
                 onChange={event => setFormPagamento({ ...formPagamento, valorRecebido: event.target.value })}
-                style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, fontSize: 16, background: 'var(--bg-tertiary)', fontWeight: 700 }} />
+                style={{ width: '100%', fontWeight: 700 }} />
 
             </div>
 
@@ -1168,7 +1156,7 @@ export default function ContasReceber() {
               <input disabled={recebendo} type="text" placeholder="Ex: Pagamento parcial"
                 value={formPagamento.observacao}
                 onChange={e => setFormPagamento({...formPagamento, observacao: e.target.value})}
-                style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10 }} />
+                style={{ width: '100%' }} />
             </div>
 
             <div style={{ display: 'flex', gap: 10 }}>
@@ -1194,8 +1182,8 @@ export default function ContasReceber() {
               <button type="button" className="novo-pedido-add" onClick={adicionarItemNovoPedido}>Adicionar produto</button>
             </div>
             {novoPedidoForm.itens.length > 0 && <div className="novo-pedido-items">{novoPedidoForm.itens.map((item, index) => <div className="novo-pedido-item" key={`${item.produtoId}-${index}`}><span><strong>{item.quantidade}x</strong> {item.nome}</span><button type="button" onClick={() => setNovoPedidoForm({ ...novoPedidoForm, itens: novoPedidoForm.itens.filter((_, itemIndex) => itemIndex !== index) })}>Remover</button></div>)}</div>}
-            <label style={{ display: 'block', marginBottom: 12, fontSize: 12, fontWeight: 700 }}>Nome de quem está fazendo o novo pedido<input disabled={recebendo} value={novoPedidoForm.nomeSolicitante} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, nomeSolicitante: event.target.value })} placeholder="Ex.: Maria" style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10 }} /></label>
-            <label style={{ display: 'block', marginBottom: 16, fontSize: 12, fontWeight: 700 }}>Observação do novo pedido<textarea value={novoPedidoForm.observacao} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, observacao: event.target.value })} placeholder="Ex.: café e salgado para Maria" rows="3" style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10, resize: 'vertical' }} /></label>
+            <label style={{ display: 'block', marginBottom: 12, fontSize: 12, fontWeight: 700 }}>Nome de quem está fazendo o novo pedido<input disabled={recebendo} value={novoPedidoForm.nomeSolicitante} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, nomeSolicitante: event.target.value })} placeholder="Ex.: Maria" style={{ display: 'block', width: '100%', marginTop: 4 }} /></label>
+            <label style={{ display: 'block', marginBottom: 16, fontSize: 12, fontWeight: 700 }}>Observação do novo pedido<textarea value={novoPedidoForm.observacao} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, observacao: event.target.value })} placeholder="Ex.: café e salgado para Maria" rows="3" style={{ display: 'block', width: '100%', marginTop: 4, resize: 'vertical' }} /></label>
             <div style={{ display: 'flex', gap: 10 }}><button onClick={() => setNovoPedidoModal(null)} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button><button onClick={adicionarItensAoPedido} style={{ flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 0, borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Confirmar novo pedido</button></div>
           </div>
         </div>
@@ -1215,7 +1203,7 @@ export default function ContasReceber() {
             <h3 style={{ margin: '0 0 8px' }}>✅ Quitar total do cliente</h3>
             <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)' }}>Todas as pendências do cliente selecionado serão quitadas.</p>
             <label style={{ display: 'block', marginBottom: 5, fontSize: 13, fontWeight: 700 }}>Forma de pagamento</label>
-            <SearchableSelect disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={event => setFormPagamentoMultiplo({ ...formPagamentoMultiplo, tipo: event.target.value })} style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, marginBottom: 16 }}>
+            <SearchableSelect disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={event => setFormPagamentoMultiplo({ ...formPagamentoMultiplo, tipo: event.target.value })} style={{ width: '100%', marginBottom: 16 }}>
               {FORMAS_PAGAMENTO.filter(forma => forma.value !== 'credito_loja').map(forma => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
             </SearchableSelect>
             <div style={{ display: 'flex', gap: 10 }}>
@@ -1250,14 +1238,6 @@ export default function ContasReceber() {
         .novo-pedido-field :is(select, .searchable-select-input),
         .novo-pedido-field input {
           width: 100%;
-          min-height: 42px;
-          box-sizing: border-box;
-          padding: 9px 10px;
-          border: 1px solid var(--border-color);
-          border-radius: 9px;
-          background: var(--input-bg);
-          color: var(--input-text);
-          font-size: 14px;
         }
 
         .novo-pedido-add {
@@ -1266,7 +1246,7 @@ export default function ContasReceber() {
           border: 1px solid var(--accent-primary);
           border-radius: 9px;
           background: var(--accent-primary);
-          color: #fff;
+          color: var(--accent-text);
           font-size: 13px;
           font-weight: 800;
           cursor: pointer;

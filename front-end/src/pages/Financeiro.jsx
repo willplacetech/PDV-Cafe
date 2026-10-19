@@ -567,11 +567,11 @@ export default function Financeiro() {
                         <td>
                           <div className="financeiro-row-actions">
                             {item.status !== 'pago' && (
-                              <button type="button" className="financeiro-submit-button financeiro-action-button" onClick={() => marcarPago(item._id)}>
+                              <button type="button" className="financeiro-submit-button financeiro-action-button btn btn-primary" onClick={() => marcarPago(item._id)}>
                                 Marcar Pago
                               </button>
                             )}
-                            <button type="button" className="financeiro-secondary-button financeiro-action-button" onClick={() => editarDespesa(item)}>
+                            <button type="button" className="financeiro-secondary-button financeiro-action-button btn btn-ghost" onClick={() => editarDespesa(item)}>
                               Editar
                             </button>
                             <ConfirmarAcao titulo="Excluir despesa" mensagem={`Deseja excluir a despesa "${item.descricao}"?`} acaoTexto="Excluir despesa" onConfirmar={() => excluirDespesa(item)}>
@@ -682,8 +682,8 @@ export default function Financeiro() {
               )}
 
               <div className="form-submit">
-                {despesaEmEdicao && <button type="button" className="financeiro-secondary-button" onClick={cancelarEdicaoDespesa}>Cancelar</button>}
-                <button type="submit" className="financeiro-submit-button" disabled={salvandoDespesa}>
+                {despesaEmEdicao && <button type="button" className="financeiro-secondary-button btn btn-ghost" onClick={cancelarEdicaoDespesa}>Cancelar</button>}
+                <button type="submit" className="financeiro-submit-button btn btn-primary" disabled={salvandoDespesa}>
                   {salvandoDespesa ? 'Salvando...' : despesaEmEdicao ? 'Salvar alterações' : 'Salvar'}
                 </button>
               </div>
@@ -745,7 +745,7 @@ export default function Financeiro() {
                 <span className="dashboard-eyebrow">DEMONSTRATIVO</span>
                 <h2>DRE / EBITDA</h2>
               </div>
-              <button type="button" className="financeiro-secondary-button" onClick={exportarCsv}>
+              <button type="button" className="financeiro-secondary-button btn btn-ghost" onClick={exportarCsv}>
                 Exportar CSV
               </button>
             </div>
@@ -872,12 +872,9 @@ export default function Financeiro() {
         }
 
         .financeiro-period input {
-          min-height: 42px;
-          padding: 9px 12px;
-          border: 1px solid var(--border-color);
+          min-height: 40px;
+          padding: 8px 10px;
           border-radius: 8px;
-          background: var(--bg-tertiary);
-          color: var(--text-primary);
         }
 
         .financeiro-tabs {
@@ -945,7 +942,7 @@ export default function Financeiro() {
           border: 0;
           border-radius: 8px;
           background: var(--accent-primary);
-          color: #fff;
+          color: var(--accent-text);
           font-weight: 700;
           cursor: pointer;
         }
@@ -970,14 +967,7 @@ export default function Financeiro() {
         .filters-grid input,
         .form-grid input,
         .form-grid :is(select, .searchable-select-input) {
-          min-height: 42px;
-          border: 1px solid var(--border-color);
-          border-radius: 8px;
-          background: var(--bg-tertiary);
-          color: var(--text-primary);
-          padding: 9px 11px;
           width: 100%;
-          box-sizing: border-box;
         }
 
         .table-wrap {
@@ -1055,13 +1045,13 @@ export default function Financeiro() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-height: 42px;
-          padding: 10px 18px;
+          min-height: 48px;
+          padding: 12px 16px;
           border: 1px solid var(--accent-primary);
           border-radius: 10px;
           background: var(--accent-primary);
-          color: #fff;
-          font-size: 13px;
+          color: var(--accent-text);
+          font-size: 14px;
           font-weight: 700;
           cursor: pointer;
           transition: filter 0.2s ease;
@@ -1079,7 +1069,7 @@ export default function Financeiro() {
 
         .financeiro-action-button {
           min-width: 0;
-          min-height: 36px;
+          min-height: 40px;
           padding: 8px 10px;
           border-radius: 8px;
           font-size: 12px;
@@ -1097,7 +1087,7 @@ export default function Financeiro() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-height: 36px;
+          min-height: 40px;
           padding: 8px 10px;
           border: 1px solid rgba(220, 38, 38, .3);
           border-radius: 8px;
@@ -1128,13 +1118,13 @@ export default function Financeiro() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-height: 42px;
-          padding: 10px 16px;
+          min-height: 48px;
+          padding: 12px 16px;
           border: 1px solid var(--accent-border);
           border-radius: 10px;
           background: var(--accent-light);
           color: var(--accent-primary);
-          font-size: 13px;
+          font-size: 14px;
           font-weight: 700;
           cursor: pointer;
           white-space: nowrap;
@@ -1163,12 +1153,9 @@ export default function Financeiro() {
         }
 
         .compare-periods input {
-          min-height: 42px;
-          padding: 9px 12px;
-          border: 1px solid var(--border-color);
+          min-height: 40px;
+          padding: 8px 10px;
           border-radius: 8px;
-          background: var(--bg-tertiary);
-          color: var(--text-primary);
         }
 
         .compare-versus {

@@ -585,7 +585,7 @@ export default function Comandas() {
   return (
     <div className="comandas-page">
       {renderizarAutorizacao()}
-      <div className="page-heading"><div><h1>🪑 Mesas / Comandas</h1><p>Consulte mesas, edite comandas abertas e separe pagamentos em uma única tela.</p></div><button type="button" className="comandas-primary-button" onClick={() => void createBalcao()}>➕ Novo Pedido</button></div>
+      <div className="page-heading"><div><h1>🪑 Mesas / Comandas</h1><p>Consulte mesas, edite comandas abertas e separe pagamentos em uma única tela.</p></div><button type="button" className="comandas-primary-button btn btn-primary" onClick={() => void createBalcao()}>➕ Novo Pedido</button></div>
       <section className="service-mode-panel">
         <div className="service-mode-heading"><h2>🪑 Mesas ({mesasAtivas.length})</h2><span>Selecione uma mesa para abrir ou editar a comanda.</span></div>
         <div className="table-shortcuts">{mesasAtivas.map((configuracaoMesa) => {
@@ -652,7 +652,7 @@ export default function Comandas() {
           {!selected ? <p>Selecione ou abra uma comanda.</p> : <>
             <div className="comandas-detail-actions">
               <button type="button" className="comandas-mobile-back" onClick={() => setMobileView('list')}>← Voltar para comandas</button>
-              <button type="button" className="comandas-secondary-button" onClick={() => void iniciarAtendimentoNoPdv(selected.tipoAtendimento, selected)}>Abrir no PDV</button>
+              <button type="button" className="comandas-secondary-button btn btn-ghost" onClick={() => void iniciarAtendimentoNoPdv(selected.tipoAtendimento, selected)}>Abrir no PDV</button>
             </div>
             <h2 style={{ marginTop: 0 }}>{selected.tipoAtendimento === 'delivery' ? '🛵 Delivery' : selected.tipoAtendimento === 'balcao' ? '📦 Balcão' : '🪑 Mesa'} #{selected.numero} <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}>— {selected.clienteNome}</small></h2>
             {selected.tipoAtendimento === 'balcao' && <div className="balcao-status-bar"><span>Status: <strong>{selected.statusBalcao || 'aguardando'}</strong></span><div>{['aguardando', 'preparando', 'pronto', 'pago', 'entregue'].map((status) => <button type="button" key={status} className={selected.statusBalcao === status ? 'active' : ''} onClick={() => updateBalcaoStatus(status)}>{status}</button>)}</div></div>}
@@ -660,12 +660,12 @@ export default function Comandas() {
               <SearchableSelect className="comandas-field" required disabled={adicionandoItem} value={productId} onChange={(e) => { setProductId(e.target.value); setTipoVenda('inteiro'); setPesoVendidoKg(''); }}><option value="">Adicionar produto…</option>{products.filter((product) => product.categoria !== 'Insumos').map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}{produtoPorPeso(product) ? '/kg' : ''}</option>)}</SearchableSelect>
               {produtoPorPeso(produtoSelecionado) && <SearchableSelect className="comandas-field" disabled={adicionandoItem} value={tipoVenda} onChange={(e) => setTipoVenda(e.target.value)}><option value="inteiro">Bolo inteiro</option><option value="peso">Fatia pesada</option></SearchableSelect>}
               {tipoVenda === 'peso' && produtoPorPeso(produtoSelecionado) ? <input className="comandas-field quantity-field" disabled={adicionandoItem} required type="number" min="0.001" step="0.001" placeholder="Peso vendido (kg)" value={pesoVendidoKg} onChange={(e) => setPesoVendidoKg(e.target.value)} /> : <input className="comandas-field quantity-field" disabled={adicionandoItem} required type="number" min={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} step={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} value={quantity} onChange={(e) => setQuantity(e.target.value)} />}
-              <button type="submit" disabled={adicionandoItem} className="comandas-secondary-button">{adicionandoItem ? 'Adicionando…' : 'Adicionar'}</button>
+              <button type="submit" disabled={adicionandoItem} className="comandas-secondary-button btn btn-ghost">{adicionandoItem ? 'Adicionando…' : 'Adicionar'}</button>
             </form>
 
             {selected.itens.length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                <button type="button" onClick={moverParaNovaComanda} disabled={!selectedItemIds.length} className="comandas-secondary-button" style={{ flex: 1, minWidth: 220 }}>
+                <button type="button" onClick={moverParaNovaComanda} disabled={!selectedItemIds.length} className="comandas-secondary-button btn btn-ghost" style={{ flex: 1, minWidth: 220 }}>
                   📦 {selectedItemIds.length
                     ? `Separar pagamento · nova comanda (${selectedItemIds.length} item${selectedItemIds.length > 1 ? 'ns' : ''})`
                     : 'Selecione itens para separar o pagamento'}
@@ -748,7 +748,7 @@ export default function Comandas() {
                   </details>
                 )}
               </div>
-              <button onClick={abrirModalFechamento} className="comandas-primary-button">{jaRecebido > 0 ? 'Receber / Fechar' : 'Fechar comanda'}</button>
+              <button onClick={abrirModalFechamento} className="comandas-primary-button btn btn-primary">{jaRecebido > 0 ? 'Receber / Fechar' : 'Fechar comanda'}</button>
               <ConfirmarAcao
                 titulo="Cancelar comanda"
                 mensagem={`Cancelar a comanda #${selected.numero}?`}
@@ -791,7 +791,7 @@ export default function Comandas() {
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>🔒 Desconto (R$) — autorização acima de 10%</label>
                 <input disabled={fechando} type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={e => setDiscount(e.target.value)}
-                  className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
+                  className="comandas-field" style={{ width: '100%' }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                 <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{jaRecebido > 0 ? 'Saldo em aberto' : 'Total a cobrar'}</span>
@@ -818,17 +818,17 @@ export default function Comandas() {
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}><FieldLabel hint={<> (opcional) </>}> 👤 Nome do cliente </FieldLabel></label>
               <input disabled={fechando} type="text" placeholder="Nome do cliente" value={nomeModal} onChange={e => setNomeModal(e.target.value)}
-                className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
+                className="comandas-field" style={{ width: '100%' }} />
             </div>
 
             {/* telefone do cliente */}
             <div style={{ marginBottom: 18 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}><FieldLabel hint={<> (opcional — salva nome e telefone no cadastro) </>}> 📱 Celular do cliente </FieldLabel></label>
               <input disabled={fechando} type="tel" placeholder="(00) 00000-0000" value={telefoneModal} onChange={e => setTelefoneModal(e.target.value)}
-                className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
+                className="comandas-field" style={{ width: '100%' }} />
             </div>
 
-            <button disabled={fechando} onClick={confirmarFechamento} style={{ width: '100%', minHeight: 50, border: 0, borderRadius: 12, background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>
+            <button disabled={fechando} onClick={confirmarFechamento} style={{ width: '100%', minHeight: 50, border: 0, borderRadius: 12, background: 'var(--accent-primary)', color: 'var(--accent-text)', fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>
               ✅ Confirmar Fechamento
             </button>
           </div>
@@ -867,7 +867,7 @@ export default function Comandas() {
               <button type="button" onClick={() => setModalMoverComanda(null)} style={{ flex: 1, minHeight: 48, border: '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer' }}>
                 Cancelar
               </button>
-              <button type="button" onClick={confirmarMovimentoParaNovaComanda} style={{ flex: 1, minHeight: 48, border: 0, borderRadius: 10, background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>
+              <button type="button" onClick={confirmarMovimentoParaNovaComanda} style={{ flex: 1, minHeight: 48, border: 0, borderRadius: 10, background: 'var(--accent-primary)', color: 'var(--accent-text)', fontWeight: 700, cursor: 'pointer' }}>
                 Confirmar
               </button>
             </div>
@@ -924,7 +924,7 @@ export default function Comandas() {
                     type="button"
                     disabled={!modalSucesso.entregaDelivery.entregadorId || modalSucesso.entregaDelivery.despachando}
                     onClick={() => void despacharEntregaInline()}
-                    style={{ width: '100%', minHeight: 48, border: 0, borderRadius: 10, background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+                    style={{ width: '100%', minHeight: 48, border: 0, borderRadius: 10, background: 'var(--accent-primary)', color: 'var(--accent-text)', fontWeight: 700, cursor: 'pointer' }}
                   >
                     {modalSucesso.entregaDelivery.despachando ? 'Despachando…' : 'Despachar agora'}
                   </button>
@@ -935,23 +935,23 @@ export default function Comandas() {
                   <textarea aria-label="Mensagem de rastreamento da entrega" readOnly value={modalSucesso.entregaDelivery.whatsapp.mensagemPronta} style={{ width: '100%', minHeight: 72 }} />
                   {modalSucesso.entregaDelivery.whatsapp.whatsappUrl && <a href={modalSucesso.entregaDelivery.whatsapp.whatsappUrl} target="_blank" rel="noreferrer">Enviar rastreio pelo WhatsApp</a>}
                 </div>}
-                <button type="button" onClick={verEntregaNoPainel} style={{ width: '100%', minHeight: 44, marginTop: 10, border: '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer' }}>
+                <button type="button" onClick={verEntregaNoPainel} style={{ width: '100%', minHeight: 48, marginTop: 10, border: '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer' }}>
                   Ver detalhes da entrega
                 </button>
               </>}
-              {!modalSucesso.entregaDelivery?.pedido && <button type="button" onClick={verEntregaNoPainel} style={{ width: '100%', minHeight: 44, marginTop: 10, border: '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer' }}>
+              {!modalSucesso.entregaDelivery?.pedido && <button type="button" onClick={verEntregaNoPainel} style={{ width: '100%', minHeight: 48, marginTop: 10, border: '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer' }}>
                 Abrir painel de Entregas
               </button>}
             </section>}
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, borderTop: '1px solid var(--border-light)', paddingTop: 18 }}>
-              <button type="button" onClick={emitirNfce} disabled={nfceLoading} style={{ width: '100%', padding: '13px', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: nfceLoading ? 'wait' : 'pointer', minHeight: 50 }}>
+              <button type="button" onClick={emitirNfce} disabled={nfceLoading} style={{ width: '100%', padding: '13px', background: 'var(--accent-primary)', color: 'var(--accent-text)', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: nfceLoading ? 'wait' : 'pointer', minHeight: 50 }}>
                 {nfceLoading ? '⏳ Emitindo NFC-e...' : modalSucesso.pedido.nfce?.status === 'autorizada' ? '✅ NFC-e autorizada' : '🧾 Emitir NFC-e'}
               </button>
               {modalSucesso.pedido.nfce?.danfePdf && <button type="button" onClick={abrirDanfe} style={{ width: '100%', padding: '13px', background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 50 }}>📄 Abrir DANFE PDF</button>}
               {modalSucesso.pedido.nfce?.status === 'autorizada' && <button type="button" onClick={() => void imprimirDanfe()} style={{ width: '100%', padding: '13px', background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 50 }}>🧾 Imprimir DANFE NFC-e</button>}
               <button onClick={() => imprimirCupom(modalSucesso.pedido, modalSucesso.comanda)}
-                style={{ width: '100%', padding: '13px', background: 'var(--brand-brown, #7c4b1e)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                style={{ width: '100%', padding: '13px', background: 'var(--brand-brown, #7c4b1e)', color: 'var(--brand-action-text)', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
                 🖨️ Imprimir Cupom
               </button>
               <button type="button" onClick={() => void reimprimirCozinha()}
@@ -979,9 +979,9 @@ export default function Comandas() {
         .page-heading p, .comandas-card-heading p { margin: 0; color: var(--text-secondary); font-size: 13px; }
         .comandas-open-form, .comandas-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 16px; box-shadow: var(--shadow-sm); }
         .comandas-open-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; padding: 18px; margin-bottom: 16px; }
-        .comandas-field { width: 100%; min-height: 48px; padding: 12px 14px; border: 1.5px solid var(--border-color); border-radius: 10px; background: var(--input-bg); color: var(--input-text); font: inherit; box-sizing: border-box; }
-        .comandas-open-form button, .comandas-primary-button { min-height: 48px; padding: 10px 18px; border: 0; border-radius: 10px; background: var(--accent-primary); color: #fff; font-weight: 800; cursor: pointer; }
-        .comandas-secondary-button { min-height: 48px; padding: 10px 16px; border: 1px solid var(--accent-border); border-radius: 10px; background: var(--accent-light); color: var(--accent-primary); font-weight: 800; cursor: pointer; }
+        .comandas-field { width: 100%; }
+        .comandas-open-form button, .comandas-primary-button { min-height: 48px; padding: 12px 16px; border: 0; border-radius: 10px; background: var(--accent-primary); color: var(--accent-text); font-weight: 700; cursor: pointer; }
+        .comandas-secondary-button { min-height: 48px; padding: 12px 16px; border: 1px solid var(--accent-border); border-radius: 10px; background: var(--accent-light); color: var(--accent-primary); font-weight: 700; cursor: pointer; }
         .comandas-columns { display: grid; grid-template-columns: minmax(230px, .85fr) minmax(320px, 1.6fr); gap: 16px; }
         .comandas-card { padding: 18px; }
         .comandas-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
@@ -991,8 +991,8 @@ export default function Comandas() {
         .comanda-select-button:hover { border-color: var(--accent-primary) !important; background: var(--accent-light) !important; }
         .comandas-add-form { display: grid; grid-template-columns: minmax(0, 1fr) 90px auto; gap: 8px; margin-bottom: 16px; }
         .comandas-checkout { border-top: 2px solid var(--accent-primary); padding-top: 14px; margin-top: 8px; display: flex; align-items: flex-end; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
-        .comandas-cancel-button { min-height: 48px; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-tertiary); color: var(--error-bg); font-weight: 800; cursor: pointer; }
-        .balcao-status-bar { display:grid; gap:8px; margin:0 0 14px; padding:10px 12px; border:1px solid var(--accent-border); border-radius:10px; background:var(--accent-light); color:var(--text-secondary); font-size:12px; }.balcao-status-bar>div{display:flex;gap:6px;overflow-x:auto}.balcao-status-bar button{flex-shrink:0;padding:7px 9px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-secondary);font-size:11px;font-weight:700;cursor:pointer}.balcao-status-bar button.active{border-color:var(--accent-primary);background:var(--accent-primary);color:#fff}.comandas-quick-products { padding: 12px; margin-bottom: 12px; border-radius: 10px; background: var(--accent-light); color: var(--text-secondary); font-size: 11px; }
+        .comandas-cancel-button { min-height: 48px; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-tertiary); color: var(--error-bg); font-weight: 700; cursor: pointer; }
+        .balcao-status-bar { display:grid; gap:8px; margin:0 0 14px; padding:10px 12px; border:1px solid var(--accent-border); border-radius:10px; background:var(--accent-light); color:var(--text-secondary); font-size:12px; }.balcao-status-bar>div{display:flex;gap:6px;overflow-x:auto}.balcao-status-bar button{flex-shrink:0;padding:7px 9px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-secondary);font-size:11px;font-weight:700;cursor:pointer}.balcao-status-bar button.active{border-color:var(--accent-primary);background:var(--accent-primary);color:var(--accent-text)}.comandas-quick-products { padding: 12px; margin-bottom: 12px; border-radius: 10px; background: var(--accent-light); color: var(--text-secondary); font-size: 11px; }
         .comandas-quick-products > div { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
         .comandas-quick-products button { min-height: 42px; padding: 6px 8px; border: 1px solid var(--accent-border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); text-align: left; font-size: 11px; cursor: pointer; }
         .comandas-quick-products button.selected { border: 2px solid var(--accent-primary); color: var(--accent-primary); }

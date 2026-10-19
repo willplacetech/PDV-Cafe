@@ -93,27 +93,22 @@ export default function AutorizarGerente({ acao, titulo, descricao, aberto, onCa
           value={senha}
           onChange={(e) => setSenha(e.target.value)}
           placeholder="Senha"
-          style={{
-            width: '100%', padding: '12px', marginBottom: 12,
-            border: `1px solid ${erro ? 'var(--error-bg)' : 'var(--border-color)'}`,
-            borderRadius: 8, background: 'var(--input-bg)',
-            color: 'var(--input-text)', fontSize: 14,
-            opacity: bloqueado ? 0.5 : 1,
-          }}
+          aria-invalid={Boolean(erro) || undefined}
+          style={{ width: '100%', marginBottom: 12, borderColor: erro ? 'var(--error-bg)' : undefined, opacity: bloqueado ? 0.5 : 1 }}
           disabled={bloqueado}
           autoFocus
         />
         {erro && <p role="alert" style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--error-text)' }}>{erro}</p>}
         <div style={{ display: 'flex', gap: 10 }}>
           <button type="button" onClick={onCancelar} disabled={carregando} style={{
-            flex: 1, padding: '12px', background: 'var(--bg-tertiary)',
+            flex: 1, padding: '12px 16px', background: 'var(--bg-tertiary)',
             color: 'var(--text-primary)', border: '1px solid var(--border-color)',
-            borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44,
+            borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 48,
           }}>Cancelar</button>
           <button type="submit" disabled={carregando || bloqueado || !senha.trim()} style={{
-            flex: 1, padding: '12px', background: 'var(--accent-primary)',
-            color: '#fff', border: 'none', borderRadius: 10,
-            fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44,
+            flex: 1, padding: '12px 16px', background: 'var(--accent-primary)',
+            color: 'var(--accent-text)', border: 'none', borderRadius: 10,
+            fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 48,
             opacity: carregando || bloqueado || !senha.trim() ? 0.6 : 1,
           }}>{carregando ? 'Aguarde…' : 'Confirmar'}</button>
         </div>

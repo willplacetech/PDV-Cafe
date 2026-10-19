@@ -63,18 +63,7 @@ export default function TrocoAuxiliar({
             placeholder="Ex: 50,00"
             value={recebidoTexto}
             onChange={(e) => setRecebido(e.target.value)}
-            style={{
-              display: 'block',
-              width: '100%',
-              marginTop: 6,
-              padding: '10px 12px',
-              borderRadius: 10,
-              border: '1px solid var(--border-color)',
-              background: 'var(--input-bg)',
-              color: 'var(--input-text)',
-              fontSize: 16,
-              boxSizing: 'border-box',
-            }}
+            style={{ display: 'block', width: '100%', marginTop: 6 }}
           />
         </label>
       )}

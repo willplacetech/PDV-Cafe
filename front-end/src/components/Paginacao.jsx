@@ -81,18 +81,19 @@ const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLi
           gap: 6px;
           white-space: nowrap;
         }
-        .paginacao-minimalista-limite select {
-          min-height: 32px;
+        .paginacao-minimalista .paginacao-minimalista-limite select {
+          min-height: 40px;
           padding: 0 8px;
           border: 1px solid var(--border-color);
           border-radius: 8px;
           background: var(--bg-secondary);
           color: var(--text-primary);
         }
-        .paginacao-minimalista-arrow,
-        .paginacao-minimalista-numero {
+        .paginacao-minimalista .paginacao-minimalista-arrow,
+        .paginacao-minimalista .paginacao-minimalista-numero {
           min-width: 32px;
-          height: 32px;
+          height: 40px;
+          min-height: 40px;
           border: 1px solid var(--border-color);
           border-radius: 8px;
           background: var(--bg-secondary);
@@ -117,7 +118,7 @@ const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLi
         }
         .paginacao-minimalista-numero.ativo {
           background: var(--accent-primary);
-          color: #fff;
+          color: var(--accent-text);
           border-color: var(--accent-primary);
         }
         .paginacao-minimalista-numero:hover:not(.ativo),

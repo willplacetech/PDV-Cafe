@@ -86,14 +86,14 @@ export default function ConfirmarAcao({ titulo, mensagem, acaoTexto = 'Confirmar
             <p id={mensagemId} style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-secondary)' }}>{mensagem}</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button ref={cancelButtonRef} type="button" onClick={() => setAberto(false)} style={{
-                flex: 1, padding: '12px', background: 'var(--bg-tertiary)',
+                flex: 1, padding: '12px 16px', background: 'var(--bg-tertiary)',
                 color: 'var(--text-primary)', border: '1px solid var(--border-color)',
-                borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44,
+                borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 48,
               }}>Cancelar</button>
               <button type="button" onClick={handleConfirmar} style={{
-                flex: 1, padding: '12px', background: 'var(--error-bg)',
+                flex: 1, padding: '12px 16px', background: 'var(--error-bg)',
                 color: 'var(--error-text)', border: 'none', borderRadius: 10,
-                fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44,
+                fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 48,
               }}>{acaoTexto}</button>
             </div>
           </div>

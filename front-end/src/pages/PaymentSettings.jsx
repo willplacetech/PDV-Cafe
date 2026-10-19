@@ -119,8 +119,8 @@ export default function PaymentSettings() {
       .payment-settings-grid article,.payment-settings-new{display:grid;gap:12px;padding:20px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);box-shadow:var(--shadow-sm)}
       .payment-settings-new{grid-template-columns:2fr 1fr auto;margin-top:18px;align-items:end}.payment-settings-new h2{grid-column:1/-1;margin:0;font-size:16px}
       .payment-settings-new label{display:grid;gap:8px}.payment-settings-grid label{font-weight:800}.payment-settings-grid article>div{display:flex;align-items:center;gap:8px}
-      .payment-settings-page input{width:100%;box-sizing:border-box;min-height:46px;padding:10px;border:1px solid var(--border-color);border-radius:9px;background:var(--input-bg);color:var(--input-text);font:inherit}
-      .payment-settings-page button{min-height:44px;padding:10px;border:0;border-radius:9px;background:var(--accent-primary);color:#fff;font:inherit;font-weight:800;cursor:pointer}
+      .payment-settings-page input{width:100%}
+      .payment-settings-page button{min-height:48px;padding:12px 16px;border:0;border-radius:10px;background:var(--accent-primary);color:var(--accent-text);font:700 14px var(--font-body);font-weight:700;cursor:pointer}
       .payment-settings-page button:disabled{opacity:.6;cursor:wait}
       .payment-settings-grid article{align-content:start}.payment-settings-grid h2{margin:0;font-size:16px}
       .payment-settings-edit{display:grid;gap:8px}.payment-settings-rate{margin:0;color:var(--text-secondary)}

@@ -647,7 +647,7 @@ export default function Products() {
       <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 16 }}>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 10 }}>
           {filtrosTipo.map((tipo) => (
-            <button key={tipo} type="button" onClick={() => atualizarFiltro('filtroTipo', tipo, setFiltroTipo)} style={{ flexShrink: 0, minHeight: 40, padding: '8px 13px', borderRadius: 20, border: filtroTipo === tipo ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)', background: filtroTipo === tipo ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: filtroTipo === tipo ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+            <button key={tipo} type="button" onClick={() => atualizarFiltro('filtroTipo', tipo, setFiltroTipo)} style={{ flexShrink: 0, minHeight: 40, padding: '8px 13px', borderRadius: 20, border: filtroTipo === tipo ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)', background: filtroTipo === tipo ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: filtroTipo === tipo ? 'var(--accent-text)' : 'var(--text-secondary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
               {tipo}
             </button>
           ))}
@@ -759,9 +759,7 @@ export default function Products() {
         .product-essential-grid > label { display: flex; min-width: 0; flex-direction: column; align-self: start; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
         .product-essential-grid > label > small { color: var(--text-tertiary); font-size: 11px; font-weight: 500; }
         .product-essential-grid input:not([type="radio"]):not([type="checkbox"]),
-        .product-essential-grid :is(select, .searchable-select-input) { width: 100%; min-width: 0; height: 42px; min-height: 42px; box-sizing: border-box; margin: 0; padding: 9px 11px; border: 1px solid var(--input-border); border-radius: 8px; background: var(--input-bg); color: var(--input-text); font: inherit; }
-        .product-essential-grid input:focus, .product-essential-grid :is(select, .searchable-select-input):focus,
-        .product-form-section input:focus, .product-form-section :is(select, .searchable-select-input):focus { outline: none; border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-light); }
+        .product-essential-grid :is(select, .searchable-select-input) { width: 100%; min-width: 0; margin: 0; }
         .product-type-field { min-width: 0; margin: 0; padding: 10px 12px; border: 1px solid var(--border-light); border-radius: 10px; background: var(--bg-tertiary); }
         .product-type-label { padding: 0 4px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
         .product-type-field .product-radio-group { gap: 8px 18px; }
@@ -771,18 +769,18 @@ export default function Products() {
         .product-cost-summary .product-summary-grid small { color: var(--text-secondary); font-size: 11px; }
         .product-cost-summary .product-summary-grid strong { overflow-wrap: anywhere; color: var(--text-primary); font-size: 14px; }
         .product-form-actions { display: flex; gap: 10px; margin-top: 16px; }
-        .product-submit-button, .product-cancel-button { min-height: 44px; border-radius: 9px; font: inherit; font-weight: 800; cursor: pointer; }
-        .product-submit-button { flex: 1; padding: 10px 16px; border: 1px solid var(--accent-primary); background: var(--accent-primary); color: var(--bg-secondary); }
+        .product-submit-button, .product-cancel-button { min-height: 48px; border-radius: 10px; font: 700 14px var(--font-body); font-weight: 700; cursor: pointer; }
+        .product-submit-button { flex: 1; padding: 12px 16px; border: 1px solid var(--accent-primary); background: var(--accent-primary); color: var(--bg-secondary); }
         .product-submit-button:hover { border-color: var(--accent-primary); background: var(--accent-primary); filter: brightness(.92); }
-        .product-cancel-button { padding: 0 18px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-primary); }
+        .product-cancel-button { padding: 12px 16px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-primary); }
         .product-cancel-button:hover { background: var(--bg-hover); }
         .product-type-field .product-radio-option { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; color: var(--text-primary); font-weight: 600; cursor: pointer; }
         .product-type-field .product-radio { width: 16px; height: 16px; min-width: 16px; min-height: 16px; margin: 0; accent-color: var(--accent-primary); }
         .product-list-controls { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 14px 0 10px; }
         .product-list-filters { display: flex; min-width: 0; gap: 8px; flex-wrap: wrap; }
-        .products-page .product-filter-select, .products-page .product-filter-input { min-width: 0; min-height: 40px; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 9px; background: var(--bg-tertiary); color: var(--text-primary); font: inherit; }
+        .products-page .product-filter-select, .products-page .product-filter-input { min-width: 0; min-height: 40px; padding: 8px 10px; border-radius: 8px; }
         .products-page .product-filter-input { min-width: 180px; }
-        .product-card-edit, .product-card-delete { min-height: 38px; padding: 8px 12px; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+        .product-card-edit, .product-card-delete { min-height: 40px; padding: 8px 12px; border-radius: 8px; font: 700 14px var(--font-body); font-size: 12px; font-weight: 700; cursor: pointer; }
         .product-card-edit { border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); }
         .product-card-delete { border: 1px solid rgba(239, 68, 68, .25); background: rgba(239, 68, 68, .1); color: var(--error-bg); }
         .product-card-delete:hover { border-color: var(--error-bg); background: rgba(239, 68, 68, .16); }
@@ -793,7 +791,7 @@ export default function Products() {
         .product-form-collapsible > summary::after, .product-discount-toggle::after { content: '＋'; margin-left: auto; color: var(--accent-primary); font-size: 18px; font-weight: 700; }
         .product-form-collapsible[open] > summary::after, .product-discount-panel[open] .product-discount-toggle::after { content: '−'; }
         .product-form-collapsible > .product-form-grid { margin-top: 14px; }
-        .product-filter-select { background-color: var(--bg-tertiary) !important; color: var(--text-primary) !important; color-scheme: normal; }
+        .product-filter-select { color-scheme: normal; min-height: 40px; padding: 8px 10px; border-radius: 8px; }
         .product-filter-select option { background: var(--bg-secondary); color: var(--text-primary); }
         .product-section-title { display: flex; align-items: center; gap: 9px; padding-bottom: 10px; border-bottom: 1px solid var(--border-light); }
         .product-section-title > span { font-size: 17px; }
@@ -813,15 +811,6 @@ export default function Products() {
         }
         .product-form-section input, .product-form-section :is(select, .searchable-select-input) {
           width: 100%;
-          box-sizing: border-box;
-          height: 42px;
-          min-height: 42px;
-          padding: 9px 11px;
-          border: 1px solid var(--border-color);
-          border-radius: 8px;
-          background: var(--input-bg);
-          color: var(--input-text);
-          font: inherit;
           line-height: 1.2;
           margin: 0;
         }
@@ -847,7 +836,6 @@ export default function Products() {
         .product-discount-group-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
         .product-discount-hint { color: var(--success-bg); font-size: 11px; }
         .product-input-with-unit { display: grid; grid-template-columns: minmax(0, 1fr) 76px; gap: 8px; align-items: stretch; }
-        .product-input-with-unit input, .product-input-with-unit :is(select, .searchable-select-input) { height: 42px; }
         .product-summary-section { background: var(--bg-secondary); }
         .product-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
         .product-summary-grid div { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--border-light); border-radius: 9px; }
@@ -894,7 +882,7 @@ export default function Products() {
           .product-type-field .product-radio { flex: 0 0 auto; margin-top: 1px; }
           .product-field-full { grid-column: 1 / -1; }
           .product-form-actions { flex-direction: column; }
-          .product-submit-button, .product-cancel-button { width: 100%; min-height: 46px; }
+          .product-submit-button, .product-cancel-button { width: 100%; min-height: 48px; }
           .product-list-controls { align-items: stretch; flex-direction: column; }
           .product-list-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
           .products-page .product-filter-select, .products-page .product-filter-input { width: 100%; min-width: 0; }
