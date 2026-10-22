@@ -48,7 +48,7 @@ export function buildNotaVendaHtml(pedido, { comandaNumero, titulo = 'NOTA DE VE
       .marca { font-size:16px; font-weight:bold; letter-spacing:.4px; }
       .subtitulo { font-size:11px; margin-top:2px; }
       .linha, .separador { border-top:1px dashed #000; margin:8px 0; }
-      .dados { display:grid; grid-template-columns:82pxpx 1fr; gap:3px 6px; }
+      .dados { display:grid; grid-template-columns:82px 1fr; gap:3px 6px; }
       .dados span:nth-child(odd) { font-weight:bold; }
       table { width:100%; border-collapse:collapse; margin-top:6px; }
       th { border-bottom:1px solid #000; padding:3px 0; text-align:left; font-size:10px; }
