@@ -1,7 +1,7 @@
 {
-  "name": "Sabor de Abraço",
-  "short_name": "Sabor de Abraço",
-  "description": "Cafeteria e sistema de atendimento do Sabor de Abraço",
+  "name": "PDV",
+  "short_name": "PDV",
+  "description": "Sistema de atendimento e ponto de venda",
   "theme_color": "#a0522d",
   "background_color": "#f7f3ec",
   "start_url": "/",
@@ -11,16 +11,16 @@
   "scope": "/",
   "icons": [
     {
-      "src": "/Abraco1.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     },
     {
-      "src": "/Abraco1.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ]
 }
