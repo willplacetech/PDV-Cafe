@@ -18,8 +18,8 @@ export const branding = {
   shortName: env('VITE_APP_SHORT_NAME', 'PDV'),
   tagline: env('VITE_APP_TAGLINE', 'Sistema de atendimento'),
   logoUrl: env('VITE_APP_LOGO_URL', '/logo.svg'),
-  themeColor: env('VITE_APP_THEME_COLOR', '#a0522d'),
-  backgroundColor: env('VITE_APP_BG_COLOR', '#f7f3ec'),
+  themeColor: env('VITE_APP_THEME_COLOR', '#4f9d6a'),
+  backgroundColor: env('VITE_APP_BG_COLOR', '#f3f6f1'),
 };
 
 export default branding;
