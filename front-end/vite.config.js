@@ -54,7 +54,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: false,
-      includeAssets: ['Abraco1.png', 'Abraco5.png', 'Abraco10.png', 'Abraco11.png', 'apple-touch-icon.png'],
+      includeAssets: ['logo.svg'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest,woff2}'],
         globIgnores: ['version.json'],
@@ -77,8 +77,6 @@ export default defineConfig({
               networkTimeoutSeconds: 3,
             },
           },
-          // Scripts/workers: rede primeiro para não servir chunk com hash antigo após deploy
-          // (evita MIME text/html do fallback SPA em imports dinâmicos).
           {
             urlPattern: ({ request }) => request.destination === 'script' || request.destination === 'worker',
             handler: 'NetworkFirst',
@@ -96,7 +94,6 @@ export default defineConfig({
           },
         ],
       },
-      // No iOS, cache pode ser limpo após ~7 dias sem uso.
     })
   ],
 })
