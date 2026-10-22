@@ -26,7 +26,7 @@ const garantirTokensMesas = async (settings) => {
     alterado = true;
   }
 
-  if (alterado) await settings.save();
+  if (alterado || settings.isModified()) await settings.save();
   return settings;
 };
 
