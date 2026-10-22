@@ -89,7 +89,7 @@ export default function Login() {
               background: 'var(--accent-primary)', color: 'var(--accent-text)',
               border: 'none', padding: '8px 12px', borderRadius: 8, fontSize: 13,
               cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700,
-              display        display: 'flex', alignItems: 'center', gap: 6,
+              display: 'flex', alignItems: 'center', gap: 6,
               minHeight: 40
             }} title="Instalar app">
               ⬇️ Instalar
