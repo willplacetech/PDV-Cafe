@@ -16,7 +16,7 @@ Inclui geração e exibição local do QR por mesa, consulta pública do cardáp
 - Reutilizar as comandas e o polling existentes; não adicionar Socket.IO.
 - A comanda usa `status: 'aberta'` e `statusPagamento: 'pendente'`, compatíveis com os fluxos atuais. A origem será `origem: 'qr'`.
 - A mensagem de consentimento é obrigatória. O consentimento será registrado por pedido com horário do servidor; nenhum WhatsApp será enviado automaticamente nesta etapa.
-- Nome e telefone são associados a um registro interno de Cliente por telefone normalizado. As rotas públicas não retornam o telefone.
+- Nome e telefone são associados a um registro interno de Cliente por telefone normalizado. Se o telefone já existir, reutilizar o Cliente e preservar o nome cadastrado. As rotas públicas não retornam o telefone.
 - Os dados do formulário ficam em `sessionStorage` durante a sessão e são removidos após a confirmação do pedido.
 - QR codes são gerados localmente; o token e os dados do cliente não são enviados a um serviço de terceiros.
 - Os produtos de pedidos QR aparecem no KDS mesmo quando não estão marcados individualmente como “A Fazer”; comandas não-QR mantêm o comportamento atual do KDS.
@@ -38,7 +38,7 @@ O POST executa em transação, seguindo o fluxo de venda existente:
 
 1. Revalidar mesa ativa pelo token.
 2. Consultar produtos ativos no banco e calcular preços e snapshots a partir dos dados atuais; nunca confiar em preço do cliente.
-3. Normalizar telefone; buscar Cliente existente e reutilizá-lo, ou criar um Cliente com o telefone normalizado. O índice único atual de telefone protege duplicidade.
+3. Normalizar telefone; buscar Cliente existente e reutilizá-lo sem sobrescrever o nome já cadastrado, ou criar um Cliente com o nome e telefone informados. O índice único atual de telefone protege duplicidade.
 4. Baixar estoque por meio das regras existentes para impedir pedidos acima do saldo e manter consistência com as comandas.
 5. Criar uma comanda de mesa aberta, não paga, vinculada à mesa, com cliente, itens, observações, `origem: 'qr'` e registro do consentimento por pedido (`aceito` e timestamp do servidor).
 6. Confirmar transação e responder apenas com sucesso, número/identificador da comanda, status e mesa; nunca devolver telefone.
@@ -85,7 +85,7 @@ O endpoint autenticado do KDS incluirá todos os itens das comandas QR abertas, 
 - Token inválido ou mesa inativa não cria Cliente, comanda nem movimentação de estoque.
 - Token da URL identifica a mesa; campos de mesa adulterados no body são ignorados.
 - Preços ou nomes adulterados no body são ignorados; preço final corresponde ao produto persistido.
-- Repetir telefone reutiliza o mesmo Cliente; pedidos mantêm snapshots adequados.
+- Repetir telefone reutiliza o mesmo Cliente e preserva o nome existente; pedidos mantêm snapshots adequados.
 - Erro de estoque/transação não deixa Cliente/comanda parcialmente criados.
 - Consentimento fica registrado com timestamp do servidor por pedido.
 - Resposta pública não contém telefone, nem outros dados privados do Cliente.
@@ -128,6 +128,7 @@ Não fazer esses testes contra produção com pedidos reais; usar ambiente de te
 - A mesma transação protege criação de Cliente, baixa de estoque e comanda.
 - O token da mesa é a única fonte de autoridade para identificar a mesa.
 - O consentimento é exigido no servidor e persistido por pedido.
+- Cliente encontrado pelo telefone é reutilizado sem sobrescrever o nome cadastrado.
 - Os endpoints públicos retornam somente dados de catálogo e confirmação; nenhum telefone é retornado.
 - Polling está alinhado ao comportamento já usado pelo KDS e não introduz um serviço de tempo real separado.
 - A integração automática com WhatsApp e pagamento online permanecem explicitamente fora do escopo.
