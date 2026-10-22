@@ -2,7 +2,7 @@
 
 **Data:** 2026-10-22  
 **Projeto:** PDV-Cafe  
-**Status:** aguardando revisão do usuário
+**Status:** aprovado pelo usuário
 
 ## Objetivo e escopo
 
