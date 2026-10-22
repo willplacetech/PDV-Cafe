@@ -9,7 +9,7 @@ export const lerSessao = (courier = false) => {
 };
 export const salvarSessao = (data, courier = false) => ({ user: setAccessSession(courier ? 'courier' : 'delivery', data) });
 export const criarApiDelivery = (courier = false) => {
-  const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'https://pdv-completo-z6ly.onrender.com/api', timeout: 15000, withCredentials: true });
+  const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'https://restaurante-pdv-back.onrender.com/api', timeout: 15000, withCredentials: true });
   attachSessionInterceptors(api, courier ? 'courier' : 'delivery');
   return api;
 };

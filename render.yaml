@@ -54,6 +54,6 @@ services:
       - key: NODE_VERSION
         value: '22'
       - key: API_PUBLIC_URL
-        value: https://pdv-completo-z6ly.onrender.com
+        value: https://restaurante-pdv-back.onrender.com
       - key: VITE_SENTRY_DSN
         sync: false
