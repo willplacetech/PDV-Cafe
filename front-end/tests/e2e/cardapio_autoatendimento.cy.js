@@ -10,6 +10,11 @@ const cardapio = {
     unidadeVenda: 'un',
   }],
 };
+const tokenQr = 'q'.repeat(43);
+const mesasQr = [
+  { id: 5, numero: 5, nome: 'Mesa 5', lugares: 4, ativa: true, token: tokenQr },
+  { id: 6, numero: 6, nome: 'Mesa 6', lugares: 2, ativa: false, token: 'i'.repeat(43) },
+];
 
 const carregarRotaPublica = (options = {}) => {
   cy.intercept('GET', `**/api/pedidos/auto-atendimento/${mesaToken}`, cardapio).as('cardapio');
@@ -107,5 +112,32 @@ describe('Cardápio público por QR', () => {
     cy.contains('O servidor encontrou um problema').should('be.visible');
     cy.get('[data-testid="produto-qr-produto-cafe"]').should('be.visible');
     cy.window().its('sessionStorage').invoke('getItem', clienteStorageKey).should('not.be.null');
+  });
+
+  it('exibe QR local somente para mesas ativas e imprime apenas o QR selecionado', () => {
+    cy.intercept('GET', '**/api/mesas', { statusCode: 200, body: { mesas: mesasQr, oferecerBalcao: true } }).as('mesas');
+    cy.intercept('PUT', '**/api/mesas', (request) => {
+      request.reply({ statusCode: 200, body: request.body });
+    }).as('salvarMesas');
+    cy.login();
+    cy.visit('/cadastro/mesas');
+    cy.wait('@mesas');
+
+    cy.get('a[href$="/cardapio/' + tokenQr + '"]').should('have.attr', 'href', `${window.location.origin}/cardapio/${tokenQr}`);
+    cy.get('img[alt="QR code da Mesa 5"]').should('have.attr', 'src').and('match', /^data:image\/png;base64,/);
+    cy.get('tbody tr').eq(1).should('not.contain', 'Imprimir QR').and('not.contain', '/cardapio/');
+
+    cy.get('tbody tr').first().find('input').first().clear().type('Mesa externa');
+    cy.contains('button', 'Salvar').click();
+    cy.wait('@salvarMesas');
+    cy.get('a[href$="/cardapio/' + tokenQr + '"]').should('be.visible');
+
+    cy.window().then((win) => {
+      cy.stub(win, 'print').callsFake(() => {
+        expect(win.document.body.dataset.mesaQrImpressao).to.equal('mesa-5');
+      }).as('imprimirQr');
+    });
+    cy.contains('button', 'Imprimir QR da Mesa 5').click();
+    cy.get('@imprimirQr').should('have.been.calledOnce');
   });
 });

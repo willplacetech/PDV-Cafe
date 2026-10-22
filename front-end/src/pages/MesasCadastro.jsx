@@ -4,6 +4,7 @@ import { useToast } from '../components/useToast.js';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
 import EstadoLista from '../components/EstadoLista.jsx';
+import MesaCardapioQr from '../components/mesas/MesaCardapioQr.jsx';
 
 const criarMesaInicial = (numero) => ({
   id: numero,
@@ -121,13 +122,14 @@ export default function MesasCadastro() {
           onRetry={() => { void carregar(); }}
         >
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
               <thead>
                 <tr style={{ textAlign: 'left', color: 'var(--text-secondary)', fontSize: 12, textTransform: 'uppercase' }}>
                   <th style={{ padding: '10px 8px' }}>Nº</th>
                   <th style={{ padding: '10px 8px' }}>Nome / Rótulo</th>
                   <th style={{ padding: '10px 8px' }}>Lugares</th>
                   <th style={{ padding: '10px 8px' }}>Status</th>
+                  <th style={{ padding: '10px 8px' }}>Cardápio QR</th>
                   <th style={{ padding: '10px 8px' }}>Ações</th>
                 </tr>
               </thead>
@@ -155,6 +157,11 @@ export default function MesasCadastro() {
                     </td>
                     <td style={{ padding: '12px 8px', fontWeight: 700, color: mesa.ativa ? 'var(--success-bg)' : 'var(--text-secondary)' }}>
                       {mesa.ativa ? '✅ Ativa' : '⚫ Inativa'}
+                    </td>
+                    <td style={{ padding: '12px 8px' }}>
+                      {mesa.ativa && mesa.token
+                        ? <MesaCardapioQr mesa={mesa} />
+                        : <small>{mesa.ativa ? 'Salve a mesa para gerar o QR.' : 'Disponível somente para mesas ativas.'}</small>}
                     </td>
                     <td style={{ padding: '12px 8px' }}>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
