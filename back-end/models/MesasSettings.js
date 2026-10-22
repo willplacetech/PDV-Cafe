@@ -6,6 +6,7 @@ const mesaSchema = new mongoose.Schema({
   nome: { type: String, required: true, trim: true, maxlength: 100 },
   lugares: { type: Number, required: true, min: 1, max: 100 },
   ativa: { type: Boolean, required: true },
+  token: { type: String, trim: true, maxlength: 128 },
 }, { _id: false });
 
 const mesasSettingsSchema = new mongoose.Schema({

@@ -1,6 +1,7 @@
 const express = require('express');
 const auth = require('../middleware/auth');
 const MesasSettings = require('../models/MesasSettings');
+const { garantirTokensMesas } = require('../utils/mesaTokens');
 
 const router = express.Router();
 const mesasPadrao = () => ({
@@ -11,8 +12,9 @@ const mesasPadrao = () => ({
 router.use(auth);
 router.get('/', auth.allowRoles('admin', 'operador', 'garcom', 'cozinha'), async (req, res, next) => {
   try {
-    const settings = await MesasSettings.findById('principal').lean();
-    return res.json(settings ? { mesas: settings.mesas, oferecerBalcao: settings.oferecerBalcao } : mesasPadrao());
+    const settings = await MesasSettings.findById('principal') || new MesasSettings({ _id: 'principal', ...mesasPadrao() });
+    await garantirTokensMesas(settings);
+    return res.json({ mesas: settings.mesas, oferecerBalcao: settings.oferecerBalcao });
   } catch (error) { return next(error); }
 });
 
@@ -33,9 +35,13 @@ router.put('/', auth.allowRoles('admin'), async (req, res, next) => {
   });
   if (!validas) return res.status(400).json({ msg: 'Cada mesa precisa de número único, nome e capacidade válidos' });
   try {
-    const settings = await MesasSettings.findByIdAndUpdate('principal', {
-      $set: { mesas: mesas.map(({ id, numero, nome, lugares, ativa }) => ({ id, numero, nome: nome.trim(), lugares, ativa })), oferecerBalcao },
-    }, { upsert: true, new: true, runValidators: true });
+    const settings = await MesasSettings.findById('principal') || new MesasSettings({ _id: 'principal' });
+    const tokensExistentes = new Map((settings.mesas || []).map((mesa) => [mesa.id, mesa.token]));
+    settings.mesas = mesas.map(({ id, numero, nome, lugares, ativa }) => ({
+      id, numero, nome: nome.trim(), lugares, ativa, token: tokensExistentes.get(id),
+    }));
+    settings.oferecerBalcao = oferecerBalcao;
+    await garantirTokensMesas(settings);
     return res.json({ mesas: settings.mesas, oferecerBalcao: settings.oferecerBalcao });
   } catch (error) { return next(error); }
 });
