@@ -95,6 +95,7 @@ app.use('/api/compras', require('./routes/purchases'));
 app.use('/api/receitas', require('./routes/receitas'));
 app.use('/api/produtos', require('./routes/products'));
 app.use('/api/mesas', require('./routes/mesas'));
+app.use('/api/pedidos', require('./routes/autoAtendimento'));
 app.use('/api/configuracoes', require('./routes/configuracoes'));
 app.use('/api/auditoria', require('./routes/auditoria'));
 app.use('/api', require('./routes/delivery'));

@@ -1,0 +1,248 @@
+const crypto = require('crypto');
+const express = require('express');
+const mongoose = require('mongoose');
+const rateLimit = require('express-rate-limit');
+const Comanda = require('../models/Comanda');
+const Customer = require('../models/Customer');
+const MesasSettings = require('../models/MesasSettings');
+const Product = require('../models/Product');
+const { calcularPrecoComDesconto, calcularPrecoGrupo } = require('../utils/descontosQuantidade');
+const { ajustarEstoque } = require('../utils/movimentarEstoqueVenda');
+const { precoPorUnidade } = require('../utils/pesoProduto');
+const { produtoControlaPeso } = require('../utils/estoqueProduto');
+
+const router = express.Router();
+const atendenteQr = 'Autoatendimento QR';
+const camposExtrasIgnorados = new Set(['mesa', 'preco', 'nomeProduto']);
+const limitarPedidosQr = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { msg: 'Muitos pedidos. Tente novamente mais tarde.' },
+});
+
+const erroValidacao = (msg) => Object.assign(new Error(msg), { status: 400 });
+const respostaComanda = (comanda) => ({
+  comandaId: String(comanda._id),
+  numero: comanda.numero,
+  status: comanda.status,
+  mesa: comanda.mesa,
+});
+const possuiCamposNaoPermitidos = (valor, permitidos) => Object.keys(valor)
+  .some((campo) => !permitidos.has(campo) && !camposExtrasIgnorados.has(campo));
+
+const localizarMesa = async (mesaToken, session) => {
+  let query = MesasSettings.findById('principal').select('mesas');
+  if (session) query = query.session(session);
+  const settings = await query.lean();
+  return settings?.mesas?.find((mesa) => mesa.token === mesaToken) || null;
+};
+
+const responderReplay = (res, comanda, hash) => {
+  if (comanda.idempotencyHash !== hash) {
+    return res.status(409).json({ msg: 'Esta chave já foi usada em outro pedido' });
+  }
+  return res.status(200).json(respostaComanda(comanda));
+};
+
+const validarPedido = (body, idempotencyKey) => {
+  if (!idempotencyKey || !/^[A-Za-z0-9._:-]{1,128}$/.test(idempotencyKey)) {
+    throw erroValidacao('Chave de idempotência inválida');
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw erroValidacao('Pedido inválido');
+  const camposBody = new Set(['mesaToken', 'clienteNome', 'clienteTelefone', 'consentimentoWhatsApp', 'itens']);
+  if (possuiCamposNaoPermitidos(body, camposBody)) throw erroValidacao('Pedido contém campos não permitidos');
+
+  const clienteNome = typeof body.clienteNome === 'string' ? body.clienteNome.trim() : '';
+  const clienteTelefone = typeof body.clienteTelefone === 'string' ? body.clienteTelefone.replace(/\D/g, '') : '';
+  if (!clienteNome || clienteNome.length > 120) throw erroValidacao('Informe um nome válido');
+  if (clienteTelefone.length < 10 || clienteTelefone.length > 13) throw erroValidacao('Informe um telefone válido');
+  if (body.consentimentoWhatsApp !== true) throw erroValidacao('É necessário aceitar atualizações do pedido por WhatsApp');
+  if (typeof body.mesaToken !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.mesaToken)) {
+    throw erroValidacao('Token de mesa inválido');
+  }
+  if (!Array.isArray(body.itens) || body.itens.length < 1 || body.itens.length > 50) {
+    throw erroValidacao('Informe entre 1 e 50 itens');
+  }
+
+  const camposItem = new Set(['produtoId', 'quantidade', 'observacao']);
+  const itens = body.itens.map((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item) || possuiCamposNaoPermitidos(item, camposItem)) {
+      throw erroValidacao('Item inválido');
+    }
+    if (typeof item.produtoId !== 'string' || !mongoose.isValidObjectId(item.produtoId)
+      || !Number.isInteger(item.quantidade) || item.quantidade < 1 || item.quantidade > 99) {
+      throw erroValidacao('Item ou quantidade inválidos');
+    }
+    const observacao = item.observacao === undefined ? '' : item.observacao;
+    if (typeof observacao !== 'string' || observacao.length > 250) throw erroValidacao('Observação inválida');
+    return { produtoId: item.produtoId, quantidade: item.quantidade, observacao: observacao.trim() };
+  });
+
+  return {
+    mesaToken: body.mesaToken,
+    clienteNome,
+    clienteTelefone,
+    consentimentoWhatsApp: true,
+    itens,
+  };
+};
+
+const construirItens = (itensSolicitados, produtos) => {
+  const porId = new Map(produtos.map((produto) => [String(produto._id), produto]));
+  const quantidades = new Map();
+  itensSolicitados.forEach((item) => {
+    quantidades.set(item.produtoId, (quantidades.get(item.produtoId) || 0) + item.quantidade);
+  });
+  const cartItens = itensSolicitados.map((item) => ({
+    produto: porId.get(item.produtoId),
+    quantidade: item.quantidade,
+  }));
+  const itens = itensSolicitados.map((solicitado) => {
+    const produto = porId.get(solicitado.produtoId);
+    if (!produto) throw erroValidacao('Um ou mais produtos não estão disponíveis');
+    const precoBase = precoPorUnidade(produto);
+    const pricing = calcularPrecoComDesconto(produto, quantidades.get(solicitado.produtoId), precoBase);
+    const grupoPricing = calcularPrecoGrupo(
+      produto,
+      quantidades.get(solicitado.produtoId),
+      cartItens,
+      pricing.precoUnitario,
+    );
+    const aplicarDescontoGrupo = grupoPricing?.grupoAtivo && grupoPricing.precoUnitario < pricing.precoUnitario;
+    const pesoControlado = produtoControlaPeso(produto);
+
+    return {
+      produtoId: produto.id,
+      codigo: produto.codigo,
+      nome: produto.nome,
+      precoUnitario: aplicarDescontoGrupo ? grupoPricing.precoUnitario : pricing.precoUnitario,
+      precoUnitarioOriginal: pricing.precoNormal,
+      descontoQuantidade: aplicarDescontoGrupo ? grupoPricing.economiaUnitario : pricing.economiaUnitario,
+      economiaQuantidade: aplicarDescontoGrupo ? grupoPricing.economiaTotal : pricing.economiaTotal,
+      faixaDescontoQuantidade: aplicarDescontoGrupo ? undefined : pricing.faixaAplicada?.quantidadeMinima,
+      grupoDescontoAtivo: Boolean(aplicarDescontoGrupo),
+      totalGrupo: grupoPricing?.totalGrupo || 0,
+      faltamParaGrupo: grupoPricing?.faltamParaGrupo || 0,
+      quantidade: solicitado.quantidade,
+      quantidadePecas: solicitado.quantidade,
+      tipoVenda: pesoControlado ? 'inteiro' : 'unidade',
+      unidadeVenda: produto.unidadeVenda,
+      pesoPorUnidade: produto.pesoPorUnidade,
+      unidadePeso: produto.unidadePeso,
+      observacao: solicitado.observacao,
+      aFazer: Boolean(produto.aFazer),
+      insumosConsumidos: (produto.fichaTecnica || []).map((ingrediente) => ({
+        produtoId: ingrediente.produtoId,
+        quantidade: ingrediente.quantidade,
+        unidade: ingrediente.unidade,
+      })),
+    };
+  });
+  return itens;
+};
+
+router.get('/auto-atendimento/:mesaToken', async (req, res, next) => {
+  try {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(req.params.mesaToken)) return res.status(404).json({ msg: 'Mesa não encontrada' });
+    const mesa = await localizarMesa(req.params.mesaToken);
+    if (!mesa?.ativa) return res.status(404).json({ msg: 'Mesa não encontrada' });
+    const produtos = await Product.find({ tipo: 'venda', ativo: true })
+      .select('_id nome categoria preco unidadeVenda pesoPorUnidade unidadePeso')
+      .sort({ nome: 1, _id: 1 })
+      .lean();
+    return res.json({
+      mesa: { numero: mesa.numero, nome: mesa.nome },
+      produtos: produtos.map((produto) => ({
+        produtoId: String(produto._id),
+        nome: produto.nome,
+        categoria: produto.categoria,
+        preco: precoPorUnidade(produto),
+        unidadeVenda: produto.unidadeVenda,
+      })),
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/auto-atendimento', limitarPedidosQr, async (req, res, next) => {
+  let session;
+  let hash;
+  let idempotencyKey;
+  try {
+    idempotencyKey = req.get('Idempotency-Key');
+    const pedido = validarPedido(req.body, idempotencyKey);
+    hash = crypto.createHash('sha256').update(JSON.stringify(pedido)).digest('hex');
+    const filtroIdempotencia = { atendente: atendenteQr, idempotencyKey };
+    const anterior = await Comanda.findOne(filtroIdempotencia).lean();
+    if (anterior) return responderReplay(res, anterior, hash);
+
+    session = await mongoose.startSession();
+    let comanda;
+    await session.withTransaction(async () => {
+      const mesa = await localizarMesa(pedido.mesaToken, session);
+      if (!mesa?.ativa) throw Object.assign(new Error('Mesa não encontrada'), { status: 404 });
+
+      const productIds = [...new Set(pedido.itens.map((item) => item.produtoId))];
+      const produtos = await Product.find({ _id: { $in: productIds }, tipo: 'venda', ativo: true }).session(session);
+      if (produtos.length !== productIds.length) throw erroValidacao('Um ou mais produtos não estão disponíveis');
+      const itens = construirItens(pedido.itens, produtos);
+      const customer = await Customer.findOne({ telefone: pedido.clienteTelefone }).session(session);
+      const cliente = customer || new Customer({ nome: pedido.clienteNome, telefone: pedido.clienteTelefone });
+      if (!customer) await cliente.save({ session });
+
+      try {
+        await ajustarEstoque(itens, 'baixar', session);
+      } catch (error) {
+        if (error.message.startsWith('Estoque insuficiente para ')) {
+          throw Object.assign(new Error('Estoque insuficiente para um ou mais itens'), { status: 400 });
+        }
+        throw error;
+      }
+      const subtotal = Math.round((itens.reduce((total, item) => total + item.precoUnitario * item.quantidade, 0) + Number.EPSILON) * 100) / 100;
+      [comanda] = await Comanda.create([{
+        atendente: atendenteQr,
+        idempotencyKey,
+        idempotencyHash: hash,
+        clienteId: cliente._id,
+        clienteNome: cliente.nome,
+        clienteTelefone: pedido.clienteTelefone,
+        mesa: String(mesa.numero),
+        tipoAtendimento: 'mesa',
+        origem: 'qr',
+        consentimentoWhatsApp: { aceito: true, registradoEm: new Date() },
+        itens,
+        valorTotal: subtotal,
+        saldoDevedor: subtotal,
+        status: 'aberta',
+        statusPagamento: 'pendente',
+        estoqueBaixado: true,
+      }], { session });
+    });
+    return res.status(201).json(respostaComanda(comanda));
+  } catch (error) {
+    if (session?.inTransaction()) await session.abortTransaction();
+    if (idempotencyKey && (error.code === 11000
+      || error.hasErrorLabel?.('TransientTransactionError')
+      || error.hasErrorLabel?.('UnknownTransactionCommitResult'))) {
+      const anterior = await Comanda.findOne({ atendente: atendenteQr, idempotencyKey }).lean();
+      if (anterior) return responderReplay(res, anterior, hash);
+      if (error.code === 11000) return res.status(409).json({ msg: 'Pedido duplicado ou chave já utilizada' });
+    }
+    if (error.status && error.status < 500) return res.status(error.status).json({ msg: error.message });
+    if (error.code === 11000) return res.status(409).json({ msg: 'Pedido duplicado' });
+    console.error(JSON.stringify({
+      evento: 'falha_pedido_qr',
+      tipoErro: error.name,
+      codigoErro: error.code || null,
+      etiquetasErro: error.errorLabels || [],
+    }));
+    return next(Object.assign(new Error('Falha interna ao processar pedido QR'), { status: 500 }));
+  } finally {
+    if (session) await session.endSession();
+  }
+});
+
+module.exports = router;

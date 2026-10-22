@@ -100,7 +100,7 @@ Expected: FAIL porque endpoints ainda não existem.
 
 - [ ] **Step 3: Implementar schema da comanda e endpoints públicos**
 
-Adicionar campos opcionais `origem`, `consentimentoWhatsApp.aceito`, `consentimentoWhatsApp.registradoEm`, `idempotencyKey`, `idempotencyPayloadHash` e `observacao` por item, preservando documentos antigos; indexar a chave de idempotência como única e parcial quando presente. Montar a rota em `/api/pedidos`. Usar `express-rate-limit` (já instalado) para limitar POST público a 60 requisições por IP a cada 15 minutos. Validar nome (1–120 caracteres), telefone normalizado (10–13 dígitos), lista de 1–50 itens, quantidade inteira de 1–99 e observação de até 250 caracteres. Ignorar explicitamente `mesa`, `preco` e `nomeProduto` enviados como campos extras, e rejeitar outras chaves não previstas.
+Adicionar campos opcionais `origem`, `consentimentoWhatsApp.aceito`, `consentimentoWhatsApp.registradoEm` e `observacao` por item, preservando documentos antigos. Reutilizar os campos `idempotencyKey` e `idempotencyHash` e o índice parcial existente em `Comanda`, usando um valor estável de `atendente` para limitar a chave ao fluxo QR. Montar a rota em `/api/pedidos`. Usar `express-rate-limit` (já instalado) para limitar POST público a 60 requisições por IP a cada 15 minutos. Validar nome (1–120 caracteres), telefone normalizado (10–13 dígitos), lista de 1–50 itens, quantidade inteira de 1–99 e observação de até 250 caracteres. Ignorar explicitamente `mesa`, `preco` e `nomeProduto` enviados como campos extras, e rejeitar outras chaves não previstas.
 
 - [ ] **Step 4: Implementar transação de criação**
 
@@ -108,12 +108,12 @@ Usar o token para resolver a mesa ativa; ignorar valores de preço, nome de prod
 
 - [ ] **Step 5: Testar efeitos, privacidade, KDS e idempotência**
 
-Adicionar assertions para: mesa vinculada ao token embora body envie outra; preço final de banco mesmo que body envie valor falso; Cliente reaproveitado pelo telefone preserva o nome existente; estoque decrementado uma vez; falha de estoque não cria Cliente/comanda parcial; consentimento registrado com timestamp server-side; duas requisições concorrentes com mesma chave criam uma comanda e baixam estoque uma vez; payload divergente com a mesma chave retorna 409; resposta pública não contém telefone; `/api/comandas/cozinha` inclui todos os itens QR e continua filtrando itens não-QR por `aFazer`.
+Adicionar assertions para: mesa vinculada ao token embora body envie outra; preço final de banco mesmo que body envie valor falso; Cliente reaproveitado pelo telefone preserva o nome existente; estoque decrementado uma vez; falha de estoque não cria Cliente/comanda parcial; consentimento registrado com timestamp server-side; duas requisições concorrentes com mesma chave criam uma comanda e baixam estoque uma vez; payload divergente com a mesma chave retorna 409; resposta pública não contém telefone.
 
 - [ ] **Step 6: Executar testes de integração para confirmar sucesso**
 
 Run: `npm --prefix back-end run test:integration -- --runTestsByPath tests/integration/autoAtendimento.test.js`
-Expected: PASS para endpoints públicos, transações, segurança, idempotência e compatibilidade do KDS.
+Expected: PASS para endpoints públicos, transações, segurança e idempotência.
 
 - [ ] **Step 7: Commitar**
 

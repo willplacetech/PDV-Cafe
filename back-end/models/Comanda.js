@@ -30,6 +30,7 @@ const itemSchema = new mongoose.Schema({
   quantidadePecas: { type: Number, min: 0 },
   modificadores: { type: [String], default: [] },
   aFazer: { type: Boolean, default: false },
+  observacao: { type: String, trim: true, maxlength: 250 },
   insumosConsumidos: [{
     produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
     quantidade: { type: Number, min: 0.000001 },
@@ -46,6 +47,14 @@ const comandaSchema = new mongoose.Schema({
   clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
   clienteTelefone: { type: String, trim: true },
   observacao: { type: String, trim: true },
+  origem: { type: String, trim: true, maxlength: 40 },
+  consentimentoWhatsApp: {
+    type: new mongoose.Schema({
+      aceito: { type: Boolean, required: true },
+      registradoEm: { type: Date, required: true },
+    }, { _id: false }),
+    default: undefined,
+  },
   tipoAtendimento: { type: String, enum: ['mesa', 'balcao', 'retirada', 'delivery'], default: 'mesa', index: true },
   statusBalcao: { type: String, enum: ['aguardando', 'preparando', 'pronto', 'pago', 'entregue'], default: 'aguardando' },
   mesa: { type: String, trim: true },
