@@ -11,10 +11,32 @@ const cardapio = {
   }],
 };
 const tokenQr = 'q'.repeat(43);
+const perfilPdv = { id: 'qr-test-admin', username: 'qr-test-admin', role: 'admin' };
 const mesasQr = [
   { id: 5, numero: 5, nome: 'Mesa 5', lugares: 4, ativa: true, token: tokenQr },
   { id: 6, numero: 6, nome: 'Mesa 6', lugares: 2, ativa: false, token: 'i'.repeat(43) },
 ];
+const comandaQr = {
+  _id: 'comanda-qr-104',
+  numero: '0104',
+  origem: 'qr',
+  tipoAtendimento: 'mesa',
+  mesa: '5',
+  clienteNome: 'Ana Cliente',
+  clienteTelefone: '11999998888',
+  status: 'aberta',
+  statusPagamento: 'pendente',
+  createdAt: '2026-10-22T12:00:00.000Z',
+  itens: [{
+    _id: 'item-qr-1',
+    nome: 'Café coado',
+    quantidade: 1,
+    unidadeVenda: 'un',
+    aFazer: false,
+    observacao: 'sem açúcar',
+    modificadores: [],
+  }],
+};
 
 const carregarRotaPublica = (options = {}) => {
   cy.intercept('GET', `**/api/pedidos/auto-atendimento/${mesaToken}`, cardapio).as('cardapio');
@@ -24,6 +46,16 @@ const carregarRotaPublica = (options = {}) => {
 const preencherCliente = () => {
   cy.get('[name="clienteNome"]').clear().type('Ana Cliente');
   cy.get('[name="clienteTelefone"]').clear().type('11999998888');
+};
+
+const visitarRotaPrivada = (rota) => {
+  cy.intercept('POST', '**/api/auth/refresh', { token: 'test-token', user: perfilPdv });
+  cy.intercept('GET', '**/api/configuracoes', { exigirAutorizacaoGerente: false, bloqueadoPorSuporte: false });
+  cy.visit(rota, {
+    onBeforeLoad(win) {
+      win.localStorage.setItem('pdv_user', JSON.stringify(perfilPdv));
+    },
+  });
 };
 
 describe('Cardápio público por QR', () => {
@@ -139,5 +171,58 @@ describe('Cardápio público por QR', () => {
     });
     cy.contains('button', 'Imprimir QR da Mesa 5').click();
     cy.get('@imprimirQr').should('have.been.calledOnce');
+  });
+
+  it('destaca pedido QR no KDS, mostra observação e não exibe o telefone', () => {
+    cy.intercept('GET', '**/api/comandas/cozinha', {
+      statusCode: 200,
+      body: [
+        comandaQr,
+        {
+          ...comandaQr,
+          _id: 'comanda-comum-1',
+          numero: '0105',
+          origem: undefined,
+          mesa: '2',
+          clienteNome: 'Cliente comum',
+          itens: [{ ...comandaQr.itens[0], _id: 'item-comum-1', nome: 'Bolo', aFazer: true, observacao: '' }],
+        },
+      ],
+    }).as('kitchen');
+    visitarRotaPrivada('/cozinha');
+    cy.wait('@kitchen');
+
+    cy.contains('.kitchen-card', 'QR — Ana Cliente (Mesa 5)').should('be.visible').and('contain', 'sem açúcar');
+    cy.contains('.kitchen-card', 'Mesa 2').should('be.visible').and('contain', 'Bolo');
+    cy.get('body').should('not.contain', '11999998888');
+  });
+
+  it('atualiza a lista do PDV a cada 15 segundos sem trocar a comanda selecionada', () => {
+    const comandaExistente = {
+      ...comandaQr,
+      _id: 'comanda-existente-1',
+      numero: '0001',
+      origem: undefined,
+      mesa: '1',
+      clienteNome: 'Cliente presencial',
+      clienteTelefone: undefined,
+      itens: [{ ...comandaQr.itens[0], _id: 'item-existente-1', nome: 'Suco', observacao: '' }],
+    };
+    let consultas = 0;
+    cy.intercept({ method: 'GET', pathname: '/api/comandas', query: { status: 'aberta' } }, (request) => {
+      consultas += 1;
+      request.reply({ statusCode: 200, body: consultas === 1 ? [comandaExistente] : [comandaExistente, comandaQr] });
+    }).as('comandasAbertas');
+    cy.intercept('GET', '**/api/products', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/mesas', { statusCode: 200, body: { mesas: [], oferecerBalcao: true } });
+    cy.clock(Date.now(), ['setInterval', 'clearInterval']);
+    visitarRotaPrivada('/comandas');
+    cy.wait('@comandasAbertas');
+    cy.get('.comandas-detail-card h2').should('contain', '#0001');
+
+    cy.tick(15000);
+    cy.wait('@comandasAbertas');
+    cy.contains('.comanda-select-button', 'QR — Ana Cliente (Mesa 5)').should('be.visible');
+    cy.get('.comandas-detail-card h2').should('contain', '#0001');
   });
 });

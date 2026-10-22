@@ -252,3 +252,32 @@ test('estoque insuficiente não persiste Cliente nem comanda parcial', async () 
   expect(await StockMovement.countDocuments({ produtoId: product.id })).toBe(0);
   expect((await Product.findById(product.id)).estoque).toBe(0);
 });
+
+test('KDS inclui todos os itens QR e continua filtrando itens comuns por A Fazer', async () => {
+  const tokenMesa = await mesaToken();
+  const pedidoQrResponse = await pedidoQr(payloadQr(tokenMesa, {
+    itens: [{ produtoId: String(product.id), quantidade: 1, observacao: 'sem açúcar' }],
+  }), 'qr-kitchen-key');
+  expect(pedidoQrResponse.status).toBe(201);
+
+  const comandaComum = await Comanda.create({
+    atendente: 'Atendente comum',
+    clienteNome: 'Cliente comum',
+    mesa: '2',
+    tipoAtendimento: 'mesa',
+    status: 'aberta',
+    itens: [
+      { produtoId: product.id, nome: 'Item sem preparo', precoUnitario: 6, quantidade: 1, aFazer: false },
+      { produtoId: product.id, nome: 'Item em preparo', precoUnitario: 6, quantidade: 1, aFazer: true },
+    ],
+  });
+
+  const response = await api('get', '/api/comandas/cozinha');
+  const comandaQr = response.body.find((comanda) => comanda.origem === 'qr');
+  const comandaCozinhaComum = response.body.find((comanda) => String(comanda._id) === String(comandaComum._id));
+
+  expect(response.status).toBe(200);
+  expect(comandaQr.itens).toHaveLength(1);
+  expect(comandaQr.itens[0]).toMatchObject({ aFazer: false, observacao: 'sem açúcar' });
+  expect(comandaCozinhaComum.itens.map((item) => item.nome)).toEqual(['Item em preparo']);
+});

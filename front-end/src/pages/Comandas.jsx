@@ -26,6 +26,7 @@ import {
 } from '../services/impressaoService.js';
 
 const formatMoney = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
+const identificacaoQr = (comanda) => `QR — ${comanda.clienteNome || 'Cliente'} (Mesa ${comanda.mesa || 'não informada'})`;
 const formatQuantity = (item) => {
   if (item.tipoVenda === 'peso') return `${Number(item.pesoVendidoKg || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg vendidos`;
   const quantidade = Number(item.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
@@ -197,11 +198,12 @@ export default function Comandas() {
     }
   };
 
-  const load = useCallback(async (preferredId) => {
-    setCarregandoLista(true);
-    setErroLista('');
+  const load = useCallback(async (preferredId, { showLoading = true } = {}) => {
+    if (showLoading) setCarregandoLista(true);
+    if (showLoading) setErroLista('');
     try {
       const [commands, catalog, tables] = await Promise.all([api.get('/comandas?status=aberta'), api.get('/products'), api.get('/mesas')]);
+      setErroLista('');
       setConfiguracaoMesas(tables.data);
       setComandas(commands.data);
       setProducts(catalog.data);
@@ -215,6 +217,10 @@ export default function Comandas() {
   useEffect(() => {
     const inicializar = async () => { await load(); };
     inicializar();
+  }, [load]);
+  useEffect(() => {
+    const interval = window.setInterval(() => { void load(undefined, { showLoading: false }); }, 15000);
+    return () => window.clearInterval(interval);
   }, [load]);
 
   const focarCadastroComanda = () => {
@@ -637,9 +643,10 @@ export default function Comandas() {
                 return (
                   <button className="comanda-select-button" key={command._id} onClick={() => { setSelected(command); setSelectedItemIds([]); setMobileView('detail'); }} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
                     <b>{command.tipoAtendimento === 'delivery' ? '🛵' : command.tipoAtendimento === 'balcao' ? '📦' : '🪑'} #{command.numero}</b>
-                    {command.statusPagamento === 'parcial' && <span className="comanda-status-pill" style={{ background: info.bg, color: info.txt }}>{info.label}</span>}
-                    <br />
-                    <small>{command.tipoAtendimento === 'delivery' ? 'Delivery' : command.tipoAtendimento === 'balcao' ? `Balcão · ${command.statusBalcao || 'aguardando'}` : command.tipoAtendimento === 'retirada' ? 'Retirada' : `Mesa ${command.mesa || ''}`} · {command.clienteNome} · {command.itens.length} itens</small>
+                      {command.origem === 'qr' && <span className="comanda-status-pill" style={{ marginLeft: 6, background: 'var(--accent-light)', color: 'var(--accent-primary)' }}>QR</span>}
+                      {command.statusPagamento === 'parcial' && <span className="comanda-status-pill" style={{ background: info.bg, color: info.txt }}>{info.label}</span>}
+                      <br />
+                      <small>{command.origem === 'qr' ? identificacaoQr(command) : `${command.tipoAtendimento === 'delivery' ? 'Delivery' : command.tipoAtendimento === 'balcao' ? `Balcão · ${command.statusBalcao || 'aguardando'}` : command.tipoAtendimento === 'retirada' ? 'Retirada' : `Mesa ${command.mesa || ''}`} · ${command.clienteNome}`} · {command.itens.length} itens</small>
                     {saldo > 0 && <small style={{ display: 'block', marginTop: 4, fontWeight: 700 }}>A receber: {formatMoney(saldo)}</small>}
                   </button>
                 );
@@ -655,6 +662,7 @@ export default function Comandas() {
               <button type="button" className="comandas-mobile-back" onClick={() => setMobileView('list')}>← Voltar para comandas</button>
               <button type="button" className="comandas-secondary-button btn btn-ghost" onClick={() => void iniciarAtendimentoNoPdv(selected.tipoAtendimento, selected)}>Abrir no PDV</button>
             </div>
+            {selected.origem === 'qr' && <div className="comanda-status-pill" style={{ width: 'fit-content', marginBottom: 8, background: 'var(--accent-light)', color: 'var(--accent-primary)' }}>{identificacaoQr(selected)}</div>}
             <h2 style={{ marginTop: 0 }}>{selected.tipoAtendimento === 'delivery' ? '🛵 Delivery' : selected.tipoAtendimento === 'balcao' ? '📦 Balcão' : '🪑 Mesa'} #{selected.numero} <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}>— {selected.clienteNome}</small></h2>
             {selected.tipoAtendimento === 'balcao' && <div className="balcao-status-bar"><span>Status: <strong>{selected.statusBalcao || 'aguardando'}</strong></span><div>{['aguardando', 'preparando', 'pronto', 'pago', 'entregue'].map((status) => <button type="button" key={status} className={selected.statusBalcao === status ? 'active' : ''} onClick={() => updateBalcaoStatus(status)}>{status}</button>)}</div></div>}
             <form onSubmit={addItem} className="comandas-add-form">

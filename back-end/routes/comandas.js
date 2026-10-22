@@ -115,8 +115,16 @@ router.get('/', auth, auth.allowRoles('admin', 'gerente', 'operador', 'garcom'),
 
 router.get('/cozinha', auth, auth.allowRoles('admin', 'operador', 'cozinha'), async (req, res) => {
   try {
-    const comandas = await Comanda.find({ status: 'aberta', 'itens.aFazer': true }).sort({ createdAt: 1 });
-    res.json(comandas.map((comanda) => ({ ...comanda.toObject(), itens: comanda.itens.filter((item) => item.aFazer) })));
+    const comandas = await Comanda.find({
+      status: 'aberta',
+      $or: [{ origem: 'qr' }, { 'itens.aFazer': true }],
+    }).sort({ createdAt: 1 });
+    res.json(comandas.map((comanda) => ({
+      ...comanda.toObject(),
+      itens: comanda.origem === 'qr'
+        ? comanda.itens
+        : comanda.itens.filter((item) => item.aFazer),
+    })));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
