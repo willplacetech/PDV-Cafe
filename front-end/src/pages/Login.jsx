@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { ThemeContext } from '../context/ThemeContextDefinition.js';
 import { useToast } from '../components/useToast.js';
+import { branding } from '../config/branding.js';
 
 export default function Login() {
   const [form, setForm] = useState({ username: '', password: '' });
@@ -106,8 +107,8 @@ export default function Login() {
         </div>
 
         <img
-          src="/logo.svg"
-          alt="PDV"
+          src={branding.logoUrl}
+          alt={branding.name}
           style={{
             width: 88, height: 88, objectFit: 'contain', borderRadius: 20,
             margin: '8px auto 16px', display: 'block',
@@ -118,9 +119,9 @@ export default function Login() {
         <h1 style={{
           fontFamily: 'var(--font-heading)', fontSize: 24, fontWeight: 700,
           margin: '0 0 4px', color: 'var(--text-primary)'
-        }}>PDV</h1>
+        }}>{branding.name}</h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '0 0 24px' }}>
-          Sistema de atendimento
+          {branding.tagline}
         </p>
 
         <form onSubmit={handleSubmit}>
@@ -176,7 +177,7 @@ export default function Login() {
             border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700,
             cursor: 'pointer', minHeight: 48,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-          }} title="Instalar PDV no seu dispositivo">
+          }} title={`Instalar ${branding.name} no seu dispositivo`}>
             ⬇️ Instalar App
           </button>
         )}

@@ -6,6 +6,7 @@ import StatusConexao from './StatusConexao.jsx';
 import api from '../services/api.jsx';
 import { APP_GIT_HASH } from '../services/appVersion.js';
 import NovidadesModal from './NovidadesModal.jsx';
+import { branding } from '../config/branding.js';
 
 const gruposMenu = [
   {
@@ -265,10 +266,10 @@ export default function Layout({ children }) {
 
       <aside id="sidebar-desktop">
         <Link to={user?.role === 'admin' ? '/dashboard' : '/pdv'} aria-label="Página inicial" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40, textDecoration: 'none' }}>
-          <img src="/logo.svg" alt="PDV" style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'contain', border: '1px solid var(--border-color)' }} />
+          <img src={branding.logoUrl} alt={branding.name} style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'contain', border: '1px solid var(--border-color)' }} />
           <div>
-            <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 17, color: 'var(--text-primary)' }}>PDV</div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Sistema de atendimento</div>
+            <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 17, color: 'var(--text-primary)' }}>{branding.name}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{branding.tagline}</div>
           </div>
         </Link>
         <button onClick={toggleTheme} style={{ width: '100%', padding: '10px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '10px', cursor: 'pointer', fontWeight: '600', fontSize: '13px', minHeight: '40px', fontFamily: 'inherit', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} title={isDark ? 'Modo claro' : 'Modo escuro'}>
@@ -292,10 +293,10 @@ export default function Layout({ children }) {
           <div className="mobile-menu-panel" onClick={(e) => e.stopPropagation()}>
             <div className="mobile-menu-header">
               <Link to={user?.role === 'admin' ? '/dashboard' : '/pdv'} onClick={() => toggleMobileMenu(false)} aria-label="Página inicial" style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
-                <img src="/logo.svg" alt="PDV" style={{ width: 40, height: 40, borderRadius: 10, objectFit: 'contain', border: '1px solid var(--border-color)' }} />
+                <img src={branding.logoUrl} alt={branding.name} style={{ width: 40, height: 40, borderRadius: 10, objectFit: 'contain', border: '1px solid var(--border-color)' }} />
                 <div>
-                  <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>PDV</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Sistema de atendimento</div>
+                  <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>{branding.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{branding.tagline}</div>
                 </div>
               </Link>
               <button type="button" className="mobile-menu-close" onClick={() => toggleMobileMenu(false)} aria-label="Fechar menu">x</button>
@@ -320,7 +321,7 @@ export default function Layout({ children }) {
       {showConfirm && (
         <div onClick={() => setShowConfirm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-secondary)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 360, textAlign: 'center', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-lg)' }}>
-            <img src="/logo.svg" alt="PDV" style={{ display: 'block', width: 64, height: 64, borderRadius: 14, objectFit: 'contain', margin: '0 auto 16px', border: '1px solid var(--border-color)' }} />
+            <img src={branding.logoUrl} alt={branding.name} style={{ display: 'block', width: 64, height: 64, borderRadius: 14, objectFit: 'contain', margin: '0 auto 16px', border: '1px solid var(--border-color)' }} />
             <h3 style={{ margin: '0 0 8px', fontSize: 18, color: 'var(--text-primary)' }}>Deseja realmente sair?</h3>
             <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-secondary)' }}>Você precisará entrar novamente para continuar.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
@@ -332,7 +333,7 @@ export default function Layout({ children }) {
       )}
 
       <footer style={{ padding: '8px 16px', fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center' }}>
-        <span>PDV · v{APP_GIT_HASH}</span>
+        <span>{branding.name} · v{APP_GIT_HASH}</span>
       </footer>
 
       <style>{`

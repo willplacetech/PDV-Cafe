@@ -1,3 +1,5 @@
+import { branding } from '../config/branding.js';
+
 const pagamentoLabels = {
   pix: 'Pix',
   dinheiro: 'Dinheiro',
@@ -7,8 +9,16 @@ const pagamentoLabels = {
 };
 
 const dinheiro = (value) => Number(value || 0).toFixed(2).replace('.', ',');
-export const textoSeguro = (value) => String(value ?? '').replace(/[<&>"']/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[char]));
-const logoUrl = () => typeof window !== 'undefined' ? `${window.location.origin}/Abraco1.png` : '/Abraco1.png';
+export const textoSeguro = (value) => String(value ?? '').replace(/[<&>"']/g, (char) => ({ '<': '<', '>': '>', '&': '&', '"': '"', "'": '&#39;' }[char]));
+const logoUrl = () => {
+  const logo = branding.logoUrl || '/logo.svg';
+  if (typeof window !== 'undefined' && logo.startsWith('/')) {
+    return `${window.location.origin}${logo}`;
+  }
+  return logo;
+};
+const marcaNome = () => branding.name || 'PDV';
+const marcaTagline = () => branding.tagline || 'Sistema de atendimento';
 
 export const totalPago = (pedido) => (Array.isArray(pedido?.pagamentos)
   ? pedido.pagamentos.reduce((total, pagamento) => total + (Number(pagamento.valorRecebido) || 0), 0)
@@ -51,7 +61,7 @@ export function buildNotaVendaHtml(pedido, { comandaNumero, titulo = 'NOTA DE VE
       .rodape { margin-top:14px; font-size:11px; line-height:1.5; }
       @media print { @page { margin:0; size:80mm auto; } body { margin:4mm; } }
     </style></head><body>
-    <div class="center"><img class="logo" src="${logoUrl()}" alt="Sabor de Abraço"><div class="marca">SABOR DE ABRACO</div></div>
+    <div class="center"><img class="logo" src="${logoUrl()}" alt="${textoSeguro(marcaNome())}"><div class="marca">${textoSeguro(marcaNome().toUpperCase())}</div></div>
     <div class="center subtitulo">${titulo}</div>
     <div class="separador"></div>
     <div class="dados">
@@ -75,7 +85,7 @@ export function buildNotaVendaHtml(pedido, { comandaNumero, titulo = 'NOTA DE VE
       ${pago > 0 && falta > 0 ? `<div class="linha pendencia"><span>FALTA:</span><span>R$ ${dinheiro(falta)}</span></div>` : ''}
     </div>
     <div class="separador"></div>
-    <div class="center bold rodape">Sabor de Abraço<br>Agradece a Preferência!<br>Volte sempre!</div>
+    <div class="center bold rodape">${textoSeguro(marcaNome())}<br>${textoSeguro(marcaTagline())}<br>Agradece a preferência!</div>
     <script>window.onload=function(){window.print();setTimeout(function(){window.close();},500);}</script>
     </body></html>`;
 }
@@ -143,6 +153,7 @@ function buildNotaVendaTextoBase(pedido, { comandaNumero, titulo = 'NOTA DE VEND
     return `${item.quantidade}x ${nome}\n${' '.repeat(3)}${linha('Unitario:', `R$ ${dinheiro(item.precoUnitario)}`)}\n${' '.repeat(3)}${linha('Total:', `R$ ${dinheiro(Number(item.quantidade) * Number(item.precoUnitario))}`)}`;
   }).join('\n');
   const pagamentos = (pedido.pagamentos || []).map((pagamento) => `- ${linha(pagamento.rotuloPagamento || pagamentoLabels[pagamento.tipo] || pagamento.tipo, `R$ ${dinheiro(pagamento.valorRecebido)}`)}`).join('\n');
+  const nome = marcaNome();
 
-  return `*SABOR DE ABRAÇO*\n${titulo}\n--------------------------------\n${linha('Pedido:', `#${pedido.numero}`)}${comandaNumero ? `\n${linha('Comanda:', `#${comandaNumero}`)}` : ''}\n${linha('Data:', new Date(pedido.createdAt || Date.now()).toLocaleString('pt-BR'))}\n${linha('Cliente:', pedido.clienteNome || 'Cliente não identificado')}${pedido.atendente ? `\n${linha('Atendente:', pedido.atendente)}` : ''}\n--------------------------------\n*ITENS DO PEDIDO*\n${itens}\n--------------------------------\n${linha('Subtotal:', `R$ ${dinheiro(pedido.subtotal || pedido.total)}`)}${Number(pedido.taxaEntrega) > 0 ? `\n${linha('Taxa de entrega:', `R$ ${dinheiro(pedido.taxaEntrega)}`)}` : ''}${Number(pedido.desconto) > 0 ? `\n${linha('Desconto:', `-R$ ${dinheiro(pedido.desconto)}`)}` : ''}${utilizacaoInterna ? `\n${linha('Uso interno:', 'SIM')}` : ''}\n*${linha('TOTAL:', `R$ ${dinheiro(pedido.total)}`)}*${pagamentos ? `\n--------------------------------\n*PAGAMENTOS*\n${pagamentos}` : ''}${pago > 0 && falta > 0 ? `\n${linha('FALTA:', `R$ ${dinheiro(falta)}`)}` : ''}\n--------------------------------\n*Sabor de Abraço*\nAgradece a Preferência!\nVolte sempre!`;
+  return `*${nome.toUpperCase()}*\n${titulo}\n--------------------------------\n${linha('Pedido:', `#${pedido.numero}`)}${comandaNumero ? `\n${linha('Comanda:', `#${comandaNumero}`)}` : ''}\n${linha('Data:', new Date(pedido.createdAt || Date.now()).toLocaleString('pt-BR'))}\n${linha('Cliente:', pedido.clienteNome || 'Cliente não identificado')}${pedido.atendente ? `\n${linha('Atendente:', pedido.atendente)}` : ''}\n--------------------------------\n*ITENS DO PEDIDO*\n${itens}\n--------------------------------\n${linha('Subtotal:', `R$ ${dinheiro(pedido.subtotal || pedido.total)}`)}${Number(pedido.taxaEntrega) > 0 ? `\n${linha('Taxa de entrega:', `R$ ${dinheiro(pedido.taxaEntrega)}`)}` : ''}${Number(pedido.desconto) > 0 ? `\n${linha('Desconto:', `-R$ ${dinheiro(pedido.desconto)}`)}` : ''}${utilizacaoInterna ? `\n${linha('Uso interno:', 'SIM')}` : ''}\n*${linha('TOTAL:', `R$ ${dinheiro(pedido.total)}`)}*${pagamentos ? `\n--------------------------------\n*PAGAMENTOS*\n${pagamentos}` : ''}${pago > 0 && falta > 0 ? `\n${linha('FALTA:', `R$ ${dinheiro(falta)}`)}` : ''}\n--------------------------------\n*${nome}*\n${marcaTagline()}\nAgradece a preferência!`;
 }
