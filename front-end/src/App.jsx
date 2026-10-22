@@ -15,6 +15,7 @@ import { AuthContext } from './context/AuthContextDefinition.jsx';
 import { useToast } from './components/useToast.js';
 import { APP_VERSION, fetchPublishedAppVersion, waitForServiceWorkerUpdate } from './services/appVersion.js';
 const Login = lazy(() => import('./pages/Login.jsx'));
+const CardapioAutoAtendimento = lazy(() => import('./pages/CardapioAutoAtendimento.jsx'));
 const PDV = lazy(() => import('./pages/PDV.jsx'));
 const Products = lazy(() => import('./pages/Products.jsx'));
 const Customers = lazy(() => import('./pages/Customers.jsx'));
@@ -125,6 +126,7 @@ export default function App() {
                     <Route path="/plataforma" element={<Navigate to="/entregas" replace />} />
                     <Route path="/entregador" element={<DeliveryEntregador />} />
                     <Route path="/pedido/:token" element={<RastreioEntrega />} />
+                    <Route path="/cardapio/:mesaToken" element={<CardapioAutoAtendimento />} />
                     <Route path="/login" element={<Login />} />
                     <Route element={<PrivateRoute />}>
                       <Route element={<FormasPagamentoProvider><ComandaProvider><Layout /></ComandaProvider></FormasPagamentoProvider>}>
