@@ -2,12 +2,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { allowedOrigins, trustedOrigin } = require('../utils/sessionOrigins');
 
-test('permite somente as duas origens configuradas em qualquer ambiente', () => {
+test('permite somente as origens próprias configuradas em qualquer ambiente', () => {
   const previousNodeEnv = process.env.NODE_ENV;
   const previousFrontendUrl = process.env.FRONTEND_URL;
+  const previousCorsExtras = process.env.CORS_EXTRA_ORIGINS;
 
   try {
-    process.env.FRONTEND_URL = 'https://attacker.example';
+    process.env.FRONTEND_URL = 'https://restaurante-pdv.onrender.com,https://restaurante-pdv-back.onrender.com';
+    delete process.env.CORS_EXTRA_ORIGINS;
     const permittedOrigins = [
       'https://restaurante-pdv.onrender.com',
       'https://restaurante-pdv-back.onrender.com',
@@ -32,5 +34,7 @@ test('permite somente as duas origens configuradas em qualquer ambiente', () => 
     else process.env.NODE_ENV = previousNodeEnv;
     if (previousFrontendUrl === undefined) delete process.env.FRONTEND_URL;
     else process.env.FRONTEND_URL = previousFrontendUrl;
+    if (previousCorsExtras === undefined) delete process.env.CORS_EXTRA_ORIGINS;
+    else process.env.CORS_EXTRA_ORIGINS = previousCorsExtras;
   }
 });
