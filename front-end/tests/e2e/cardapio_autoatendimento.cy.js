@@ -59,6 +59,28 @@ const visitarRotaPrivada = (rota) => {
 };
 
 describe('Cardápio público por QR', () => {
+  beforeEach(() => {
+    cy.intercept('POST', `**/api/pedidos/auto-atendimento/${mesaToken}/cotacao`, (request) => {
+      const itens = request.body.itens.map((item) => {
+        const produto = cardapio.produtos.find((candidato) => candidato.produtoId === item.produtoId);
+        return {
+          produtoId: item.produtoId,
+          quantidade: item.quantidade,
+          precoUnitario: produto.preco,
+          total: produto.preco * item.quantidade,
+        };
+      });
+      request.reply({
+        statusCode: 200,
+        body: {
+          itens,
+          total: itens.reduce((soma, item) => soma + item.total, 0),
+          cotacaoToken: 'cotacao-teste',
+        },
+      });
+    }).as('cotacao');
+  });
+
   it('abre sem login e valida nome e telefone antes de carregar o cardápio', () => {
     carregarRotaPublica();
 
@@ -79,6 +101,94 @@ describe('Cardápio público por QR', () => {
     cy.contains('h1', 'Cardápio').should('be.visible');
     cy.contains('Mesa do jardim').should('be.visible');
     cy.get('[data-testid="produto-qr-produto-cafe"]').should('contain', 'Café coado');
+  });
+
+  it('mostra no resumo os preços com desconto calculados pelo servidor', () => {
+    cy.intercept('POST', `**/api/pedidos/auto-atendimento/${mesaToken}/cotacao`, (request) => {
+      const quantidade = request.body.itens[0].quantidade;
+      const precoUnitario = quantidade >= 2 ? 4 : 6;
+      const total = quantidade * precoUnitario;
+      request.reply({
+        statusCode: 200,
+        body: {
+          itens: [{ produtoId: 'produto-cafe', quantidade, precoUnitario, total }],
+          total,
+          cotacaoToken: 'cotacao-com-desconto',
+        },
+      });
+    }).as('cotacaoComDesconto');
+    carregarRotaPublica();
+    preencherCliente();
+    cy.contains('button', 'Continuar').click();
+    cy.wait('@cardapio');
+
+    cy.get('[data-testid="produto-qr-produto-cafe"]').within(() => cy.contains('button', 'Adicionar').click());
+    cy.wait('@cotacaoComDesconto');
+    cy.get('[data-testid="produto-qr-produto-cafe"]').within(() => cy.get('button[aria-label="Adicionar uma unidade de Café coado"]').click());
+    cy.wait('@cotacaoComDesconto');
+
+    cy.contains('2 × Café coado').parent().should('contain', '8,00');
+    cy.get('.qr-menu-total').should('contain', '8,00');
+  });
+
+  it('atualiza a cotação antes de repetir pedido quando o preço muda', () => {
+    let cotacoes = 0;
+    const chavesIdempotencia = [];
+    cy.intercept('POST', `**/api/pedidos/auto-atendimento/${mesaToken}/cotacao`, (request) => {
+      cotacoes += 1;
+      const precoUnitario = cotacoes === 1 ? 6 : 7;
+      request.reply({
+        statusCode: 200,
+        body: {
+          itens: [{
+            produtoId: 'produto-cafe',
+            quantidade: 1,
+            precoUnitario,
+            total: precoUnitario,
+          }],
+          total: precoUnitario,
+          cotacaoToken: `cotacao-${cotacoes}`,
+        },
+      });
+    }).as('cotacaoAtualizada');
+    let pedidos = 0;
+    cy.intercept('POST', '**/api/pedidos/auto-atendimento', (request) => {
+      pedidos += 1;
+      chavesIdempotencia.push(request.headers['idempotency-key']);
+      request.reply(pedidos === 1
+        ? {
+          statusCode: 409,
+          body: {
+            code: 'COTACAO_DESATUALIZADA',
+            msg: 'Os preços mudaram ou a cotação expirou. Atualize o total antes de confirmar o pedido.',
+          },
+        }
+        : {
+          statusCode: 201,
+          body: { comandaId: 'comanda-104', numero: 104, status: 'aberta', mesa: '5' },
+        });
+    }).as('pedidoComCotacao');
+    carregarRotaPublica();
+    preencherCliente();
+    cy.contains('button', 'Continuar').click();
+    cy.wait('@cardapio');
+    cy.get('[data-testid="produto-qr-produto-cafe"]').within(() => cy.contains('button', 'Adicionar').click());
+    cy.wait('@cotacaoAtualizada');
+    cy.get('[name="consentimentoWhatsApp"]').check();
+
+    cy.contains('button', 'Finalizar pedido').click();
+    cy.wait('@pedidoComCotacao');
+    cy.contains('Os preços mudaram').should('be.visible');
+    cy.wait('@cotacaoAtualizada');
+    cy.get('.qr-menu-total').should('contain', '7,00');
+    cy.contains('button', 'Finalizar pedido').click();
+    cy.wait('@pedidoComCotacao').then(({ request }) => {
+      expect(request.body.cotacaoToken).to.equal('cotacao-2');
+    });
+    cy.wrap(chavesIdempotencia).should(([anterior, atual]) => {
+      expect(anterior).not.to.equal(atual);
+    });
+    cy.contains('Pedido #104').should('be.visible');
   });
 
   it('exige consentimento, envia somente os campos do contrato e limpa os dados após confirmar', () => {
@@ -107,6 +217,7 @@ describe('Cardápio público por QR', () => {
         clienteNome: 'Ana Cliente',
         clienteTelefone: '11999998888',
         consentimentoWhatsApp: true,
+        cotacaoToken: 'cotacao-teste',
         itens: [{ produtoId: 'produto-cafe', quantidade: 1, observacao: 'sem açúcar' }],
       });
     });

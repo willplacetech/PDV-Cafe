@@ -5,6 +5,11 @@ export const carregarCardapio = async (mesaToken) => {
   return data;
 };
 
+export const cotarPedidoAutoAtendimento = async (mesaToken, itens) => {
+  const { data } = await api.post(`/pedidos/auto-atendimento/${encodeURIComponent(mesaToken)}/cotacao`, { itens });
+  return data;
+};
+
 export const enviarPedidoAutoAtendimento = async (payload, idempotencyKey) => {
   const { data } = await api.post('/pedidos/auto-atendimento', payload, {
     headers: { 'Idempotency-Key': idempotencyKey },

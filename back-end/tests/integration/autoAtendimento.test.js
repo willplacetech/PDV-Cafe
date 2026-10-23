@@ -32,10 +32,26 @@ const api = (method, path, body) => {
 };
 
 const mesaToken = async () => (await api('get', '/api/mesas')).body.mesas[0].token;
-const pedidoQr = (body, key = 'qr-order-test-1') => request(app)
-  .post('/api/pedidos/auto-atendimento')
-  .set('Idempotency-Key', key)
-  .send(body);
+const cotacoesQr = new WeakMap();
+const pedidoQr = async (body, key = 'qr-order-test-1') => {
+  let cotacaoToken = body.cotacaoToken;
+  if (!cotacaoToken && body.mesaToken && Array.isArray(body.itens) && body.itens.length) {
+    let cotacao = cotacoesQr.get(body);
+    if (!cotacao) {
+      cotacao = request(app)
+        .post(`/api/pedidos/auto-atendimento/${body.mesaToken}/cotacao`)
+        .send({ itens: body.itens.map(({ produtoId, quantidade }) => ({ produtoId, quantidade })) })
+        .then((response) => response.status === 200 ? response.body.cotacaoToken : null);
+      cotacoesQr.set(body, cotacao);
+    }
+    cotacaoToken = await cotacao;
+  }
+  const pedido = cotacaoToken ? { ...body, cotacaoToken } : body;
+  return request(app)
+    .post('/api/pedidos/auto-atendimento')
+    .set('Idempotency-Key', key)
+    .send(pedido);
+};
 const payloadQr = (tokenMesa, overrides = {}) => ({
   mesaToken: tokenMesa,
   clienteNome: 'Ana Cliente',
@@ -204,6 +220,78 @@ test('pedido usa mesa e preço do servidor, preserva Cliente existente e oculta 
   expect(await StockMovement.countDocuments({ produtoId: product.id })).toBe(1);
 });
 
+test('cotação pública aplica descontos por quantidade e por grupo do servidor', async () => {
+  await Product.findByIdAndUpdate(product.id, {
+    descontosPorQuantidade: [{ quantidadeMinima: 2, precoUnitario: 5 }],
+    grupoDesconto: { nome: 'Combo QR', quantidadeMinima: 3, precoPromocional: 4, ativo: true },
+  });
+  const segundoProduto = await Product.create({
+    codigo: 'qr-bolo',
+    nome: 'Bolo',
+    categoria: 'Doces',
+    tipo: 'venda',
+    preco: 8,
+    estoque: 20,
+    unidadeVenda: 'un',
+    grupoDesconto: { nome: 'Combo QR', quantidadeMinima: 3, precoPromocional: 5, ativo: true },
+  });
+  const tokenMesa = await mesaToken();
+
+  const response = await request(app)
+    .post(`/api/pedidos/auto-atendimento/${tokenMesa}/cotacao`)
+    .send({
+      itens: [
+        { produtoId: String(product.id), quantidade: 2 },
+        { produtoId: String(segundoProduto.id), quantidade: 1 },
+      ],
+    });
+
+  expect(response.status).toBe(200);
+  expect(response.body).toMatchObject({
+    itens: [
+      { produtoId: String(product.id), quantidade: 2, precoUnitario: 4, total: 8 },
+      { produtoId: String(segundoProduto.id), quantidade: 1, precoUnitario: 5, total: 5 },
+    ],
+    total: 13,
+    cotacaoToken: expect.any(String),
+  });
+  expect(await Comanda.countDocuments()).toBe(0);
+  expect((await Product.findById(product.id)).estoque).toBe(20);
+});
+
+test('pedido exige cotação assinada e rejeita preços alterados sem efeitos parciais', async () => {
+  const tokenMesa = await mesaToken();
+  const body = payloadQr(tokenMesa);
+  const cotacao = await request(app)
+    .post(`/api/pedidos/auto-atendimento/${tokenMesa}/cotacao`)
+    .send({ itens: body.itens });
+
+  expect(cotacao.status).toBe(200);
+  expect(cotacao.body.cotacaoToken).toEqual(expect.any(String));
+  await Product.findByIdAndUpdate(product.id, { preco: 7 });
+
+  const response = await pedidoQr({ ...body, cotacaoToken: cotacao.body.cotacaoToken }, 'qr-stale-quote-key');
+
+  expect(response.status).toBe(409);
+  expect(response.body.code).toBe('COTACAO_DESATUALIZADA');
+  expect(await Customer.countDocuments()).toBe(0);
+  expect(await Comanda.countDocuments()).toBe(0);
+  expect(await StockMovement.countDocuments({ produtoId: product.id })).toBe(0);
+  expect((await Product.findById(product.id)).estoque).toBe(20);
+});
+
+test('pedido sem token de cotação não altera estoque nem cria Cliente', async () => {
+  const response = await request(app)
+    .post('/api/pedidos/auto-atendimento')
+    .set('Idempotency-Key', 'qr-without-quote-key')
+    .send(payloadQr(await mesaToken()));
+
+  expect(response.status).toBe(400);
+  expect(await Customer.countDocuments()).toBe(0);
+  expect(await Comanda.countDocuments()).toBe(0);
+  expect((await Product.findById(product.id)).estoque).toBe(20);
+});
+
 test('repetir chave de idempotência não cria comanda nem baixa estoque novamente', async () => {
   const body = payloadQr(await mesaToken());
   const first = await pedidoQr(body, 'qr-replay-key');
@@ -279,5 +367,7 @@ test('KDS inclui todos os itens QR e continua filtrando itens comuns por A Fazer
   expect(response.status).toBe(200);
   expect(comandaQr.itens).toHaveLength(1);
   expect(comandaQr.itens[0]).toMatchObject({ aFazer: false, observacao: 'sem açúcar' });
+  expect(comandaQr).not.toHaveProperty('clienteTelefone');
+  expect(JSON.stringify(response.body)).not.toContain('11999998888');
   expect(comandaCozinhaComum.itens.map((item) => item.nome)).toEqual(['Item em preparo']);
 });

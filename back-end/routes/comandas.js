@@ -119,12 +119,16 @@ router.get('/cozinha', auth, auth.allowRoles('admin', 'operador', 'cozinha'), as
       status: 'aberta',
       $or: [{ origem: 'qr' }, { 'itens.aFazer': true }],
     }).sort({ createdAt: 1 });
-    res.json(comandas.map((comanda) => ({
-      ...comanda.toObject(),
-      itens: comanda.origem === 'qr'
-        ? comanda.itens
-        : comanda.itens.filter((item) => item.aFazer),
-    })));
+    res.json(comandas.map((comanda) => {
+      const dados = comanda.toObject();
+      delete dados.clienteTelefone;
+      return {
+        ...dados,
+        itens: comanda.origem === 'qr'
+          ? comanda.itens
+          : comanda.itens.filter((item) => item.aFazer),
+      };
+    }));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 

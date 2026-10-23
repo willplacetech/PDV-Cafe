@@ -1,18 +1,20 @@
 const crypto = require('crypto');
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
 const Comanda = require('../models/Comanda');
 const Customer = require('../models/Customer');
 const MesasSettings = require('../models/MesasSettings');
 const Product = require('../models/Product');
-const { calcularPrecoComDesconto, calcularPrecoGrupo } = require('../utils/descontosQuantidade');
+const { calcularPrecoComDesconto, calcularPrecoGrupo, dinheiro } = require('../utils/descontosQuantidade');
 const { ajustarEstoque } = require('../utils/movimentarEstoqueVenda');
 const { precoPorUnidade } = require('../utils/pesoProduto');
 const { produtoControlaPeso } = require('../utils/estoqueProduto');
 
 const router = express.Router();
 const atendenteQr = 'Autoatendimento QR';
+const audienciaCotacaoQr = 'pedido-qr';
 const camposExtrasIgnorados = new Set(['mesa', 'preco', 'nomeProduto']);
 const limitarPedidosQr = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -20,6 +22,13 @@ const limitarPedidosQr = rateLimit({
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: { msg: 'Muitos pedidos. Tente novamente mais tarde.' },
+});
+const limitarCotacoesQr = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { msg: 'Muitas atualizações de preço. Tente novamente mais tarde.' },
 });
 
 const erroValidacao = (msg) => Object.assign(new Error(msg), { status: 400 });
@@ -39,6 +48,63 @@ const localizarMesa = async (mesaToken, session) => {
   return settings?.mesas?.find((mesa) => mesa.token === mesaToken) || null;
 };
 
+const validarItens = (itensSolicitados) => {
+  if (!Array.isArray(itensSolicitados) || itensSolicitados.length < 1 || itensSolicitados.length > 50) {
+    throw erroValidacao('Informe entre 1 e 50 itens');
+  }
+
+  const camposItem = new Set(['produtoId', 'quantidade', 'observacao']);
+  return itensSolicitados.map((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item) || possuiCamposNaoPermitidos(item, camposItem)) {
+      throw erroValidacao('Item inválido');
+    }
+    if (typeof item.produtoId !== 'string' || !mongoose.isValidObjectId(item.produtoId)
+      || !Number.isInteger(item.quantidade) || item.quantidade < 1 || item.quantidade > 99) {
+      throw erroValidacao('Item ou quantidade inválidos');
+    }
+    const observacao = item.observacao === undefined ? '' : item.observacao;
+    if (typeof observacao !== 'string' || observacao.length > 250) throw erroValidacao('Observação inválida');
+    return { produtoId: item.produtoId, quantidade: item.quantidade, observacao: observacao.trim() };
+  });
+};
+
+const resumirCotacao = (itens) => itens.map((item) => ({
+  produtoId: String(item.produtoId),
+  quantidade: item.quantidade,
+  precoUnitario: item.precoUnitario,
+  total: dinheiro(item.precoUnitario * item.quantidade),
+})).sort((a, b) => a.produtoId.localeCompare(b.produtoId));
+
+const calcularTotalCotacao = (itens) => dinheiro(itens.reduce((soma, item) => soma + item.total, 0));
+
+const erroCotacaoDesatualizada = () => Object.assign(
+  new Error('Os preços mudaram ou a cotação expirou. Atualize o total antes de confirmar o pedido.'),
+  { status: 409, code: 'COTACAO_DESATUALIZADA' },
+);
+
+const validarCotacao = (token, mesaToken, itensAtuais) => {
+  let cotacao;
+  try {
+    cotacao = jwt.verify(token, process.env.JWT_SECRET, { audience: audienciaCotacaoQr });
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      throw erroCotacaoDesatualizada();
+    }
+    throw error;
+  }
+
+  const itensCotados = Array.isArray(cotacao.itens) ? resumirCotacao(cotacao.itens) : [];
+  const itensRecalculados = resumirCotacao(itensAtuais);
+  const totalCotado = calcularTotalCotacao(itensCotados);
+  const totalRecalculado = calcularTotalCotacao(itensRecalculados);
+  if (cotacao.mesaToken !== mesaToken
+    || JSON.stringify(itensCotados) !== JSON.stringify(itensRecalculados)
+    || cotacao.total !== totalCotado
+    || totalCotado !== totalRecalculado) {
+    throw erroCotacaoDesatualizada();
+  }
+};
+
 const responderReplay = (res, comanda, hash) => {
   if (comanda.idempotencyHash !== hash) {
     return res.status(409).json({ msg: 'Esta chave já foi usada em outro pedido' });
@@ -51,7 +117,7 @@ const validarPedido = (body, idempotencyKey) => {
     throw erroValidacao('Chave de idempotência inválida');
   }
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw erroValidacao('Pedido inválido');
-  const camposBody = new Set(['mesaToken', 'clienteNome', 'clienteTelefone', 'consentimentoWhatsApp', 'itens']);
+  const camposBody = new Set(['mesaToken', 'clienteNome', 'clienteTelefone', 'consentimentoWhatsApp', 'itens', 'cotacaoToken']);
   if (possuiCamposNaoPermitidos(body, camposBody)) throw erroValidacao('Pedido contém campos não permitidos');
 
   const clienteNome = typeof body.clienteNome === 'string' ? body.clienteNome.trim() : '';
@@ -62,23 +128,10 @@ const validarPedido = (body, idempotencyKey) => {
   if (typeof body.mesaToken !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.mesaToken)) {
     throw erroValidacao('Token de mesa inválido');
   }
-  if (!Array.isArray(body.itens) || body.itens.length < 1 || body.itens.length > 50) {
-    throw erroValidacao('Informe entre 1 e 50 itens');
+  const itens = validarItens(body.itens);
+  if (typeof body.cotacaoToken !== 'string' || !body.cotacaoToken || body.cotacaoToken.length > 4096) {
+    throw erroValidacao('Atualize os preços antes de confirmar o pedido');
   }
-
-  const camposItem = new Set(['produtoId', 'quantidade', 'observacao']);
-  const itens = body.itens.map((item) => {
-    if (!item || typeof item !== 'object' || Array.isArray(item) || possuiCamposNaoPermitidos(item, camposItem)) {
-      throw erroValidacao('Item inválido');
-    }
-    if (typeof item.produtoId !== 'string' || !mongoose.isValidObjectId(item.produtoId)
-      || !Number.isInteger(item.quantidade) || item.quantidade < 1 || item.quantidade > 99) {
-      throw erroValidacao('Item ou quantidade inválidos');
-    }
-    const observacao = item.observacao === undefined ? '' : item.observacao;
-    if (typeof observacao !== 'string' || observacao.length > 250) throw erroValidacao('Observação inválida');
-    return { produtoId: item.produtoId, quantidade: item.quantidade, observacao: observacao.trim() };
-  });
 
   return {
     mesaToken: body.mesaToken,
@@ -86,6 +139,7 @@ const validarPedido = (body, idempotencyKey) => {
     clienteTelefone,
     consentimentoWhatsApp: true,
     itens,
+    cotacaoToken: body.cotacaoToken,
   };
 };
 
@@ -167,6 +221,35 @@ router.get('/auto-atendimento/:mesaToken', async (req, res, next) => {
   }
 });
 
+router.post('/auto-atendimento/:mesaToken/cotacao', limitarCotacoesQr, async (req, res, next) => {
+  try {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(req.params.mesaToken)) return res.status(404).json({ msg: 'Mesa não encontrada' });
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)
+      || possuiCamposNaoPermitidos(req.body, new Set(['itens']))) {
+      throw erroValidacao('Cotação inválida');
+    }
+    const mesa = await localizarMesa(req.params.mesaToken);
+    if (!mesa?.ativa) return res.status(404).json({ msg: 'Mesa não encontrada' });
+
+    const itensSolicitados = validarItens(req.body.itens);
+    const productIds = [...new Set(itensSolicitados.map((item) => item.produtoId))];
+    const produtos = await Product.find({ _id: { $in: productIds }, tipo: 'venda', ativo: true });
+    if (produtos.length !== productIds.length) throw erroValidacao('Um ou mais produtos não estão disponíveis');
+    const itens = construirItens(itensSolicitados, produtos);
+    const itensCotados = resumirCotacao(itens);
+    const total = calcularTotalCotacao(itensCotados);
+    const cotacaoToken = jwt.sign(
+      { mesaToken: req.params.mesaToken, itens: itensCotados, total },
+      process.env.JWT_SECRET,
+      { expiresIn: '10m', audience: audienciaCotacaoQr },
+    );
+    return res.json({ itens: itensCotados, total, cotacaoToken });
+  } catch (error) {
+    if (error.status && error.status < 500) return res.status(error.status).json({ msg: error.message });
+    return next(error);
+  }
+});
+
 router.post('/auto-atendimento', limitarPedidosQr, async (req, res, next) => {
   let session;
   let hash;
@@ -189,6 +272,7 @@ router.post('/auto-atendimento', limitarPedidosQr, async (req, res, next) => {
       const produtos = await Product.find({ _id: { $in: productIds }, tipo: 'venda', ativo: true }).session(session);
       if (produtos.length !== productIds.length) throw erroValidacao('Um ou mais produtos não estão disponíveis');
       const itens = construirItens(pedido.itens, produtos);
+      validarCotacao(pedido.cotacaoToken, pedido.mesaToken, itens);
       const customer = await Customer.findOne({ telefone: pedido.clienteTelefone }).session(session);
       const cliente = customer || new Customer({ nome: pedido.clienteNome, telefone: pedido.clienteTelefone });
       if (!customer) await cliente.save({ session });
@@ -230,6 +314,9 @@ router.post('/auto-atendimento', limitarPedidosQr, async (req, res, next) => {
       const anterior = await Comanda.findOne({ atendente: atendenteQr, idempotencyKey }).lean();
       if (anterior) return responderReplay(res, anterior, hash);
       if (error.code === 11000) return res.status(409).json({ msg: 'Pedido duplicado ou chave já utilizada' });
+    }
+    if (error.code === 'COTACAO_DESATUALIZADA') {
+      return res.status(409).json({ msg: error.message, code: error.code });
     }
     if (error.status && error.status < 500) return res.status(error.status).json({ msg: error.message });
     if (error.code === 11000) return res.status(409).json({ msg: 'Pedido duplicado' });

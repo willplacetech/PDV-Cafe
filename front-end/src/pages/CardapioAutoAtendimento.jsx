@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { carregarCardapio, enviarPedidoAutoAtendimento } from '../services/cardapioAutoAtendimento.js';
+import {
+  carregarCardapio,
+  cotarPedidoAutoAtendimento,
+  enviarPedidoAutoAtendimento,
+} from '../services/cardapioAutoAtendimento.js';
 
 const chaveCliente = (mesaToken) => `pdv-cardapio-cliente:${mesaToken}`;
 const somenteDigitos = (valor) => valor.replace(/\D/g, '').slice(0, 13);
@@ -49,6 +53,9 @@ export default function CardapioAutoAtendimento() {
   const [etapa, setEtapa] = useState('identificacao');
   const [cardapio, setCardapio] = useState(null);
   const [carrinho, setCarrinho] = useState({});
+  const [cotacao, setCotacao] = useState(null);
+  const [erroCotacao, setErroCotacao] = useState('');
+  const [tentativaCotacao, setTentativaCotacao] = useState(0);
   const [consentimento, setConsentimento] = useState(false);
   const [feedback, setFeedback] = useState(dadosIniciais.feedback);
   const [carregando, setCarregando] = useState(false);
@@ -74,10 +81,38 @@ export default function CardapioAutoAtendimento() {
   }, [etapa, mesaToken, tentativaCardapio]);
 
   const itensCarrinho = useMemo(() => Object.values(carrinho), [carrinho]);
-  const total = useMemo(() => itensCarrinho.reduce(
-    (soma, item) => soma + Number(item.produto.preco || 0) * item.quantidade,
-    0,
-  ), [itensCarrinho]);
+  const assinaturaCotacao = JSON.stringify(itensCarrinho.map((item) => ({
+    produtoId: item.produto.produtoId,
+    quantidade: item.quantidade,
+  })));
+  const cotacaoAtual = cotacao?.assinatura === assinaturaCotacao ? cotacao : null;
+  const cotacaoPendente = itensCarrinho.length > 0 && !cotacaoAtual && !erroCotacao;
+  const itensCotados = useMemo(
+    () => new Map((cotacaoAtual?.itens || []).map((item) => [item.produtoId, item])),
+    [cotacaoAtual],
+  );
+
+  useEffect(() => {
+    if (etapa !== 'cardapio') return undefined;
+    if (assinaturaCotacao === '[]') return undefined;
+
+    let ativo = true;
+    const itens = JSON.parse(assinaturaCotacao);
+    const timer = setTimeout(() => {
+      cotarPedidoAutoAtendimento(mesaToken, itens)
+        .then((dados) => {
+          if (ativo) setCotacao({ ...dados, assinatura: assinaturaCotacao });
+        })
+        .catch((error) => {
+          if (ativo) setErroCotacao(error.response?.data?.msg || 'Não foi possível atualizar os preços. Tente novamente.');
+        });
+    }, 250);
+
+    return () => {
+      ativo = false;
+      clearTimeout(timer);
+    };
+  }, [etapa, mesaToken, assinaturaCotacao, tentativaCotacao]);
 
   const avancarParaCardapio = (event) => {
     event.preventDefault();
@@ -110,6 +145,8 @@ export default function CardapioAutoAtendimento() {
   };
 
   const alterarQuantidade = (produto, diferenca) => {
+    setCotacao(null);
+    setErroCotacao('');
     setCarrinho((atual) => {
       const quantidade = (atual[produto.produtoId]?.quantidade || 0) + diferenca;
       const proximo = { ...atual };
@@ -138,6 +175,10 @@ export default function CardapioAutoAtendimento() {
       setFeedback('Adicione pelo menos um item ao pedido.');
       return;
     }
+    if (!cotacaoAtual) {
+      setFeedback('Aguarde a atualização dos preços antes de confirmar o pedido.');
+      return;
+    }
     if (!consentimento) {
       setFeedback('Aceite as atualizações do pedido por WhatsApp para continuar.');
       return;
@@ -147,6 +188,7 @@ export default function CardapioAutoAtendimento() {
       clienteNome: cliente.nome.trim(),
       clienteTelefone: somenteDigitos(cliente.telefone),
       consentimentoWhatsApp: true,
+      cotacaoToken: cotacaoAtual.cotacaoToken,
       itens: itensCarrinho.map((item) => ({
         produtoId: item.produto.produtoId,
         quantidade: item.quantidade,
@@ -170,6 +212,11 @@ export default function CardapioAutoAtendimento() {
       setEtapa('confirmado');
       idempotencia.current = null;
     } catch (error) {
+      if (error.response?.data?.code === 'COTACAO_DESATUALIZADA') {
+        setCotacao(null);
+        setErroCotacao('');
+        setTentativaCotacao((atual) => atual + 1);
+      }
       setFeedback(error.response?.data?.msg || 'Não foi possível enviar o pedido. Tente novamente.');
     } finally {
       setEnviando(false);
@@ -235,7 +282,7 @@ export default function CardapioAutoAtendimento() {
                       <article className="qr-menu-product" data-testid={`produto-qr-${produto.produtoId}`} key={produto.produtoId}>
                         <div className="qr-menu-product-heading">
                           <div><h2>{produto.nome}</h2><small>{produto.categoria}</small></div>
-                          <strong>{formatarPreco(produto.preco)}</strong>
+                          <strong>{formatarPreco(produto.preco)} <small>preço base</small></strong>
                         </div>
                         {itemCarrinho ? (
                           <div className="qr-menu-item-controls">
@@ -268,10 +315,33 @@ export default function CardapioAutoAtendimento() {
                   {itensCarrinho.map((item) => (
                     <p key={item.produto.produtoId}>
                       {item.quantidade} × {item.produto.nome}
-                      <span>{formatarPreco(item.produto.preco * item.quantidade)}</span>
+                      <span>
+                        {cotacaoAtual
+                          ? formatarPreco(itensCotados.get(item.produto.produtoId)?.total)
+                          : 'Calculando...'}
+                      </span>
                     </p>
                   ))}
-                  <p className="qr-menu-total"><strong>Total estimado</strong><strong>{formatarPreco(total)}</strong></p>
+                  <p className="qr-menu-total">
+                    <strong>Total do pedido</strong>
+                    <strong>{cotacaoAtual ? formatarPreco(cotacaoAtual.total) : 'Calculando...'}</strong>
+                  </p>
+                  {erroCotacao && (
+                    <div role="alert">
+                      <p>{erroCotacao}</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCotacao(null);
+                          setErroCotacao('');
+                          setTentativaCotacao((atual) => atual + 1);
+                        }}
+                      >
+                        Tentar atualizar os preços
+                      </button>
+                    </div>
+                  )}
+                  {cotacaoPendente && <p role="status">Atualizando preços...</p>}
                 </section>
 
                 <label className="qr-menu-consent">
@@ -284,7 +354,11 @@ export default function CardapioAutoAtendimento() {
                   />
                   <span>Aceito receber atualizações do meu pedido por WhatsApp</span>
                 </label>
-                <button className="qr-menu-primary" type="submit" disabled={enviando || !itensCarrinho.length}>
+                <button
+                  className="qr-menu-primary"
+                  type="submit"
+                  disabled={enviando || cotacaoPendente || !cotacaoAtual || !itensCarrinho.length}
+                >
                   {enviando ? 'Enviando...' : 'Finalizar pedido'}
                 </button>
               </form>
