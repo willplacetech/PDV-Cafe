@@ -9,6 +9,7 @@ const Order = require('../../models/Order');
 const Comanda = require('../../models/Comanda');
 const Purchase = require('../../models/Purchase');
 const Recipe = require('../../models/Recipe');
+const Production = require('../../models/Production');
 const Despesa = require('../../models/Despesa');
 
 const jwtSecret = process.env.JWT_SECRET || 'desenvolvimento-altere-esta-chave';
@@ -407,6 +408,119 @@ describe('API Endpoints', () => {
       });
     expect(res.statusCode).toBe(200);
     expect(res.body.nome).toBe('Cookie Redvelvet 100g');
+  });
+
+  test('POST /api/production/produce → abastece todos os produtos finais da ficha', async () => {
+    await Product.findByIdAndUpdate(insumo._id, { $set: { estoqueEmbalagens: 10, estoqueInsumos: 10 } });
+    const bolo = await Product.create({
+      codigo: 'multi-out-bolo',
+      nome: 'Bolo inteiro',
+      preco: 40,
+      tipo: 'venda',
+      tipoProduto: 'producao',
+      producaoPropria: true,
+      categoria: 'Doces',
+      unidadeVenda: 'un',
+      estoque: 0,
+    });
+    const fatia = await Product.create({
+      codigo: 'multi-out-fatia',
+      nome: 'Fatia de bolo',
+      preco: 8,
+      tipo: 'venda',
+      tipoProduto: 'producao',
+      producaoPropria: true,
+      categoria: 'Doces',
+      unidadeVenda: 'un',
+      estoque: 0,
+    });
+    const createRecipe = await request(app)
+      .post('/api/production/recipes')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        nome: 'Forno de bolo',
+        produtoId: String(bolo._id),
+        rendimento: 1,
+        unidadeRendimento: 'un',
+        produtosSaida: [
+          { produtoId: String(bolo._id), quantidade: 1, unidade: 'un' },
+          { produtoId: String(fatia._id), quantidade: 8, unidade: 'un' },
+        ],
+        ingredientes: [{ produtoId: String(insumo._id), quantidade: 0.5, unidade: 'kg' }],
+      });
+
+    expect(createRecipe.statusCode).toBe(201);
+    expect(createRecipe.body.produtosSaida).toHaveLength(2);
+    expect(createRecipe.body.custoUnitario).toBeGreaterThan(0);
+    const boloAtualizado = await Product.findById(bolo._id);
+    const fatiaAtualizada = await Product.findById(fatia._id);
+    expect(boloAtualizado.custoUnitario).toBeCloseTo(fatiaAtualizada.custoUnitario, 6);
+    expect(fatiaAtualizada.fichaTecnica[0].quantidade).toBeCloseTo(0.5 / 9, 6);
+
+    const updateRecipe = await request(app)
+      .put(`/api/production/recipes/${createRecipe.body._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        produtosSaida: [
+          { produtoId: String(bolo._id), quantidade: 1, unidade: 'un' },
+          { produtoId: String(fatia._id), quantidade: 8, unidade: 'un' },
+        ],
+      });
+    expect(updateRecipe.statusCode).toBe(200);
+    expect(updateRecipe.body.produtosSaida).toHaveLength(2);
+
+    const production = await request(app)
+      .post('/api/production/produce')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ receitas: [{ receitaId: createRecipe.body._id, quantidade: 2 }] });
+
+    expect(production.statusCode).toBe(201);
+    expect(production.body.producoes[0].produtos).toHaveLength(2);
+    expect((await Product.findById(bolo._id)).estoque).toBe(2);
+    expect((await Product.findById(fatia._id)).estoque).toBe(16);
+    expect(await Production.countDocuments({ receitaId: createRecipe.body._id })).toBe(1);
+  });
+
+  test('POST /api/production/recipes → rejeita produtos finais de modos diferentes', async () => {
+    const sobDemanda = await Product.create({
+      codigo: 'multi-mode-na-hora',
+      nome: 'Omelete',
+      preco: 12,
+      tipo: 'venda',
+      tipoProduto: 'coz',
+      aFazer: true,
+      categoria: 'Pratos na Hora',
+      unidadeVenda: 'un',
+      estoque: 0,
+    });
+    const porLote = await Product.create({
+      codigo: 'multi-mode-lote',
+      nome: 'Pão de queijo',
+      preco: 3,
+      tipo: 'venda',
+      tipoProduto: 'producao',
+      producaoPropria: true,
+      categoria: 'Salgados',
+      unidadeVenda: 'un',
+      estoque: 0,
+    });
+    const response = await request(app)
+      .post('/api/production/recipes')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        nome: 'Preparação incompatível',
+        produtoId: String(sobDemanda._id),
+        rendimento: 1,
+        unidadeRendimento: 'un',
+        produtosSaida: [
+          { produtoId: String(sobDemanda._id), quantidade: 1, unidade: 'un' },
+          { produtoId: String(porLote._id), quantidade: 1, unidade: 'un' },
+        ],
+        ingredientes: [{ produtoId: String(insumo._id), quantidade: 0.5, unidade: 'kg' }],
+      });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body.msg).toMatch(/mesmo modo de preparo/);
   });
 
   test('GET /api/comandas → lista comandas', async () => {

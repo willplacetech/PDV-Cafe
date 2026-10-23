@@ -11,8 +11,11 @@ import EstadoLista from '../components/EstadoLista.jsx';
 
 const units = ['kg', 'L', 'un'];
 const factors = { g: 0.001, kg: 1, ml: 0.001, l: 1, L: 1, un: 1 };
-const emptyRecipe = { nome: '', produtoId: '', rendimento: '1', unidadeRendimento: 'un', ingredientes: [{ produtoId: '', quantidade: '', unidade: 'un' }] };
+const emptyRecipe = { nome: '', produtoId: '', rendimento: '1', unidadeRendimento: 'un', modoSaida: 'unico', produtosSaida: [{ produtoId: '', quantidade: '1' }], ingredientes: [{ produtoId: '', quantidade: '', unidade: 'un' }] };
 const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
+const saidasDaReceita = (recipe) => Array.isArray(recipe?.produtosSaida) && recipe.produtosSaida.length
+  ? recipe.produtosSaida
+  : [{ produtoId: recipe?.produtoId, quantidade: recipe?.rendimento, unidade: recipe?.unidadeRendimento }];
 const tipoDoProduto = (product) => {
   const safeProduct = product || {};
   return safeProduct.aFazer ? 'coz' : safeProduct.producaoPropria ? 'producao' : safeProduct.tipoProduto || 'revenda';
@@ -50,7 +53,8 @@ export default function FichasTecnicas({ embedded = false }) {
     inicializar();
   }, [load]);
 
-  const recipeProducts = products.filter((product) => product && ['coz', 'producao'].includes(tipoDoProduto(product)));
+  const produtosEmOutrasFichas = new Set(recipes.filter((recipe) => recipe._id !== editingId).flatMap((recipe) => saidasDaReceita(recipe).map((output) => String(output.produtoId?._id || output.produtoId))));
+  const recipeProducts = products.filter((product) => product && ['coz', 'producao'].includes(tipoDoProduto(product)) && !produtosEmOutrasFichas.has(String(product._id)));
   const ingredients = products.filter((product) => product && (product.tipo === 'insumo' || product.usavelEmReceita));
   const ingredientById = (id) => ingredients.find((product) => String(product._id) === String(id));
 
@@ -61,8 +65,6 @@ export default function FichasTecnicas({ embedded = false }) {
         limiting: recipe.disponibilidade.limitante || 'Nenhum ingrediente',
       };
     }
-    const tipo = tipoDoProduto(recipe.produtoId);
-    if (tipo === 'producao') return { quantity: Number(recipe.produtoId?.estoque || 0), limiting: 'Estoque do produto' };
     const values = (recipe.ingredientes || []).filter(Boolean).map((item) => {
       const product = ingredientById(item.produtoId?._id || item.produtoId);
       const stock = Number(product?.resumoInsumo?.totalBase ?? product?.estoqueInsumos ?? product?.estoque ?? 0);
@@ -70,7 +72,8 @@ export default function FichasTecnicas({ embedded = false }) {
       return { product, value: consumption > 0 ? Math.floor(stock / consumption) : 0 };
     });
     const limit = values.length ? Math.min(...values.map((item) => item.value)) : 0;
-    return { quantity: limit * Number(recipe.rendimento || 1), limiting: values.find((item) => item.value === limit)?.product?.nome || 'Nenhum ingrediente' };
+    const rendimentoTotal = saidasDaReceita(recipe).reduce((total, output) => total + Number(output.quantidade || 0), 0);
+    return { quantity: limit * rendimentoTotal, limiting: values.find((item) => item.value === limit)?.product?.nome || 'Nenhum ingrediente' };
   };
 
   const cost = (recipe) => (recipe.ingredientes || []).filter(Boolean).reduce((total, item) => {
@@ -81,22 +84,23 @@ export default function FichasTecnicas({ embedded = false }) {
   const filteredRecipes = recipes.filter((recipe) => {
     if (!recipe || !Array.isArray(recipe.ingredientes)) return false;
     const product = recipe.produtoId || {};
-    const tipo = tipoDoProduto(product);
-    const typeOk = filter === 'todos' || (filter === 'coz' ? tipo === 'coz' : tipo === 'producao');
-    return typeOk && String(product.nome || recipe.nome).toLowerCase().includes(search.toLowerCase()) && recipe.ingredientes.every(Boolean);
+    const nomesSaida = saidasDaReceita(recipe).map((output) => output.produtoId?.nome || '').join(' ');
+    const typeOk = filter === 'todos';
+    return typeOk && `${product.nome || ''} ${nomesSaida} ${recipe.nome}`.toLowerCase().includes(search.toLowerCase()) && recipe.ingredientes.every(Boolean);
   });
   const paginacaoFichas = usePagination(filteredRecipes, 25, `${filter}|${search}`);
 
   const startEdit = useCallback((recipe) => {
     setEditingId(recipe._id);
-    setRecipeForm({ nome: recipe.nome, produtoId: recipe.produtoId?._id || recipe.produtoId, rendimento: String(recipe.rendimento), unidadeRendimento: recipe.unidadeRendimento, ingredientes: (recipe.ingredientes || []).filter(Boolean).map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: String(item.quantidade), unidade: item.unidade })) });
+    const produtosSaida = saidasDaReceita(recipe).map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: String(item.quantidade) }));
+    setRecipeForm({ nome: recipe.nome, produtoId: produtosSaida[0]?.produtoId || '', rendimento: String(recipe.rendimento), unidadeRendimento: recipe.unidadeRendimento, modoSaida: produtosSaida.length > 1 ? 'multiplos' : 'unico', produtosSaida, ingredientes: (recipe.ingredientes || []).filter(Boolean).map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: String(item.quantidade), unidade: item.unidade })) });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
   useEffect(() => {
     const productId = searchParams.get('produto');
     if (productId && recipes.length) {
-      const recipe = recipes.find((item) => String(item.produtoId?._id || item.produtoId) === productId);
+      const recipe = recipes.find((item) => saidasDaReceita(item).some((output) => String(output.produtoId?._id || output.produtoId) === productId));
       if (recipe) {
         const selecionar = async () => { startEdit(recipe); };
         selecionar();
@@ -106,7 +110,8 @@ export default function FichasTecnicas({ embedded = false }) {
 
   const duplicate = (recipe) => {
     setEditingId(null);
-    setRecipeForm({ nome: `${recipe.nome} (cópia)`, produtoId: '', rendimento: String(recipe.rendimento), unidadeRendimento: recipe.unidadeRendimento, ingredientes: (recipe.ingredientes || []).filter(Boolean).map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: String(item.quantidade), unidade: item.unidade })) });
+    const produtosSaida = saidasDaReceita(recipe).map((item) => ({ produtoId: '', quantidade: String(item.quantidade) }));
+    setRecipeForm({ nome: `${recipe.nome} (cópia)`, produtoId: '', rendimento: String(recipe.rendimento), unidadeRendimento: recipe.unidadeRendimento, modoSaida: produtosSaida.length > 1 ? 'multiplos' : 'unico', produtosSaida, ingredientes: (recipe.ingredientes || []).filter(Boolean).map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: String(item.quantidade), unidade: item.unidade })) });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -114,9 +119,8 @@ export default function FichasTecnicas({ embedded = false }) {
     event.preventDefault();
     setSaving(true);
     try {
-      const produto = recipeProducts.find((item) => String(item._id) === String(recipeForm.produtoId));
-      const tipoProduto = tipoDoProduto(produto);
-      const payload = { ...recipeForm, rendimento: tipoProduto === 'coz' ? 1 : Number(recipeForm.rendimento), ingredientes: recipeForm.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })) };
+      const produtosSaida = recipeForm.produtosSaida.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: recipeForm.unidadeRendimento }));
+      const payload = { ...recipeForm, produtoId: produtosSaida[0]?.produtoId, rendimento: produtosSaida[0]?.quantidade, unidadeRendimento: produtosSaida[0]?.unidade, produtosSaida, ingredientes: recipeForm.ingredientes.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })) };
       const salvar = (dados) => editingId ? api.put(`/production/recipes/${editingId}`, dados) : api.post('/production/recipes', dados);
       try {
         await salvar(payload);
@@ -138,8 +142,33 @@ export default function FichasTecnicas({ embedded = false }) {
 
   return <div className={`technical-sheets-page ${embedded ? 'embedded' : ''} ${canEdit ? '' : 'read-only'}`}>
     {!embedded && <header className="page-heading"><div><span className="production-eyebrow">PRODUÇÃO</span><h1>📋 Ficha técnica</h1><p>Ficha técnica, ingredientes, custo e disponibilidade em um único lugar.</p></div><strong className="technical-sheets-count">{recipes.length} ficha(s)</strong></header>}
-    {canEdit && <form className="technical-sheet-form" onSubmit={save}><div className="section-heading"><div><h2>{editingId ? 'Editar ficha técnica' : 'Nova ficha técnica'}</h2><p>Vincule uma ficha técnica a um produto Coz ou de produção própria.</p></div></div><div className="technical-sheet-grid"><label>Produto vinculado<SearchableSelect required value={recipeForm.produtoId} onChange={(event) => { const product = recipeProducts.find((item) => item._id === event.target.value); setRecipeForm({ ...recipeForm, produtoId: event.target.value, nome: recipeForm.nome || product?.nome || '' }); }}><option value="">Selecione um produto</option>{recipeProducts.map((product) => <option key={product._id} value={product._id}>{product.nome} · {product.aFazer ? 'Coz' : 'Produção Própria'}</option>)}</SearchableSelect></label><label>Nome da ficha<input required value={recipeForm.nome} onChange={(event) => setRecipeForm({ ...recipeForm, nome: event.target.value })} /></label><label>Rendimento<input required type="number" min="0.001" step="0.001" value={recipeForm.rendimento} onChange={(event) => setRecipeForm({ ...recipeForm, rendimento: event.target.value })} /></label><label>Unidade do rendimento<SearchableSelect value={recipeForm.unidadeRendimento} onChange={(event) => setRecipeForm({ ...recipeForm, unidadeRendimento: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</SearchableSelect></label></div><div className="technical-ingredients-heading"><h3>Ingredientes</h3><button type="button" className="secondary btn btn-ghost" onClick={() => setRecipeForm({ ...recipeForm, ingredientes: [...recipeForm.ingredientes, { produtoId: '', quantidade: '', unidade: 'un' }] })}>+ Adicionar ingrediente</button></div><div className="technical-ingredients">{recipeForm.ingredientes.map((item, index) => <div className="technical-ingredient-row" key={`${index}-${item.produtoId}`}><SearchableSelect required value={item.produtoId} onChange={(event) => setRecipeForm({ ...recipeForm, ingredientes: recipeForm.ingredientes.map((current, currentIndex) => currentIndex === index ? { ...current, produtoId: event.target.value } : current) })}><option value="">Insumo</option>{ingredients.map((product) => <option key={product._id} value={product._id}>{product.nome}</option>)}</SearchableSelect><input required type="number" min="0.001" step="0.001" value={item.quantidade} onChange={(event) => setRecipeForm({ ...recipeForm, ingredientes: recipeForm.ingredientes.map((current, currentIndex) => currentIndex === index ? { ...current, quantidade: event.target.value } : current) })} placeholder="Quantidade" /><SearchableSelect value={item.unidade} onChange={(event) => setRecipeForm({ ...recipeForm, ingredientes: recipeForm.ingredientes.map((current, currentIndex) => currentIndex === index ? { ...current, unidade: event.target.value } : current) })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</SearchableSelect><button type="button" className="danger" disabled={recipeForm.ingredientes.length === 1} onClick={() => setRecipeForm({ ...recipeForm, ingredientes: recipeForm.ingredientes.filter((_, currentIndex) => currentIndex !== index) })}>Remover</button></div>)}</div>{recipeForm.produtoId && <div className="technical-calculation"><span>Custo total: <strong>{money(cost(recipeForm))}</strong></span><span>Custo por unidade: <strong>{money(cost(recipeForm) / Math.max(1, Number(recipeForm.rendimento || 1)))}</strong></span><span>Disponível para fazer: <strong>{availability(recipeForm).quantity} {recipeForm.unidadeRendimento}</strong></span><small>Ingrediente limitante: {availability(recipeForm).limiting}</small></div>}<div className="technical-form-actions"><button className="primary btn btn-primary" disabled={saving}>{saving ? 'Salvando...' : 'Salvar ficha'}</button>{editingId && <button type="button" className="secondary btn btn-ghost" onClick={() => { setEditingId(null); setRecipeForm(emptyRecipe); }}>Voltar</button>}</div></form>}
-    <section className="technical-sheet-list"><div className="section-heading"><div><h2>Lista de fichas</h2><p>Disponibilidade calculada com o estoque atual dos insumos.</p></div></div><div className="technical-filters"><div><button type="button" className={filter === 'todos' ? 'active' : ''} onClick={() => setFilter('todos')}>Todas</button><button type="button" className={filter === 'coz' ? 'active' : ''} onClick={() => setFilter('coz')}>Coz</button><button type="button" className={filter === 'producao' ? 'active' : ''} onClick={() => setFilter('producao')}>Produção Própria</button></div><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por nome" /></div><EstadoLista carregando={loading} erro={loadError} vazio={!filteredRecipes.length} tituloVazio={filter !== 'todos' || search ? 'Nenhuma ficha técnica encontrada para os filtros atuais' : 'Nenhuma ficha técnica encontrada'} mensagemVazia={filter !== 'todos' || search ? 'Ajuste ou limpe os filtros para ver outras fichas.' : undefined} acaoVaziaTexto={filter !== 'todos' || search ? 'Limpar filtros' : undefined} onAcaoVazia={filter !== 'todos' || search ? () => { setFilter('todos'); setSearch(''); } : undefined} onRetry={load}>{filteredRecipes.length ? <div className="technical-table-wrap"><table className="technical-table"><thead><tr><th>Produto</th><th>Tipo</th><th>Disponível</th><th>Custo/unidade</th><th>Ações</th></tr></thead><tbody>{paginacaoFichas.itensPagina.map((recipe) => { const current = availability(recipe); const className = current.quantity >= 5 ? 'technical-good' : current.quantity > 0 ? 'technical-warning' : 'technical-empty'; return <tr key={recipe._id}><td><strong>{recipe.produtoId?.nome || recipe.nome}</strong><small>{recipe.nome}</small></td><td>{recipe.tipoFicha === 'coz' ? 'Coz' : 'Produção Própria'}</td><td><button type="button" className={`technical-availability ${className}`} title={`Ingrediente limitante: ${current.limiting}`}>{current.quantity >= 5 ? '✅' : current.quantity > 0 ? '⚠️' : '❌'} {current.quantity} {recipe.unidadeRendimento}</button></td><td>{money(recipe.custoUnitario)}</td><td><div className="technical-actions"><button type="button" className="secondary btn btn-ghost" onClick={() => startEdit(recipe)}>✏️</button><button type="button" className="secondary btn btn-ghost" onClick={() => duplicate(recipe)}>📋</button><ConfirmarAcao titulo="Excluir ficha técnica" mensagem={`Excluir a ficha de ${recipe.produtoId?.nome || recipe.nome}? O produto não será excluído.`} acaoTexto="Excluir ficha" onConfirmar={() => remove(recipe)}>{({ onClick }) => <button type="button" className="danger" onClick={onClick}>🗑️</button>}</ConfirmarAcao></div></td></tr>; })}</tbody></table></div> : null}</EstadoLista><Paginacao total={paginacaoFichas.total} paginaAtual={paginacaoFichas.paginaAtual} limiteAtual={paginacaoFichas.limiteAtual} onChangePagina={paginacaoFichas.alterarPagina} onChangeLimite={paginacaoFichas.alterarLimite} /></section>
+    {canEdit && <form className="technical-sheet-form" onSubmit={save}>
+      <div className="section-heading"><div><h2>{editingId ? 'Editar ficha técnica' : 'Nova ficha técnica'}</h2><p>Uma preparação pode ser feita sob demanda ou por lote e gerar um ou mais produtos finais.</p></div></div>
+      <div className="technical-sheet-grid">
+        <label>Nome da ficha<input required value={recipeForm.nome} onChange={(event) => setRecipeForm({ ...recipeForm, nome: event.target.value })} /></label>
+        <label>Unidade dos produtos finais<SearchableSelect value={recipeForm.unidadeRendimento} onChange={(event) => setRecipeForm({ ...recipeForm, unidadeRendimento: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</SearchableSelect></label>
+        <fieldset className="technical-output-mode"><legend>A ficha gera</legend>
+          <label><input type="radio" name="modoSaida" checked={recipeForm.modoSaida === 'unico'} onChange={() => setRecipeForm({ ...recipeForm, modoSaida: 'unico', produtosSaida: recipeForm.produtosSaida.slice(0, 1) })} /> Um produto final</label>
+          <label><input type="radio" name="modoSaida" checked={recipeForm.modoSaida === 'multiplos'} onChange={() => setRecipeForm({ ...recipeForm, modoSaida: 'multiplos', produtosSaida: recipeForm.produtosSaida.length > 1 ? recipeForm.produtosSaida : [...recipeForm.produtosSaida, { produtoId: '', quantidade: '1' }] })} /> Vários produtos finais</label>
+        </fieldset>
+      </div>
+      <div className="technical-ingredients-heading"><h3>Produtos finais por ficha</h3>
+        {recipeForm.modoSaida === 'multiplos' && <button type="button" className="secondary btn btn-ghost" onClick={() => setRecipeForm({ ...recipeForm, produtosSaida: [...recipeForm.produtosSaida, { produtoId: '', quantidade: '1' }] })}>+ Adicionar produto final</button>}
+      </div>
+      <div className="technical-ingredients">{recipeForm.produtosSaida.map((output, index) => <div className="technical-ingredient-row" key={`output-${index}`}>
+        <SearchableSelect required value={output.produtoId} onChange={(event) => { const product = recipeProducts.find((item) => item._id === event.target.value); setRecipeForm({ ...recipeForm, produtosSaida: recipeForm.produtosSaida.map((current, currentIndex) => currentIndex === index ? { ...current, produtoId: event.target.value } : current), produtoId: index === 0 ? event.target.value : recipeForm.produtosSaida[0]?.produtoId, nome: recipeForm.nome || product?.nome || '' }); }}>
+          <option value="">Selecione um produto de preparação</option>{recipeProducts.map((product) => <option key={product._id} value={product._id}>{product.nome} · {tipoDoProduto(product) === 'coz' ? 'Sob demanda' : 'Por lote'}</option>)}
+        </SearchableSelect>
+        <input required type="number" min="0.001" step="0.001" value={output.quantidade} onChange={(event) => setRecipeForm({ ...recipeForm, produtosSaida: recipeForm.produtosSaida.map((current, currentIndex) => currentIndex === index ? { ...current, quantidade: event.target.value } : current) })} placeholder={`Quantidade (${recipeForm.unidadeRendimento})`} />
+        <span>{recipeForm.unidadeRendimento} por ficha</span>
+        {recipeForm.modoSaida === 'multiplos' && <button type="button" className="danger" disabled={recipeForm.produtosSaida.length <= 2} onClick={() => setRecipeForm({ ...recipeForm, produtosSaida: recipeForm.produtosSaida.filter((_, currentIndex) => currentIndex !== index) })}>Remover</button>}
+      </div>)}</div>
+      <div className="technical-ingredients-heading"><h3>Ingredientes</h3><button type="button" className="secondary btn btn-ghost" onClick={() => setRecipeForm({ ...recipeForm, ingredientes: [...recipeForm.ingredientes, { produtoId: '', quantidade: '', unidade: 'un' }] })}>+ Adicionar ingrediente</button></div>
+      <div className="technical-ingredients">{recipeForm.ingredientes.map((item, index) => <div className="technical-ingredient-row" key={`${index}-${item.produtoId}`}><SearchableSelect required value={item.produtoId} onChange={(event) => setRecipeForm({ ...recipeForm, ingredientes: recipeForm.ingredientes.map((current, currentIndex) => currentIndex === index ? { ...current, produtoId: event.target.value } : current) })}><option value="">Insumo</option>{ingredients.map((product) => <option key={product._id} value={product._id}>{product.nome}</option>)}</SearchableSelect><input required type="number" min="0.001" step="0.001" value={item.quantidade} onChange={(event) => setRecipeForm({ ...recipeForm, ingredientes: recipeForm.ingredientes.map((current, currentIndex) => currentIndex === index ? { ...current, quantidade: event.target.value } : current) })} placeholder="Quantidade" /><SearchableSelect value={item.unidade} onChange={(event) => setRecipeForm({ ...recipeForm, ingredientes: recipeForm.ingredientes.map((current, currentIndex) => currentIndex === index ? { ...current, unidade: event.target.value } : current) })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</SearchableSelect><button type="button" className="danger" disabled={recipeForm.ingredientes.length === 1} onClick={() => setRecipeForm({ ...recipeForm, ingredientes: recipeForm.ingredientes.filter((_, currentIndex) => currentIndex !== index) })}>Remover</button></div>)}</div>
+      {recipeForm.produtosSaida[0]?.produtoId && <div className="technical-calculation"><span>Custo total do lote: <strong>{money(cost(recipeForm))}</strong></span><span>Custo por unidade final: <strong>{money(cost(recipeForm) / Math.max(0.001, recipeForm.produtosSaida.reduce((total, output) => total + Number(output.quantidade || 0), 0)))}</strong></span><span>Disponível para preparar: <strong>{availability(recipeForm).quantity} {recipeForm.unidadeRendimento}</strong></span><small>Ingrediente limitante: {availability(recipeForm).limiting}</small><small>O custo do lote é rateado igualmente por unidade entre todos os produtos finais.</small></div>}
+      <div className="technical-form-actions"><button className="primary btn btn-primary" disabled={saving}>{saving ? 'Salvando...' : 'Salvar ficha'}</button>{editingId && <button type="button" className="secondary btn btn-ghost" onClick={() => { setEditingId(null); setRecipeForm(emptyRecipe); }}>Voltar</button>}</div>
+    </form>}
+    <section className="technical-sheet-list"><div className="section-heading"><div><h2>Lista de preparações</h2><p>Disponibilidade calculada com o estoque atual dos insumos; ficha compartilhada por todos os produtos finais.</p></div></div><div className="technical-filters"><div><button type="button" className={filter === 'todos' ? 'active' : ''} onClick={() => setFilter('todos')}>Todas as preparações</button></div><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por ficha ou produto" /></div><EstadoLista carregando={loading} erro={loadError} vazio={!filteredRecipes.length} tituloVazio={search ? 'Nenhuma preparação encontrada para a busca' : 'Nenhuma preparação cadastrada'} mensagemVazia={search ? 'Ajuste ou limpe a busca para ver outras preparações.' : undefined} acaoVaziaTexto={search ? 'Limpar busca' : undefined} onAcaoVazia={search ? () => setSearch('') : undefined} onRetry={load}>{filteredRecipes.length ? <div className="technical-table-wrap"><table className="technical-table"><thead><tr><th>Ficha e produtos finais</th><th>Modo</th><th>Disponível</th><th>Custo/unidade</th><th>Ações</th></tr></thead><tbody>{paginacaoFichas.itensPagina.map((recipe) => { const current = availability(recipe); const className = current.quantity >= 5 ? 'technical-good' : current.quantity > 0 ? 'technical-warning' : 'technical-empty'; const outputNames = saidasDaReceita(recipe).map((output) => output.produtoId?.nome || 'Produto removido'); return <tr key={recipe._id}><td><strong>{outputNames.join(' + ')}</strong><small>{recipe.nome}</small></td><td>{recipe.tipoFicha === 'coz' ? 'Sob demanda' : 'Por lote'}</td><td><button type="button" className={`technical-availability ${className}`} title={`Ingrediente limitante: ${current.limiting}`}>{current.quantity >= 5 ? '✅' : current.quantity > 0 ? '⚠️' : '❌'} {current.quantity} {recipe.unidadeRendimento}</button></td><td>{money(recipe.custoUnitario)}</td><td><div className="technical-actions"><button type="button" className="secondary btn btn-ghost" onClick={() => startEdit(recipe)}>✏️</button><button type="button" className="secondary btn btn-ghost" onClick={() => duplicate(recipe)}>📋</button><ConfirmarAcao titulo="Excluir ficha técnica" mensagem={`Excluir a preparação ${recipe.nome}? Os produtos não serão excluídos.`} acaoTexto="Excluir ficha" onConfirmar={() => remove(recipe)}>{({ onClick }) => <button type="button" className="danger" onClick={onClick}>🗑️</button>}</ConfirmarAcao></div></td></tr>; })}</tbody></table></div> : null}</EstadoLista><Paginacao total={paginacaoFichas.total} paginaAtual={paginacaoFichas.paginaAtual} limiteAtual={paginacaoFichas.limiteAtual} onChangePagina={paginacaoFichas.alterarPagina} onChangeLimite={paginacaoFichas.alterarLimite} /></section>
     <style>{styles}</style>
     <style>{readOnlyStyles}</style>
   </div>;

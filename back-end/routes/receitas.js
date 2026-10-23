@@ -16,6 +16,9 @@ const precosSugeridos = (custoUnitario) => ({
   margem60: custoUnitario / (1 - 0.6),
   margem70: custoUnitario / (1 - 0.7),
 });
+const saidasDaReceita = (recipe) => Array.isArray(recipe.produtosSaida) && recipe.produtosSaida.length
+  ? recipe.produtosSaida
+  : [{ produtoId: recipe.produtoId, quantidade: recipe.rendimento, unidade: recipe.unidadeRendimento }];
 
 router.use(auth);
 router.use(auth.allowRoles('admin'));
@@ -39,7 +42,7 @@ router.post('/:id/calcular-custo', [
   body('maoDeObra').optional().isFloat({ min: 0 }),
 ], async (req, res) => {
   try {
-    const recipe = await Recipe.findById(req.params.id).populate('ingredientes.produtoId').populate('produtoId');
+    const recipe = await Recipe.findById(req.params.id).populate('ingredientes.produtoId').populate('produtoId').populate('produtosSaida.produtoId');
     if (!recipe) return res.status(404).json({ msg: 'Receita não encontrada' });
 
     const custoEmbalagem = Number(req.body.custoEmbalagem ?? recipe.custoEmbalagem ?? 0);
@@ -52,7 +55,9 @@ router.post('/:id/calcular-custo', [
       custoUnitarioBase: Number(item.produtoId?.custoUnitarioBase || 0),
     }));
 
-    const resultado = calcularCustoReceitaDireta(ingredientes, custoEmbalagem, custoIndireto, maoDeObra, Number(recipe.rendimento || 1));
+    const saidas = saidasDaReceita(recipe);
+    const rendimentoTotal = saidas.reduce((total, saida) => total + Number(saida.quantidade || 0), 0);
+    const resultado = calcularCustoReceitaDireta(ingredientes, custoEmbalagem, custoIndireto, maoDeObra, rendimentoTotal);
     recipe.custoInsumosTotal = resultado.custoInsumosTotal;
     recipe.custoEmbalagem = custoEmbalagem;
     recipe.custoIndireto = custoIndireto;
@@ -61,23 +66,28 @@ router.post('/:id/calcular-custo', [
     recipe.custoUnitario = resultado.custoUnitario;
     await recipe.save();
 
-    const produto = await Product.findById(recipe.produtoId);
-    if (produto) {
+    const produtosSaida = [];
+    for (const saida of saidas) {
+      const produto = await Product.findById(saida.produtoId?._id || saida.produtoId);
+      if (!produto) continue;
       produto.custo = resultado.custoUnitario;
       produto.custoUnitario = resultado.custoUnitario;
+      produto.custoCalculado = resultado.custoUnitario;
+      produto.fichaTecnica = recipe.ingredientes.map((item) => ({ produtoId: item.produtoId._id || item.produtoId, quantidade: Number(item.quantidade) / Math.max(0.000001, rendimentoTotal), unidade: item.unidade }));
       produto.reajusteRecomendado = false;
       await produto.save();
+      produtosSaida.push(produto);
+      await HistoricoCusto.create({
+        produtoId: produto._id,
+        custoUnitario: resultado.custoUnitario,
+        receitaId: recipe._id,
+        motivo: 'alteracao_receita',
+        data: new Date(),
+      });
     }
 
-    await HistoricoCusto.create({
-      produtoId: recipe.produtoId,
-      custoUnitario: resultado.custoUnitario,
-      receitaId: recipe._id,
-      motivo: 'alteracao_receita',
-      data: new Date(),
-    });
-
     const sugeridos = precosSugeridos(resultado.custoUnitario);
+    const produto = produtosSaida.find((item) => String(item._id) === String(recipe.produtoId?._id || recipe.produtoId));
     const margemAtual = produto?.preco ? calcularMargem(resultado.custoUnitario, Number(produto.preco || 0)) : 0;
 
     res.json({
@@ -90,6 +100,7 @@ router.post('/:id/calcular-custo', [
       precoSugeridoMargem60: sugeridos.margem60,
       sugeridos,
       produto,
+      produtos: produtosSaida,
     });
   } catch (error) {
     res.status(400).json({ msg: error.message });

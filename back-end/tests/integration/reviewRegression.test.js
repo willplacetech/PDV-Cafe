@@ -124,10 +124,12 @@ test('liberação de venda sem ingrediente não cria estoque ao cancelar', async
 test('mesas são persistidas e lidas pela mesma API', async () => {
   const settings = { mesas: [{ id: 7, numero: 7, nome: 'Varanda', lugares: 2, ativa: true }], oferecerBalcao: true };
   expect((await api('put', '/api/mesas', settings)).status).toBe(200);
-  expect((await api('get', '/api/mesas')).body).toEqual(settings);
+  const saved = (await api('get', '/api/mesas')).body;
+  expect(saved).toMatchObject(settings);
+  expect(saved.mesas[0].token).toEqual(expect.any(String));
   const duplicate = await api('put', '/api/mesas', { ...settings, mesas: [settings.mesas[0], settings.mesas[0]] });
   expect(duplicate.status).toBe(400);
-  expect((await api('get', '/api/mesas')).body).toEqual(settings);
+  expect((await api('get', '/api/mesas')).body).toEqual(saved);
 });
 
 test('chave automática persiste e é diferente da chave pública antiga', async () => {

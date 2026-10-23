@@ -13,19 +13,22 @@ const { enfileirarRecalculoPorInsumo } = require('../utils/filaCusto');
 const router = express.Router();
 
 const normalizeUnit = (unit) => (['kg', 'L', 'un'].includes(unit) ? unit : unit === 'l' ? 'L' : 'kg');
+const saidasDaReceita = (recipe) => Array.isArray(recipe.produtosSaida) && recipe.produtosSaida.length
+  ? recipe.produtosSaida
+  : [{ produtoId: recipe.produtoId, quantidade: recipe.rendimento, unidade: recipe.unidadeRendimento }];
 
 const recalcularReceitasAfetadas = async (produtoId) => {
-  const recipes = await Recipe.find({ ingredientes: { $elemMatch: { produtoId } } }).populate('ingredientes.produtoId').populate('produtoId');
+  const recipes = await Recipe.find({ ingredientes: { $elemMatch: { produtoId } } }).populate('ingredientes.produtoId').populate('produtoId').populate('produtosSaida.produtoId');
   const afetados = [];
 
   for (const recipe of recipes) {
     const custoAntigo = Number(recipe.custoUnitario || 0);
     const resultado = await calcularCustoDaFichaTecnica(recipe.ingredientes);
-    const tipoProduto = recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : 'producao');
-    const rendimento = tipoProduto === 'coz' ? 1 : Number(recipe.rendimento || 1);
+    const saidas = saidasDaReceita(recipe);
+    const rendimentoTotal = saidas.reduce((total, saida) => total + Number(saida.quantidade || 0), 0);
     const disponivel = resultado.fonte === 'insumo';
     const custoInsumosTotal = disponivel ? Number(resultado.custoTotal) : 0;
-    const custoUnitario = disponivel ? custoInsumosTotal / rendimento : 0;
+    const custoUnitario = disponivel && rendimentoTotal > 0 ? custoInsumosTotal / rendimentoTotal : 0;
 
     recipe.custoInsumosTotal = custoInsumosTotal;
     recipe.custoTotal = custoInsumosTotal;
@@ -33,11 +36,17 @@ const recalcularReceitasAfetadas = async (produtoId) => {
     recipe.updatedAt = new Date();
     await recipe.save();
 
-    const produto = await Product.findById(recipe.produtoId?._id || recipe.produtoId);
-    if (produto) {
+    for (const saida of saidas) {
+      const produto = await Product.findById(saida.produtoId?._id || saida.produtoId);
+      if (!produto) continue;
       produto.custo = custoUnitario;
       produto.custoUnitario = custoUnitario;
       produto.custoCalculado = disponivel ? custoUnitario : null;
+      produto.fichaTecnica = recipe.ingredientes.map((item) => ({
+        produtoId: item.produtoId._id || item.produtoId,
+        quantidade: Number(item.quantidade) / Math.max(0.000001, rendimentoTotal),
+        unidade: item.unidade,
+      }));
       produto.dataUltimoCalculo = new Date();
       produto.fonteCalculo = resultado.fonte;
       produto.custoUltimoSalvo = disponivel ? custoUnitario : 0;
@@ -46,22 +55,22 @@ const recalcularReceitasAfetadas = async (produtoId) => {
 
       await HistoricoCusto.create({
         produtoId: produto._id,
-        custoUnitario: custoUnitario,
+        custoUnitario,
         receitaId: recipe._id,
         motivo: 'atualizacao_insumo',
         data: new Date(),
       });
-    }
 
-    if (custoAntigo > 0) {
-      const variacao = calcularVariacaoPercentual(custoAntigo, custoUnitario);
-      afetados.push({
-        produtoId: String(recipe.produtoId?._id || recipe.produtoId),
-        nome: recipe.produtoId?.nome || produto?.nome || 'Produto',
-        custoAntigo,
-        custoNovo: custoUnitario,
-        variacaoPercentual: variacao,
-      });
+      if (custoAntigo > 0) {
+        const variacao = calcularVariacaoPercentual(custoAntigo, custoUnitario);
+        afetados.push({
+          produtoId: String(produto._id),
+          nome: produto.nome,
+          custoAntigo,
+          custoNovo: custoUnitario,
+          variacaoPercentual: variacao,
+        });
+      }
     }
   }
 

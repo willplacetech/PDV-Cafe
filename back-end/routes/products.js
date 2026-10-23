@@ -128,9 +128,13 @@ router.get('/', auth, auth.allowRoles('admin', 'gerente', 'cozinha'), async (req
     const idsProdutos = produtos.map(produto => produto._id);
     const receitas = await Recipe.find({
       ativa: true,
-      ...(paginacaoSolicitada ? { produtoId: { $in: idsProdutos } } : {}),
-    }).select('_id produtoId').lean();
-    const receitaPorProduto = new Map(receitas.map((receita) => [String(receita.produtoId), receita._id]));
+      ...(paginacaoSolicitada ? { $or: [{ produtoId: { $in: idsProdutos } }, { 'produtosSaida.produtoId': { $in: idsProdutos } }] } : {}),
+    }).select('_id produtoId produtosSaida').lean();
+    const receitaPorProduto = new Map();
+    receitas.forEach((receita) => {
+      const saidas = receita.produtosSaida?.length ? receita.produtosSaida : [{ produtoId: receita.produtoId }];
+      saidas.forEach((saida) => receitaPorProduto.set(String(saida.produtoId), receita._id));
+    });
     const dados = produtos.map((produto) => ({
       ...produto.toObject(),
       ...(produto.tipo === 'insumo' && produto.unidadeCompra ? { unidadeVenda: produto.unidadeCompra } : {}),
@@ -603,6 +607,8 @@ router.delete('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
     await verificarAutorizacao(req, product.tipo === 'insumo' ? 'excluir_insumo' : 'excluir_produto');
+    const receitaDeSaida = await Recipe.exists({ ativa: true, $or: [{ produtoId: product._id }, { 'produtosSaida.produtoId': product._id }] });
+    if (receitaDeSaida) return res.status(400).json({ msg: 'Produto vinculado como produto final de uma ficha ativa; remova-o da ficha antes de excluir.' });
     await product.deleteOne();
     res.json({ msg: 'Produto removido com sucesso' });
   } catch (err) { res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) }); }

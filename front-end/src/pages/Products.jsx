@@ -73,7 +73,10 @@ export default function Products() {
   const paginacao = useUrlPagination();
   const { paginaAtual, limiteAtual } = paginacao;
   const { showToast } = useToast();
-  const fichaProduto = fichas.find((ficha) => String(ficha.produtoId?._id || ficha.produtoId) === String(editing?._id));
+  const fichaProduto = fichas.find((ficha) => {
+    const outputs = Array.isArray(ficha.produtosSaida) && ficha.produtosSaida.length ? ficha.produtosSaida : [{ produtoId: ficha.produtoId }];
+    return outputs.some((output) => String(output.produtoId?._id || output.produtoId) === String(editing?._id));
+  });
   const calculoDireto = form.tipo === 'insumo' || (form.tipo === 'venda' && form.tipoProduto === 'revenda');
   const precoCompraAtual = Number(form.precoCompra);
   const conteudoAtual = Number(form.conteudoPorEmbalagem);
@@ -279,7 +282,7 @@ export default function Products() {
       rendimentoPorUnidadeCompra: Number(form.rendimentoPorUnidadeCompra || 0),
       ativo: Boolean(form.ativo),
       permitirVendaSemInsumo: Boolean(form.permitirVendaSemInsumo),
-      fichaTecnica: tipo === 'venda' && form.aFazer ? form.fichaTecnica.map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })) : [],
+      fichaTecnica: tipo === 'venda' && ['coz', 'producao'].includes(form.tipoProduto) ? form.fichaTecnica.map((item) => ({ produtoId: item.produtoId?._id || item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })) : [],
     };
     try {
       const salvar = (dados) => editing ? api.put(`/products/${editing._id}`, dados) : api.post('/products', dados);
@@ -385,7 +388,10 @@ export default function Products() {
   const filtrados = produtos.filter((produto) => {
     const tipoOk = filtroTipo === 'Todos' || (filtroTipo === 'Estoque de Venda' ? produto.tipo === 'venda' : produto.tipo === 'insumo');
     const categoriaOk = filtroCategoria === 'Todos' || (produto.categoria === filtroCategoria);
-    const possuiFicha = fichas.some((ficha) => String(ficha.produtoId?._id || ficha.produtoId) === String(produto._id));
+    const possuiFicha = fichas.some((ficha) => {
+      const outputs = Array.isArray(ficha.produtosSaida) && ficha.produtosSaida.length ? ficha.produtosSaida : [{ produtoId: ficha.produtoId }];
+      return outputs.some((output) => String(output.produtoId?._id || output.produtoId) === String(produto._id));
+    });
     const fichaSelecionada = fichas.find((ficha) => String(ficha._id) === String(filtroFicha));
     const ingredientesDaFicha = new Set((fichaSelecionada?.ingredientes || []).map((item) => String(item.produtoId?._id || item.produtoId)));
     const fichaOk = filtroFicha === 'Todos'
@@ -445,19 +451,24 @@ export default function Products() {
                       Revenda
                   </label>
                   <label className="product-radio-option">
-                    <input className="product-radio" type="radio" name="tipoProduto" value="coz" checked={form.tipo === 'venda' && form.tipoProduto === 'coz'} onChange={() => setForm({ ...form, tipo: 'venda', tipoProduto: 'coz', categoria: 'Pratos na Hora', estoque: 0, aFazer: true, producaoPropria: false })} />
-                      Coz — na hora
-                    </label>
-                    <label className="product-radio-option">
-                      <input className="product-radio" type="radio" name="tipoProduto" value="producao" checked={form.tipo === 'venda' && form.tipoProduto === 'producao'} onChange={() => setForm({ ...form, tipo: 'venda', tipoProduto: 'producao', categoria: 'Outros', aFazer: false, producaoPropria: true })} />
-                      Produção própria — lote
-                    </label>
+                    <input className="product-radio" type="radio" name="tipoProduto" value="preparacao" checked={form.tipo === 'venda' && ['coz', 'producao'].includes(form.tipoProduto)} onChange={() => setForm({ ...form, tipo: 'venda', tipoProduto: 'coz', categoria: 'Pratos na Hora', estoque: 0, aFazer: true, producaoPropria: false })} />
+                      Preparação
+                  </label>
                     <label className="product-radio-option">
                       <input className="product-radio" type="radio" name="tipoProduto" value="insumo" checked={form.tipo === 'insumo'} onChange={() => setForm({ ...form, tipo: 'insumo', tipoProduto: 'revenda', categoria: 'Insumos', aFazer: false, producaoPropria: false })} />
                       Insumo / Matéria-prima
                   </label>
                 </div>
               </fieldset>
+              {form.tipo === 'venda' && ['coz', 'producao'].includes(form.tipoProduto) && <label className="product-field-full">Modo de preparo
+                <SearchableSelect value={form.tipoProduto} onChange={(event) => {
+                  const tipoProduto = event.target.value;
+                  setForm({ ...form, tipo: 'venda', tipoProduto, categoria: tipoProduto === 'coz' ? 'Pratos na Hora' : 'Outros', estoque: tipoProduto === 'coz' ? 0 : form.estoque, aFazer: tipoProduto === 'coz', producaoPropria: tipoProduto === 'producao' });
+                }}>
+                  <option value="coz">Sob demanda — prepara ao vender</option>
+                  <option value="producao">Por lote — produz e abastece estoque</option>
+                </SearchableSelect>
+              </label>}
               <label><FieldLabel hint={<> {editing && <>(bloqueado)</>} </>}> Código </FieldLabel><input value={form.codigo} readOnly={Boolean(editing)} onChange={(event) => { if (!editing) setForm({ ...form, codigo: event.target.value }); }} style={{ background: editing ? 'var(--bg-tertiary)' : 'var(--input-bg)', cursor: editing ? 'not-allowed' : 'text' }} />
               </label>
               <label>Nome *
@@ -472,7 +483,7 @@ export default function Products() {
               </label>
               {form.tipo === 'venda' && <>
                 <label>Preço de venda (R$) * <input type="number" step="0.01" min={0} value={form.preco} required onChange={(event) => setForm({ ...form, preco: event.target.value })} /></label>
-                {form.tipoProduto !== 'coz' ? <><label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label><label><FieldLabel hint={<> Alerta quando chegar neste nível </>}> Estoque mínimo </FieldLabel><input type="number" step="0.001" min={0} value={form.estoqueMinimo} onChange={(event) => setForm({ ...form, estoqueMinimo: event.target.value })} /></label></> : <div className="coz-stock-notice product-field-full"><strong>⚠️ Coz não possui estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
+                {form.tipoProduto !== 'coz' ? <><label>Estoque atual <input type="number" step="0.001" min={0} value={form.estoque} onChange={(event) => setForm({ ...form, estoque: event.target.value })} /></label><label><FieldLabel hint={<> Alerta quando chegar neste nível </>}> Estoque mínimo </FieldLabel><input type="number" step="0.001" min={0} value={form.estoqueMinimo} onChange={(event) => setForm({ ...form, estoqueMinimo: event.target.value })} /></label></> : <div className="coz-stock-notice product-field-full"><strong>Preparação sob demanda não mantém estoque próprio</strong><span>Disponibilidade calculada pela ficha técnica e pelos insumos disponíveis.</span></div>}
                 <label>Unidade de compra
                   <SearchableSelect value={form.unidadeCompra} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>
                     {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
@@ -483,9 +494,7 @@ export default function Products() {
                     {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </SearchableSelect>
                 </label>
-                {form.tipoProduto === 'producao' && <label><FieldLabel hint={<> Quantas unidades saem de uma fornada. </>}> Rendimento por ficha técnica * </FieldLabel><input required type="number" min="0.001" step="0.001" value={form.rendimentoPorReceita || 1} onChange={(event) => setForm({ ...form, rendimentoPorReceita: event.target.value })} />
-                  
-                </label>}
+                {form.tipoProduto === 'producao' && <p className="product-field-full">O rendimento de cada produto é configurado junto aos produtos finais na ficha técnica.</p>}
               </>}
             </div>
           {form.tipo === 'venda' && <div className="product-cost-summary">
@@ -593,8 +602,7 @@ export default function Products() {
                   <input className="product-checkbox" type="checkbox" checked={form.ativo} onChange={(event) => setForm({ ...form, ativo: event.target.checked })} />
                   Produto ativo
                 </label>
-                {form.tipoProduto === 'coz' && <div className="coz-recipe-panel"><strong>📋 Ficha técnica vinculada</strong>{fichaProduto ? <><span>Custo/unidade: <b>{`R$ ${Number(fichaProduto.custoPorUnidade || 0).toFixed(2).replace('.', ',')}`}</b></span><span>Disponível: <b>{Number(fichaProduto.disponibilidade?.quantidade || 0)} {fichaProduto.unidadeRendimento}</b></span><small>Ingrediente limitante: {fichaProduto.disponibilidade?.limitante || 'nenhum'}</small></> : <span>Este produto ainda não tem ficha técnica. Crie-a em Produção para liberar a disponibilidade.</span>}<Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>{fichaProduto ? 'Editar ficha técnica →' : 'Criar ficha técnica →'}</Link></div>}
-                {form.tipoProduto === 'producao' && <div className="coz-recipe-panel"><strong>📋 Ficha técnica vinculada</strong><span>Este produto é produzido internamente e usa uma ficha técnica para controlar o custo e o rendimento.</span><Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>Gerenciar ficha técnica →</Link></div>}
+                {['coz', 'producao'].includes(form.tipoProduto) && <div className="coz-recipe-panel"><strong>📋 Ficha técnica da preparação</strong>{fichaProduto ? <><span>Modo: <b>{form.tipoProduto === 'coz' ? 'sob demanda' : 'por lote'}</b> · Custo por unidade final: <b>{`R$ ${Number(fichaProduto.custoPorUnidade || 0).toFixed(2).replace('.', ',')}`}</b></span><span>Disponível: <b>{Number(fichaProduto.disponibilidade?.quantidade || 0)} {fichaProduto.unidadeRendimento}</b></span><small>Produtos finais: {(fichaProduto.produtosSaida || []).map((saida) => saida.produtoId?.nome).filter(Boolean).join(', ') || editing?.nome}</small><small>Ingrediente limitante: {fichaProduto.disponibilidade?.limitante || 'nenhum'}</small></> : <span>Este produto ainda não está em uma ficha técnica. Crie ou vincule a ficha em Produção.</span>}<Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>{fichaProduto ? 'Gerenciar ficha técnica →' : 'Criar ficha técnica →'}</Link></div>}
               </div>
             </details>
             </>
