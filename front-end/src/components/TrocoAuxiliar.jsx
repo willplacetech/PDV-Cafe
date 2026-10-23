@@ -1,4 +1,4 @@
-import { useContext, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 const formatMoney = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const parseValor = (texto) => { const limpo = String(texto ?? '').replace(/[^\d,.-]/g, '').replace(',', '.'); const n = Number(limpo); return Number.isFinite(n) ? n : 0; };
@@ -7,6 +7,14 @@ export default function TrocoAuxiliar({ totalAPagar, formaPagamento, valorRecebi
   const [interno, setInterno] = useState('');
   const controlado = valorControlado !== undefined;
   const recebidoTexto = controlado ? String(valorControlado ?? '') : interno;
+
+  useEffect(() => {
+    if (!controlado) {
+      const reset = window.setTimeout(() => setInterno(''), 0);
+      return () => window.clearTimeout(reset);
+    }
+    return undefined;
+  }, [formaPagamento, controlado, totalAPagar]);
 
   if (formaPagamento !== 'dinheiro') return null;
   const total = Math.max(0, Number(totalAPagar) || 0);
