@@ -11,16 +11,14 @@ const source = readFileSync(new URL('../src/components/Layout.jsx', import.meta.
 const { code } = await transformWithOxc(source, 'Layout.jsx', { jsx: { runtime: 'classic' } });
 const authContext = React.createContext({ user: { id: 'test', role: 'admin' }, logout() {} });
 const themeContext = React.createContext({ isDark: false, toggleTheme() {} });
-const Layout = new Function('React', 'Outlet', 'Link', 'useNavigate', 'useLocation', 'useContext', 'useState', 'useEffect', 'useCallback', 'AuthContext', 'ThemeContext', 'APP_GIT_HASH', 'StatusConexao', 'NovidadesModal', `${code}; return Layout;`)(
+const branding = { name: 'PDV', tagline: 'Sistema de atendimento', logoUrl: '/logo.svg' };
+const Layout = new Function('React', 'Outlet', 'Link', 'useNavigate', 'useLocation', 'useContext', 'useState', 'useEffect', 'useCallback', 'AuthContext', 'ThemeContext', 'APP_GIT_HASH', 'StatusConexao', 'NovidadesModal', 'branding', `${code}; return Layout;`)(
   React, Outlet, Link, useNavigate, useLocation, React.useContext, React.useState, React.useEffect, React.useCallback,
-  authContext, themeContext, 'test', () => null, () => null,
+  authContext, themeContext, 'test', () => null, () => null, branding,
 );
 
 test('authenticated layout renders the nested route instead of a blank page', () => {
-  const html = renderToStaticMarkup(React.createElement(MemoryRouter, { initialEntries: ['/dashboard'] },
-    React.createElement(Routes, null,
-      React.createElement(Route, { element: React.createElement(Layout) },
-        React.createElement(Route, { path: '/dashboard', element: React.createElement('h1', null, 'Dashboard') })))));
+  const html = renderToStaticMarkup(React.createElement(MemoryRouter, { initialEntries: ['/dashboard'] }, React.createElement(Routes, null, React.createElement(Route, { element: React.createElement(Layout) }, React.createElement(Route, { path: '/dashboard', element: React.createElement('h1', null, 'Dashboard') })))));
   assert.match(html, /<h1>Dashboard<\/h1>/);
 });
 
