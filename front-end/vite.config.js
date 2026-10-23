@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { execFileSync } from 'node:child_process'
@@ -15,6 +15,62 @@ const gitCommit = env.RENDER_GIT_COMMIT || (() => {
 const appVersion = gitCommit || 'dev'
 const gitHash = (gitCommit || 'dev').slice(0, 7)
 const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8')
+
+function brandingFromEnv(mode) {
+  const e = loadEnv(mode, process.cwd(), '')
+  const pick = (key, fallback) => {
+    const value = e[key] ?? env[key]
+    if (value === undefined || value === null || String(value).trim() === '') return fallback
+    return String(value).trim()
+  }
+  return {
+    name: pick('VITE_APP_NAME', 'PDV'),
+    shortName: pick('VITE_APP_SHORT_NAME', 'PDV'),
+    tagline: pick('VITE_APP_TAGLINE', 'Sistema de atendimento'),
+    logoUrl: pick('VITE_APP_LOGO_URL', '/logo.svg'),
+    themeColor: pick('VITE_APP_THEME_COLOR', '#4f9d6a'),
+    backgroundColor: pick('VITE_APP_BG_COLOR', '#f3f6f1'),
+  }
+}
+
+function brandingHtmlPlugin(mode) {
+  const b = brandingFromEnv(mode)
+  return {
+    name: 'branding-html-manifest',
+    transformIndexHtml(html) {
+      return html
+        .replace(/<title>[^<]*<\/title>/i, `<title>${b.name}</title>`)
+        .replace(/content="[^"]*"(\s*\/?>)/i, (match) => match) // no-op guard
+        .replace(/<meta name="theme-color" content="[^"]*"\s*\/?>/i, `<meta name="theme-color" content="${b.themeColor}" />`)
+        .replace(/<meta name="background-color" content="[^"]*"\s*\/?>/i, `<meta name="background-color" content="${b.backgroundColor}" />`)
+        .replace(/<meta name="apple-mobile-web-app-title" content="[^"]*"\s*\/?>/i, `<meta name="apple-mobile-web-app-title" content="${b.shortName}" />`)
+        .replace(/<meta name="description" content="[^"]*"\s*\/?>/i, `<meta name="description" content="${b.tagline}" />`)
+    },
+    generateBundle() {
+      const manifest = {
+        name: b.name,
+        short_name: b.shortName,
+        description: b.tagline,
+        theme_color: b.themeColor,
+        background_color: b.backgroundColor,
+        start_url: '/',
+        display: 'standalone',
+        display_override: ['standalone'],
+        orientation: 'portrait',
+        scope: '/',
+        icons: [
+          { src: b.logoUrl.startsWith('http') ? b.logoUrl : b.logoUrl, sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          { src: b.logoUrl.startsWith('http') ? b.logoUrl : b.logoUrl, sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+        ],
+      }
+      this.emitFile({
+        type: 'asset',
+        fileName: 'manifest.json',
+        source: JSON.stringify(manifest, null, 2),
+      })
+    },
+  }
+}
 
 const appVersionPlugin = {
   name: 'app-version',
@@ -43,7 +99,7 @@ const appVersionPlugin = {
   },
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
     __GIT_HASH__: JSON.stringify(gitHash),
@@ -51,6 +107,7 @@ export default defineConfig({
   plugins: [
     react(),
     appVersionPlugin,
+    brandingHtmlPlugin(mode),
     VitePWA({
       registerType: 'autoUpdate',
       manifest: false,
@@ -94,6 +151,6 @@ export default defineConfig({
           },
         ],
       },
-    })
+    }),
   ],
-})
+}))
