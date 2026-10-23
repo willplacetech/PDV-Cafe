@@ -12,7 +12,7 @@ export default defineConfig([
     languageOptions: { globals: { ...globals.browser, __GIT_HASH__: 'readonly' }, parserOptions: { ecmaFeatures: { jsx: true } } },
   },
   { files: ['src/pages/Dashboard.jsx'], rules: { 'no-unused-vars': 'off' } },
-  { files: ['vite.config.js'], languageOptions: { globals: { ...globals.node, process: 'readonly' } } },
+  { files: ['vite.config.js'], languageOptions: { globals: { ...globals.node } } },
   { files: ['tests/e2e/**/*.js', 'cypress/**/*.js'], languageOptions: { globals: { ...globals.browser, ...globals.mocha, cy: 'readonly', Cypress: 'readonly', expect: 'readonly' } } },
   { files: ['tests/*.test.js', 'cypress.config.js'], languageOptions: { globals: globals.node } },
 ])
