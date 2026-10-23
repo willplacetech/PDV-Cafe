@@ -49,7 +49,12 @@ export const ConfiguracoesProvider = ({ children }) => {
   };
 
   return (
-    <ConfiguracoesContext.Provider value={{ exigirAutorizacaoGerente, bloqueadoPorSuporte, loading, updateConfiguracoes }}>
+    <ConfiguracoesContext.Provider value={{
+      exigirAutorizacaoGerente,
+      bloqueadoPorSuporte,
+      loading,
+      updateConfiguracoes,
+    }}>
       {children}
     </ConfiguracoesContext.Provider>
   );
