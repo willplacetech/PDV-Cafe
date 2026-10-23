@@ -1,8 +1,8 @@
 {
-  "name": "sabor-de-abraço-pdv",
+  "name": "pdv",
   "version": "1.0.0",
   "private": true,
-  "description": "Sabor de Abraço - Sistema de PDV (MERN)",
+  "description": "PDV white-label — sistema de atendimento e ponto de venda (MERN)",
   "scripts": {
     "dev:backend": "npm --prefix back-end run dev",
     "dev:frontend": "npm --prefix front-end run dev",
@@ -14,6 +14,9 @@
     "test:frontend:open": "npm --prefix front-end run test:frontend:open --",
     "test:all": "npm test && npm run test:frontend:unit && npm run test:frontend",
     "lint": "npm --prefix front-end run lint",
-    "test:frontend:unit": "npm --prefix front-end run test:unit"
+    "test:frontend:unit": "npm --prefix front-end run test:unit",
+    "audit:front": "npm --prefix front-end audit",
+    "audit:back": "npm --prefix back-end audit",
+    "audit:fix:front": "npm --prefix front-end audit fix"
   }
 }
