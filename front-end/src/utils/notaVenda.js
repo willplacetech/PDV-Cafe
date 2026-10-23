@@ -9,7 +9,17 @@ const pagamentoLabels = {
 };
 
 const dinheiro = (value) => Number(value || 0).toFixed(2).replace('.', ',');
-export const textoSeguro = (value) => String(value ?? '').replace(/[<&>"']/g, (char) => ({ '<': '<', '>': '>', '&': '&', '"': '"', "'": '&#39;' }[char]));
+
+const HTML_ESCAPE = {
+  '&': '&',
+  '<': '<',
+  '>': '>',
+  '"': '"',
+  "'": '&#39;',
+};
+
+export const textoSeguro = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => HTML_ESCAPE[char]);
+
 const logoUrl = () => {
   const logo = branding.logoUrl || '/logo.svg';
   if (typeof window !== 'undefined' && logo.startsWith('/')) {
