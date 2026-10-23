@@ -1,9 +1,11 @@
-# Somente ambiente de teste. Criar um NOVO Blueprint, separado da produção.
+# Blueprint de teste / demo white-label.
+# No painel Render: confirme a branch Generico (ou a branch de apresentação).
+# Não use este arquivo para sobrescrever produção sem revisar nomes e URLs.
 services:
   - type: web
     runtime: node
-    name: pdv-cafe-api-teste-off-delivery
-    branch: feature/pwa-offline-sincronizacao
+    name: pdv-api-generico
+    branch: Generico
     region: oregon
     plan: free
     rootDir: back-end
@@ -18,19 +20,13 @@ services:
       - key: MONGO_URI
         sync: false
       - key: MONGO_DB_NAME
-        value: TesteOffDelivery
+        value: PdvGenerico
       - key: ADMIN_USERNAME
         value: admin
       - key: ADMIN_PASSWORD
         sync: false
-      - key: DELIVERY_ADMIN_EMAIL
-        sync: false
-      - key: DELIVERY_ADMIN_PASSWORD
-        sync: false
       - key: FRONTEND_URL
-        value: https://pdv-delivery-9j0a.onrender.com
-      - key: DELIVERY_PUBLIC_URL
-        value: https://pdv-delivery-9j0a.onrender.com
+        sync: false
       - key: EXIGIR_AUTORIZACAO_GERENTE
         value: 'true'
       - key: JWT_SECRET
@@ -40,10 +36,9 @@ services:
 
   - type: web
     runtime: static
-    name: pdv-cafe-web-teste-off-delivery
-    branch: feature/pwa-offline-sincronizacao
+    name: pdv-web-generico
+    branch: Generico
     rootDir: front-end
-    # Render não interpola valores YAML. A URL pública recebe /api no build.
     buildCommand: npm ci && VITE_API_URL="${API_PUBLIC_URL%/}/api" npm run build
     staticPublishPath: dist
     routes:
@@ -54,6 +49,10 @@ services:
       - key: NODE_VERSION
         value: '22'
       - key: API_PUBLIC_URL
-        value: https://restaurante-pdv-back.onrender.com
+        sync: false
+      - key: VITE_APP_NAME
+        value: PDV
+      - key: VITE_APP_THEME_COLOR
+        value: '#4f9d6a'
       - key: VITE_SENTRY_DSN
         sync: false
