@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useConfiguracoes } from '../hooks/useConfiguracoes.js';
 import { useToast } from '../components/useToast.js';
@@ -91,10 +92,23 @@ const ConfiguracoesPage = () => {
       <header className="page-heading">
         <div>
           <span>CONFIGURACOES</span>
-          <h1>Autorizacao de Gerente</h1>
-          <p>Ative ou desative a exigencia de autorizacao do gerente emacoes criticas.</p>
+          <h1>Configurações</h1>
+          <p>Segurança, aparência white-label e QR do cardápio por mesa.</p>
         </div>
       </header>
+
+      <section className="configuracoes-qr" style={{ marginTop: 0 }}>
+        <h2>Aparência (white-label)</h2>
+        <p>Nome, logo e cor neste dispositivo. Para o deploy fixo, use VITE_APP_* no Render.</p>
+        <Link
+          to="/configuracoes/aparencia"
+          className="btn-primary"
+          style={{ display: 'inline-flex', marginTop: 12, textDecoration: 'none' }}
+        >
+          Abrir aparência
+        </Link>
+      </section>
+
       {loading ? (
         <p role="status">Carregando configuracoes...</p>
       ) : (
