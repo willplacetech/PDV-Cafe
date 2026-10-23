@@ -19,3 +19,8 @@ export const cancelarReserva = async (codigo) => {
   const { data } = await api.delete(`/reservas/${encodeURIComponent(codigo)}`);
   return data;
 };
+
+export const fazerCheckInReserva = async (codigo, mesaToken) => {
+  const { data } = await api.post(`/reservas/${encodeURIComponent(codigo)}/check-in`, { mesaToken });
+  return data;
+};
