@@ -14,7 +14,6 @@ export default function TrocoAuxiliar({ totalAPagar, formaPagamento, valorRecebi
   const troco = valorRecebido - total;
   const temEntrada = String(recebidoTexto).trim() !== '';
   const setRecebido = (valor) => { if (controlado) onChangeValorRecebido?.(valor); else setInterno(valor); };
-  const trocarForma = (event) => { if (event?.type === 'change') setRecebido(''); };
 
   return <div className="troco-auxiliar" style={{ marginTop: 12, padding: 12, borderRadius: 12, border: '1px dashed var(--border-color)', background: 'var(--bg-tertiary)' }} data-forma-pagamento={formaPagamento}>
     <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', marginBottom: 8, letterSpacing: '0.04em' }}>💵 CÁLCULO DE TROCO (opcional)</div>
