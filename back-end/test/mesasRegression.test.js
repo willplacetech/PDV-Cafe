@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
+
+process.env.FRONTEND_URL = 'https://sabordabraco.onrender.com,https://sabordabraco-95pc.onrender.com';
 const app = require('../server');
 
 test('configuração de mesas exige autenticação', async () => {
