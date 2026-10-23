@@ -1,13 +1,48 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import api from '../services/api.jsx';
 import { useConfiguracoes } from '../hooks/useConfiguracoes.js';
 import { useToast } from '../components/useToast.js';
+import MesaCardapioQr from '../components/mesas/MesaCardapioQr.jsx';
 
 const ConfiguracoesPage = () => {
   const { exigirAutorizacaoGerente, bloqueadoPorSuporte, updateConfiguracoes } = useConfiguracoes();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [mesasAtivas, setMesasAtivas] = useState([]);
+  const [mesaIdSelecionada, setMesaIdSelecionada] = useState('');
+  const [carregandoMesas, setCarregandoMesas] = useState(true);
+  const [erroMesas, setErroMesas] = useState('');
+  const [tentativaCarregarMesas, setTentativaCarregarMesas] = useState(0);
   const [modalAberto, setModalAberto] = useState(false);
   const [motivo, setMotivo] = useState('');
+  const mesaSelecionada = mesasAtivas.find((mesa) => String(mesa.id ?? mesa.numero) === mesaIdSelecionada);
+
+  useEffect(() => {
+    let ativo = true;
+    api.get('/mesas')
+      .then(({ data }) => {
+        if (!Array.isArray(data.mesas)) {
+          throw new Error('Resposta inválida ao carregar as mesas.');
+        }
+        if (!ativo) return;
+        const mesas = data.mesas.filter((mesa) => mesa.ativa);
+        setMesasAtivas(mesas);
+        setMesaIdSelecionada((selecionada) => (
+          mesas.some((mesa) => String(mesa.id ?? mesa.numero) === selecionada)
+            ? selecionada
+            : String(mesas[0]?.id ?? mesas[0]?.numero ?? '')
+        ));
+      })
+      .catch((error) => {
+        if (!ativo) return;
+        setErroMesas(error.response?.data?.msg || error.message || 'Não foi possível carregar as mesas.');
+      })
+      .finally(() => {
+        if (ativo) setCarregandoMesas(false);
+      });
+    return () => { ativo = false; };
+  }, [tentativaCarregarMesas]);
+
   const handleChange = async (valor) => {
     if (bloqueadoPorSuporte) {
       showToast('Bloqueado pelo suporte', 'error');
@@ -102,11 +137,60 @@ const ConfiguracoesPage = () => {
           )}
         </>
       )}
+      <section className="configuracoes-qr">
+        <h2>QR do cardápio por mesa</h2>
+        <p>Selecione uma mesa para visualizar e imprimir seu QR individual.</p>
+        {carregandoMesas ? (
+          <p role="status">Carregando mesas...</p>
+        ) : erroMesas ? (
+          <div>
+            <p role="alert">{erroMesas}</p>
+            <button type="button" onClick={() => {
+              setCarregandoMesas(true);
+              setErroMesas('');
+              setTentativaCarregarMesas((tentativa) => tentativa + 1);
+            }}>
+              Tentar novamente
+            </button>
+          </div>
+        ) : mesasAtivas.length === 0 ? (
+          <p>Nenhuma mesa ativa cadastrada.</p>
+        ) : (
+          <>
+            <label className="configuracoes-qr-seletor">
+              Mesa do cardápio
+              <select
+                aria-label="Mesa do cardápio"
+                value={mesaIdSelecionada}
+                onChange={(event) => setMesaIdSelecionada(event.target.value)}
+              >
+                {mesasAtivas.map((mesa) => {
+                  const id = String(mesa.id ?? mesa.numero);
+                  return <option key={id} value={id}>Mesa {mesa.numero}</option>;
+                })}
+              </select>
+            </label>
+            {mesaSelecionada?.token ? (
+              <MesaCardapioQr mesa={mesaSelecionada} mostrarRotulo />
+            ) : (
+              <p role="alert">A mesa selecionada não possui um token de QR code válido.</p>
+            )}
+          </>
+        )}
+      </section>
       <style>{`
         .configuracoes-page{max-width:960px;margin:0 auto;padding:8px 0 32px;color:var(--text-primary)}
         .configuracoes-page .page-heading>div>span{font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--accent-primary)}
         .configuracoes-page .page-heading h1{margin:5px 0}
         .configuracoes-page .page-heading p{color:var(--text-secondary);font-size:13px}
+        .configuracoes-qr{margin-top:32px;padding:20px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-secondary);box-shadow:var(--shadow-sm)}
+        .configuracoes-qr h2{margin:0 0 8px}
+        .configuracoes-qr>p{color:var(--text-secondary);font-size:13px}
+        .configuracoes-qr-seletor{display:grid;gap:8px;max-width:320px;margin:16px 0;font-weight:700}
+        .configuracoes-qr-seletor select{min-height:44px;padding:8px 12px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font:inherit}
+        .configuracoes-qr .mesa-cardapio-qr{display:grid;justify-items:start;gap:10px;padding-top:12px}
+        .configuracoes-qr .mesa-cardapio-qr h3{margin:0}
+        .configuracoes-qr .mesa-cardapio-qr button,.configuracoes-qr>div button{min-height:44px;padding:10px 14px;border:0;border-radius:8px;background:var(--accent-primary);color:var(--accent-text);font:700 14px var(--font-body);cursor:pointer}
         .configuracoes-toggle{display:flex;align-items:center;gap:16px;margin:24px 0}
         .configuracoes-toggle label{display:flex;align-items:center;gap:8px;cursor:pointer}
         .configuracoes-toggle input{width:16px;height:16px;cursor:pointer}

@@ -17,6 +17,7 @@ import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
 import EstadoLista from '../components/EstadoLista.jsx';
 import TrocoAuxiliar from '../components/TrocoAuxiliar.jsx';
+import { agruparItensQr, formatarHorarioPedidoQr, identificacaoQrComanda } from '../utils/pedidosQr.js';
 import {
   carregarConfiguracaoImpressao,
   carregarPreferenciaImpressora,
@@ -26,7 +27,7 @@ import {
 } from '../services/impressaoService.js';
 
 const formatMoney = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
-const identificacaoQr = (comanda) => `QR — ${comanda.clienteNome || 'Cliente'} (Mesa ${comanda.mesa || 'não informada'})`;
+const identificacaoQr = identificacaoQrComanda;
 const formatQuantity = (item) => {
   if (item.tipoVenda === 'peso') return `${Number(item.pesoVendidoKg || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg vendidos`;
   const quantidade = Number(item.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
@@ -230,6 +231,7 @@ export default function Comandas() {
   };
 
   const subtotal = useMemo(() => (selected?.itens || []).reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0), [selected]);
+  const blocosItens = agruparItensQr(selected);
   const total = selected?.utilizacaoInterna ? 0 : Math.max(0, subtotal + Number(selected?.taxaEntrega || 0) - (Number(discount) || 0));
   const jaRecebido = useMemo(() => totalPago(selected?.historicoPagamentos), [selected]);
   const saldoEmAberto = Math.max(0, total - jaRecebido);
@@ -687,48 +689,58 @@ export default function Comandas() {
               </div>
             )}
 
-            {(selected.itens || []).map((item) => {
-              const step = item.tipoVenda === 'peso' ? 0.001 : 1;
-              const quantidadeExibida = quantidadesRascunho[item._id] ?? item.quantidade;
-              const itemOcupado = itensEmAtualizacao.has(item._id);
-              return (
-                <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border-color)', padding: '10px 0' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1 }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedItemIds.includes(item._id)}
-                      onChange={() => toggleItemSelection(item._id)}
-                      style={{ marginTop: 5, width: 18, height: 18, accentColor: 'var(--accent-primary)' }}
-                      aria-label={`Selecionar ${item.nome}`}
-                    />
-                    <span>
-                      <b>{item.nome}</b><br />
-                      <small>{formatQuantity(item)} × {formatMoney(item.precoUnitario)}</small>
-                      {item.modificadores?.length > 0 && <><br /><small style={{ color: 'var(--accent-primary)' }}>☕ {item.modificadores.join(' · ')}</small></>}
-                    </span>
+            {blocosItens.map((bloco) => (
+              <div key={bloco.id}>
+                {bloco.pedido && (
+                  <div style={{ padding: '10px 0 4px', borderTop: '1px solid var(--border-color)', color: 'var(--accent-primary)' }}>
+                    <strong>Pedido de {bloco.pedido.clienteNome}</strong>
+                    <small style={{ marginLeft: 8, color: 'var(--text-secondary)' }}>{formatarHorarioPedidoQr(bloco.pedido.criadoEm)}</small>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-tertiary)' }}>
-                      <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => atualizarQuantidadeItem(item._id, Math.max(step, Number(quantidadeExibida || 0) - step))} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: itemOcupado ? 'wait' : 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>−</button>
-                      <input
-                        type="number"
-                        min="0.001"
-                        step={step}
-                        disabled={itemOcupado}
-                        value={quantidadeExibida}
-                        onChange={(e) => setQuantidadesRascunho((atuais) => ({ ...atuais, [item._id]: e.target.value }))}
-                        onBlur={(event) => atualizarQuantidadeItem(item._id, event.currentTarget.value)}
-                        style={{ width: 72, height: 30, border: 0, background: 'transparent', textAlign: 'center', color: 'var(--text-primary)', fontWeight: 700 }}
-                        aria-label={`Quantidade de ${item.nome}`}
-                      />
-                      <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => atualizarQuantidadeItem(item._id, Number(quantidadeExibida || 0) + step)} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: itemOcupado ? 'wait' : 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>+</button>
+                )}
+                {bloco.itens.map((item) => {
+                  const step = item.tipoVenda === 'peso' ? 0.001 : 1;
+                  const quantidadeExibida = quantidadesRascunho[item._id] ?? item.quantidade;
+                  const itemOcupado = itensEmAtualizacao.has(item._id);
+                  return (
+                    <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border-color)', padding: '10px 0' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1 }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItemIds.includes(item._id)}
+                          onChange={() => toggleItemSelection(item._id)}
+                          style={{ marginTop: 5, width: 18, height: 18, accentColor: 'var(--accent-primary)' }}
+                          aria-label={`Selecionar ${item.nome}`}
+                        />
+                        <span>
+                          <b>{item.nome}</b><br />
+                          <small>{formatQuantity(item)} × {formatMoney(item.precoUnitario)}</small>
+                          {item.modificadores?.length > 0 && <><br /><small style={{ color: 'var(--accent-primary)' }}>☕ {item.modificadores.join(' · ')}</small></>}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-tertiary)' }}>
+                          <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => atualizarQuantidadeItem(item._id, Math.max(step, Number(quantidadeExibida || 0) - step))} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: itemOcupado ? 'wait' : 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>−</button>
+                          <input
+                            type="number"
+                            min="0.001"
+                            step={step}
+                            disabled={itemOcupado}
+                            value={quantidadeExibida}
+                            onChange={(e) => setQuantidadesRascunho((atuais) => ({ ...atuais, [item._id]: e.target.value }))}
+                            onBlur={(event) => atualizarQuantidadeItem(item._id, event.currentTarget.value)}
+                            style={{ width: 72, height: 30, border: 0, background: 'transparent', textAlign: 'center', color: 'var(--text-primary)', fontWeight: 700 }}
+                            aria-label={`Quantidade de ${item.nome}`}
+                          />
+                          <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => atualizarQuantidadeItem(item._id, Number(quantidadeExibida || 0) + step)} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: itemOcupado ? 'wait' : 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>+</button>
+                        </div>
+                        <span style={{ minWidth: 78, textAlign: 'right', fontWeight: 700 }}>{formatMoney(Number(quantidadeExibida || 0) * item.precoUnitario)}</span>
+                        <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`} style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', cursor: itemOcupado ? 'wait' : 'pointer', fontSize: 20 }}>🔒 ×</button>
+                      </div>
                     </div>
-                    <span style={{ minWidth: 78, textAlign: 'right', fontWeight: 700 }}>{formatMoney(Number(quantidadeExibida || 0) * item.precoUnitario)}</span>
-                    <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`} style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', cursor: itemOcupado ? 'wait' : 'pointer', fontSize: 20 }}>🔒 ×</button>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            ))}
             <div className="comandas-checkout">
               <div>
                 <small style={{ display: 'block', color: 'var(--text-secondary)' }}>Total da comanda</small>

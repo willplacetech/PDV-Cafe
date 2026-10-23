@@ -304,6 +304,82 @@ test('repetir chave de idempotência não cria comanda nem baixa estoque novamen
   expect((await Product.findById(product.id)).estoque).toBe(19);
 });
 
+test('pedidos QR sucessivos da mesma mesa compartilham uma comanda e preservam cada envio separado', async () => {
+  const tokenMesa = await mesaToken();
+  const firstBody = payloadQr(tokenMesa, {
+    itens: [{ produtoId: String(product.id), quantidade: 1, observacao: 'sem açúcar' }],
+  });
+  const secondBody = payloadQr(tokenMesa, {
+    clienteNome: 'Bruno Cliente',
+    clienteTelefone: '11988887777',
+    itens: [{ produtoId: String(product.id), quantidade: 2, observacao: 'com leite' }],
+  });
+
+  const first = await pedidoQr(firstBody, 'qr-shared-first');
+  const second = await pedidoQr(secondBody, 'qr-shared-second');
+  const replay = await pedidoQr(secondBody, 'qr-shared-second');
+  const comanda = await Comanda.findById(first.body.comandaId);
+
+  expect(first.status).toBe(201);
+  expect(second.status).toBe(200);
+  expect(second.body.comandaId).toBe(first.body.comandaId);
+  expect(replay.status).toBe(200);
+  expect(replay.body.comandaId).toBe(first.body.comandaId);
+  expect(await Comanda.countDocuments()).toBe(1);
+  expect(comanda.pedidosQr).toHaveLength(2);
+  expect(comanda.pedidosQr.map((pedido) => pedido.clienteNome)).toEqual(['Ana Cliente', 'Bruno Cliente']);
+  expect(comanda.pedidosQr.every((pedido) => pedido.consentimentoWhatsApp.aceito)).toBe(true);
+  expect(comanda.itens).toHaveLength(2);
+  expect(comanda.pedidosQr.map((pedido) => (
+    comanda.itens.filter((item) => String(item.pedidoQrId) === String(pedido.id)).map((item) => item.observacao)
+  ))).toEqual([['sem açúcar'], ['com leite']]);
+  expect(comanda.valorTotal).toBe(18);
+  expect((await Product.findById(product.id)).estoque).toBe(17);
+});
+
+test('pedidos QR concorrentes com chaves distintas compartilham uma comanda sem perder blocos', async () => {
+  const tokenMesa = await mesaToken();
+  const primeiro = payloadQr(tokenMesa, { itens: [{ produtoId: String(product.id), quantidade: 1 }] });
+  const segundo = payloadQr(tokenMesa, {
+    clienteNome: 'Bruno Cliente',
+    clienteTelefone: '11988887777',
+    itens: [{ produtoId: String(product.id), quantidade: 2 }],
+  });
+
+  const respostas = await Promise.all([
+    pedidoQr(primeiro, 'qr-shared-concurrent-first'),
+    pedidoQr(segundo, 'qr-shared-concurrent-second'),
+  ]);
+  const comanda = await Comanda.findById(respostas[0].body.comandaId);
+
+  expect(respostas.map((resposta) => resposta.status).sort()).toEqual([200, 201]);
+  expect(respostas[0].body.comandaId).toBe(respostas[1].body.comandaId);
+  expect(await Comanda.countDocuments()).toBe(1);
+  expect(comanda.pedidosQr).toHaveLength(2);
+  expect(comanda.itens).toHaveLength(2);
+  expect(comanda.valorTotal).toBe(18);
+  expect((await Product.findById(product.id)).estoque).toBe(17);
+});
+
+test('pedido enviado depois do fechamento inicia uma nova comanda na mesma mesa', async () => {
+  const tokenMesa = await mesaToken();
+  const first = await pedidoQr(payloadQr(tokenMesa), 'qr-before-close');
+  const comandaFechada = await Comanda.findById(first.body.comandaId);
+  comandaFechada.status = 'fechada';
+  await comandaFechada.save();
+
+  const second = await pedidoQr(payloadQr(tokenMesa, {
+    clienteNome: 'Bruno Cliente',
+    clienteTelefone: '11988887777',
+  }), 'qr-after-close');
+
+  expect(second.status).toBe(201);
+  expect(second.body.comandaId).not.toBe(first.body.comandaId);
+  expect(await Comanda.countDocuments()).toBe(2);
+  expect((await Comanda.findById(first.body.comandaId)).status).toBe('fechada');
+  expect((await Comanda.findById(second.body.comandaId)).pedidosQr).toHaveLength(1);
+});
+
 test('requisições concorrentes com a mesma chave criam uma comanda e baixam estoque uma vez', async () => {
   const body = payloadQr(await mesaToken());
   const responses = await Promise.all([

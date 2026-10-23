@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 
 const identificadorMesa = (mesa) => `mesa-${String(mesa.id ?? mesa.numero).replace(/[^A-Za-z0-9_-]/g, '')}`;
 
-export default function MesaCardapioQr({ mesa }) {
+export default function MesaCardapioQr({ mesa, mostrarRotulo = false }) {
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [erro, setErro] = useState('');
   const linkCardapio = `${window.location.origin}/cardapio/${encodeURIComponent(mesa.token)}`;
@@ -44,6 +44,7 @@ export default function MesaCardapioQr({ mesa }) {
         }
       `}</style>
       {erro && <small role="alert">{erro}</small>}
+      {mostrarRotulo && <h3>Mesa {mesa.numero}</h3>}
       {qrDataUrl
         ? <img src={qrDataUrl} alt={`QR code da Mesa ${mesa.numero}`} width="120" height="120" />
         : <span role="status">Gerando QR code...</span>}

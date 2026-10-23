@@ -31,12 +31,28 @@ const itemSchema = new mongoose.Schema({
   modificadores: { type: [String], default: [] },
   aFazer: { type: Boolean, default: false },
   observacao: { type: String, trim: true, maxlength: 250 },
+  pedidoQrId: { type: mongoose.Schema.Types.ObjectId },
   insumosConsumidos: [{
     produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
     quantidade: { type: Number, min: 0.000001 },
     unidade: { type: String, enum: UNIDADES_PERMITIDAS, set: normalizarUnidade },
   }],
 }, { _id: true });
+
+const pedidoQrSchema = new mongoose.Schema({
+  clienteNome: { type: String, required: true, trim: true, maxlength: 120 },
+  clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+  criadoEm: { type: Date, required: true, default: Date.now },
+  idempotencyKey: { type: String, required: true, trim: true, maxlength: 128 },
+  idempotencyHash: { type: String, required: true },
+  consentimentoWhatsApp: {
+    type: new mongoose.Schema({
+      aceito: { type: Boolean, required: true },
+      registradoEm: { type: Date, required: true },
+    }, { _id: false }),
+    required: true,
+  },
+});
 
 const comandaSchema = new mongoose.Schema({
   numero: { type: String, unique: true },
@@ -59,6 +75,7 @@ const comandaSchema = new mongoose.Schema({
   statusBalcao: { type: String, enum: ['aguardando', 'preparando', 'pronto', 'pago', 'entregue'], default: 'aguardando' },
   mesa: { type: String, trim: true },
   itens: { type: [itemSchema], default: [] },
+  pedidosQr: { type: [pedidoQrSchema], default: [] },
   taxaEntrega: { type: Number, default: 0, min: 0, validate: Number.isFinite },
   desconto: { type: Number, default: 0, min: 0 },
   valorTotal: { type: Number, default: 0, min: 0 },
@@ -102,6 +119,10 @@ const comandaSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 comandaSchema.index({ atendente: 1, idempotencyKey: 1 }, { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } });
+comandaSchema.index(
+  { 'pedidosQr.idempotencyKey': 1 },
+  { unique: true, partialFilterExpression: { 'pedidosQr.idempotencyKey': { $type: 'string' } } },
+);
 
 comandaSchema.pre('save', async function(next) {
   if (!this.numero) {

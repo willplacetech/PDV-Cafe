@@ -4,6 +4,7 @@ import { useToast } from '../components/useToast.js';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
 import EstadoLista from '../components/EstadoLista.jsx';
+import { agruparItensQr, formatarHorarioPedidoQr } from '../utils/pedidosQr.js';
 
 const formatTime = (value) => new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const formatQuantity = (item) => `${Number(item.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${item.unidadeVenda || 'un'}`;
@@ -59,8 +60,11 @@ export default function Kitchen() {
     >
       <div className="kitchen-grid">{paginacao.itensPagina.map((comanda) => {
         const pedidoQr = comanda.origem === 'qr';
-        const identificacao = pedidoQr
-          ? `QR — ${comanda.clienteNome || 'Cliente'} (Mesa ${comanda.mesa || 'não informada'})`
+        const gruposQr = pedidoQr ? agruparItensQr(comanda) : [];
+        const identificacao = pedidoQr && (comanda.pedidosQr?.length || 0) > 1
+          ? `QR — Mesa ${comanda.mesa || 'não informada'} · ${comanda.pedidosQr.length} pedidos`
+          : pedidoQr
+            ? `QR — ${comanda.clienteNome || 'Cliente'} (Mesa ${comanda.mesa || 'não informada'})`
           : comanda.tipoAtendimento === 'delivery' ? '🛵 Delivery'
             : comanda.tipoAtendimento === 'balcao' ? '📦 Balcão'
               : `🪑 Mesa ${comanda.mesa || 'não informada'}`;
@@ -71,13 +75,23 @@ export default function Kitchen() {
               <time>{formatTime(comanda.createdAt)}</time>
             </div>
             {!pedidoQr && <div className="kitchen-client">{comanda.clienteNome || 'Cliente não identificado'}</div>}
-            <div className="kitchen-items">{comanda.itens.map((item) => (
-              <div className="kitchen-item" key={item._id}>
-                <strong>{formatQuantity(item)}</strong>
-                <span>{item.nome}</span>
-                {item.modificadores?.length ? <small>{item.modificadores.join(' · ')}</small> : null}
-                {item.observacao && <small className="kitchen-item-observation">Observação: {item.observacao}</small>}
-              </div>
+            <div className="kitchen-items">{(pedidoQr ? gruposQr : [{ id: 'itens', pedido: null, itens: comanda.itens }]).map((grupo) => (
+              <section key={grupo.id}>
+                {grupo.pedido && (
+                  <strong style={{ display: 'block', margin: '6px 0', color: 'var(--accent-primary)' }}>
+                    Pedido de {grupo.pedido.clienteNome}
+                    {formatarHorarioPedidoQr(grupo.pedido.criadoEm) && ` · ${formatarHorarioPedidoQr(grupo.pedido.criadoEm)}`}
+                  </strong>
+                )}
+                {grupo.itens.map((item) => (
+                  <div className="kitchen-item" key={item._id}>
+                    <strong>{formatQuantity(item)}</strong>
+                    <span>{item.nome}</span>
+                    {item.modificadores?.length ? <small>{item.modificadores.join(' · ')}</small> : null}
+                    {item.observacao && <small className="kitchen-item-observation">Observação: {item.observacao}</small>}
+                  </div>
+                ))}
+              </section>
             ))}</div>
             {comanda.observacao && <p className="kitchen-note">Observação: {comanda.observacao}</p>}
             <div className="kitchen-pending">{comanda.entrega ? (comanda.entrega.preparoPronto ? 'Entrega pronta — aguardando fechamento da comanda' : 'Entrega Delivery em preparo') : comanda.tipoAtendimento === 'balcao' ? `Balcão · ${comanda.statusBalcao || 'aguardando'}` : 'Pendente até concluir a comanda'}</div>

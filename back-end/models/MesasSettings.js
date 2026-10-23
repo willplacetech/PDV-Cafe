@@ -12,6 +12,7 @@ const mesaSchema = new mongoose.Schema({
 const mesasSettingsSchema = new mongoose.Schema({
   _id: { type: String, default: 'principal' },
   mesas: { type: [mesaSchema], default: [] },
+  qrPedidoLockVersion: { type: Number, default: 0, min: 0 },
   oferecerBalcao: { type: Boolean, default: true },
 }, { timestamps: true });
 

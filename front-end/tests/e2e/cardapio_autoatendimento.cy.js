@@ -37,6 +37,23 @@ const comandaQr = {
     modificadores: [],
   }],
 };
+const comandaQrCompartilhada = {
+  ...comandaQr,
+  pedidosQr: [
+    { _id: 'pedido-qr-1', clienteNome: 'Ana Cliente', criadoEm: '2026-10-22T12:00:00.000Z' },
+    { _id: 'pedido-qr-2', clienteNome: 'Bruno Cliente', criadoEm: '2026-10-22T12:05:00.000Z' },
+  ],
+  itens: [
+    { ...comandaQr.itens[0], _id: 'item-qr-ana', pedidoQrId: 'pedido-qr-1' },
+    {
+      ...comandaQr.itens[0],
+      _id: 'item-qr-bruno',
+      nome: 'Bolo de chocolate',
+      pedidoQrId: 'pedido-qr-2',
+      observacao: 'bem passado',
+    },
+  ],
+};
 
 const carregarRotaPublica = (options = {}) => {
   cy.intercept('GET', `**/api/pedidos/auto-atendimento/${mesaToken}`, cardapio).as('cardapio');
@@ -284,6 +301,38 @@ describe('Cardápio público por QR', () => {
     cy.get('@imprimirQr').should('have.been.calledOnce');
   });
 
+  it('permite selecionar e imprimir o QR da mesa em Configurações', () => {
+    const mesasConfiguracaoQr = [mesasQr[0], { ...mesasQr[1], ativa: true }];
+    cy.intercept('GET', '**/api/mesas', {
+      statusCode: 200,
+      body: { mesas: mesasConfiguracaoQr, oferecerBalcao: true },
+    }).as('mesas');
+    visitarRotaPrivada('/configuracoes');
+    cy.wait('@mesas');
+
+    cy.contains('h2', 'QR do cardápio por mesa').should('be.visible');
+    cy.get('select[aria-label="Mesa do cardápio"]').should('have.value', '5');
+    cy.get('.mesa-cardapio-qr').within(() => {
+      cy.contains('h3', 'Mesa 5').should('be.visible');
+      cy.get('img[alt="QR code da Mesa 5"]').should('have.attr', 'src').and('match', /^data:image\/png;base64,/);
+      cy.get('a').should('have.attr', 'href', `${window.location.origin}/cardapio/${tokenQr}`);
+    });
+
+    cy.get('select[aria-label="Mesa do cardápio"]').select('6');
+    cy.get('.mesa-cardapio-qr').within(() => {
+      cy.contains('h3', 'Mesa 6').should('be.visible');
+      cy.get('a').should('have.attr', 'href', `${window.location.origin}/cardapio/${'i'.repeat(43)}`);
+    });
+
+    cy.window().then((win) => {
+      cy.stub(win, 'print').callsFake(() => {
+        expect(win.document.body.dataset.mesaQrImpressao).to.equal('mesa-6');
+      }).as('imprimirQr');
+    });
+    cy.contains('button', 'Imprimir QR da Mesa 6').click();
+    cy.get('@imprimirQr').should('have.been.calledOnce');
+  });
+
   it('destaca pedido QR no KDS, mostra observação e não exibe o telefone', () => {
     cy.intercept('GET', '**/api/comandas/cozinha', {
       statusCode: 200,
@@ -306,6 +355,35 @@ describe('Cardápio público por QR', () => {
     cy.contains('.kitchen-card', 'QR — Ana Cliente (Mesa 5)').should('be.visible').and('contain', 'sem açúcar');
     cy.contains('.kitchen-card', 'Mesa 2').should('be.visible').and('contain', 'Bolo');
     cy.get('body').should('not.contain', '11999998888');
+  });
+
+  it('separa os itens do KDS por participante dentro da comanda QR compartilhada', () => {
+    cy.intercept('GET', '**/api/comandas/cozinha', {
+      statusCode: 200,
+      body: [comandaQrCompartilhada],
+    }).as('kitchenShared');
+    visitarRotaPrivada('/cozinha');
+    cy.wait('@kitchenShared');
+
+    cy.contains('.kitchen-card', 'Ana Cliente').should('contain', 'Café coado');
+    cy.contains('.kitchen-card', 'Bruno Cliente').should('contain', 'Bolo de chocolate').and('contain', 'bem passado');
+  });
+
+  it('separa os itens por participante no detalhe da comanda QR compartilhada', () => {
+    cy.intercept({ method: 'GET', pathname: '/api/comandas', query: { status: 'aberta' } }, {
+      statusCode: 200,
+      body: [comandaQrCompartilhada],
+    }).as('sharedComandas');
+    cy.intercept('GET', '**/api/products', { statusCode: 200, body: [] });
+    cy.intercept('GET', '**/api/mesas', { statusCode: 200, body: { mesas: [], oferecerBalcao: true } });
+    visitarRotaPrivada('/comandas');
+    cy.wait('@sharedComandas');
+    cy.contains('.comanda-select-button', 'QR — Mesa 5 · 2 pedidos').click();
+
+    cy.contains('Pedido de Ana Cliente').should('be.visible');
+    cy.contains('Café coado').should('be.visible');
+    cy.contains('Pedido de Bruno Cliente').should('be.visible');
+    cy.contains('Bolo de chocolate').should('be.visible');
   });
 
   it('atualiza a lista do PDV a cada 15 segundos sem trocar a comanda selecionada', () => {

@@ -40,10 +40,12 @@ O POST executa em transação, seguindo o fluxo de venda existente:
 2. Consultar produtos ativos no banco e calcular preços e snapshots a partir dos dados atuais; nunca confiar em preço do cliente.
 3. Normalizar telefone; buscar Cliente existente e reutilizá-lo sem sobrescrever o nome já cadastrado, ou criar um Cliente com o nome e telefone informados. O índice único atual de telefone protege duplicidade.
 4. Baixar estoque por meio das regras existentes para impedir pedidos acima do saldo e manter consistência com as comandas.
-5. Criar uma comanda de mesa aberta, não paga, vinculada à mesa, com cliente, itens, observações, `origem: 'qr'` e registro do consentimento por pedido (`aceito` e timestamp do servidor).
-6. Confirmar transação e responder apenas com sucesso, número/identificador da comanda, status e mesa; nunca devolver telefone.
+5. Localizar a comanda QR aberta mais recente da mesa. Se existir, anexar os itens como um novo bloco identificado por cliente e horário; se não existir, criar a comanda. Uma comanda presencial nunca é mesclada. Depois que a comanda QR for fechada, um novo envio inicia outra.
+6. Manter os itens na lista única da comanda para preservar os fluxos atuais de estoque, edição, totalização e fechamento. Cada item QR referencia seu bloco, que guarda nome, cliente reutilizado, chave/hash de idempotência e consentimento com horário do servidor.
+7. Atualizar o total agregado e salvar o novo bloco na mesma transação. Escritas concorrentes da mesma mesa são serializadas no documento de configuração de mesas, evitando comandas duplicadas ou blocos perdidos.
+8. Confirmar transação e responder apenas com sucesso, número/identificador da comanda, status e mesa; nunca devolver telefone.
 
-O endpoint público terá rate limit próprio e limites de payload/itens. O POST aceitará chave de idempotência gerada pelo cliente para evitar duplicidade em reenvios; uma repetição com a mesma chave e mesmo conteúdo retorna o pedido original, e conteúdo divergente retorna conflito.
+O endpoint público terá rate limit próprio e limites de payload/itens. O POST aceitará chave de idempotência gerada pelo cliente para evitar duplicidade em reenvios; cada bloco mantém sua chave/hash, uma repetição com a mesma chave e mesmo conteúdo retorna a comanda original sem baixar estoque novamente, e conteúdo divergente retorna conflito.
 
 ### Token e QR por mesa
 
@@ -63,7 +65,7 @@ Após identificação, carregar o catálogo público, permitir escolher quantida
 
 O endpoint autenticado de comandas abertas deve incluir comandas QR abertas. A tela de comandas do PDV consultará novamente a lista por polling (intervalo de 15 segundos, alinhado ao KDS atual), sem substituir seleção existente indevidamente.
 
-O endpoint autenticado do KDS incluirá todos os itens das comandas QR abertas, além do comportamento atual para itens `aFazer` das demais comandas. Os cards QR serão visualmente destacados e identificados como `QR — <Nome> (Mesa <número>)`. O KDS continuará usando o polling existente.
+O endpoint autenticado do KDS incluirá todos os itens das comandas QR abertas, além do comportamento atual para itens `aFazer` das demais comandas. Comandas QR com vários envios serão apresentadas em uma única comanda, com blocos de itens identificados por nome e horário em Comandas e no KDS. O total, recebimento e fechamento continuam únicos por comanda. O card permanece destacado e identificável como QR/mesa; com vários blocos, mostra a mesa e a quantidade de pedidos. O KDS continuará usando o polling existente.
 
 ## Privacidade e segurança
 
@@ -88,6 +90,9 @@ O endpoint autenticado do KDS incluirá todos os itens das comandas QR abertas, 
 - Repetir telefone reutiliza o mesmo Cliente e preserva o nome existente; pedidos mantêm snapshots adequados.
 - Erro de estoque/transação não deixa Cliente/comanda parcialmente criados.
 - Consentimento fica registrado com timestamp do servidor por pedido.
+- Dois envios sequenciais da mesma mesa resultam em uma comanda QR com blocos separados por participante; uma repetição idempotente não cria outro bloco nem baixa estoque novamente.
+- Envios concorrentes da mesma mesa, com chaves distintas, permanecem na mesma comanda e não perdem itens; mesas diferentes continuam independentes.
+- Comanda presencial não é mesclada com a QR, e uma comanda QR já fechada não recebe novos blocos.
 - Resposta pública não contém telefone, nem outros dados privados do Cliente.
 - Idempotência impede comandas duplicadas em reenvio.
 - O KDS inclui todos os itens QR, mas mantém filtro atual para comandas não-QR.
@@ -99,7 +104,7 @@ O endpoint autenticado do KDS incluirá todos os itens das comandas QR abertas, 
 - Máscara/validação de telefone, checkbox obrigatório e armazenamento temporário funcionam em desktop/mobile.
 - Pedido bem-sucedido limpa `sessionStorage` e exibe confirmação sem telefone.
 - A lista do PDV atualiza sem recarregar manualmente e identifica origem QR.
-- KDS mostra `QR — Nome (Mesa X)` e observações do pedido.
+- O detalhe de Comandas e o KDS separam os itens por participante, identificando cada envio pelo nome e horário, sem exibir telefone.
 - A tela administrativa mostra link e QR local para cada mesa ativa; mesa inativa não gera pedido.
 
 ### Validações de segurança solicitadas

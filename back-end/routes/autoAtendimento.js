@@ -105,8 +105,25 @@ const validarCotacao = (token, mesaToken, itensAtuais) => {
   }
 };
 
-const responderReplay = (res, comanda, hash) => {
-  if (comanda.idempotencyHash !== hash) {
+const localizarPedidoIdempotente = (idempotencyKey, session) => {
+  let query = Comanda.findOne({
+    atendente: atendenteQr,
+    $or: [
+      { idempotencyKey },
+      { 'pedidosQr.idempotencyKey': idempotencyKey },
+    ],
+  });
+  if (session) query = query.session(session);
+  return query.lean();
+};
+
+const hashPedidoSalvo = (comanda, idempotencyKey) => (
+  comanda.pedidosQr?.find((pedido) => pedido.idempotencyKey === idempotencyKey)?.idempotencyHash
+  || (comanda.idempotencyKey === idempotencyKey ? comanda.idempotencyHash : undefined)
+);
+
+const responderReplay = (res, comanda, hash, idempotencyKey) => {
+  if (hashPedidoSalvo(comanda, idempotencyKey) !== hash) {
     return res.status(409).json({ msg: 'Esta chave já foi usada em outro pedido' });
   }
   return res.status(200).json(respostaComanda(comanda));
@@ -258,13 +275,31 @@ router.post('/auto-atendimento', limitarPedidosQr, async (req, res, next) => {
     idempotencyKey = req.get('Idempotency-Key');
     const pedido = validarPedido(req.body, idempotencyKey);
     hash = crypto.createHash('sha256').update(JSON.stringify(pedido)).digest('hex');
-    const filtroIdempotencia = { atendente: atendenteQr, idempotencyKey };
-    const anterior = await Comanda.findOne(filtroIdempotencia).lean();
-    if (anterior) return responderReplay(res, anterior, hash);
+    const anterior = await localizarPedidoIdempotente(idempotencyKey);
+    if (anterior) return responderReplay(res, anterior, hash, idempotencyKey);
 
     session = await mongoose.startSession();
     let comanda;
+    let replay = false;
+    let anexado = false;
     await session.withTransaction(async () => {
+      const bloqueioMesa = await MesasSettings.updateOne(
+        { _id: 'principal', 'mesas.token': pedido.mesaToken, 'mesas.ativa': true },
+        { $inc: { qrPedidoLockVersion: 1 } },
+        { session },
+      );
+      if (bloqueioMesa.matchedCount !== 1) throw Object.assign(new Error('Mesa não encontrada'), { status: 404 });
+
+      const repetido = await localizarPedidoIdempotente(idempotencyKey, session);
+      if (repetido) {
+        if (hashPedidoSalvo(repetido, idempotencyKey) !== hash) {
+          throw Object.assign(new Error('Esta chave já foi usada em outro pedido'), { status: 409 });
+        }
+        comanda = repetido;
+        replay = true;
+        return;
+      }
+
       const mesa = await localizarMesa(pedido.mesaToken, session);
       if (!mesa?.ativa) throw Object.assign(new Error('Mesa não encontrada'), { status: 404 });
 
@@ -277,6 +312,13 @@ router.post('/auto-atendimento', limitarPedidosQr, async (req, res, next) => {
       const cliente = customer || new Customer({ nome: pedido.clienteNome, telefone: pedido.clienteTelefone });
       if (!customer) await cliente.save({ session });
 
+      const comandaQrAberta = await Comanda.findOne({
+        origem: 'qr',
+        tipoAtendimento: 'mesa',
+        mesa: String(mesa.numero),
+        status: 'aberta',
+      }).sort({ createdAt: -1, _id: -1 }).session(session);
+
       try {
         await ajustarEstoque(itens, 'baixar', session);
       } catch (error) {
@@ -285,34 +327,62 @@ router.post('/auto-atendimento', limitarPedidosQr, async (req, res, next) => {
         }
         throw error;
       }
-      const subtotal = Math.round((itens.reduce((total, item) => total + item.precoUnitario * item.quantidade, 0) + Number.EPSILON) * 100) / 100;
-      [comanda] = await Comanda.create([{
-        atendente: atendenteQr,
+      const pedidoQrId = new mongoose.Types.ObjectId();
+      const registradoEm = new Date();
+      const itensDoPedido = itens.map((item) => ({ ...item, pedidoQrId }));
+      const pedidoQr = {
+        _id: pedidoQrId,
+        clienteNome: pedido.clienteNome,
+        clienteId: cliente._id,
+        criadoEm: registradoEm,
         idempotencyKey,
         idempotencyHash: hash,
-        clienteId: cliente._id,
-        clienteNome: cliente.nome,
-        clienteTelefone: pedido.clienteTelefone,
-        mesa: String(mesa.numero),
-        tipoAtendimento: 'mesa',
-        origem: 'qr',
-        consentimentoWhatsApp: { aceito: true, registradoEm: new Date() },
-        itens,
-        valorTotal: subtotal,
-        saldoDevedor: subtotal,
-        status: 'aberta',
-        statusPagamento: 'pendente',
-        estoqueBaixado: true,
-      }], { session });
+        consentimentoWhatsApp: { aceito: true, registradoEm },
+      };
+
+      if (comandaQrAberta) {
+        comandaQrAberta.itens.push(...itensDoPedido);
+        comandaQrAberta.pedidosQr.push(pedidoQr);
+        comandaQrAberta.valorTotal = Math.max(0, Math.round((
+          comandaQrAberta.itens.reduce((total, item) => total + item.precoUnitario * item.quantidade, 0)
+          + Number(comandaQrAberta.taxaEntrega || 0)
+          - Number(comandaQrAberta.desconto || 0)
+          + Number.EPSILON
+        ) * 100) / 100);
+        await comandaQrAberta.save({ session });
+        comanda = comandaQrAberta;
+        anexado = true;
+      } else {
+        const subtotal = Math.round((itensDoPedido.reduce((total, item) => total + item.precoUnitario * item.quantidade, 0) + Number.EPSILON) * 100) / 100;
+        [comanda] = await Comanda.create([{
+          atendente: atendenteQr,
+          idempotencyKey,
+          idempotencyHash: hash,
+          clienteId: cliente._id,
+          clienteNome: cliente.nome,
+          clienteTelefone: pedido.clienteTelefone,
+          mesa: String(mesa.numero),
+          tipoAtendimento: 'mesa',
+          origem: 'qr',
+          consentimentoWhatsApp: { aceito: true, registradoEm },
+          pedidosQr: [pedidoQr],
+          itens: itensDoPedido,
+          valorTotal: subtotal,
+          saldoDevedor: subtotal,
+          status: 'aberta',
+          statusPagamento: 'pendente',
+          estoqueBaixado: true,
+        }], { session });
+      }
     });
-    return res.status(201).json(respostaComanda(comanda));
+    return res.status(replay || anexado ? 200 : 201).json(respostaComanda(comanda));
   } catch (error) {
     if (session?.inTransaction()) await session.abortTransaction();
     if (idempotencyKey && (error.code === 11000
       || error.hasErrorLabel?.('TransientTransactionError')
       || error.hasErrorLabel?.('UnknownTransactionCommitResult'))) {
-      const anterior = await Comanda.findOne({ atendente: atendenteQr, idempotencyKey }).lean();
-      if (anterior) return responderReplay(res, anterior, hash);
+      const anterior = await localizarPedidoIdempotente(idempotencyKey);
+      if (anterior) return responderReplay(res, anterior, hash, idempotencyKey);
       if (error.code === 11000) return res.status(409).json({ msg: 'Pedido duplicado ou chave já utilizada' });
     }
     if (error.code === 'COTACAO_DESATUALIZADA') {
