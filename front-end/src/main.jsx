@@ -4,9 +4,10 @@ import ReactDOM from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App.jsx';
 import './styles/theme.css';
-import { applyBrandingToDocument } from './config/branding.js';
+import { applyBrandingToDocument, fetchServerBranding } from './config/branding.js';
 
 applyBrandingToDocument();
+void fetchServerBranding();
 
 registerSW({
   immediate: true,

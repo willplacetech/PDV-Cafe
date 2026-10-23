@@ -1,18 +1,14 @@
 /**
- * Branding white-label (P2).
+ * Branding white-label (P4).
  *
- * Build-time (Vite / Render):
- *   VITE_APP_NAME, VITE_APP_SHORT_NAME, VITE_APP_TAGLINE,
- *   VITE_APP_LOGO_URL, VITE_APP_THEME_COLOR, VITE_APP_BG_COLOR
- *
- * Runtime (demo / multi-loja leve):
- *   localStorage key `pdv_branding_override` (JSON parcial)
- *   via Configurações → Aparência
- *
- * O plugin em vite.config.js injeta title/theme-color/manifest no build.
+ * Prioridade (maior → menor):
+ *   1. Override local (localStorage) — cache / offline
+ *   2. Branding do servidor (GET /api/configuracoes/branding)
+ *   3. Defaults do build (VITE_APP_*)
  */
 
 const STORAGE_KEY = 'pdv_branding_override';
+const SERVER_KEY = 'pdv_branding_server';
 
 const env = (key, fallback) => {
   const value = import.meta.env[key];
@@ -29,10 +25,12 @@ const defaults = {
   backgroundColor: env('VITE_APP_BG_COLOR', '#f3f6f1'),
 };
 
-function readOverride() {
+const KEYS = ['name', 'shortName', 'tagline', 'logoUrl', 'themeColor', 'backgroundColor'];
+
+function readJson(key) {
   if (typeof localStorage === 'undefined') return {};
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
@@ -42,29 +40,34 @@ function readOverride() {
   }
 }
 
+function pickFilled(source) {
+  const out = {};
+  for (const key of KEYS) {
+    const v = source[key];
+    if (v === undefined || v === null || String(v).trim() === '') continue;
+    out[key] = String(v).trim();
+  }
+  return out;
+}
+
 function mergeBranding() {
-  const override = readOverride();
-  const pick = (key) => {
-    const v = override[key];
-    if (v === undefined || v === null || String(v).trim() === '') return defaults[key];
-    return String(v).trim();
-  };
+  const local = pickFilled(readJson(STORAGE_KEY));
+  const server = pickFilled(readJson(SERVER_KEY));
+  const merged = { ...defaults, ...server, ...local };
   return {
-    name: pick('name'),
-    shortName: pick('shortName'),
-    tagline: pick('tagline'),
-    logoUrl: pick('logoUrl'),
-    themeColor: pick('themeColor'),
-    backgroundColor: pick('backgroundColor'),
+    name: merged.name,
+    shortName: merged.shortName,
+    tagline: merged.tagline,
+    logoUrl: merged.logoUrl,
+    themeColor: merged.themeColor,
+    backgroundColor: merged.backgroundColor,
   };
 }
 
-/** Snapshot atual (build + override local). */
 export function getBranding() {
   return mergeBranding();
 }
 
-/** Objeto reativo o suficiente para a maioria dos usos em módulo. */
 export const branding = new Proxy(defaults, {
   get(_target, prop) {
     if (typeof prop !== 'string') return undefined;
@@ -76,9 +79,9 @@ export function saveBrandingOverride(partial) {
   if (typeof localStorage === 'undefined') {
     throw new Error('Armazenamento local indisponível.');
   }
-  const current = readOverride();
+  const current = readJson(STORAGE_KEY);
   const next = { ...current };
-  for (const key of ['name', 'shortName', 'tagline', 'logoUrl', 'themeColor', 'backgroundColor']) {
+  for (const key of KEYS) {
     if (partial[key] === undefined) continue;
     const value = String(partial[key] ?? '').trim();
     if (!value) delete next[key];
@@ -96,6 +99,16 @@ export function clearBrandingOverride() {
   return getBranding();
 }
 
+/** Cache do branding vindo da API (não sobrescreve override local). */
+export function setServerBranding(partial) {
+  if (typeof localStorage === 'undefined') return getBranding();
+  const filled = pickFilled(partial || {});
+  if (Object.keys(filled).length === 0) localStorage.removeItem(SERVER_KEY);
+  else localStorage.setItem(SERVER_KEY, JSON.stringify(filled));
+  applyBrandingToDocument();
+  return getBranding();
+}
+
 export function applyBrandingToDocument() {
   if (typeof document === 'undefined') return getBranding();
   const b = getBranding();
@@ -106,11 +119,33 @@ export function applyBrandingToDocument() {
   if (bgMeta) bgMeta.setAttribute('content', b.backgroundColor);
   const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitle) appleTitle.setAttribute('content', b.shortName);
-  // Cor de ação no tema (sem exigir rebuild)
   document.documentElement.style.setProperty('--color-primary', b.themeColor);
   document.documentElement.style.setProperty('--accent-primary', b.themeColor);
   document.documentElement.style.setProperty('--accent', b.themeColor);
   return b;
+}
+
+/**
+ * Busca branding no servidor. Usa api opcional (axios) ou fetch com base VITE_API_URL.
+ * Não exige login.
+ */
+export async function fetchServerBranding(apiClient) {
+  try {
+    let data;
+    if (apiClient?.get) {
+      ({ data } = await apiClient.get('/configuracoes/branding', { pdvSilenciosa: true }));
+    } else {
+      const base = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+      const res = await fetch(`${base}/configuracoes/branding`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      data = await res.json();
+    }
+    const brandingPayload = data?.branding || data || {};
+    return setServerBranding(brandingPayload);
+  } catch (error) {
+    console.warn('[branding] Não foi possível carregar do servidor.', error?.message || error);
+    return getBranding();
+  }
 }
 
 export default branding;
