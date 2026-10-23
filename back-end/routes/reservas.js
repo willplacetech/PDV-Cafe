@@ -1,7 +1,10 @@
 const crypto = require('crypto');
 const express = require('express');
 const Reserva = require('../models/Reserva');
+const Comanda = require('../models/Comanda');
 const auth = require('../middleware/auth');
+const MesasSettings = require('../models/MesasSettings');
+const { garantirTokensMesas } = require('../utils/mesaTokens');
 
 const router = express.Router();
 const STATUS_PERMITIDOS = new Set(['pendente', 'confirmada', 'check_in', 'cancelada', 'no_show']);
@@ -29,6 +32,14 @@ const validarReserva = (input = {}) => {
   return { ok: true, value: { data, horario, pessoas, nome, telefone, observacao } };
 };
 const gerarCodigo = () => crypto.randomBytes(5).toString('hex').toUpperCase();
+const normalizarCodigo = codigo => String(codigo || '').trim().toUpperCase();
+
+const buscarMesa = async (mesaToken) => {
+  const settings = await MesasSettings.findById('principal');
+  if (!settings) return null;
+  await garantirTokensMesas(settings);
+  return settings.mesas.find(mesa => mesa.ativa && mesa.token === mesaToken) || null;
+};
 
 router.post('/', async (req, res, next) => {
   const validacao = validarReserva(req.body);
@@ -52,6 +63,55 @@ router.get('/agenda', auth, auth.allowRoles('admin', 'operador', 'garcom'), asyn
   } catch (error) { return next(error); }
 });
 
+router.post('/:codigo/check-in', async (req, res, next) => {
+  const codigo = normalizarCodigo(req.params.codigo);
+  const mesaToken = String(req.body?.mesaToken || '').trim();
+  if (!mesaToken) return res.status(400).json({ msg: 'Informe o token da mesa.' });
+  try {
+    const mesa = await buscarMesa(mesaToken);
+    if (!mesa) return res.status(404).json({ msg: 'Mesa não encontrada ou inativa.' });
+    const reserva = await Reserva.findOne({ codigo });
+    if (!reserva) return res.status(404).json({ msg: 'Reserva não encontrada.' });
+    if (['cancelada', 'no_show'].includes(reserva.status)) return res.status(409).json({ msg: 'Esta reserva não pode realizar check-in.' });
+    if (reserva.status === 'check_in') {
+      if (String(reserva.mesaToken) !== mesaToken) return res.status(409).json({ msg: 'Esta reserva já realizou check-in em outra mesa.' });
+      const comanda = reserva.comandaId ? await Comanda.findById(reserva.comandaId).lean() : null;
+      if (!comanda) return res.status(409).json({ msg: 'Check-in realizado sem comanda vinculada.' });
+      return res.json({ reserva, comanda, mesa: { id: mesa.id, numero: mesa.numero, token: mesa.token }, redirect: `/cardapio/${mesa.token}` });
+    }
+    if (!['pendente', 'confirmada'].includes(reserva.status)) return res.status(409).json({ msg: 'Status da reserva não permite check-in.' });
+    const existente = await Comanda.findOne({ 'reservaId': reserva._id });
+    if (existente) {
+      reserva.status = 'check_in';
+      reserva.mesaId = mesa.id;
+      reserva.mesaNumero = mesa.numero;
+      reserva.mesaToken = mesa.token;
+      reserva.comandaId = existente._id;
+      reserva.checkInEm = reserva.checkInEm || new Date();
+      await reserva.save();
+      return res.json({ reserva, comanda: existente, mesa: { id: mesa.id, numero: mesa.numero, token: mesa.token }, redirect: `/cardapio/${mesa.token}` });
+    }
+    const comanda = await Comanda.create({
+      clienteNome: reserva.nome,
+      clienteTelefone: reserva.telefone,
+      origem: 'reserva_check_in',
+      tipoAtendimento: 'mesa',
+      mesa: String(mesa.numero),
+      status: 'aberta',
+      atendente: 'reserva',
+      reservaId: reserva._id,
+    });
+    reserva.status = 'check_in';
+    reserva.mesaId = mesa.id;
+    reserva.mesaNumero = mesa.numero;
+    reserva.mesaToken = mesa.token;
+    reserva.comandaId = comanda._id;
+    reserva.checkInEm = new Date();
+    await reserva.save();
+    return res.status(201).json({ reserva, comanda, mesa: { id: mesa.id, numero: mesa.numero, token: mesa.token }, redirect: `/cardapio/${mesa.token}` });
+  } catch (error) { return next(error); }
+});
+
 router.patch('/:codigo/status', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res, next) => {
   const status = String(req.body?.status || '').trim();
   if (!STATUS_PERMITIDOS.has(status)) return res.status(400).json({ msg: 'Status de reserva inválido.' });
@@ -59,7 +119,7 @@ router.patch('/:codigo/status', auth, auth.allowRoles('admin', 'operador', 'garc
     const atualizacao = { status };
     if (status === 'confirmada') atualizacao.confirmadaEm = new Date();
     if (status === 'cancelada') atualizacao.canceladaEm = new Date();
-    const reserva = await Reserva.findOneAndUpdate({ codigo: String(req.params.codigo).trim().toUpperCase() }, atualizacao, { new: true, runValidators: true }).lean();
+    const reserva = await Reserva.findOneAndUpdate({ codigo: normalizarCodigo(req.params.codigo) }, atualizacao, { new: true, runValidators: true }).lean();
     if (!reserva) return res.status(404).json({ msg: 'Reserva não encontrada.' });
     return res.json({ reserva });
   } catch (error) { return next(error); }
@@ -67,7 +127,7 @@ router.patch('/:codigo/status', auth, auth.allowRoles('admin', 'operador', 'garc
 
 router.get('/:codigo', async (req, res, next) => {
   try {
-    const reserva = await Reserva.findOne({ codigo: String(req.params.codigo).trim().toUpperCase() }).lean();
+    const reserva = await Reserva.findOne({ codigo: normalizarCodigo(req.params.codigo) }).lean();
     if (!reserva) return res.status(404).json({ msg: 'Reserva não encontrada.' });
     return res.json({ reserva });
   } catch (error) { return next(error); }
@@ -75,7 +135,7 @@ router.get('/:codigo', async (req, res, next) => {
 
 router.delete('/:codigo', async (req, res, next) => {
   try {
-    const reserva = await Reserva.findOne({ codigo: String(req.params.codigo).trim().toUpperCase() });
+    const reserva = await Reserva.findOne({ codigo: normalizarCodigo(req.params.codigo) });
     if (!reserva) return res.status(404).json({ msg: 'Reserva não encontrada.' });
     if (['cancelada', 'check_in', 'no_show'].includes(reserva.status)) return res.status(409).json({ msg: 'Esta reserva não pode mais ser cancelada.' });
     reserva.status = 'cancelada';
