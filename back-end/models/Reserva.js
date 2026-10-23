@@ -10,9 +10,12 @@ const reservaSchema = new mongoose.Schema({
   status: { type: String, enum: ['pendente', 'confirmada', 'check_in', 'cancelada', 'no_show'], default: 'pendente', index: true },
   mesaId: { type: Number, min: 1 },
   mesaNumero: { type: Number, min: 1 },
+  mesaToken: { type: String, trim: true, maxlength: 128 },
+  comandaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Comanda' },
   observacao: { type: String, trim: true, maxlength: 500 },
   canceladaEm: Date,
   confirmadaEm: Date,
+  checkInEm: Date,
 }, { timestamps: true });
 
 reservaSchema.index({ data: 1, horario: 1, status: 1 });
