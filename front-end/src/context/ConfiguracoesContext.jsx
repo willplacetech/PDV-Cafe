@@ -11,18 +11,51 @@ export const ConfiguracoesProvider = ({ children }) => {
 
   useEffect(() => {
     let active = true;
-    if (authLoading) { setLoading(true); return () => { active = false; }; }
-    if (!user?.id) { setLoading(false); return () => { active = false; }; }
-    setExigirAutorizacaoGerente(true);
-    setBloqueadoPorSuporte(false);
-    setLoading(true);
-    api.get('/configuracoes')
-      .then(({ data }) => { if (!active) return; setExigirAutorizacaoGerente(data.exigirAutorizacaoGerente !== false); setBloqueadoPorSuporte(Boolean(data.bloqueadoPorSuporte)); })
-      .catch((error) => { if (!active) return; console.error('Erro ao buscar configurações:', error); setExigirAutorizacaoGerente(true); setBloqueadoPorSuporte(false); })
-      .finally(() => { if (active) setLoading(false); });
+    const fetchConfiguracoes = async () => {
+      if (authLoading) {
+        setLoading(true);
+        return;
+      }
+      if (!user?.id) {
+        setExigirAutorizacaoGerente(true);
+        setBloqueadoPorSuporte(false);
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      try {
+        const { data } = await api.get('/configuracoes');
+        if (!active) return;
+        setExigirAutorizacaoGerente(data.exigirAutorizacaoGerente !== false);
+        setBloqueadoPorSuporte(Boolean(data.bloqueadoPorSuporte));
+      } catch (error) {
+        if (!active) return;
+        console.error('Erro ao buscar configurações:', error);
+        setExigirAutorizacaoGerente(true);
+        setBloqueadoPorSuporte(false);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    fetchConfiguracoes();
     return () => { active = false; };
   }, [authLoading, user?.id]);
 
-  const updateConfiguracoes = async (valor, motivo) => { const { data } = await api.patch('/configuracoes/autorizacao-gerente', { valor, motivo }); setExigirAutorizacaoGerente(data.exigirAutorizacaoGerente !== false); return data; };
-  return <ConfiguracoesContext.Provider value={{ exigirAutorizacaoGerente, bloqueadoPorSuporte, loading, updateConfiguracoes }}>{children}</ConfiguracoesContext.Provider>;
+  const updateConfiguracoes = async (valor, motivo) => {
+    const { data } = await api.patch('/configuracoes/autorizacao-gerente', { valor, motivo });
+    setExigirAutorizacaoGerente(data.exigirAutorizacaoGerente !== false);
+    return data;
+  };
+
+  return (
+    <ConfiguracoesContext.Provider value={{
+      exigirAutorizacaoGerente,
+      bloqueadoPorSuporte,
+      loading,
+      updateConfiguracoes,
+    }}>
+      {children}
+    </ConfiguracoesContext.Provider>
+  );
 };
