@@ -18,6 +18,8 @@ const Login = lazy(() => import('./pages/Login.jsx'));
 const CardapioHub = lazy(() => import('./pages/CardapioHub.jsx'));
 const CardapioCanal = lazy(() => import('./pages/CardapioCanal.jsx'));
 const CardapioAutoAtendimento = lazy(() => import('./pages/CardapioAutoAtendimento.jsx'));
+const Reserva = lazy(() => import('./pages/Reserva.jsx'));
+const Reservas = lazy(() => import('./pages/Reservas.jsx'));
 const PDV = lazy(() => import('./pages/PDV.jsx'));
 const Products = lazy(() => import('./pages/Products.jsx'));
 const Customers = lazy(() => import('./pages/Customers.jsx'));
@@ -36,144 +38,9 @@ const ImpressoraManager = lazy(() => import('./components/Impressao/ImpressoraMa
 const PaymentSettings = lazy(() => import('./pages/PaymentSettings.jsx'));
 const ConfiguracoesPage = lazy(() => import('./pages/Configuracoes.jsx'));
 const Aparencia = lazy(() => import('./pages/Aparencia.jsx'));
-
 const DeliveryEntry = lazy(() => import('./pages/DeliveryEntry.jsx'));
 const DeliveryEntregador = lazy(() => import('./pages/DeliveryEntregador.jsx'));
 const RastreioEntrega = lazy(() => import('./pages/RastreioEntrega.jsx'));
-
-function AppVersionGuard() {
-  const { showToast } = useToast();
-
-  useEffect(() => {
-    let active = true;
-    let checking = false;
-
-    const checkVersion = async () => {
-      if (checking || navigator.onLine === false || document.visibilityState === 'hidden') return;
-      checking = true;
-      try {
-        const publishedVersion = await fetchPublishedAppVersion();
-        if (!active || publishedVersion === APP_VERSION) return;
-
-        const reloadKey = `pdv:version-reload:${publishedVersion}`;
-        try {
-          if (sessionStorage.getItem(reloadKey) === '1') {
-            showToast('Há uma nova versão disponível. Feche e reabra o aplicativo para tentar atualizar.', 'warning');
-            return;
-          }
-          sessionStorage.setItem(reloadKey, '1');
-        } catch {
-          // A successful service-worker activation still reloads through the PWA runtime.
-        }
-
-        showToast('Nova versão encontrada. Atualizando o aplicativo…', 'info');
-        try {
-          if (!('serviceWorker' in navigator)) throw new Error('Este navegador não oferece suporte ao service worker.');
-          const serviceWorker = navigator.serviceWorker;
-          const registration = await serviceWorker.ready;
-          await waitForServiceWorkerUpdate(registration, serviceWorker);
-        } catch (error) {
-          try {
-            sessionStorage.removeItem(reloadKey);
-          } catch {
-            // Session storage can be unavailable in restricted browser modes.
-          }
-          console.error('[PWA] Não foi possível aplicar a nova versão.', error);
-          if (active) showToast('A nova versão foi encontrada, mas não foi possível aplicá-la. Tente fechar e reabrir o aplicativo.', 'warning');
-        }
-      } catch (error) {
-        console.warn('[PWA] Não foi possível validar a versão atual.', error);
-        if (active) showToast('Não foi possível confirmar a versão atual. O acesso continuará com a versão disponível.', 'warning');
-      } finally {
-        checking = false;
-      }
-    };
-
-    const checkWhenVisible = () => {
-      if (document.visibilityState === 'visible') void checkVersion();
-    };
-
-    void checkVersion();
-    window.addEventListener('online', checkVersion);
-    document.addEventListener('visibilitychange', checkWhenVisible);
-    return () => {
-      active = false;
-      window.removeEventListener('online', checkVersion);
-      document.removeEventListener('visibilitychange', checkWhenVisible);
-    };
-  }, [showToast]);
-
-  return null;
-}
-
-function DefaultLanding() {
-  const { user } = useContext(AuthContext);
-  return <Navigate to={user?.role === 'admin' ? '/dashboard' : '/pdv'} replace />;
-}
-
-export default function App() {
-  return (
-    <ThemeProvider>
-      <AuthProvider>
-        <ConfiguracoesProvider>
-          <ToastProvider>
-            <ErrorBoundary>
-              <AutorizacaoGerenteGlobal />
-              <AppVersionGuard />
-              <Router>
-                <Suspense fallback={<p role="status" style={{ padding: 24 }}>Carregando…</p>}>
-                  <Routes>
-                    <Route path="/DeliveryAdmin" element={<Navigate to="/entregas" replace />} />
-                    <Route path="/entregas" element={<DeliveryEntry />} />
-                    <Route path="/admin" element={<Navigate to="/entregas" replace />} />
-                    <Route path="/plataforma" element={<Navigate to="/entregas" replace />} />
-                    <Route path="/entregador" element={<DeliveryEntregador />} />
-                    <Route path="/pedido/:token" element={<RastreioEntrega />} />
-                    <Route path="/m" element={<Navigate to="/cardapio" replace />} />
-                    <Route path="/cardapio" element={<CardapioHub />} />
-                    <Route path="/cardapio/balcao" element={<CardapioCanal />} />
-                    <Route path="/cardapio/delivery" element={<CardapioCanal />} />
-                    <Route path="/cardapio/:mesaToken" element={<CardapioAutoAtendimento />} />
-                    <Route path="/reserva" element={<CardapioCanal />} />
-                    <Route path="/login" element={<Login />} />
-                    <Route element={<PrivateRoute />}>
-                      <Route element={<FormasPagamentoProvider><ComandaProvider><Layout /></ComandaProvider></FormasPagamentoProvider>}>
-                        <Route path="/pdv" element={<PDV />} />
-                        <Route path="/atendimento/mesas" element={<Navigate to="/comandas" replace />} />
-                        <Route path="/comandas" element={<Comandas />} />
-                        <Route path="/cadastro/mesas" element={<MesasCadastro />} />
-                        <Route element={<RoleRoute roles={['admin', 'operador', 'cozinha']} />}>
-                          <Route path="/cozinha" element={<Kitchen />} />
-                        </Route>
-                        <Route element={<RoleRoute roles={['admin']} />}>
-                          <Route path="/produtos" element={<Products />} />
-                          <Route path="/clientes" element={<Customers />} />
-                          <Route path="/auditoria" element={<Auditoria />} />
-                          <Route path="/contas-receber" element={<ContasReceber />} />
-                          <Route path="/usuarios" element={<Users />} />
-                          <Route path="/dashboard" element={<Dashboard />} />
-                          <Route path="/producao" element={<Production />} />
-                          <Route path="/compras" element={<Purchases />} />
-                          <Route path="/financeiro" element={<Financeiro />} />
-                          <Route path="/caixa" element={<Caixa />} />
-                          <Route path="/ajustes/impressoras" element={<ImpressoraManager />} />
-                          <Route path="/configuracoes" element={<ConfiguracoesPage />} />
-                          <Route path="/configuracoes/aparencia" element={<Aparencia />} />
-                          <Route path="/configuracoes/pagamentos" element={<PaymentSettings />} />
-                        </Route>
-                        <Route element={<RoleRoute roles={['admin', 'cozinha']} />}>
-                          <Route path="/producao/fichas" element={<Navigate to="/producao?tab=fichas" replace />} />
-                        </Route>
-                        <Route path="*" element={<DefaultLanding />} />
-                      </Route>
-                    </Route>
-                  </Routes>
-                </Suspense>
-              </Router>
-            </ErrorBoundary>
-          </ToastProvider>
-        </ConfiguracoesProvider>
-      </AuthProvider>
-    </ThemeProvider>
-  );
-}
+function AppVersionGuard() { const { showToast } = useToast(); useEffect(() => { let active = true; let checking = false; const checkVersion = async () => { if (checking || navigator.onLine === false || document.visibilityState === 'hidden') return; checking = true; try { const publishedVersion = await fetchPublishedAppVersion(); if (!active || publishedVersion === APP_VERSION) return; const reloadKey = `pdv:version-reload:${publishedVersion}`; try { if (sessionStorage.getItem(reloadKey) === '1') { showToast('Há uma nova versão disponível. Feche e reabra o aplicativo para tentar atualizar.', 'warning'); return; } sessionStorage.setItem(reloadKey, '1'); } catch {} showToast('Nova versão encontrada. Atualizando o aplicativo…', 'info'); try { if (!('serviceWorker' in navigator)) throw new Error('Service worker indisponível'); await waitForServiceWorkerUpdate(await navigator.serviceWorker.ready, navigator.serviceWorker); } catch (error) { try { sessionStorage.removeItem(reloadKey); } catch {} console.error('[PWA] Não foi possível aplicar a nova versão.', error); if (active) showToast('A nova versão foi encontrada, mas não foi possível aplicá-la.', 'warning'); } } catch (error) { console.warn('[PWA] Não foi possível validar a versão atual.', error); } finally { checking = false; } }; const checkWhenVisible = () => { if (document.visibilityState === 'visible') void checkVersion(); }; void checkVersion(); window.addEventListener('online', checkVersion); document.addEventListener('visibilitychange', checkWhenVisible); return () => { active = false; window.removeEventListener('online', checkVersion); document.removeEventListener('visibilitychange', checkWhenVisible); }; }, [showToast]); return null; }
+function DefaultLanding() { const { user } = useContext(AuthContext); return <Navigate to={user?.role === 'admin' ? '/dashboard' : '/pdv'} replace />; }
+export default function App() { return <ThemeProvider><AuthProvider><ConfiguracoesProvider><ToastProvider><ErrorBoundary><AutorizacaoGerenteGlobal /><AppVersionGuard /><Router><Suspense fallback={<p role="status" style={{ padding: 24 }}>Carregando…</p>}><Routes><Route path="/DeliveryAdmin" element={<Navigate to="/entregas" replace />} /><Route path="/entregas" element={<DeliveryEntry />} /><Route path="/admin" element={<Navigate to="/entregas" replace />} /><Route path="/plataforma" element={<Navigate to="/entregas" replace />} /><Route path="/entregador" element={<DeliveryEntregador />} /><Route path="/pedido/:token" element={<RastreioEntrega />} /><Route path="/m" element={<Navigate to="/cardapio" replace />} /><Route path="/cardapio" element={<CardapioHub />} /><Route path="/cardapio/balcao" element={<CardapioCanal />} /><Route path="/cardapio/delivery" element={<CardapioCanal />} /><Route path="/cardapio/:mesaToken" element={<CardapioAutoAtendimento />} /><Route path="/reserva" element={<Reserva />} /><Route path="/login" element={<Login />} /><Route element={<PrivateRoute />}><Route element={<FormasPagamentoProvider><ComandaProvider><Layout /></ComandaProvider></FormasPagamentoProvider>}><Route path="/pdv" element={<PDV />} /><Route path="/atendimento/mesas" element={<Navigate to="/comandas" replace />} /><Route path="/comandas" element={<Comandas />} /><Route path="/reservas" element={<Reservas />} /><Route path="/cadastro/mesas" element={<MesasCadastro />} /><Route element={<RoleRoute roles={['admin', 'operador', 'cozinha']} />}><Route path="/cozinha" element={<Kitchen />} /></Route><Route element={<RoleRoute roles={['admin']} />}><Route path="/produtos" element={<Products />} /><Route path="/clientes" element={<Customers />} /><Route path="/auditoria" element={<Auditoria />} /><Route path="/contas-receber" element={<ContasReceber />} /><Route path="/usuarios" element={<Users />} /><Route path="/dashboard" element={<Dashboard />} /><Route path="/producao" element={<Production />} /><Route path="/compras" element={<Purchases />} /><Route path="/financeiro" element={<Financeiro />} /><Route path="/caixa" element={<Caixa />} /><Route path="/ajustes/impressoras" element={<ImpressoraManager />} /><Route path="/configuracoes" element={<ConfiguracoesPage />} /><Route path="/configuracoes/aparencia" element={<Aparencia />} /><Route path="/configuracoes/pagamentos" element={<PaymentSettings />} /></Route><Route element={<RoleRoute roles={['admin', 'cozinha']} />}><Route path="/producao/fichas" element={<Navigate to="/producao?tab=fichas" replace />} /></Route><Route path="*" element={<DefaultLanding />} /></Route></Route></Routes></Suspense></Router></ErrorBoundary></ToastProvider></ConfiguracoesProvider></AuthProvider></ThemeProvider>; }
