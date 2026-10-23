@@ -1,3 +1,4 @@
+import { branding } from '../config/branding.js';
 import { EscPosBuilder } from '../utils/escpos.js';
 
 const PREFERENCE_KEY = 'pdv_impressora_preferida';
@@ -22,7 +23,7 @@ const DEFAULT_CONFIG = {
   paperWidth: '80mm',
   imprimirCupomAutomaticamente: true,
   imprimirCozinhaAutomaticamente: true,
-  empresa: { nome: 'PDV', cnpj: '', endereco: '', telefone: '' },
+  empresa: { nome: branding.name || 'PDV', cnpj: '', endereco: '', telefone: '' },
   setores: [{ nome: 'Cozinha', categorias: [] }],
   setorPadrao: 'Cozinha',
 };
@@ -99,10 +100,17 @@ export async function reimprimirPendente(id, options = {}) {
 export function carregarConfiguracaoImpressao() {
   try {
     const value = storage().getItem(CONFIG_KEY);
-    if (!value) return { ...DEFAULT_CONFIG, empresa: { ...DEFAULT_CONFIG.empresa }, setores: DEFAULT_CONFIG.setores.map((sector) => ({ ...sector, categorias: [...sector.categorias] })) };
+    const baseEmpresa = { nome: branding.name || 'PDV', cnpj: '', endereco: '', telefone: '' };
+    if (!value) {
+      return {
+        ...DEFAULT_CONFIG,
+        empresa: { ...baseEmpresa },
+        setores: DEFAULT_CONFIG.setores.map((sector) => ({ ...sector, categorias: [...sector.categorias] })),
+      };
+    }
     const config = JSON.parse(value);
     if (!config || typeof config !== 'object' || Array.isArray(config)) throw new TypeError('Formato de configuração inválido.');
-    const merged = { ...DEFAULT_CONFIG, ...config, empresa: { ...DEFAULT_CONFIG.empresa, ...config.empresa } };
+    const merged = { ...DEFAULT_CONFIG, ...config, empresa: { ...baseEmpresa, ...config.empresa } };
     if (!['58mm', '80mm'].includes(merged.paperWidth)
       || typeof merged.imprimirCupomAutomaticamente !== 'boolean'
       || typeof merged.imprimirCozinhaAutomaticamente !== 'boolean'
@@ -493,7 +501,7 @@ function paperChars(paperWidth) {
 
 export function montarCupomVenda(venda, { empresa = {}, paperWidth = '80mm' } = {}) {
   const builder = new EscPosBuilder({ charsPerLine: paperChars(paperWidth) });
-  const nomeEmpresa = empresa.nome || 'PDV';
+  const nomeEmpresa = empresa.nome || branding.name || 'PDV';
   builder.align('center').bold(true).text(nomeEmpresa).bold(false).newLine();
   if (empresa.endereco) builder.text(empresa.endereco).newLine();
   if (empresa.telefone) builder.text(`Tel: ${empresa.telefone}`).newLine();
@@ -530,7 +538,7 @@ export function montarCupomVenda(venda, { empresa = {}, paperWidth = '80mm' } = 
 }
 
 function buildCupomHtml(venda, empresa = {}) {
-  const nomeEmpresa = escapeHtml(empresa.nome || 'PDV');
+  const nomeEmpresa = escapeHtml(empresa.nome || branding.name || 'PDV');
   const itens = (venda.itens || []).map((item) => {
     const total = Number(item.quantidade || 0) * Number(item.precoUnitario || 0);
     const mods = item.modificadores?.length ? `<small>${escapeHtml(item.modificadores.join(' | '))}</small>` : '';
@@ -621,7 +629,7 @@ export function montarPedidosCozinha(pedido, {
 export async function imprimirCupomVenda(venda, options = {}) {
   const config = options.empresa ? options : { ...carregarConfiguracaoImpressao(), ...options };
   const { payload, html } = montarCupomVenda(venda, {
-    empresa: config.empresa || DEFAULT_CONFIG.empresa,
+    empresa: config.empresa || { nome: branding.name || 'PDV' },
     paperWidth: config.paperWidth || '80mm',
   });
   return enviar(payload, html, { ...options, jobType: 'cupom-venda' });
@@ -655,11 +663,11 @@ export async function imprimirNFCeDanfe(data, options = {}) {
 
 export async function imprimirTeste(options = {}) {
   const config = { ...carregarConfiguracaoImpressao(), ...options };
-  const empresa = config.empresa || DEFAULT_CONFIG.empresa;
+  const empresa = config.empresa || { nome: branding.name || 'PDV' };
   const builder = new EscPosBuilder({ charsPerLine: paperChars(config.paperWidth || '80mm') });
-  builder.align('center').bold(true).text(empresa.nome || 'PDV').bold(false).newLine();
+  builder.align('center').bold(true).text(empresa.nome || branding.name || 'PDV').bold(false).newLine();
   builder.text('Teste de impressão').newLine().feed(3).cut();
   const html = `<!DOCTYPE html><html><body style="font-family:monospace;text-align:center;padding:12px">
-    <h2>${escapeHtml(empresa.nome || 'PDV')}</h2><p>Teste de impressão</p></body></html>`;
+    <h2>${escapeHtml(empresa.nome || branding.name || 'PDV')}</h2><p>Teste de impressão</p></body></html>`;
   return enviar(builder.toUint8Array(), html, { ...options, jobType: 'teste-impressora' });
 }
