@@ -33,6 +33,7 @@ const Caixa = lazy(() => import('./pages/Caixa.jsx'));
 const ImpressoraManager = lazy(() => import('./components/Impressao/ImpressoraManager.jsx'));
 const PaymentSettings = lazy(() => import('./pages/PaymentSettings.jsx'));
 const ConfiguracoesPage = lazy(() => import('./pages/Configuracoes.jsx'));
+const Aparencia = lazy(() => import('./pages/Aparencia.jsx'));
 
 const DeliveryEntry = lazy(() => import('./pages/DeliveryEntry.jsx'));
 const DeliveryEntregador = lazy(() => import('./pages/DeliveryEntregador.jsx'));
@@ -150,6 +151,7 @@ export default function App() {
                           <Route path="/caixa" element={<Caixa />} />
                           <Route path="/ajustes/impressoras" element={<ImpressoraManager />} />
                           <Route path="/configuracoes" element={<ConfiguracoesPage />} />
+                          <Route path="/configuracoes/aparencia" element={<Aparencia />} />
                           <Route path="/configuracoes/pagamentos" element={<PaymentSettings />} />
                         </Route>
                         <Route element={<RoleRoute roles={['admin', 'cozinha']} />}>
