@@ -1,0 +1,17 @@
+.reserva-page { min-height: 100vh; box-sizing: border-box; padding: 24px 16px; background: #f7faf8; color: #1f2933; }
+.reserva-card { width: min(100%, 680px); box-sizing: border-box; margin: 0 auto; padding: clamp(20px, 5vw, 40px); border: 1px solid #d9e2dc; border-radius: 20px; background: #fff; box-shadow: 0 8px 28px rgba(31,41,51,.08); }
+.reserva-back, .reserva-link { color: var(--reserva-accent); font-weight: 700; text-decoration: none; }
+.reserva-eyebrow { margin: 28px 0 6px; color: var(--reserva-accent); font-size: .85rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.reserva-card h1 { margin: 0; font-size: clamp(1.8rem, 6vw, 2.5rem); }
+.reserva-card > p:not(.reserva-eyebrow):not(.reserva-error) { color: #52606d; line-height: 1.5; }
+.reserva-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 24px 0; }
+.reserva-grid label { display: grid; gap: 6px; color: #344054; font-weight: 600; }
+.reserva-grid input, .reserva-grid textarea { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid #cfd8d3; border-radius: 10px; font: inherit; }
+.reserva-full { grid-column: 1 / -1; }
+.reserva-submit { width: 100%; min-height: 48px; border: 0; border-radius: 12px; color: #fff; background: var(--reserva-accent); font: inherit; font-weight: 700; cursor: pointer; }
+.reserva-submit:disabled { opacity: .65; cursor: wait; }
+.reserva-error { padding: 12px; border-radius: 10px; color: #8a2820; background: #fbeceb; }
+.reserva-success { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 50%; color: #fff; background: var(--reserva-accent); font-size: 1.5rem; }
+.reserva-code { display: block; margin: 24px 0; padding: 16px; border-radius: 12px; color: var(--reserva-accent); background: #eef7f0; font-size: 1.8rem; letter-spacing: .12em; text-align: center; }
+.reserva-summary { display: flex; gap: 24px; margin: 0 0 28px; }.reserva-summary div { display: grid; gap: 4px; }.reserva-summary dt { color: #697586; font-size: .85rem; }.reserva-summary dd { margin: 0; font-weight: 700; }
+@media (max-width: 520px) { .reserva-grid { grid-template-columns: 1fr; }.reserva-full { grid-column: auto; }.reserva-summary { gap: 14px; flex-wrap: wrap; } }
