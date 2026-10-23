@@ -12,11 +12,8 @@ export const ConfiguracoesProvider = ({ children }) => {
   useEffect(() => {
     let active = true;
     const fetchConfiguracoes = async () => {
-      if (authLoading) {
-        setLoading(true);
-        return;
-      }
-      if (!user?.id) {
+      if (authLoading) { setLoading(true); return; }
+      if (!user?.id || user.role !== 'admin') {
         setExigirAutorizacaoGerente(true);
         setBloqueadoPorSuporte(false);
         setLoading(false);
@@ -37,10 +34,9 @@ export const ConfiguracoesProvider = ({ children }) => {
         if (active) setLoading(false);
       }
     };
-
     fetchConfiguracoes();
     return () => { active = false; };
-  }, [authLoading, user?.id]);
+  }, [authLoading, user?.id, user?.role]);
 
   const updateConfiguracoes = async (valor, motivo) => {
     const { data } = await api.patch('/configuracoes/autorizacao-gerente', { valor, motivo });
@@ -48,14 +44,5 @@ export const ConfiguracoesProvider = ({ children }) => {
     return data;
   };
 
-  return (
-    <ConfiguracoesContext.Provider value={{
-      exigirAutorizacaoGerente,
-      bloqueadoPorSuporte,
-      loading,
-      updateConfiguracoes,
-    }}>
-      {children}
-    </ConfiguracoesContext.Provider>
-  );
+  return <ConfiguracoesContext.Provider value={{ exigirAutorizacaoGerente, bloqueadoPorSuporte, loading, updateConfiguracoes }}>{children}</ConfiguracoesContext.Provider>;
 };
