@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import DateInput from '../components/DateInput.jsx';
@@ -71,7 +71,7 @@ export default function Auditoria() {
       if (data.pagina && data.pagina !== paginaAtual) alterarPagina(data.pagina);
     } catch (error) {
       if (requestId === requestIdRef.current) {
-        setErro(error.response?.data?.msg || error.message || 'Não foi possível carregar a auditoria.');
+        setErro(error.response?.data?.msg || error.message || 'NÃ£o foi possÃ­vel carregar a auditoria.');
       }
     } finally {
       if (requestId === requestIdRef.current) setCarregando(false);
@@ -88,7 +88,7 @@ export default function Auditoria() {
       <div className="page-heading">
         <div>
           <h1>Auditoria</h1>
-          <p>Histórico de autorizações gerenciais e operações registradas no sistema.</p>
+          <p>HistÃ³rico de autorizaÃ§Ãµes gerenciais e operaÃ§Ãµes registradas no sistema.</p>
         </div>
       </div>
 
@@ -103,12 +103,12 @@ export default function Auditoria() {
         background: 'var(--bg-secondary)',
       }}>
         <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
-          Usuário (nome exato ou ID)
-          <input aria-label="Filtrar por usuário" value={usuario} onChange={event => atualizarFiltro('usuario', event.target.value)} style={inputStyle} />
+          UsuÃ¡rio (nome exato ou ID)
+          <input aria-label="Filtrar por usuÃ¡rio" value={usuario} onChange={event => atualizarFiltro('usuario', event.target.value)} style={inputStyle} />
         </label>
         <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
-          Ação
-          <input aria-label="Filtrar por ação" value={acao} onChange={event => atualizarFiltro('acao', event.target.value.toLowerCase())} style={inputStyle} />
+          AÃ§Ã£o
+          <input aria-label="Filtrar por aÃ§Ã£o" value={acao} onChange={event => atualizarFiltro('acao', event.target.value.toLowerCase())} style={inputStyle} />
         </label>
         <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
           Resultado
@@ -151,7 +151,7 @@ export default function Auditoria() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                {['Data e hora', 'Ação', 'Solicitante', 'Autorizador', 'Resultado', 'Detalhes', 'IP'].map(coluna => (
+                {['Data e hora', 'AÃ§Ã£o', 'Solicitante', 'Autorizador', 'Resultado', 'Detalhes', 'IP'].map(coluna => (
                   <th key={coluna} scope="col" style={{ ...cellStyle, background: 'var(--bg-tertiary)', fontWeight: 800 }}>{coluna}</th>
                 ))}
               </tr>
@@ -161,14 +161,14 @@ export default function Auditoria() {
                 <tr key={registro._id}>
                   <td style={cellStyle}>{new Date(registro.createdAt || registro.data).toLocaleString('pt-BR')}</td>
                   <td style={cellStyle}>{registro.acao}</td>
-                  <td style={cellStyle}>{registro.usuarioSolicitante?.username || '—'}</td>
-                  <td style={cellStyle}>{registro.usuarioAutorizou?.username || '—'}</td>
+                  <td style={cellStyle}>{registro.usuarioSolicitante?.username || 'â€”'}</td>
+                  <td style={cellStyle}>{registro.usuarioAutorizou?.username || 'â€”'}</td>
                   <td style={{ ...cellStyle, color: registro.sucesso ? 'var(--success-bg)' : 'var(--error-bg)', fontWeight: 700 }}>
                     {registro.sucesso ? 'Sucesso' : 'Falha'}
-                    {registro.motivoFalha ? ` · ${registro.motivoFalha}` : ''}
+                    {registro.motivoFalha ? ` Â· ${registro.motivoFalha}` : ''}
                   </td>
-                  <td style={{ ...cellStyle, minWidth: 200, overflowWrap: 'anywhere' }}>{registro.detalhes || '—'}</td>
-                  <td style={cellStyle}>{registro.ip || '—'}</td>
+                  <td style={{ ...cellStyle, minWidth: 200, overflowWrap: 'anywhere' }}>{registro.detalhes || 'â€”'}</td>
+                  <td style={cellStyle}>{registro.ip || 'â€”'}</td>
                 </tr>
               ))}
             </tbody>
