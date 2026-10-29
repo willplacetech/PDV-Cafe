@@ -137,7 +137,7 @@ const Paginacao = ({ total, paginaAtual, limiteAtual, onChangePagina, onChangeLi
       `}</style>
 
       <div className="paginacao-minimalista-info">
-        Mostrando {total === 0 ? 0 : (paginaAtualNum - 1) * limiteAtualNum + 1}–{Math.min(paginaAtualNum * limiteAtualNum, total)} de {total}
+        Mostrando {total === 0 ? 0 : (paginaAtualNum - 1) * limiteAtualNum + 1}–{Math.min(paginaAtualNum * limiteAtualNum, total)} de {total} | Faltam 5 páginas
       </div>
 
       <div className="paginacao-minimalista-controles">
