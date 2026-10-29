@@ -104,3 +104,9 @@ coverage/
 Thumbs.db
 .vscode/
 .idea/
+.agents/
+.aider-desk/
+.playwright-mcp/
+.venv/
+.xgrok/
+graphify-out/

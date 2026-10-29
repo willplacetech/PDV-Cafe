@@ -159,7 +159,7 @@ export default function Auditoria() {
             <tbody>
               {registros.map(registro => (
                 <tr key={registro._id}>
-                  <td style={cellStyle}>{new Date(registro.createdAt || registro.data).toLocaleString('pt-BR')}</td>
+                  <td style={cellStyle}>{formatarDataSegura(registro.createdAt || registro.data)}</td>
                   <td style={cellStyle}>{registro.acao}</td>
                   <td style={cellStyle}>{registro.usuarioSolicitante?.username || 'â€”'}</td>
                   <td style={cellStyle}>{registro.usuarioAutorizou?.username || 'â€”'}</td>

@@ -1,0 +1,26 @@
+{
+  "Comandas.jsx": {
+    "import": true,
+    "calls": 0
+  },
+  "ContasReceber.jsx": {
+    "import": true,
+    "calls": 5
+  },
+  "PDV.jsx": {
+    "import": true,
+    "calls": 0
+  },
+  "Dashboard.jsx": {
+    "import": true,
+    "calls": 5
+  },
+  "Entregas.jsx": {
+    "import": true,
+    "calls": 0
+  },
+  "Configuracoes.jsx": {
+    "import": true,
+    "calls": 0
+  }
+}
