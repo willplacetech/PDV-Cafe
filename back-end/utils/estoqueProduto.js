@@ -5,7 +5,14 @@ const arredondar = (valor, casas = 6) => {
   return Math.round((Number(valor || 0) + Number.EPSILON) * fator) / fator;
 };
 
-const produtoControlaPeso = (produto = {}) => Number(produto.pesoPorUnidade || 0) > 0 && produto.unidadeVenda === 'kg';
+const produtoControlaPeso = (produto = {}) => {
+  // Distinguish between zero weight and absent field
+  const hasExplicitPeso = 'pesoPorUnidade' in (produto || {});
+  const pesoValue = Number(produto.pesoPorUnidade || 0);
+  // Only consider as weight-controlled if there's an explicit value > 0
+  // Zero weight is valid and should be treated differently from absent field
+  return pesoValue > 0 && produto.unidadeVenda === 'kg';
+};
 
 const estoquePesoAtualKg = (produto = {}) => {
   if (!produtoControlaPeso(produto)) return 0;

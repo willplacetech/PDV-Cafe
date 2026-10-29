@@ -40,6 +40,11 @@ router.post('/orders/:id/emitir', auth, auth.allowRoles('admin', 'operador'), as
       const productIds = [...new Set(order.itens.map((item) => String(item.produtoId)))];
       const products = await Product.find({ _id: { $in: productIds } }).select('ncm').lean();
       const resultado = await emitirNfce({ order, products });
+      // Validar que todos os campos necessários estão presentes antes de autorizar
+      if (!resultado.chaveAcesso || !resultado.protocolo) {
+        throw new Error('Resposta do provedor incompleta: necessario chave de acesso e protocolo');
+      }
+      
       order.nfce = { status: 'autorizada', numero: resultado.numero, serie: resultado.serie,
         chaveAcesso: resultado.chaveAcesso, protocolo: resultado.protocolo, xml: resultado.xml,
         danfePdf: resultado.danfePdf, mensagemSeErro: resultado.avisos?.join('; '),
