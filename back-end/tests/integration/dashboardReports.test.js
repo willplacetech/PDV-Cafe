@@ -24,6 +24,46 @@ const sale = (extra = {}) => Order.create({
   ...extra,
 });
 
+test('fechamento mensal usa o mes informado sem misturar vendas de outro mes', async () => {
+  await sale({ createdAt: new Date('2025-11-15T15:00:00.000Z') });
+  await sale({ createdAt: new Date('2025-12-15T15:00:00.000Z'), total: 35 });
+
+  const response = await dashboard().query({ mes: '2025-12' });
+
+  expect(response.status).toBe(200);
+  expect(response.body.relatorioMes.total).toBe(35);
+  expect(response.body.relatorioMes.pedidos).toBe(1);
+  expect(response.body.relatorioMes.periodo).toBe('01/12/2025 a 31/12/2025');
+});
+
+test('fechamento mensal inclui o inicio e exclui o primeiro instante do mes seguinte na virada do ano', async () => {
+  await sale({ createdAt: new Date('2025-12-01T03:00:00.000Z'), total: 12 });
+  await sale({ createdAt: new Date('2026-01-01T02:59:59.999Z'), total: 18 });
+  await sale({ createdAt: new Date('2026-01-01T03:00:00.000Z'), total: 24 });
+
+  const response = await dashboard().query({ mes: '2025-12' });
+
+  expect(response.status).toBe(200);
+  expect(response.body.relatorioMes.total).toBe(30);
+  expect(response.body.relatorioMes.periodo).toBe('01/12/2025 a 31/12/2025');
+});
+
+test('mes ausente conserva o fechamento do mes atual', async () => {
+  const response = await dashboard();
+  const hoje = new Date();
+  const mesAtual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(hoje);
+
+  expect(response.status).toBe(200);
+  expect(response.body.relatorioMes.periodo).toContain(`/${mesAtual.slice(0, 4)}`);
+});
+
+test.each(['2025-13', '2025-2', '2025-00'])('mes invalido %s retorna erro de validacao', async (mes) => {
+  const response = await dashboard().query({ mes });
+
+  expect(response.status).toBe(400);
+  expect(response.body.msg).toMatch(/m[eê]s/i);
+});
+
 test('vendas fora de 08h-20h entram nos rankings e no estoque vendido', async () => {
   const date = new Date();
   date.setUTCDate(date.getUTCDate() - 1);
