@@ -97,6 +97,16 @@ const fimDoMesAtual = () => {
   return new Date(Date.UTC(year, month, 1, 3));
 };
 
+const periodoRelatorioMensal = (mesInformado) => {
+  const mes = mesInformado === undefined ? dataSaoPaulo().slice(0, 7) : mesInformado;
+  if (typeof mes !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) return null;
+  const [year, month] = mes.split('-').map(Number);
+  return {
+    inicio: new Date(`${mes}-01T00:00:00-03:00`),
+    fim: new Date(Date.UTC(year, month, 1, 3)),
+  };
+};
+
 const inicioDoMesAnterior = () => {
   const { year, month } = partesDataSaoPaulo();
   return new Date(Date.UTC(year, month - 2, 1, 3));
@@ -427,6 +437,8 @@ router.get('/receita-7-dias', auth, auth.allowRoles('admin'), async (req, res) =
 
 router.get('/', async (req, res) => {
   try {
+    const periodoRelatorio = periodoRelatorioMensal(req.query.mes);
+    if (!periodoRelatorio) return res.status(400).json({ msg: 'Mês inválido. Use o formato AAAA-MM.' });
     const periodos = ['dia', 'semana', 'mes'];
     const inicioInsights = new Date();
     inicioInsights.setDate(inicioInsights.getDate() - 90);
@@ -442,9 +454,9 @@ router.get('/', async (req, res) => {
       })),
       Comanda.countDocuments({ status: 'aberta' }),
       Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).select('numero total status utilizacaoInterna clienteNome createdAt itens pagamentos comandaId'),
-      Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status utilizacaoInterna clienteId clienteNome clienteTelefone createdAt itens pagamentos tipoAtendimento comandaId'),
+      Order.find({ createdAt: { $gte: periodoRelatorio.inicio, $lt: periodoRelatorio.fim } }).select('numero total subtotal desconto status utilizacaoInterna clienteId clienteNome clienteTelefone createdAt itens pagamentos tipoAtendimento comandaId'),
       carregarPagamentosDoPeriodo({ inicio: inicioDoPeriodo('dia'), fim: new Date() }),
-      carregarPagamentosDoPeriodo({ inicio: inicioDoPeriodo('mes'), fim: fimDoMesAtual() }),
+      carregarPagamentosDoPeriodo({ inicio: periodoRelatorio.inicio, fim: periodoRelatorio.fim }),
       Customer.countDocuments(),
       Customer.find().sort({ createdAt: -1 }).limit(8).select('nome telefone createdAt cafesFidelidade'),
       Product.find({ tipo: 'venda' }).select('nome codigo preco tipoProduto producaoPropria custoUnitario custoUnitarioBase precoCompra unidade unidadeCompra unidadeVenda pesoPorUnidade rendimento rendimentoPorUnidadeCompra estoque categoria'),
@@ -526,7 +538,7 @@ router.get('/', async (req, res) => {
     });
     const relatorioClientes = [...clientesRelatorio.values()].map((cliente) => ({ ...cliente, pendente: Math.max(0, cliente.total - cliente.recebido) })).sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome));
     const relatorioMes = {
-      periodo: `${formatarDataPtBr(inicioDoPeriodo('mes'))} a ${formatarDataPtBr(new Date(fimDoMesAtual().getTime() - 1))}`,
+      periodo: `${formatarDataPtBr(periodoRelatorio.inicio)} a ${formatarDataPtBr(new Date(periodoRelatorio.fim.getTime() - 1))}`,
       pedidos: pedidosMes.length,
       vendas: vendasMes.length,
       itens: vendasMes.reduce((total, pedido) => total + (pedido.itens || []).reduce((soma, item) => soma + quantidadeNaUnidadeBase(item), 0), 0),
