@@ -34,6 +34,28 @@ export const totalPago = (pedido) => (Array.isArray(pedido?.pagamentos)
   ? pedido.pagamentos.reduce((total, pagamento) => total + (Number(pagamento.valorRecebido) || 0), 0)
   : 0);
 
+export function criarPedidoDaComanda(comanda) {
+  const itens = Array.isArray(comanda?.itens) ? comanda.itens : [];
+  const subtotal = itens.reduce((total, item) => total + Number(item.precoUnitario || 0) * Number(item.quantidade || 0), 0);
+  const taxaEntrega = Number(comanda?.taxaEntrega ?? comanda?.entrega?.taxaEntrega ?? 0);
+  const desconto = Number(comanda?.desconto || 0);
+
+  return {
+    numero: comanda?.numero,
+    createdAt: comanda?.createdAt,
+    clienteNome: comanda?.clienteNome || '',
+    clienteTelefone: comanda?.clienteTelefone || comanda?.entrega?.telefone || '',
+    atendente: comanda?.atendente,
+    itens,
+    subtotal,
+    taxaEntrega,
+    desconto,
+    utilizacaoInterna: Boolean(comanda?.utilizacaoInterna),
+    total: subtotal + taxaEntrega - desconto,
+    pagamentos: [],
+  };
+}
+
 export function buildNotaVendaHtml(pedido, { comandaNumero, titulo = 'NOTA DE VENDA' } = {}) {
   if (!pedido) return '';
   const pago = totalPago(pedido);
