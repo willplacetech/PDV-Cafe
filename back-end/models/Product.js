@@ -274,5 +274,6 @@ const ProductSchema = new mongoose.Schema({
 
 // Índice composto para busca
 ProductSchema.index({ nome: 'text', codigo: 'text' });
+ProductSchema.index({ tipo: 1, ativo: 1, nome: 1 });
 
 module.exports = mongoose.model('Product', ProductSchema);

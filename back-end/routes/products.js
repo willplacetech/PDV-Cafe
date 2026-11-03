@@ -15,10 +15,15 @@ const { calcularResumoCompleto, calcularCustoUnitarioBase, calcularEstoqueMinimo
 const { normalizarDescontos } = require('../utils/descontosQuantidade');
 const { UNIDADES_PERMITIDAS, normalizarUnidade, casasDecimaisValidas } = require('../utils/unidades');
 const { enfileirarRecalculoPorInsumo } = require('../utils/filaCusto');
+const { cached, invalidate } = require('../utils/queryCache');
 
 const router = express.Router();
 const units = UNIDADES_PERMITIDAS;
 const compraUnits = UNIDADES_PERMITIDAS;
+const invalidarCacheProdutos = () => {
+  invalidate('cardapio:');
+  invalidate('produtos:');
+};
 const camposCustoCalculado = (resultado, divisor = 1) => {
   const disponivel = resultado?.fonte === 'insumo' && Number.isFinite(Number(resultado.custoTotal)) && Number(divisor) > 0;
   const custo = disponivel ? Number(resultado.custoTotal) / Number(divisor) : 0;
@@ -197,19 +202,26 @@ router.get('/', auth, auth.allowRoles('admin', 'gerente', 'cozinha'), async (req
 
 router.get('/pdv', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
-    const produtos = await Product.find({
-      ativo: { $ne: false },
-      $or: [
-        { tipo: 'venda' },
-        { tipo: { $exists: false }, controladoComoInsumo: { $ne: true } },
-      ],
-    }).populate('fichaTecnica.produtoId', 'nome tipo unidadeCompra unidadeConteudo conteudoPorEmbalagem estoqueEmbalagens estoqueInsumos estoqueConteudoAberto precoCompra').sort({ nome: 1 });
-    res.json(produtos.map((produto) => ({
-      ...produto.toObject(),
-      tipo: resolverTipoProduto(produto),
-      ...dadosEstoqueProduto(produto),
-      cozDisponibilidade: disponibilidadeCoz(produto),
-    })));
+    const produtos = await cached('produtos:pdv', 3000, async () => {
+      const lista = await Product.find({
+        ativo: { $ne: false },
+        $or: [
+          { tipo: 'venda' },
+          { tipo: { $exists: false }, controladoComoInsumo: { $ne: true } },
+        ],
+      })
+        .select('_id codigo nome categoria tipo tipoProduto controladoComoInsumo usavelEmReceita preco descontosPorQuantidade grupoDesconto unidadeVenda pesoPorUnidade unidadePeso vendidoFracionado aFazer permitirVendaSemInsumo fichaTecnica estoque estoquePesoKg estoquePesoNormalizado')
+        .populate('fichaTecnica.produtoId', 'nome tipo unidadeCompra unidadeConteudo conteudoPorEmbalagem estoqueEmbalagens estoqueInsumos estoqueConteudoAberto precoCompra custoUnitarioBase custoUnitario custo estoque estoquePesoKg estoquePesoNormalizado pesoPorUnidade unidadeVenda')
+        .sort({ nome: 1 })
+        .lean();
+      return lista.map((produto) => ({
+        ...produto,
+        tipo: resolverTipoProduto(produto),
+        ...dadosEstoqueProduto(produto),
+        cozDisponibilidade: disponibilidadeCoz(produto),
+      }));
+    });
+    res.json(produtos);
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
@@ -231,6 +243,7 @@ router.get('/mais-vendidos', auth, auth.allowRoles('admin', 'operador', 'garcom'
 router.post('/migracoes/corrigir-bolos-gramas', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
     const [pedidos, comandas, produtos] = await Promise.all([corrigirBolos(Order), corrigirBolos(Comanda), corrigirProdutosBolo(Product)]);
+    invalidarCacheProdutos();
     res.json({ msg: 'Catálogo e histórico de bolos corrigidos.', itensCorrigidos: pedidos + comandas, produtosCorrigidos: produtos });
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
@@ -244,6 +257,7 @@ router.post('/migracoes/normalizar-estoque-peso', auth, auth.allowRoles('admin')
       await produto.save();
       corrigidos += 1;
     }
+    invalidarCacheProdutos();
     res.json({ msg: 'Estoques pesáveis normalizados.', produtosCorrigidos: corrigidos });
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
@@ -271,6 +285,7 @@ router.post('/migracoes/separar-tipos', auth, auth.allowRoles('admin'), async (r
       await produto.save();
       await Product.updateOne({ _id: produto._id }, { $unset: { controladoComoInsumo: 1 } });
     }
+    invalidarCacheProdutos();
     res.json({ msg: 'Produtos separados por tipo.', insumos, vendas });
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
@@ -325,6 +340,7 @@ router.post('/migracoes/normalizar-registros-legados', auth, auth.allowRoles('ad
       corrigidos += 1;
     }
 
+    invalidarCacheProdutos();
     res.json({ msg: 'Registros legados normalizados com sucesso.', produtosCorrigidos: corrigidos });
   } catch (error) {
     res.status(500).json({ msg: error.message });
@@ -350,6 +366,7 @@ router.put('/:id/aplicar-preco', auth, auth.allowRoles('admin'), exigirAutorizac
   try {
     const produto = await Product.findByIdAndUpdate(req.params.id, { $set: { preco: Number(req.body.preco), reajusteRecomendado: false } }, { new: true, runValidators: true });
     if (!produto) return res.status(404).json({ msg: 'Produto não encontrado' });
+    invalidarCacheProdutos();
     res.json(produto);
   } catch (error) { res.status(400).json({ msg: error.message }); }
 });
@@ -394,6 +411,7 @@ router.put('/:id/aplicar-preco', auth, auth.allowRoles('admin'), exigirAutorizac
     if (!produto) return res.status(404).json({ msg: 'Produto não encontrado' });
     produto.preco = Number(precoVenda);
     await produto.save();
+    invalidarCacheProdutos();
     res.json(produto);
   } catch (error) { res.status(400).json({ msg: error.message }); }
 });
@@ -493,6 +511,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
       ativo: data.ativo !== undefined ? Boolean(data.ativo) : true,
       createdBy: req.user.id,
     });
+    invalidarCacheProdutos();
 
     // Calcular custo a partir da ficha técnica se for produto de venda com ficha
     if (tipo === 'venda' && fichaTecnica.length > 0) {
@@ -500,6 +519,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
       await Product.findByIdAndUpdate(product._id, {
         $set: camposCustoCalculado(resultadoCusto),
       });
+      invalidarCacheProdutos();
       // Recarregar produto com custo atualizado
       const updatedProduct = await Product.findById(product._id);
       return res.status(201).json(updatedProduct);
@@ -642,6 +662,7 @@ router.put('/:id', auth, auth.allowRoles('admin', 'gerente'), exigirAutorizacao(
 
     const product = await Product.findByIdAndUpdate(req.params.id, { $set: { ...fields, ...custoRecalculado } }, { new: true, runValidators: true });
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
+    invalidarCacheProdutos();
     if (tipo === 'insumo' && data.precoCompra !== undefined) enfileirarRecalculoPorInsumo(product._id);
     
     res.json({ ...product.toObject(), ...dadosEstoqueProduto(product), resumoInsumo: product.tipo === 'insumo' ? calcularResumoCompleto(product) : null });
@@ -654,6 +675,7 @@ router.delete('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
     await verificarAutorizacao(req, product.tipo === 'insumo' ? 'excluir_insumo' : 'excluir_produto');
     await product.deleteOne();
+    invalidarCacheProdutos();
     res.json({ msg: 'Produto removido com sucesso' });
   } catch (err) { res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) }); }
 });
@@ -690,6 +712,7 @@ router.post('/recalcular-custos-insumo/:insumoId', auth, auth.allowRoles('admin'
       });
     }
 
+    invalidarCacheProdutos();
     res.json({ msg: 'Custos recalculados', insumo: insumo.nome, produtosAtualizados: resultados.length, detalhes: resultados });
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
@@ -708,6 +731,7 @@ router.post('/recalcular-custo/:produtoId', auth, auth.allowRoles('admin'), asyn
     const custoNovo = resultadoCusto.custoTotal;
 
     await Product.findByIdAndUpdate(produto._id, { $set: camposCustoCalculado(resultadoCusto) });
+    invalidarCacheProdutos();
 
     res.json({
       msg: 'Custo recalculado',

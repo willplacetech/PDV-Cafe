@@ -1,6 +1,7 @@
 const express = require('express');
 const auth = require('../middleware/auth');
 const MesasSettings = require('../models/MesasSettings');
+const { cached, invalidate } = require('../utils/queryCache');
 
 const router = express.Router();
 const mesasPadrao = () => ({
@@ -11,7 +12,9 @@ const mesasPadrao = () => ({
 router.use(auth);
 router.get('/', auth.allowRoles('admin', 'operador', 'garcom', 'cozinha'), async (req, res, next) => {
   try {
-    const settings = await MesasSettings.findById('principal').lean();
+    const settings = await cached('mesas:principal', 60000, () => MesasSettings.findById('principal')
+      .select('mesas oferecerBalcao')
+      .lean());
     return res.json(settings ? { mesas: settings.mesas, oferecerBalcao: settings.oferecerBalcao } : mesasPadrao());
   } catch (error) { return next(error); }
 });
@@ -36,6 +39,8 @@ router.put('/', auth.allowRoles('admin'), async (req, res, next) => {
     const settings = await MesasSettings.findByIdAndUpdate('principal', {
       $set: { mesas: mesas.map(({ id, numero, nome, lugares, ativa }) => ({ id, numero, nome: nome.trim(), lugares, ativa })), oferecerBalcao },
     }, { upsert: true, new: true, runValidators: true });
+    invalidate('cardapio:');
+    invalidate('mesas:');
     return res.json({ mesas: settings.mesas, oferecerBalcao: settings.oferecerBalcao });
   } catch (error) { return next(error); }
 });

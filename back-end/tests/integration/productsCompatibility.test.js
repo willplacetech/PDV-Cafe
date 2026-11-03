@@ -3,9 +3,14 @@ const jwt = require('jsonwebtoken');
 const app = require('../../server');
 const User = require('../../models/User');
 const Product = require('../../models/Product');
+const Configuracoes = require('../../models/Configuracoes');
+const { invalidate } = require('../../utils/queryCache');
+const { invalidarCacheConfiguracaoGerente } = require('../../middleware/exigirAutorizacao');
 
 let token;
 beforeEach(async () => {
+  invalidate('cardapio:');
+  invalidate('produtos:');
   const admin = await User.create({ username: 'product-admin', password: 'isolated-password-123', role: 'admin' });
   token = jwt.sign({ id: admin.id, role: admin.role }, process.env.JWT_SECRET);
   await Product.create([
@@ -52,6 +57,31 @@ test('PDV product endpoints and authentication remain available', async () => {
   expect(ranking.status).toBe(200);
   expect(ranking.body).toEqual([]);
   expect((await request(app).get('/api/products/sem-custo')).status).toBe(401);
+});
+
+test('PDV reuses active products and invalidates the cache after editing a product', async () => {
+  const findSpy = jest.spyOn(Product, 'find');
+  try {
+    const first = await get('/api/products/pdv');
+    const second = await get('/api/products/pdv');
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(findSpy).toHaveBeenCalledTimes(1);
+
+    await Configuracoes.create({ _id: 'principal', exigirAutorizacaoGerente: false });
+    invalidarCacheConfiguracaoGerente();
+    const updated = await request(app)
+      .put(`/api/products/${first.body[0]._id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ nome: 'Produto atualizado', preco: 12 });
+    expect(updated.status).toBe(200);
+
+    const afterUpdate = await get('/api/products/pdv');
+    expect(findSpy).toHaveBeenCalledTimes(2);
+    expect(afterUpdate.body.find(product => product._id === first.body[0]._id).nome).toBe('Produto atualizado');
+  } finally {
+    findSpy.mockRestore();
+  }
 });
 
 test('inventory list includes active stock items with normalized balances and no cost fields', async () => {
