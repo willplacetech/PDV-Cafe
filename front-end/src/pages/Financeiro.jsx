@@ -410,6 +410,7 @@ export default function Financeiro() {
           <span className="dashboard-eyebrow">MÓDULO FINANCEIRO</span>
           <h1>Financeiro</h1>
           <p>Contas a pagar, fluxo de caixa e DRE/EBITDA.</p>
+          {tab !== 'comparar' && <p className="financeiro-period-label">Período consultado: {mesSelecionado.split('-').reverse().join('/')}</p>}
         </div>
 
         <div className="financeiro-period">
@@ -856,6 +857,13 @@ export default function Financeiro() {
           justify-content: space-between;
           align-items: flex-end;
           gap: 16px;
+        }
+
+        .financeiro-period-label {
+          margin: 4px 0 0;
+          color: var(--text-secondary);
+          font-size: 12px;
+          font-weight: 600;
         }
 
         .financeiro-period {

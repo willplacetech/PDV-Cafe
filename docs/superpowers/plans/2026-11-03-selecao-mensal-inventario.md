@@ -41,7 +41,7 @@
 - Consumes: `partesDataSaoPaulo`, `dataSaoPaulo`, `formatarDataPtBr`, `quantidadeNaUnidadeBase` e a estrutura atual de `relatorioMes`.
 - Produces: `GET /api/dashboard?mes=AAAA-MM`; `relatorioMes` e seus agregados referem-se ao mês solicitado. Sem `mes`, permanece o mês corrente. Parâmetro malformado/impossível responde `400` JSON.
 
-- [ ] **Step 1: Escrever testes de integração que falham**
+- [x] **Step 1: Escrever testes de integração que falham**
 
   Em `dashboardReports.test.js`, estender o helper `dashboard` para aceitar query string e adicionar testes cobrindo:
   - vendas em dois meses distintos aparecem apenas no mês selecionado;
@@ -50,23 +50,23 @@
   - mês ausente usa o mês corrente;
   - `mes=2025-13` e `mes=2025-2` retornam `400`.
 
-- [ ] **Step 2: Executar os testes e confirmar falha**
+- [x] **Step 2: Executar os testes e confirmar falha**
 
   Run (em `back-end`): `npx cross-env NODE_ENV=test jest --runInBand tests/integration/dashboardReports.test.js`
 
   Expected: falha porque o endpoint ainda não usa o mês informado e não rejeita valores inválidos.
 
-- [ ] **Step 3: Implementar a validação e os limites mensais**
+- [x] **Step 3: Implementar a validação e os limites mensais**
 
   Em `dashboard.js`, adicionar helper local para validar estritamente ano e mês (`YYYY-MM`, mês 01–12) e calcular início/fim com offsets de `America/Sao_Paulo`, incluindo virada do ano. Rejeitar parâmetro presente porém inválido com `400`. Usar os limites escolhidos nas consultas `pedidosMes` e `recebimentosMes` e no rótulo de `relatorioMes`; manter `pedidosDia`, urgências, insights e comparações atuais independentes.
 
-- [ ] **Step 4: Executar os testes e confirmar sucesso**
+- [x] **Step 4: Executar os testes e confirmar sucesso**
 
   Run: `npx cross-env NODE_ENV=test jest --runInBand tests/integration/dashboardReports.test.js`
 
   Expected: todos os testes do arquivo passam, incluindo os novos limites e validação.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   Commit da rota e testes com mensagem `feat: filtra fechamento do dashboard por mês`.
 
@@ -75,41 +75,41 @@
 **Files:**
 - Modify: `front-end/src/pages/Dashboard.jsx`
 - Modify: `front-end/src/pages/Financeiro.jsx`
-- Test: `front-end/tests/e2e/dashboard_pwa.cy.js`
+- Create: `front-end/tests/e2e/monthly_reports.cy.js`
 
 **Interfaces:**
 - Consumes: `GET /api/dashboard?mes=AAAA-MM` da Task 1 e `relatorioMes.periodo`.
 - Produces: seletor de mês no cartão de fechamento mensal; mês corrente inicial; alteração do seletor atualiza os dados impressos e exibidos sem recarregar ou alterar indicadores diários. DRE, fluxo de caixa e resumo de despesas indicam o mês consultado; comparação mantém os períodos A/B independentes.
 
-- [ ] **Step 1: Escrever teste Cypress que falha**
+- [x] **Step 1: Escrever teste Cypress que falha**
 
   Adicionar cenários autenticados que:
   - no Dashboard, interceptam a consulta mensal, verificam o valor inicial `AAAA-MM`, alteram para mês anterior e confirmam request com `mes`, rótulo e fechamento correspondentes; a área diária permanece sem filtro;
   - no Financeiro, escolhem um mês, visitam Contas a Pagar, Fluxo de Caixa e DRE, verificam o período indicado e os requests com o mesmo mês; ao visitar Comparar Meses, confirmam que os dois campos A/B continuam controlando seus próprios parâmetros.
 
-- [ ] **Step 2: Executar o teste e confirmar falha**
+- [x] **Step 2: Executar o teste e confirmar falha**
 
-  Run (em `front-end`): `npx cypress run --spec tests/e2e/dashboard_pwa.cy.js`
+  Run (em `front-end`): `npx cypress run --spec tests/e2e/monthly_reports.cy.js`
 
   Expected: falha porque ainda não existe seletor de mês para o fechamento.
 
-- [ ] **Step 3: Implementar estado e carregamento mensal**
+- [x] **Step 3: Implementar estado e carregamento mensal**
 
   Em `Dashboard.jsx`, criar estado de mês inicializado com componentes locais de ano/mês, adicionar um `input type="month"` ao cartão mensal e buscar novamente `/dashboard?mes=...` ao mudar. Preservar os demais carregamentos e apresentar erro pelo toast existente. Garantir que o fechamento impresso use o período do payload em vez de assumir o mês corrente; não imprimir dados enquanto uma nova consulta estiver pendente ou tiver falhado.
 
   Em `Financeiro.jsx`, preservar o seletor único existente e adicionar a indicação `Período consultado: MM/AAAA` nas visões de Contas a Pagar, Fluxo de Caixa e DRE, usando o valor selecionado. Não conectar esse estado aos campos independentes de Comparar Meses.
 
-- [ ] **Step 4: Executar o teste e lint**
+- [x] **Step 4: Executar o teste e lint**
 
-  Run: `npx cypress run --spec tests/e2e/dashboard_pwa.cy.js`
+  Run: `npx cypress run --spec tests/e2e/monthly_reports.cy.js`
 
   Expected: cenário passa.
 
   Run: `npm run lint`
 
-  Expected: lint passa sem novos erros.
+  Expected: lint dos arquivos alterados passa; o lint completo pode reportar os dois erros preexistentes em `TrocoAuxiliar.jsx` e `api.jsx`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   Commit da tela e teste com mensagem `feat: seleciona mês no fechamento do dashboard`.
 
