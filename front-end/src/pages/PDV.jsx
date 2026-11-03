@@ -13,7 +13,7 @@ import { permiteFracionar } from '../utils/quantidadeVenda.js';
 import { estoqueDisponivelComanda } from '../utils/estoqueComanda.js';
 import { useToast } from '../components/useToast.js';
 import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
-import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
+import { compartilharNotaWhatsApp, criarPedidoDaComanda } from '../utils/notaVenda.js';
 import useFilaOffline from '../hooks/useFilaOffline.js';
 import DeliveryPDV from '../components/DeliveryPDV.jsx';
 import MesasDrawer from '../components/atendimento/MesasDrawer.jsx';
@@ -103,6 +103,7 @@ export default function PDV() {
   const [grupoAtivo, setGrupoAtivo] = useState('Todos');
   const [feedbackProduto, setFeedbackProduto] = useState(null);
   const [modalSucesso, setModalSucesso] = useState(null);
+  const [comandaDeliverySalva, setComandaDeliverySalva] = useState(null);
   const [nfceLoading, setNfceLoading] = useState(false);
   const [comprovanteEnviando, setComprovanteEnviando] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
@@ -545,7 +546,10 @@ export default function PDV() {
 
   const salvarComandaEmAberto = async () => {
     const comanda = await salvarComandaAtual();
-    if (comanda) limparFormularioComanda();
+    if (comanda) {
+      if (comanda.tipo === 'delivery') setComandaDeliverySalva(comanda.registroOriginal || comanda);
+      limparFormularioComanda();
+    }
   };
 
   const validarDadosEntrega = () => {
@@ -854,6 +858,15 @@ export default function PDV() {
     } finally {
       setComprovanteEnviando(false);
     }
+  };
+
+  const enviarComprovanteDeliveryWhatsApp = () => {
+    if (!comandaDeliverySalva) return;
+    compartilharNotaWhatsApp(
+      criarPedidoDaComanda(comandaDeliverySalva),
+      { comandaNumero: comandaDeliverySalva.numero, titulo: 'VISUALIZAÇÃO DA COMANDA' },
+      comandaDeliverySalva.clienteTelefone || comandaDeliverySalva.entrega?.telefone || '',
+    );
   };
 
   const emitirNfce = async () => {
@@ -1320,6 +1333,45 @@ export default function PDV() {
                 width: '100%', padding: '10px', background: 'transparent', color: 'var(--text-secondary)',
                 border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500,
                 cursor: 'pointer', minHeight: 36
+              }}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {comandaDeliverySalva && (
+        <div onClick={() => setComandaDeliverySalva(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 99999, padding: 20
+        }}>
+          <div className="pdv-delivery-saved-dialog" role="dialog" aria-modal="true" aria-labelledby="pdv-delivery-saved-title" onClick={event => event.stopPropagation()} style={{
+            background: 'var(--bg-secondary)', borderRadius: 20, padding: 24, width: '100%', maxWidth: 400,
+            maxHeight: 'calc(100dvh - 40px)', overflowY: 'auto', textAlign: 'center', boxShadow: 'var(--shadow-lg)',
+            color: 'var(--text-primary)'
+          }}>
+            <h3 id="pdv-delivery-saved-title" style={{ margin: '0 0 8px' }}>Entrega salva em aberto</h3>
+            <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)' }}>
+              Comanda <strong>#{comandaDeliverySalva.numero}</strong> continua aberta e ainda não foi cobrada.
+            </p>
+            {Number(comandaDeliverySalva.taxaEntrega ?? comandaDeliverySalva.entrega?.taxaEntrega) > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span>Taxa de entrega</span>
+                <strong>{formatMoney(comandaDeliverySalva.taxaEntrega ?? comandaDeliverySalva.entrega?.taxaEntrega)}</strong>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, fontSize: 18 }}>
+              <span>Total</span>
+              <strong>{formatMoney(criarPedidoDaComanda(comandaDeliverySalva).total)}</strong>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button type="button" onClick={enviarComprovanteDeliveryWhatsApp} style={{
+                width: '100%', padding: 14, background: 'var(--success-bg)', color: '#fff',
+                border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 52
+              }}>💬 Enviar comprovante pelo WhatsApp</button>
+              <button type="button" onClick={() => setComandaDeliverySalva(null)} style={{
+                width: '100%', padding: 12, background: 'transparent', color: 'var(--text-secondary)',
+                border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', minHeight: 40
               }}>Fechar</button>
             </div>
           </div>

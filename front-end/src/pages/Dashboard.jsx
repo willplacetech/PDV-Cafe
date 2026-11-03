@@ -4,7 +4,7 @@ import api from '../services/api.jsx';
 import { exportarCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { useToast } from '../components/useToast.js';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
-import { compartilharNotaWhatsApp, textoSeguro } from '../utils/notaVenda.js';
+import { compartilharNotaWhatsApp, criarPedidoDaComanda, textoSeguro } from '../utils/notaVenda.js';
 import DashboardInsights from '../components/DashboardInsights.jsx';
 import DashboardTabs from '../components/DashboardTabs.jsx';
 import ProductSalesHistory from '../components/ProductSalesHistory.jsx';
@@ -253,16 +253,8 @@ export default function Dashboard() {
   }, {});
   const formatarDataComandas = (chave) => new Date(`${chave}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
   const pedidoDaComanda = comandaSelecionada ? {
-    numero: comandaSelecionada.numero,
-    createdAt: comandaSelecionada.createdAt,
+    ...criarPedidoDaComanda(comandaSelecionada),
     clienteNome: nomeComanda || comandaSelecionada.clienteNome,
-    atendente: comandaSelecionada.atendente,
-    itens: comandaSelecionada.itens || [],
-    subtotal: (comandaSelecionada.itens || []).reduce((total, item) => total + Number(item.precoUnitario || 0) * Number(item.quantidade || 0), 0),
-    desconto: Number(comandaSelecionada.desconto || 0),
-    utilizacaoInterna: Boolean(comandaSelecionada.utilizacaoInterna),
-    total: (comandaSelecionada.itens || []).reduce((total, item) => total + Number(item.precoUnitario || 0) * Number(item.quantidade || 0), 0) - Number(comandaSelecionada.desconto || 0),
-    pagamentos: [],
   } : null;
   const imprimirComanda = async () => {
     if (!pedidoDaComanda) return;
