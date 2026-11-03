@@ -111,31 +111,6 @@ describe('DeliveryLink', () => {
     cy.contains('Configurações salvas.').should('be.visible');
   });
 
-  it('cria um pedido manual pela tela de entregas integrada', () => {
-    cy.intercept('GET', '**/api/entregas/pedidos?*', { pedidos: [], paginas: 0 });
-    cy.intercept('GET', '**/api/entregas/entregadores', []);
-    cy.intercept('GET', '**/api/entregas/estatisticas', { pendentes: 0, prontos: 0, despachados: 0, emEntrega: 0, entregues: 0, tempoMedioMin: 0 });
-    cy.intercept('GET', '**/api/entregas/configuracao', tenant);
-    cy.intercept('POST', '**/api/entregas/pedidos', { ...pedido, status: 'pronto' }).as('criarPedidoManual');
-    cy.visit('/entregas', { onBeforeLoad(win) {
-      win.localStorage.setItem('pdv_token', 'fake');
-      win.localStorage.setItem('pdv_user', JSON.stringify({ username: 'operador', role: 'admin', tenantId: 'tenant' }));
-    } });
-    cy.contains('button', 'Novo pedido').click();
-    cy.get('[name="taxaEntrega"]').should('have.value', '6.5');
-    for (const [name, value] of Object.entries({ nomeCliente: 'Maria', telefone: '11988888888', rua: 'Rua Um', numero: '12', bairro: 'Centro', valorTotal: '16' })) cy.get(`[name="${name}"]`).type(value);
-    cy.contains('button', 'Adicionar item').click();
-    cy.get('[name="descricao"]').type('Café');
-    cy.get('[name="quantidade"]').clear().type('2');
-    cy.get('[name="precoUnitario"]').clear().type('8');
-    cy.contains('button', 'Criar pedido').click();
-    cy.wait('@criarPedidoManual').then(({ request }) => {
-      expect(request.body.origem.endereco.bairro).to.eq('Centro');
-      expect(request.body.taxaEntrega).to.eq(6.5);
-      expect(request.body.itens).to.deep.equal([{ descricao: 'Café', quantidade: 2, precoUnitario: 8 }]);
-    });
-  });
-
   it('permite despachar a entrega na confirmação da comanda e navegar aos detalhes', () => {
     const comanda = {
       _id: 'comanda-delivery',

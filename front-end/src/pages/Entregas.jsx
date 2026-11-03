@@ -35,38 +35,6 @@ function faixaAtraso(minutos) {
   return minutos !== null && minutos > 10 ? 'vermelho' : '';
 }
 
-function FormularioPedidoManual({ onSubmit, ocupado, taxaPadrao }) {
-  const [itens, setItens] = useState([]);
-  const alterarItem = (indice, campo, valor) => {
-    setItens(atuais => atuais.map((item, posicao) => posicao === indice ? { ...item, [campo]: valor } : item));
-  };
-  return <form className="delivery-card" onSubmit={event => onSubmit(event, itens)}>
-    <h2>Novo pedido de entrega</h2>
-    <div className="delivery-form-grid">
-      <label>Nome do cliente<input name="nomeCliente" required maxLength={160} /></label>
-      <label>Telefone do cliente<input name="telefone" type="tel" required maxLength={30} /></label>
-      <label>Rua<input name="rua" required maxLength={200} /></label>
-      <label>Número<input name="numero" required maxLength={30} /></label>
-      <label>Bairro<input name="bairro" required maxLength={120} /></label>
-      <label>Complemento<input name="complemento" maxLength={200} /></label>
-      <label>Referência<input name="referencia" maxLength={300} /></label>
-      <label>Valor do pedido (R$)<input name="valorTotal" type="number" step="0.01" min="0" required /></label>
-      <label>Taxa de entrega (R$)<input name="taxaEntrega" type="number" step="0.01" min="0" defaultValue={taxaPadrao} required /></label>
-    </div>
-    <details>
-      <summary>Itens do pedido (opcional)</summary>
-      {itens.map((item, indice) => <div className="delivery-form-grid" key={indice}>
-        <label>Descrição<input name="descricao" value={item.descricao} onChange={event => alterarItem(indice, 'descricao', event.target.value)} required /></label>
-        <label>Quantidade<input name="quantidade" type="number" min="0.001" step="0.001" value={item.quantidade} onChange={event => alterarItem(indice, 'quantidade', event.target.value)} required /></label>
-        <label>Preço unitário<input name="precoUnitario" type="number" min="0" step="0.01" value={item.precoUnitario} onChange={event => alterarItem(indice, 'precoUnitario', event.target.value)} required /></label>
-        <button type="button" className="delivery-danger" onClick={() => setItens(atuais => atuais.filter((_, posicao) => posicao !== indice))}>Remover item</button>
-      </div>)}
-      <button type="button" className="delivery-secondary" onClick={() => setItens(atuais => [...atuais, { descricao: '', quantidade: '1', precoUnitario: '0' }])}>Adicionar item</button>
-    </details>
-    <div className="delivery-actions"><button disabled={ocupado}>{ocupado ? 'Salvando…' : 'Criar pedido'}</button></div>
-  </form>;
-}
-
 export default function Entregas() {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -198,26 +166,7 @@ export default function Entregas() {
     }
   };
 
-  const criarPedidoManual = async (event, itens) => {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    const endereco = Object.fromEntries(['rua', 'numero', 'complemento', 'bairro', 'referencia'].map(campo => [campo, form.get(campo) || '']));
-    const criado = await executar(
-      () => api.post('/entregas/pedidos', {
-        origem: { nomeCliente: form.get('nomeCliente'), telefone: form.get('telefone'), endereco },
-        valorTotal: Number(form.get('valorTotal')),
-        taxaEntrega: Number(form.get('taxaEntrega')),
-        itens: itens.map(item => ({ ...item, quantidade: Number(item.quantidade), precoUnitario: Number(item.precoUnitario) })),
-      }),
-      'Pedido criado e pronto para despacho.'
-    );
-    if (criado) {
-      formElement.reset();
-      setAba('fila');
-      setFilaAba('prontos');
-    }
-  };
+  const iniciarNovaVenda = () => navigate('/pdv');
 
   const despachar = async pedido => {
     const entregadorId = selecao[pedido._id];
@@ -336,11 +285,16 @@ export default function Entregas() {
 
     <nav className="delivery-tabs" aria-label="Gestão de entregas">
       {[['fila', 'Fila de entregas'], ['novo', 'Novo pedido'], ['historico', 'Histórico'], ['entregadores', 'Entregadores'], ['configuracao', 'Configurações']].map(([id, label]) =>
-        <button key={id} type="button" aria-selected={aba === id} onClick={() => { setAba(id); paginacaoHistorico.alterarPagina(1); }}>{label}</button>
+        <button key={id} type="button" aria-selected={id !== 'novo' && aba === id} onClick={() => {
+          if (id === 'novo') {
+            iniciarNovaVenda();
+            return;
+          }
+          setAba(id);
+          paginacaoHistorico.alterarPagina(1);
+        }}>{label}</button>
       )}
     </nav>
-
-    {aba === 'novo' && comercio && <FormularioPedidoManual onSubmit={criarPedidoManual} ocupado={ocupado} taxaPadrao={Number(comercio.taxaEntregaPadrao ?? comercio.taxaPorEntrega ?? 0)} />}
 
     {aba === 'fila' && <nav className="delivery-tabs" aria-label="Status da fila">
       <button type="button" aria-selected={filaAba === 'prontos'} onClick={() => setFilaAba('prontos')}>Prontos para despachar ({prontos.length})</button>
@@ -401,7 +355,7 @@ export default function Entregas() {
       tituloVazio={aba === 'historico' ? 'Nenhum pedido encontrado para este filtro.' : 'Não há pedidos nesta etapa.'}
       mensagemVazia={aba === 'fila' ? 'Os pedidos aparecerão aqui conforme avançarem na operação.' : undefined}
       acaoVaziaTexto={aba === 'fila' ? 'Criar pedido' : undefined}
-      onAcaoVazia={aba === 'fila' ? () => setAba('novo') : undefined}
+      onAcaoVazia={aba === 'fila' ? iniciarNovaVenda : undefined}
     >
       <section className="delivery-grid">
         {(aba === 'historico' ? pedidos : pedidosDaFila).map(pedido => {
