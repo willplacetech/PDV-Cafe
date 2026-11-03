@@ -11,7 +11,7 @@ const Recipe = require('../models/Recipe');
 const { pesoPorUnidadeEmKg } = require('../utils/pesoProduto');
 const { dadosEstoqueProduto, normalizarEstoqueLegado, produtoControlaPeso } = require('../utils/estoqueProduto');
 const { resolverTipoProduto } = require('../utils/produtoTipo');
-const { calcularResumoCompleto, calcularCustoUnitarioBase, calcularEstoqueMinimoBase, estoqueTotalBase, paraBase, custoPorBase, calcularCustoDaFichaTecnica } = require('../utils/estoqueInsumo');
+const { calcularResumoCompleto, calcularCustoUnitarioBase, calcularEstoqueMinimoBase, estoqueTotalBase, paraBase, custoPorBase, calcularCustoDaFichaTecnica, resumoEstoqueInsumo } = require('../utils/estoqueInsumo');
 const { normalizarDescontos } = require('../utils/descontosQuantidade');
 const { UNIDADES_PERMITIDAS, normalizarUnidade, casasDecimaisValidas } = require('../utils/unidades');
 const { enfileirarRecalculoPorInsumo } = require('../utils/filaCusto');
@@ -90,6 +90,56 @@ const validations = [
   body('permitirVendaSemInsumo').optional().isBoolean(),
   body('producaoPropria').optional().isBoolean(),
 ];
+
+router.get('/inventory-list', auth, auth.allowRoles('admin', 'gerente', 'cozinha'), async (_req, res) => {
+  try {
+    const campos = [
+      'codigo', 'nome', 'categoria', 'tipo', 'tipoProduto', 'aFazer', 'producaoPropria',
+      'controladoComoInsumo', 'ativo', 'unidade', 'unidadeVenda', 'unidadeCompra',
+      'unidadeConteudo', 'conteudoPorEmbalagem', 'estoque', 'estoquePesoKg',
+      'estoquePesoNormalizado', 'pesoPorUnidade', 'estoqueEmbalagens', 'estoqueInsumos',
+      'estoqueConteudoAberto', 'usavelEmReceita',
+    ].join(' ');
+    const produtos = await Product.find({ ativo: { $ne: false } })
+      .select(campos)
+      .sort({ tipo: 1, categoria: 1, nome: 1, codigo: 1 });
+    const itens = produtos.flatMap((produto) => {
+      const tipo = resolverTipoProduto(produto);
+      if (tipo === 'venda' && (produto.aFazer || resolverTipoProdutoVenda(produto) === 'coz')) return [];
+
+      if (tipo === 'insumo') {
+        const resumo = resumoEstoqueInsumo(produto);
+        return [{
+          codigo: produto.codigo,
+          nome: produto.nome,
+          categoria: produto.categoria || 'Insumos',
+          tipo,
+          unidade: resumo.unidadeConteudo,
+          estoque: resumo.total,
+        }];
+      }
+
+      const estoque = dadosEstoqueProduto(produto);
+      const controlaPeso = produtoControlaPeso(produto);
+      return [{
+        codigo: produto.codigo,
+        nome: produto.nome,
+        categoria: produto.categoria || 'Outros',
+        tipo,
+        unidade: controlaPeso ? 'kg' : (produto.unidadeVenda || produto.unidade || 'un'),
+        estoque: controlaPeso ? estoque.estoquePesoKg : Number(produto.estoque || 0),
+      }];
+    });
+
+    itens.sort((a, b) => a.tipo.localeCompare(b.tipo, 'pt-BR')
+      || a.categoria.localeCompare(b.categoria, 'pt-BR')
+      || a.nome.localeCompare(b.nome, 'pt-BR')
+      || a.codigo.localeCompare(b.codigo, 'pt-BR'));
+    return res.json(itens);
+  } catch (err) {
+    return res.status(500).json({ msg: err.message });
+  }
+});
 
 router.get('/', auth, auth.allowRoles('admin', 'gerente', 'cozinha'), async (req, res) => {
   try {

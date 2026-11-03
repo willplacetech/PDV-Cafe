@@ -54,6 +54,31 @@ test('PDV product endpoints and authentication remain available', async () => {
   expect((await request(app).get('/api/products/sem-custo')).status).toBe(401);
 });
 
+test('inventory list includes active stock items with normalized balances and no cost fields', async () => {
+  await Product.create([
+    { codigo: '10', nome: 'Bolo', tipo: 'venda', categoria: 'Doces', unidadeVenda: 'un', estoque: 6, preco: 12 },
+    { codigo: '11', nome: 'Suco por peso', tipo: 'venda', categoria: 'Bebidas geladas', unidadeVenda: 'kg', pesoPorUnidade: 0.25, estoque: 8, estoquePesoKg: 1.75, estoquePesoNormalizado: true, preco: 5 },
+    { codigo: '12', nome: 'Prato na hora', tipo: 'venda', tipoProduto: 'coz', aFazer: true, categoria: 'Pratos na Hora', estoque: 99, preco: 20 },
+    { codigo: '13', nome: 'Bolo inativo', tipo: 'venda', ativo: false, estoque: 50, preco: 15 },
+    { codigo: '14', nome: 'Farinha a granel', tipo: 'insumo', categoria: 'Insumos', unidade: 'kg', unidadeConteudo: 'kg', conteudoPorEmbalagem: 1, estoqueEmbalagens: 3, estoqueConteudoAberto: 0.5, preco: 0, precoCompra: 8 },
+  ]);
+
+  const response = await get('/api/products/inventory-list');
+
+  expect(response.status).toBe(200);
+  expect(response.body.map(item => item.codigo)).toEqual(['14', '3', '11', '10', '1', '2']);
+  expect(response.body.find(item => item.codigo === '11')).toMatchObject({ unidade: 'kg', estoque: 1.75 });
+  expect(response.body.find(item => item.codigo === '14')).toMatchObject({ unidade: 'kg', estoque: 3.5, tipo: 'insumo' });
+  expect(response.body.some(item => ['12', '13'].includes(item.codigo))).toBe(false);
+  expect(response.body.every(item => Object.keys(item).sort().join(',') === 'categoria,codigo,estoque,nome,tipo,unidade')).toBe(true);
+});
+
+test('inventory list requires an authenticated stock-management role', async () => {
+  const response = await request(app).get('/api/products/inventory-list');
+
+  expect(response.status).toBe(401);
+});
+
 test('unknown API paths return JSON 404 without trying to open the frontend index', async () => {
   const sendFile = jest.spyOn(require('express').response, 'sendFile');
   try {

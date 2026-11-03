@@ -123,27 +123,27 @@
 - Consumes: permissões existentes da rota de listagem, `dadosEstoqueProduto`, regras de produtos controlados por peso e o resumo operacional de insumos.
 - Produces: `GET /api/products/inventory-list`, uma lista completa ordenada com `codigo`, `nome`, `categoria`, `tipo`, `unidade` e `estoque`; nenhum preço/custo. Requer os mesmos perfis autorizados a consultar estoque.
 
-- [ ] **Step 1: Escrever testes de integração que falham**
+- [x] **Step 1: Escrever testes de integração que falham**
 
   Criar fixtures para produto ativo normal, produto por peso, insumo, produto inativo e produto “Coz — na hora”. Testar que o endpoint retorna só os itens elegíveis, saldo/unidade normalizados e ordenação determinística; verificar que objetos não incluem chaves de preço/custo e que pedido sem autenticação recebe `401`.
 
-- [ ] **Step 2: Executar os testes e confirmar falha**
+- [x] **Step 2: Executar os testes e confirmar falha**
 
   Run (em `back-end`): `npx cross-env NODE_ENV=test jest --runInBand tests/integration/productsCompatibility.test.js`
 
   Expected: falha porque a rota de impressão ainda não existe.
 
-- [ ] **Step 3: Implementar a consulta de inventário**
+- [x] **Step 3: Implementar a consulta de inventário**
 
   Adicionar `GET /inventory-list` antes de rotas dinâmicas `/:id`. Aplicar autenticação e os perfis `admin`, `gerente`, `cozinha`, buscar somente itens ativos elegíveis, ordenar por categoria/nome e projetar somente os campos necessários. Usar `dadosEstoqueProduto` para itens de venda e o resumo operacional existente para insumos; excluir “Coz — na hora” por não manter estoque próprio. Não reutilizar a resposta integral do catálogo.
 
-- [ ] **Step 4: Executar os testes e confirmar sucesso**
+- [x] **Step 4: Executar os testes e confirmar sucesso**
 
   Run: `npx cross-env NODE_ENV=test jest --runInBand tests/integration/productsCompatibility.test.js`
 
   Expected: novos contratos e compatibilidade atual passam.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   Commit da rota e testes com mensagem `feat: adiciona consulta para inventário`.
 
