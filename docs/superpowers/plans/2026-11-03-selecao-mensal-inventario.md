@@ -157,37 +157,37 @@
 - Consumes: `GET /api/products/inventory-list` da Task 3 e o padrão de toast da tela Produtos.
 - Produces: ação “Imprimir inventário” que busca a lista completa sob demanda e imprime folha A4 com código, item, categoria/tipo, unidade, saldo do sistema, contagem física e diferença. A operação não persiste contagens nem altera estoques.
 
-- [ ] **Step 1: Escrever testes Cypress que falham**
+- [x] **Step 1: Escrever testes Cypress que falham**
 
   Criar cenários para: clique imprime múltiplos itens mesmo com busca/paginação da tabela; documento inclui saldo e duas colunas vazias; valores textuais contendo markup aparecem como texto e não são executados; falha da API mostra erro e não abre documento; pop-up bloqueado mostra aviso.
 
-- [ ] **Step 2: Executar os testes e confirmar falha**
+- [x] **Step 2: Executar os testes e confirmar falha**
 
   Run (em `front-end`): `npx cypress run --spec tests/e2e/inventory_print.cy.js`
 
   Expected: falha porque a ação e o documento de impressão ainda não existem.
 
-- [ ] **Step 3: Implementar a impressão**
+- [x] **Step 3: Implementar a impressão**
 
   Adicionar ação na tela Produtos que abre uma janela de impressão sincronamente no clique para evitar bloqueio do navegador, consulta a lista completa e fecha a janela se a consulta falhar. Escapar cada valor textual antes de montar HTML; produzir estilo de impressão A4 com cabeçalho, data, linhas legíveis e campos vazios para contagem/diferença. Comunicar bloqueio e erros pelo toast existente; não incluir preço/custo nem salvar contagens.
 
-- [ ] **Step 4: Executar teste, lint e build**
+- [x] **Step 4: Executar teste, lint e build**
 
   Run: `npx cypress run --spec tests/e2e/inventory_print.cy.js`
 
-  Expected: cenários de impressão passam.
+  Result: 4/4 cenários de impressão passaram.
 
-  Run: `npm run lint`
+  Run: `node --test tests/inventoryPrint.test.js` e ESLint direcionado aos arquivos alterados.
 
-  Expected: lint passa sem novos erros.
+  Result: 2/2 testes unitários passaram e ESLint direcionado passou. O lint completo do projeto ainda possui os dois erros preexistentes em `TrocoAuxiliar.jsx:28` e `services/api.jsx:23`.
 
   Run: `npm run build`
 
-  Expected: build de produção termina com código zero.
+  Result: build de produção terminou com código zero.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
-  Commit da tela e teste com mensagem `feat: imprime lista de inventário`.
+  Commit da tela, utilitário, testes e progresso com mensagem `feat: imprime lista de inventário`.
 
 ## Self-review
 

@@ -12,6 +12,7 @@ import Paginacao from '../components/Paginacao.jsx';
 import { paginarItens } from '../hooks/usePagination.js';
 import useUrlPagination from '../hooks/useUrlPagination.js';
 import EstadoLista from '../components/EstadoLista.jsx';
+import { createInventoryPrintHtml } from '../utils/inventoryPrint.js';
 
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Outros'];
 const filtrosTipo = ['Todos', 'Estoque de Venda', 'Estoque de Insumos'];
@@ -64,6 +65,7 @@ export default function Products() {
   const [fichas, setFichas] = useState([]);
   const [carregandoLista, setCarregandoLista] = useState(true);
   const [erroLista, setErroLista] = useState('');
+  const [imprimindoInventario, setImprimindoInventario] = useState(false);
   const [form, setForm] = useState(() => searchParams.get('tipo') === 'insumo' ? { ...vazio, tipo: 'insumo', categoria: 'Insumos' } : vazio);
   const [editing, setEditing] = useState(null);
   const [filtroTexto, setFiltroTexto] = useState(() => searchParams.get('busca') || '');
@@ -421,6 +423,40 @@ export default function Products() {
     }, { replace: true });
   };
   const retryLista = () => { void carregar(); };
+  const imprimirInventario = async () => {
+    const janela = window.open('', '_blank');
+    if (!janela) {
+      showToast('Permita a abertura de pop-ups para imprimir o inventário.', 'warning');
+      return;
+    }
+
+    setImprimindoInventario(true);
+    try {
+      const { data } = await api.get('/products/inventory-list');
+      if (!Array.isArray(data)) throw new Error('A lista de inventário retornou um formato inválido.');
+      if (data.length === 0) {
+        showToast('Não há produtos ou insumos ativos com estoque para inventariar.', 'warning');
+        janela.close();
+        return;
+      }
+
+      janela.document.open();
+      janela.document.write(createInventoryPrintHtml(data));
+      janela.document.close();
+      janela.focus();
+      janela.print();
+    } catch (error) {
+      const mensagem = error.response?.data?.msg || error.message || 'Não foi possível carregar o inventário.';
+      showToast(mensagem, 'error');
+      try {
+        if (!janela.closed) janela.close();
+      } catch (erroFechamento) {
+        console.warn('[Inventário] Não foi possível fechar a janela de impressão.', erroFechamento);
+      }
+    } finally {
+      setImprimindoInventario(false);
+    }
+  };
 
   return (
     <div className="products-page">
@@ -430,7 +466,12 @@ export default function Products() {
           <h1>📦 Cadastro de Produtos</h1>
           <p>Produtos à venda e insumos ficam em grupos diferentes.</p>
         </div>
-        <button type="button" onClick={() => exportarCSV(filtrados, colunasCSV.estoque, `estoque_${dataArquivoCSV()}.csv`)}>Exportar CSV</button>
+        <div className="product-heading-actions">
+          <button type="button" onClick={() => exportarCSV(filtrados, colunasCSV.estoque, `estoque_${dataArquivoCSV()}.csv`)}>Exportar CSV</button>
+          <button type="button" onClick={() => void imprimirInventario()} disabled={imprimindoInventario}>
+            {imprimindoInventario ? 'Carregando inventário…' : 'Imprimir inventário'}
+          </button>
+        </div>
       </div>
 
       <section className="product-form-card" id="product-form">
@@ -752,6 +793,7 @@ export default function Products() {
 
       <style>{`
         .products-page { min-width: 0; }
+        .product-heading-actions { display: flex; flex-wrap: wrap; gap: 8px; }
         .product-form-card { margin-bottom: 16px; padding: 18px; border: 1px solid var(--border-color); border-radius: 16px; background: var(--bg-secondary); box-shadow: var(--shadow-sm); }
         .product-form-heading { margin: 0 0 16px; color: var(--text-primary); font-size: 16px; font-weight: 800; }
         .product-essential-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
