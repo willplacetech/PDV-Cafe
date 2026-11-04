@@ -52,6 +52,19 @@ const dataValida = (valor) => /^\d{4}-\d{2}-\d{2}$/.test(String(valor))
 const vencimentoValido = (valor) => /^\d{4}-\d{2}-\d{2}$/.test(String(valor))
   ? new Date(`${valor}T23:59:59.999Z`)
   : new Date(valor);
+const dataEmSaoPaulo = (valor) => {
+  if (typeof valor === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(valor)) return valor;
+  const date = valor instanceof Date ? valor : new Date(valor);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
+const hojeEmSaoPaulo = () => dataEmSaoPaulo(new Date());
 
 const validadoresCompra = [
   body('fornecedor').trim().notEmpty(),
@@ -268,6 +281,24 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.get('/fornecedores', async (_req, res) => {
+  try {
+    const fornecedores = await Purchase.distinct('fornecedor', {
+      status: { $ne: 'cancelada' },
+      fornecedor: { $type: 'string', $ne: '' },
+    });
+    const fornecedoresUnicos = new Map();
+    fornecedores.forEach((fornecedor) => {
+      const nome = fornecedor.trim();
+      const chave = nome.toLocaleLowerCase('pt-BR');
+      if (nome && !fornecedoresUnicos.has(chave)) fornecedoresUnicos.set(chave, nome);
+    });
+    res.json([...fornecedoresUnicos.values()].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })));
+  } catch (error) {
+    res.status(500).json({ msg: error.message });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ msg: 'ID inválido' });
   try {
@@ -341,6 +372,9 @@ router.put('/:id', validadoresCompra, body('justificativa').trim().isLength({ mi
       compra = await Purchase.findById(req.params.id).session(session);
       if (!compra) throw erroCompra('Compra não encontrada', 404);
       if (compra.status === 'cancelada') throw erroCompra('Não é possível editar uma compra cancelada', 409);
+      if (dataEmSaoPaulo(compra.data) < hojeEmSaoPaulo() || dataEmSaoPaulo(req.body.data) < hojeEmSaoPaulo()) {
+        throw erroCompra('Somente compras com data a partir de hoje podem ser alteradas', 409);
+      }
       const contaPagar = await obterContaPagar(compra, session);
       if (contaPagar?.status === 'pago') throw erroCompra('Não é possível editar uma compra já paga. Faça um lançamento de ajuste.', 409);
 
