@@ -38,6 +38,7 @@ beforeEach(async () => {
     username: 'tenant-auth-sem-tenant',
     password: 'senha-segura-123',
     role: 'admin',
+    tenantId: null,
   });
 });
 

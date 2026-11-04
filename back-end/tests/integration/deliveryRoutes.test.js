@@ -392,7 +392,7 @@ test('token de integração de sistema é restrito ao comércio e não acessa o 
 
 test('PDV persiste entrega na venda e processa idempotentemente sem bloquear em erro', async () => {
   const pdv = await User.create({ username: 'operador-entrega', password: 'senha-segura-123', role: 'admin', tenantId: tenant._id });
-  const produto = await Product.create({ codigo: 'DEL-1', nome: 'Café', tipo: 'venda', categoria: 'Bebidas Quentes', preco: 8, estoque: 10 });
+  const produto = await Product.create({ codigo: 'DEL-1', nome: 'Café', tipo: 'venda', categoria: 'Bebidas Quentes', preco: 8, estoque: 10, tenantId: tenant._id });
   const entrega = { telefone: '11988888888', endereco: dados().origem.endereco, taxaEntrega: 4 };
   const venda = await api('post', '/comandas', assinar(pdv)).send({ clienteNome: 'Maria', itens: [{ produtoId: produto.id, quantidade: 1 }], entrega });
   expect(venda.status).toBe(201);
@@ -415,7 +415,7 @@ test('PDV persiste entrega na venda e processa idempotentemente sem bloquear em 
 
 test('integração da comanda fechada aguarda preparo para produtos A Fazer', async () => {
   const pdv = await User.create({ username: 'operador-kds-entrega', password: 'senha-segura-123', role: 'admin', tenantId: tenant._id });
-  const produto = await Product.create({ codigo: 'DEL-KDS-1', nome: 'Prato', tipo: 'venda', categoria: 'Salgados', preco: 12, estoque: 10, aFazer: true });
+  const produto = await Product.create({ codigo: 'DEL-KDS-1', nome: 'Prato', tipo: 'venda', categoria: 'Salgados', preco: 12, estoque: 10, aFazer: true, tenantId: tenant._id });
   const venda = await api('post', '/comandas', assinar(pdv)).send({
     clienteNome: 'Maria',
     itens: [{ produtoId: produto.id, quantidade: 1 }],
@@ -433,7 +433,7 @@ test('integração da comanda fechada aguarda preparo para produtos A Fazer', as
 test('KDS pode marcar entrega em preparo como pronta antes de fechar a venda', async () => {
   const cozinha = await User.create({ username: 'cozinha-entrega', password: 'senha-segura-123', role: 'cozinha', tenantId: tenant._id });
   const operador = await User.create({ username: 'operador-cozinha-entrega', password: 'senha-segura-123', role: 'admin', tenantId: tenant._id });
-  const produto = await Product.create({ codigo: 'DEL-KDS-PRONTO', nome: 'Prato pronto', tipo: 'venda', categoria: 'Salgados', preco: 12, estoque: 10, aFazer: true });
+  const produto = await Product.create({ codigo: 'DEL-KDS-PRONTO', nome: 'Prato pronto', tipo: 'venda', categoria: 'Salgados', preco: 12, estoque: 10, aFazer: true, tenantId: tenant._id });
   const venda = await api('post', '/comandas', assinar(operador)).send({
     clienteNome: 'Maria',
     itens: [{ produtoId: produto.id, quantidade: 1 }],
@@ -441,7 +441,7 @@ test('KDS pode marcar entrega em preparo como pronta antes de fechar a venda', a
   });
 
   const cozinhaOutro = await User.create({ username: 'cozinha-outro-comercio', password: 'senha-segura-123', role: 'cozinha', tenantId: outro._id });
-  expect((await api('post', `/comandas/${venda.body._id}/cozinha/pronto`, assinar(cozinhaOutro))).status).toBe(403);
+  expect((await api('post', `/comandas/${venda.body._id}/cozinha/pronto`, assinar(cozinhaOutro))).status).toBe(404);
 
   const preparo = await api('post', `/comandas/${venda.body._id}/cozinha/pronto`, assinar(cozinha));
   expect(preparo.status).toBe(200);
@@ -581,7 +581,7 @@ test('falha do provedor WhatsApp retorna mensagem de contingência', async () =>
 test('venda com JWT antigo preserva comércio de origem após reatribuir operador', async () => {
   const pdv = await User.create({ username: 'pdv-antigo', password: 'senha-segura-123', role: 'admin', tenantId: tenant._id });
   const jwtAntigo = jwt.sign({ id: pdv.id, username: pdv.username, role: pdv.role }, process.env.JWT_SECRET);
-  const produto = await Product.create({ codigo: 'DEL-2', nome: 'Café', tipo: 'venda', categoria: 'Bebidas Quentes', preco: 8, estoque: 10 });
+  const produto = await Product.create({ codigo: 'DEL-2', nome: 'Café', tipo: 'venda', categoria: 'Bebidas Quentes', preco: 8, estoque: 10, tenantId: tenant._id });
   const venda = await api('post', '/comandas', jwtAntigo).send({ clienteNome: 'Maria', itens: [{ produtoId: produto.id, quantidade: 1 }], entrega: { telefone: '11988888888', endereco: dados().origem.endereco } });
   expect(venda.status).toBe(201);
   await User.updateOne({ _id: pdv._id }, { tenantId: outro._id });
@@ -622,7 +622,7 @@ test('SSE desconectado durante consulta inicial não conserva listeners', async 
 test('taxa de entrega é cobrada no caixa, preservada no recálculo e no fechamento', async () => {
   const pdv = await User.create({ username: 'caixa-delivery', password: 'senha-segura-123', role: 'admin', tenantId: tenant._id });
   const pdvToken = assinar(pdv);
-  const produto = await Product.create({ codigo: 'DEL-3', nome: 'Café', tipo: 'venda', categoria: 'Bebidas Quentes', preco: 8, estoque: 10 });
+  const produto = await Product.create({ codigo: 'DEL-3', nome: 'Café', tipo: 'venda', categoria: 'Bebidas Quentes', preco: 8, estoque: 10, tenantId: tenant._id });
   const venda = await api('post', '/comandas', pdvToken).send({ clienteNome: 'Maria', itens: [{ produtoId: produto.id, quantidade: 1 }], entrega: { telefone: '11988888888', endereco: dados().origem.endereco, taxaEntrega: 4 } });
   expect(venda.body.valorTotal).toBe(12);
   expect(venda.body.saldoDevedor).toBe(12);
@@ -643,7 +643,7 @@ test('taxa de entrega é cobrada no caixa, preservada no recálculo e no fechame
 test('adicionar itens a pedido A Receber conserva a taxa de entrega e o saldo', async () => {
   const pdv = await User.create({ username: 'caixa-credito-delivery', password: 'senha-segura-123', role: 'admin', tenantId: tenant._id });
   const pdvToken = assinar(pdv);
-  const produto = await Product.create({ codigo: 'DEL-4', nome: 'Cafe', tipo: 'venda', categoria: 'Bebidas Quentes', preco: 8, estoque: 10 });
+  const produto = await Product.create({ codigo: 'DEL-4', nome: 'Cafe', tipo: 'venda', categoria: 'Bebidas Quentes', preco: 8, estoque: 10, tenantId: tenant._id });
   const venda = await api('post', '/comandas', pdvToken).send({ clienteNome: 'Maria', itens: [{ produtoId: produto.id, quantidade: 1 }], entrega: { telefone: '11988888888', endereco: dados().origem.endereco, taxaEntrega: 4 } });
   const fechar = await api('post', `/comandas/${venda.body._id}/fechar`, pdvToken).set('Idempotency-Key', require('crypto').randomUUID()).send({ metodoPagamento: 'credito_loja', desconto: 0 });
   expect(fechar.status).toBe(200);

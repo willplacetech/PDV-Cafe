@@ -3,6 +3,7 @@ process.env.JWT_SECRET = 'test-only-private-key-for-isolated-api-tests';
 const { MongoMemoryReplSet } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
 const path = require('path');
+const Tenant = require('../models/Tenant');
 
 let mongoServer;
 
@@ -16,6 +17,7 @@ beforeAll(async () => {
   await mongoose.connect(uri);
   const Product = require('../models/Product');
   const User = require('../models/User');
+  await Tenant.init();
   const Customer = require('../models/Customer');
   const Order = require('../models/Order');
   const Comanda = require('../models/Comanda');

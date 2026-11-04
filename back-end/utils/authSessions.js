@@ -25,7 +25,7 @@ const emit = (res, scope, session, secret) => res.cookie(scopes[scope].cookie, `
 const issue = async (req, res, subject, scope, user = publicUser(subject)) => {
   const secret = crypto.randomBytes(48).toString('base64url');
   const session = await AuthSession.create({ subjectId: subject._id, kind: scope === 'courier' ? 'courier' : 'user', scope, tokenVersion: subject.tokenVersion ?? 0, tokenHash: hash(secret), expiresAt: new Date(Date.now() + duration) });
-  if (trustedOrigin(req)) emit(res, scope, session, secret);
+  if (req.headers.origin && trustedOrigin(req)) emit(res, scope, session, secret);
   return { user, token: access(user, session) };
 };
 const loadSubject = async session => {

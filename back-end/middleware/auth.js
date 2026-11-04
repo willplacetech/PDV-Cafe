@@ -4,8 +4,10 @@ const User = require('../models/User');
 const AuthSession = require('../models/AuthSession');
 const { getJwtSecret } = require('../utils/authConfig');
 const exigirTenant = require('./exigirTenant');
+const requestsAutenticadas = new WeakSet();
 
 const auth = async (req, res, next) => {
+  if (requestsAutenticadas.has(req)) return next();
   const token = req.headers.authorization?.startsWith('Bearer ')
     ? req.headers.authorization.slice(7)
     : null;
@@ -36,6 +38,7 @@ const auth = async (req, res, next) => {
       : /^\/api\/entregador(?:\/|$)/.test(caminho);
     if (!permitido) return res.status(403).json({ msg: 'Esta sessão só permite acesso ao DeliveryLink' });
     req.user = claims;
+    requestsAutenticadas.add(req);
     return next();
   }
 
@@ -61,6 +64,7 @@ const auth = async (req, res, next) => {
     if (['tenant_admin', 'admin_plataforma', 'entregador'].includes(req.user.role) && !/^\/api\/(tenant(?:\/|$)|entregas(?:\/|$)|plataforma(?:\/|$)|entregador(?:\/|$)|delivery\/logout$|pedidos\/integracao$|auth\/(?:me|logout)$)/.test(caminho)) {
       return res.status(403).json({ msg: 'Esta sessão só permite acesso ao DeliveryLink' });
     }
+    requestsAutenticadas.add(req);
     return next();
   } catch (error) { return next(error); }
 };

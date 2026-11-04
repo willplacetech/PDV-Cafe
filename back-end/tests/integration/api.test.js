@@ -11,24 +11,33 @@ const Purchase = require('../../models/Purchase');
 const Recipe = require('../../models/Recipe');
 const Production = require('../../models/Production');
 const Despesa = require('../../models/Despesa');
+const Tenant = require('../../models/Tenant');
 
 const jwtSecret = process.env.JWT_SECRET || 'desenvolvimento-altere-esta-chave';
 
 let adminToken, operadorToken, cozinhaToken;
 let produtoVenda, insumo;
+let tenant;
+
+const createForTenant = (Model, documents) => Model.create(
+  Array.isArray(documents)
+    ? documents.map(document => ({ ...document, tenantId: tenant._id }))
+    : { ...documents, tenantId: tenant._id },
+);
 
 beforeEach(async () => {
-  const admin = await User.create({ username: 'admin', password: 'senha-segura-123', role: 'admin' });
-  const operador = await User.create({ username: 'operador', password: 'senha-segura-123', role: 'operador' });
-  const cozinha = await User.create({ username: 'cozinha', password: 'senha-segura-123', role: 'cozinha' });
+  tenant = await Tenant.create({ nome: 'API test', slug: 'api-test', telefone: '11999999999', endereco: 'Rua de teste' });
+  const admin = await User.create({ username: 'admin', password: 'senha-segura-123', role: 'admin', tenantId: tenant._id });
+  const operador = await User.create({ username: 'operador', password: 'senha-segura-123', role: 'operador', tenantId: tenant._id });
+  const cozinha = await User.create({ username: 'cozinha', password: 'senha-segura-123', role: 'cozinha', tenantId: tenant._id });
   adminToken = jwt.sign({ id: admin._id, username: admin.username, role: admin.role }, jwtSecret, { expiresIn: '1h' });
   operadorToken = jwt.sign({ id: operador._id, username: operador.username, role: operador.role }, jwtSecret, { expiresIn: '1h' });
   cozinhaToken = jwt.sign({ id: cozinha._id, username: cozinha.username, role: cozinha.role }, jwtSecret, { expiresIn: '1h' });
 
-  produtoVenda = await Product.create({
+  produtoVenda = await createForTenant(Product, {
     codigo: '1001', nome: 'Café Especial', preco: 8.50, tipo: 'venda', categoria: 'Bebidas Quentes', estoque: 100,
   });
-  insumo = await Product.create({
+  insumo = await createForTenant(Product, {
     codigo: '999001', nome: 'Açúcar', preco: 0, tipo: 'insumo', categoria: 'Insumos', precoCompra: 7,
     unidadeCompra: 'kg', conteudoPorEmbalagem: 1, unidadeConteudo: 'kg', estoque: 10, custoUnitarioBase: 7,
   });
@@ -47,7 +56,7 @@ describe('API Endpoints', () => {
     inicioSemanaAnterior.setUTCDate(inicioSemanaAnterior.getUTCDate() - 1);
     const fimDaSemanaEHoje = hoje.getTime() === fimSemana.getTime();
 
-    await Despesa.create([
+    await createForTenant(Despesa, [
       { descricao: 'Vence hoje', categoria: 'Outros', valor: 100, dataVencimento: hoje },
       { descricao: 'Vence no fim da semana', categoria: 'Outros', valor: 50, dataVencimento: fimSemana },
       { descricao: 'Vencida semana passada', categoria: 'Outros', valor: 25, dataVencimento: inicioSemanaAnterior },
@@ -137,14 +146,14 @@ describe('API Endpoints', () => {
   });
 
   test('PUT /api/despesas/:id → atualiza parcelas abertas da recorrência mantendo o intervalo', async () => {
-    const origem = await Despesa.create({
+    const origem = await createForTenant(Despesa, {
       descricao: 'Aluguel antigo',
       categoria: 'Aluguel',
       valor: 1000,
       dataVencimento: new Date('2026-01-10T00:00:00.000Z'),
       recorrente: true,
     });
-    const parcela = await Despesa.create({
+    const parcela = await createForTenant(Despesa, {
       descricao: origem.descricao,
       categoria: origem.categoria,
       valor: origem.valor,
@@ -152,7 +161,7 @@ describe('API Endpoints', () => {
       recorrente: true,
       origemRecorrencia: origem._id,
     });
-    const parcelaPaga = await Despesa.create({
+    const parcelaPaga = await createForTenant(Despesa, {
       descricao: origem.descricao,
       categoria: origem.categoria,
       valor: origem.valor,
@@ -189,14 +198,14 @@ describe('API Endpoints', () => {
   });
 
   test('PUT /api/despesas/:id → aplica dia de vencimento e limita ao último dia do mês', async () => {
-    const origem = await Despesa.create({
+    const origem = await createForTenant(Despesa, {
       descricao: 'Assinatura mensal',
       categoria: 'Internet',
       valor: 100,
       dataVencimento: new Date('2027-01-10T00:00:00.000Z'),
       recorrente: true,
     });
-    const fevereiro = await Despesa.create({
+    const fevereiro = await createForTenant(Despesa, {
       descricao: origem.descricao,
       categoria: origem.categoria,
       valor: origem.valor,
@@ -204,7 +213,7 @@ describe('API Endpoints', () => {
       recorrente: true,
       origemRecorrencia: origem._id,
     });
-    const marco = await Despesa.create({
+    const marco = await createForTenant(Despesa, {
       descricao: origem.descricao,
       categoria: origem.categoria,
       valor: origem.valor,
@@ -235,14 +244,14 @@ describe('API Endpoints', () => {
   });
 
   test('PUT /api/despesas/:id → normaliza parcelas da recorrência que estão nos dias 20 e 21', async () => {
-    const origem = await Despesa.create({
+    const origem = await createForTenant(Despesa, {
       descricao: 'Despesa recorrente',
       categoria: 'Outros',
       valor: 50,
       dataVencimento: new Date('2026-09-20T00:00:00.000Z'),
       recorrente: true,
     });
-    const parcelaDia21 = await Despesa.create({
+    const parcelaDia21 = await createForTenant(Despesa, {
       descricao: origem.descricao,
       categoria: origem.categoria,
       valor: origem.valor,
@@ -265,7 +274,7 @@ describe('API Endpoints', () => {
   });
 
   test('PUT e DELETE /api/despesas/:id → altera e remove somente a despesa selecionada', async () => {
-    const despesa = await Despesa.create({
+    const despesa = await createForTenant(Despesa, {
       descricao: 'Conta de água',
       categoria: 'Água',
       valor: 80,
@@ -391,11 +400,11 @@ describe('API Endpoints', () => {
   });
 
   test('PUT /api/production/recipes/:id → altera Cookie Redvelvet 100g', async () => {
-    const produto = await Product.create({
+    const produto = await createForTenant(Product, {
       codigo: '3001', nome: 'Cookie Redvelvet 100g', preco: 12, tipo: 'venda', tipoProduto: 'producao', producaoPropria: true,
       categoria: 'Doces', estoque: 0,
     });
-    const receita = await Recipe.create({
+    const receita = await createForTenant(Recipe, {
       nome: 'Cookie Redvelvet 100g', produtoId: produto._id, rendimento: 12, unidadeRendimento: 'un',
       ingredientes: [{ produtoId: insumo._id, quantidade: 0.5, unidade: 'kg' }], createdBy: produto.createdBy,
     });
@@ -412,7 +421,7 @@ describe('API Endpoints', () => {
 
   test('POST /api/production/produce → abastece todos os produtos finais da ficha', async () => {
     await Product.findByIdAndUpdate(insumo._id, { $set: { estoqueEmbalagens: 10, estoqueInsumos: 10 } });
-    const bolo = await Product.create({
+    const bolo = await createForTenant(Product, {
       codigo: 'multi-out-bolo',
       nome: 'Bolo inteiro',
       preco: 40,
@@ -423,7 +432,7 @@ describe('API Endpoints', () => {
       unidadeVenda: 'un',
       estoque: 0,
     });
-    const fatia = await Product.create({
+    const fatia = await createForTenant(Product, {
       codigo: 'multi-out-fatia',
       nome: 'Fatia de bolo',
       preco: 8,
@@ -482,7 +491,7 @@ describe('API Endpoints', () => {
   });
 
   test('POST /api/production/recipes → rejeita produtos finais de modos diferentes', async () => {
-    const sobDemanda = await Product.create({
+    const sobDemanda = await createForTenant(Product, {
       codigo: 'multi-mode-na-hora',
       nome: 'Omelete',
       preco: 12,
@@ -493,7 +502,7 @@ describe('API Endpoints', () => {
       unidadeVenda: 'un',
       estoque: 0,
     });
-    const porLote = await Product.create({
+    const porLote = await createForTenant(Product, {
       codigo: 'multi-mode-lote',
       nome: 'Pão de queijo',
       preco: 3,
@@ -589,7 +598,7 @@ describe('API Endpoints', () => {
     expect(venda.body.tipoAtendimento).toBe('delivery');
     expect(venda.body.clienteTelefone).toBe('11999999999');
 
-    await Order.create([
+    await createForTenant(Order, [
       {
         numero: '900001',
         itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, precoUnitario: 8.5, quantidade: 1 }],
@@ -699,7 +708,7 @@ describe('API Endpoints', () => {
   });
 
   test('GET /api/dashboard → Hoje e acompanhamento usam a mesma receita', async () => {
-    await Order.create({
+    await createForTenant(Order, {
       itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, precoUnitario: 25, quantidade: 1 }],
       subtotal: 25,
       total: 25,
@@ -717,13 +726,13 @@ describe('API Endpoints', () => {
   });
 
   test('recebimento de pedido de comanda com crédito atualiza saldo e histórico real', async () => {
-    const comanda = await Comanda.create({
+    const comanda = await createForTenant(Comanda, {
       status: 'fechada',
       valorTotal: 100,
       atendente: 'admin',
       historicoPagamentos: [{ valor: 100, formaPagamento: 'credito_loja', data: new Date() }],
     });
-    const order = await Order.create({
+    const order = await createForTenant(Order, {
       itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, precoUnitario: 100, quantidade: 1 }],
       subtotal: 100,
       total: 100,

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Tenant = require('../models/Tenant');
+const { runWithTenant } = require('../utils/tenantContext');
 
 async function exigirTenant(req, res, next) {
   const tenantId = req.user?.tenantId;
@@ -13,7 +14,7 @@ async function exigirTenant(req, res, next) {
 
     req.tenant = tenant;
     req.tenantId = String(tenant._id);
-    return next();
+    return runWithTenant(req.tenantId, next);
   } catch (error) {
     return next(error);
   }

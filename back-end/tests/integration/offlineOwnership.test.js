@@ -2,24 +2,27 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../server');
 const User = require('../../models/User');
+const Tenant = require('../../models/Tenant');
 const Comanda = require('../../models/Comanda');
 const Product = require('../../models/Product');
-const tenantA = '507f1f77bcf86cd799439011';
-const tenantB = '507f1f77bcf86cd799439012';
 
 let user;
 let token;
 let product;
+let tenantA;
+let tenantB;
 beforeEach(async () => {
-  user = await User.create({ username: 'offline-owner', password: 'test-password', role: 'operador', tenantId: tenantA });
+  tenantA = await Tenant.create({ nome: 'Tenant A', slug: 'offline-a', telefone: '11999999991', endereco: 'Rua A' });
+  tenantB = await Tenant.create({ nome: 'Tenant B', slug: 'offline-b', telefone: '11999999992', endereco: 'Rua B' });
+  user = await User.create({ username: 'offline-owner', password: 'test-password', role: 'operador', tenantId: tenantA._id });
   token = jwt.sign({ id: user.id, role: user.role, username: user.username }, process.env.JWT_SECRET);
-  product = await Product.create({ codigo: 'ORIGIN', nome: 'Cafe', preco: 5, estoque: 10 });
+  product = await Product.create({ codigo: 'ORIGIN', nome: 'Cafe', preco: 5, estoque: 10, tenantId: tenantA._id });
 });
 const send = origin => request(app).post('/api/comandas').set('Authorization', `Bearer ${token}`).set('Idempotency-Key', 'offline-origin')
   .send({ idTemporario: 'offline-origin', itens: [{ produtoId: product.id, quantidade: 1 }], origemOffline: origin });
 
 test('operador diferente recebe 409 antes de criar venda ou baixar estoque', async () => {
-  const response = await send({ ownerId: 'outro-operador', tenantId: tenantA });
+  const response = await send({ ownerId: 'outro-operador', tenantId: tenantA.id });
   expect(response.status).toBe(409);
   expect(response.body.code).toBe('OFFLINE_ORIGIN_MISMATCH');
   expect(await Comanda.countDocuments()).toBe(0);
@@ -27,8 +30,8 @@ test('operador diferente recebe 409 antes de criar venda ou baixar estoque', asy
 });
 
 test('mesmo operador reassociado a outro tenant nao envia snapshot antigo', async () => {
-  await User.updateOne({ _id: user.id }, { tenantId: tenantB });
-  const response = await send({ ownerId: user.id, tenantId: tenantA });
+  await User.updateOne({ _id: user.id }, { tenantId: tenantB._id });
+  const response = await send({ ownerId: user.id, tenantId: tenantA.id });
   expect(response.status).toBe(409);
   expect(response.body.code).toBe('OFFLINE_ORIGIN_MISMATCH');
   expect(await Comanda.countDocuments()).toBe(0);
@@ -36,7 +39,7 @@ test('mesmo operador reassociado a outro tenant nao envia snapshot antigo', asyn
 });
 
 test('origem coincidente cria uma venda e retry retorna o mesmo registro', async () => {
-  const origin = { ownerId: user.id, tenantId: tenantA };
+  const origin = { ownerId: user.id, tenantId: tenantA.id };
   const first = await send(origin);
   const replay = await send(origin);
   expect(first.status).toBe(201);
@@ -46,7 +49,7 @@ test('origem coincidente cria uma venda e retry retorna o mesmo registro', async
 });
 
 test('snapshot sem owner valido recebe conflito estruturado', async () => {
-  const response = await send({ tenantId: tenantA });
+  const response = await send({ tenantId: tenantA.id });
   expect(response.status).toBe(409);
   expect(response.body.code).toBe('OFFLINE_ORIGIN_MISMATCH');
 });
@@ -55,11 +58,11 @@ test('reassociacao durante a transacao e detectada antes do commit com rollback'
   const original = Comanda.create.bind(Comanda);
   const spy = jest.spyOn(Comanda, 'create').mockImplementation(async (...args) => {
     const result = await original(...args);
-    await User.updateOne({ _id: user.id }, { tenantId: tenantB });
+    await User.updateOne({ _id: user.id }, { tenantId: tenantB._id });
     return result;
   });
   try {
-    const response = await send({ ownerId: user.id, tenantId: tenantA });
+    const response = await send({ ownerId: user.id, tenantId: tenantA.id });
     expect(response.status).toBe(409);
     expect(response.body.code).toBe('OFFLINE_ORIGIN_MISMATCH');
     expect(await Comanda.countDocuments()).toBe(0);

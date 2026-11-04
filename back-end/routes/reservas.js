@@ -3,8 +3,10 @@ const express = require('express');
 const Reserva = require('../models/Reserva');
 const Comanda = require('../models/Comanda');
 const auth = require('../middleware/auth');
+const Tenant = require('../models/Tenant');
 const MesasSettings = require('../models/MesasSettings');
 const { garantirTokensMesas } = require('../utils/mesaTokens');
+const { runWithTenant } = require('../utils/tenantContext');
 
 const router = express.Router();
 const STATUS_PERMITIDOS = new Set(['pendente', 'confirmada', 'check_in', 'cancelada', 'no_show']);
@@ -34,14 +36,35 @@ const validarReserva = (input = {}) => {
 const gerarCodigo = () => crypto.randomBytes(5).toString('hex').toUpperCase();
 const normalizarCodigo = codigo => String(codigo || '').trim().toUpperCase();
 
+const tenantPublico = async (req, res, next) => {
+  try {
+    let tenant;
+    if (typeof req.query.tenant === 'string' && req.query.tenant) {
+      tenant = await Tenant.findOne({ slug: req.query.tenant, ativo: true }).lean();
+      if (!tenant) return res.status(404).json({ msg: 'Estabelecimento não encontrado.' });
+    } else {
+      const tenants = await Tenant.find({ ativo: true }).select('_id').limit(2).lean();
+      if (tenants.length > 1) return res.status(400).json({ msg: 'Informe o estabelecimento da reserva.' });
+      tenant = tenants[0];
+      if (!tenant) return res.status(404).json({ msg: 'Estabelecimento não encontrado.' });
+    }
+
+    req.tenant = tenant;
+    req.tenantId = String(tenant._id);
+    return runWithTenant(req.tenantId, next);
+  } catch (error) {
+    return next(error);
+  }
+};
+
 const buscarMesa = async (mesaToken) => {
-  const settings = await MesasSettings.findById('principal');
+  const settings = await MesasSettings.findOne({ _id: 'principal' });
   if (!settings) return null;
   await garantirTokensMesas(settings);
   return settings.mesas.find(mesa => mesa.ativa && mesa.token === mesaToken) || null;
 };
 
-router.post('/', async (req, res, next) => {
+router.post('/', tenantPublico, async (req, res, next) => {
   const validacao = validarReserva(req.body);
   if (!validacao.ok) return res.status(400).json({ msg: validacao.msg });
   try {
@@ -54,7 +77,7 @@ router.post('/', async (req, res, next) => {
   } catch (error) { return next(error); }
 });
 
-router.get('/agenda', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res, next) => {
+router.get('/agenda', auth.exigirTenant, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res, next) => {
   const data = String(req.query.data || '').trim();
   if (data && !dataValida(data)) return res.status(400).json({ msg: 'Data inválida.' });
   try {
@@ -63,7 +86,7 @@ router.get('/agenda', auth, auth.allowRoles('admin', 'operador', 'garcom'), asyn
   } catch (error) { return next(error); }
 });
 
-router.post('/:codigo/check-in', async (req, res, next) => {
+router.post('/:codigo/check-in', tenantPublico, async (req, res, next) => {
   const codigo = normalizarCodigo(req.params.codigo);
   const mesaToken = String(req.body?.mesaToken || '').trim();
   if (!mesaToken) return res.status(400).json({ msg: 'Informe o token da mesa.' });
@@ -112,7 +135,7 @@ router.post('/:codigo/check-in', async (req, res, next) => {
   } catch (error) { return next(error); }
 });
 
-router.patch('/:codigo/status', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res, next) => {
+router.patch('/:codigo/status', auth.exigirTenant, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res, next) => {
   const status = String(req.body?.status || '').trim();
   if (!STATUS_PERMITIDOS.has(status)) return res.status(400).json({ msg: 'Status de reserva inválido.' });
   try {
@@ -125,7 +148,7 @@ router.patch('/:codigo/status', auth, auth.allowRoles('admin', 'operador', 'garc
   } catch (error) { return next(error); }
 });
 
-router.get('/:codigo', async (req, res, next) => {
+router.get('/:codigo', tenantPublico, async (req, res, next) => {
   try {
     const reserva = await Reserva.findOne({ codigo: normalizarCodigo(req.params.codigo) }).lean();
     if (!reserva) return res.status(404).json({ msg: 'Reserva não encontrada.' });
@@ -133,7 +156,7 @@ router.get('/:codigo', async (req, res, next) => {
   } catch (error) { return next(error); }
 });
 
-router.delete('/:codigo', async (req, res, next) => {
+router.delete('/:codigo', tenantPublico, async (req, res, next) => {
   try {
     const reserva = await Reserva.findOne({ codigo: normalizarCodigo(req.params.codigo) });
     if (!reserva) return res.status(404).json({ msg: 'Reserva não encontrada.' });
