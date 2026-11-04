@@ -23,15 +23,23 @@ const PurchaseItemSchema = new mongoose.Schema({
   unidadeConteudo: { type: String, enum: UNIDADES_PERMITIDAS, required: true, set: normalizarUnidade },
   quantidadeTotal: { type: Number, required: true, min: [0.000001, 'Quantidade total deve ser maior que zero'] },
   custoUnitario: { type: Number, required: true, min: [0.000001, 'Custo unitário deve ser maior que zero'] },
+  snapshotAntes: { type: mongoose.Schema.Types.Mixed },
+  snapshotDepois: { type: mongoose.Schema.Types.Mixed },
 }, { _id: false });
 
 const PurchaseSchema = new mongoose.Schema({
   fornecedor: { type: String, required: true, trim: true },
   numeroNF: { type: String, required: true, trim: true },
   data: { type: Date, required: true },
+  dataVencimentoPagamento: { type: Date },
   metodoCusteio: { type: String, enum: ['media_ponderada', 'ultimo_preco'], required: true },
   itens: { type: [PurchaseItemSchema], required: true, validate: [(items) => items.length > 0, 'A compra deve ter pelo menos um item'] },
   valorTotal: { type: Number, required: true, min: [0.000001, 'Valor total da compra deve ser maior que zero'] },
+  contaPagarId: { type: mongoose.Schema.Types.ObjectId, ref: 'Despesa' },
+  status: { type: String, enum: ['ativa', 'cancelada'], default: 'ativa' },
+  justificativaCancelamento: { type: String, trim: true },
+  canceladaEm: { type: Date },
+  canceladaPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 

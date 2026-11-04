@@ -44,13 +44,16 @@ const getMesRange = (mes) => {
 
 const resumoComparativo = async (mes) => {
   const { inicio, fim } = getMesRange(mes);
-  const [pedidos, despesas, pagamentos] = await Promise.all([
+  const [pedidos, despesas, comprasPagas, pagamentos] = await Promise.all([
     Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $in: ['pago', 'parcial'] } }).select('total').lean(),
-    Despesa.find({ status: 'pago', dataPagamento: { $gte: inicio, $lt: fim } }).select('valor').lean(),
+    Despesa.find({ status: 'pago', origem: { $ne: 'compra' }, dataPagamento: { $gte: inicio, $lt: fim } }).select('valor').lean(),
+    Despesa.find({ status: 'pago', origem: 'compra', dataPagamento: { $gte: inicio, $lt: fim } }).select('valor').lean(),
     carregarPagamentosDoPeriodo({ inicio, fim }),
   ]);
   const receita = pedidos.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
-  const despesasPagas = despesas.reduce((total, despesa) => total + Number(despesa.valor || 0), 0);
+  const despesasOperacionaisPagas = despesas.reduce((total, despesa) => total + Number(despesa.valor || 0), 0);
+  const comprasPagasTotal = comprasPagas.reduce((total, compra) => total + Number(compra.valor || 0), 0);
+  const despesasPagas = despesasOperacionaisPagas + comprasPagasTotal;
   const entradas = dinheiroPagamento(pagamentos.reduce((total, pagamento) => total + pagamentoTaxa(pagamento).liquido, 0));
   const taxasCartao = dinheiroPagamento(pagamentos.reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0));
   return {
@@ -61,7 +64,9 @@ const resumoComparativo = async (mes) => {
     taxasCartao,
     despesasPagas,
     saldo: dinheiroPagamento(entradas - despesasPagas),
-    resultadoOperacional: dinheiroPagamento(receita - taxasCartao - despesasPagas),
+    comprasPagas: dinheiroPagamento(comprasPagasTotal),
+    despesasOperacionaisPagas: dinheiroPagamento(despesasOperacionaisPagas),
+    resultadoOperacional: dinheiroPagamento(receita - taxasCartao - despesasOperacionaisPagas),
   };
 };
 
@@ -153,7 +158,7 @@ router.get('/dre', async (req, res) => {
       Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $in: ['pago', 'parcial'] } })
         .select('total itens pagamentos utilizacaoInterna')
         .lean(),
-      Purchase.find({ data: { $gte: inicio, $lt: fim } }).select('valorTotal').lean(),
+      Purchase.find({ data: { $gte: inicio, $lt: fim }, status: { $ne: 'cancelada' } }).select('valorTotal').lean(),
       carregarPagamentosDoPeriodo({ inicio, fim }),
     ]);
 
@@ -189,6 +194,7 @@ router.get('/dre', async (req, res) => {
 
     const despesasPagas = await Despesa.find({
       status: 'pago',
+      origem: { $ne: 'compra' },
       dataPagamento: { $gte: inicio, $lt: fim },
     }).lean();
 
