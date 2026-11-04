@@ -560,7 +560,7 @@ export default function Financeiro() {
                   {despesasFiltradas.map((item) => (
                       <tr key={item._id}>
                         <td>{item.descricao}</td>
-                        <td>{item.categoria}</td>
+                        <td>{item.categoria}{item.origem === 'compra' && <small className="financeiro-origin-badge">Compra vinculada</small>}</td>
                         <td>{money(item.valor)}</td>
                         <td>{formatDate(item.dataVencimento)}</td>
                         <td>{renderStatusBadge(item.status)}</td>
@@ -571,12 +571,14 @@ export default function Financeiro() {
                                 Marcar Pago
                               </button>
                             )}
-                            <button type="button" className="financeiro-secondary-button financeiro-action-button btn btn-ghost" onClick={() => editarDespesa(item)}>
-                              Editar
-                            </button>
-                            <ConfirmarAcao titulo="Excluir despesa" mensagem={`Deseja excluir a despesa "${item.descricao}"?`} acaoTexto="Excluir despesa" onConfirmar={() => excluirDespesa(item)}>
-                              {({ onClick }) => <button type="button" className="financeiro-delete-button financeiro-action-button" onClick={onClick}>Excluir</button>}
-                            </ConfirmarAcao>
+                            {item.origem !== 'compra' && <>
+                              <button type="button" className="financeiro-secondary-button financeiro-action-button btn btn-ghost" onClick={() => editarDespesa(item)}>
+                                Editar
+                              </button>
+                              <ConfirmarAcao titulo="Excluir despesa" mensagem={`Deseja excluir a despesa "${item.descricao}"?`} acaoTexto="Excluir despesa" onConfirmar={() => excluirDespesa(item)}>
+                                {({ onClick }) => <button type="button" className="financeiro-delete-button financeiro-action-button" onClick={onClick}>Excluir</button>}
+                              </ConfirmarAcao>
+                            </>}
                           </div>
                         </td>
                       </tr>
@@ -1081,6 +1083,13 @@ export default function Financeiro() {
           align-items: center;
           gap: 6px;
           min-width: 225px;
+        }
+
+        .financeiro-origin-badge {
+          display: block;
+          margin-top: 4px;
+          color: var(--text-secondary);
+          font-size: 10px;
         }
 
         .financeiro-delete-button {

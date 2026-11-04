@@ -24,9 +24,12 @@ const despesaSchema = new mongoose.Schema({
   },
   usuarioCadastro: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   origemRecorrencia: { type: mongoose.Schema.Types.ObjectId, ref: 'Despesa' },
+  origem: { type: String, enum: ['manual', 'compra'], default: 'manual' },
+  compraId: { type: mongoose.Schema.Types.ObjectId, ref: 'Purchase' },
 }, { timestamps: true });
 
 despesaSchema.index({ status: 1, dataVencimento: 1, categoria: 1 });
+despesaSchema.index({ compraId: 1 }, { unique: true, sparse: true });
 
 despesaSchema.pre('save', function(next) {
   if (this.dataPagamento && this.status !== 'pago') {

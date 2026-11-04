@@ -181,6 +181,8 @@ router.post('/', [
       valor: Number(req.body.valor),
       dataVencimento: req.body.dataVencimento ? new Date(req.body.dataVencimento) : new Date(),
       usuarioCadastro: req.user.id,
+      origem: 'manual',
+      compraId: undefined,
     };
     const despesa = await Despesa.create(payload);
 
@@ -208,6 +210,7 @@ router.put('/:id', [
   try {
     const despesa = await Despesa.findById(req.params.id);
     if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
+    if (despesa.origem === 'compra') return res.status(409).json({ msg: 'Altere os dados desta conta pela compra vinculada.' });
 
     const camposEditaveis = ['descricao', 'categoria', 'fornecedor', 'valor'];
     const atualizacoes = {};
@@ -298,6 +301,9 @@ router.put('/:id/pagar', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   if (!idValido(req.params.id, res)) return;
   try {
+    const existente = await Despesa.findById(req.params.id);
+    if (!existente) return res.status(404).json({ msg: 'Despesa não encontrada' });
+    if (existente.origem === 'compra') return res.status(409).json({ msg: 'Exclua ou edite esta conta pela compra vinculada.' });
     const despesa = await Despesa.findByIdAndDelete(req.params.id);
     if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
     res.json({ msg: 'Despesa removida com sucesso' });

@@ -8,10 +8,12 @@ const Customer = require('../../models/Customer');
 const Order = require('../../models/Order');
 const Comanda = require('../../models/Comanda');
 const Purchase = require('../../models/Purchase');
+const Auditoria = require('../../models/Auditoria');
 const Recipe = require('../../models/Recipe');
 const Production = require('../../models/Production');
 const Despesa = require('../../models/Despesa');
 const Tenant = require('../../models/Tenant');
+const StockMovement = require('../../models/StockMovement');
 
 const jwtSecret = process.env.JWT_SECRET || 'desenvolvimento-altere-esta-chave';
 
@@ -664,6 +666,186 @@ describe('API Endpoints', () => {
         valorTotal: 70,
       });
     expect(res.statusCode).toBe(201);
+  });
+
+  test('POST /api/compras → cria conta a pagar com vencimento informado e registra auditoria', async () => {
+    const dataCompra = new Date().toISOString();
+    const vencimento = '2099-01-15';
+    const res = await request(app)
+      .post('/api/compras')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        fornecedor: 'Fornecedor Prazo',
+        numeroNF: 'NF-PRAZO',
+        data: dataCompra,
+        dataVencimentoPagamento: vencimento,
+        metodoCusteio: 'media_ponderada',
+        itens: [{ produtoId: insumo._id, valorTotal: 35, qtdEmbalagens: 5, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+      });
+
+    expect(res.statusCode).toBe(201);
+    const compra = await Purchase.findOne({ numeroNF: 'NF-PRAZO' });
+    const conta = await Despesa.findOne({ compraId: compra._id });
+    expect(conta).toMatchObject({
+      origem: 'compra',
+      categoria: 'Fornecedores/Insumos',
+      status: 'pendente',
+      valor: 35,
+    });
+    expect(conta.dataVencimento.toISOString()).toBe('2099-01-15T23:59:59.999Z');
+    expect(compra.contaPagarId.toString()).toBe(conta._id.toString());
+    expect(compra.itens[0].snapshotAntes).toBeDefined();
+    expect(compra.itens[0].snapshotDepois).toBeDefined();
+    expect(await Auditoria.countDocuments({ acao: 'purchase_create' })).toBe(1);
+    const editarContaDiretamente = await request(app)
+      .put(`/api/despesas/${conta._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ valor: 40 });
+    const excluirContaDiretamente = await request(app)
+      .delete(`/api/despesas/${conta._id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(editarContaDiretamente.statusCode).toBe(409);
+    expect(excluirContaDiretamente.statusCode).toBe(409);
+  });
+
+  test('POST /api/compras → vencimento de hoje continua pendente até a confirmação do pagamento', async () => {
+    const hoje = new Date().toISOString().slice(0, 10);
+    const criada = await request(app)
+      .post('/api/compras')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        fornecedor: 'Fornecedor pagamento hoje',
+        numeroNF: 'NF-VENCIMENTO-HOJE',
+        data: hoje,
+        dataVencimentoPagamento: hoje,
+        metodoCusteio: 'media_ponderada',
+        itens: [{ produtoId: insumo._id, valorTotal: 7, qtdEmbalagens: 1, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+      });
+    expect(criada.statusCode).toBe(201);
+    const compra = await Purchase.findOne({ numeroNF: 'NF-VENCIMENTO-HOJE' });
+    const conta = await Despesa.findOne({ compraId: compra._id });
+    expect(conta.status).toBe('pendente');
+    expect(conta.dataVencimento.toISOString()).toBe(`${hoje}T23:59:59.999Z`);
+  });
+
+  test('DELETE /api/compras → bloqueia reversão quando o produto mudou depois da entrada', async () => {
+    const criada = await request(app)
+      .post('/api/compras')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        fornecedor: 'Fornecedor com saída posterior',
+        numeroNF: 'NF-ESTOQUE-ALTERADO',
+        data: new Date().toISOString(),
+        dataVencimentoPagamento: '2099-01-15',
+        metodoCusteio: 'media_ponderada',
+        itens: [{ produtoId: insumo._id, valorTotal: 7, qtdEmbalagens: 1, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+      });
+    expect(criada.statusCode).toBe(201);
+    const compra = await Purchase.findOne({ numeroNF: 'NF-ESTOQUE-ALTERADO' });
+    const produtoAtualizado = await Product.findById(insumo._id);
+    produtoAtualizado.estoqueEmbalagens += 1;
+    await produtoAtualizado.save();
+
+    const exclusao = await request(app)
+      .delete(`/api/compras/${compra._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ justificativa: 'Estoque alterado após a entrada' });
+    expect(exclusao.statusCode).toBe(409);
+    expect((await Purchase.findById(compra._id)).status).toBe('ativa');
+    expect(await Despesa.countDocuments({ compraId: compra._id })).toBe(1);
+  });
+
+  test('PUT/DELETE /api/compras → exige justificativa e reverte estoque, custo e conta a pagar', async () => {
+    const basePayload = {
+      fornecedor: 'Fornecedor CRUD',
+      numeroNF: 'NF-CRUD',
+      data: new Date().toISOString(),
+      dataVencimentoPagamento: '2099-01-15T00:00:00.000Z',
+      metodoCusteio: 'media_ponderada',
+      itens: [{ produtoId: insumo._id, valorTotal: 14, qtdEmbalagens: 2, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+    };
+    const criada = await request(app)
+      .post('/api/compras')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(basePayload);
+    const compra = await Purchase.findOne({ numeroNF: 'NF-CRUD' });
+
+    const semJustificativa = await request(app)
+      .put(`/api/compras/${compra._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ ...basePayload, justificativa: 'curta' });
+    expect(semJustificativa.statusCode).toBe(400);
+
+    const atualizada = await request(app)
+      .put(`/api/compras/${compra._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        ...basePayload,
+        numeroNF: 'NF-CRUD-CORRIGIDA',
+        itens: [{ ...basePayload.itens[0], valorTotal: 21, qtdEmbalagens: 3 }],
+        justificativa: 'Correção da nota recebida',
+      });
+    expect(criada.statusCode).toBe(201);
+    expect(atualizada.statusCode).toBe(200);
+    expect(atualizada.body.valorTotal).toBe(21);
+    expect((await Despesa.findOne({ compraId: compra._id })).valor).toBe(21);
+    expect((await Product.findById(insumo._id)).estoqueEmbalagens).toBe(3);
+
+    const excluida = await request(app)
+      .delete(`/api/compras/${compra._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ justificativa: 'Lançamento duplicado na nota' });
+    expect(excluida.statusCode).toBe(200);
+    expect((await Purchase.findById(compra._id)).status).toBe('cancelada');
+    expect(await Despesa.countDocuments({ compraId: compra._id })).toBe(0);
+    expect((await Product.findById(insumo._id)).estoqueEmbalagens).toBe(0);
+    expect(await Auditoria.countDocuments({ acao: { $in: ['purchase_create', 'purchase_update', 'purchase_cancel'] } })).toBe(3);
+    expect(await StockMovement.countDocuments({ referenciaId: compra._id })).toBe(4);
+    const auditoriaAtualizacao = await Auditoria.findOne({ acao: 'purchase_update' });
+    const auditoriaExclusao = await Auditoria.findOne({ acao: 'purchase_cancel' });
+    expect(auditoriaAtualizacao.detalhes).toContain('Correção da nota recebida');
+    expect(auditoriaAtualizacao.detalhes).toContain('"valorTotal":14');
+    expect(auditoriaAtualizacao.detalhes).toContain('"valorTotal":21');
+    expect(auditoriaExclusao.detalhes).toContain('Lançamento duplicado na nota');
+  });
+
+  test('conta a pagar de compra gera saída de caixa ao marcar pagamento, sem virar despesa operacional na DRE', async () => {
+    const dataCompra = new Date().toISOString();
+    const criada = await request(app)
+      .post('/api/compras')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        fornecedor: 'Fornecedor Fluxo',
+        numeroNF: 'NF-FLUXO',
+        data: dataCompra,
+        dataVencimentoPagamento: '2099-01-15T00:00:00.000Z',
+        metodoCusteio: 'media_ponderada',
+        itens: [{ produtoId: insumo._id, valorTotal: 18, qtdEmbalagens: 2, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+      });
+    expect(criada.statusCode).toBe(201);
+    const compra = await Purchase.findOne({ numeroNF: 'NF-FLUXO' });
+    const conta = await Despesa.findOne({ compraId: compra._id });
+    const paga = await request(app)
+      .put(`/api/despesas/${conta._id}/pagar`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ dataPagamento: dataCompra });
+    expect(paga.statusCode).toBe(200);
+    const exclusaoCompraPaga = await request(app)
+      .delete(`/api/compras/${compra._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ justificativa: 'Compra foi paga e conciliada' });
+    expect(exclusaoCompraPaga.statusCode).toBe(409);
+
+    const mes = dataCompra.slice(0, 7);
+    const [fluxo, dre] = await Promise.all([
+      request(app).get('/api/contabil/fluxo-caixa').query({ mes }).set('Authorization', `Bearer ${adminToken}`),
+      request(app).get('/api/contabil/dre').query({ mes }).set('Authorization', `Bearer ${adminToken}`),
+    ]);
+    expect(fluxo.statusCode).toBe(200);
+    expect(fluxo.body.totalSaidas).toBe(18);
+    expect(dre.statusCode).toBe(200);
+    expect(dre.body.cmvComponentes.compras).toBe(18);
+    expect(dre.body.despesasOperacionais).toBe(0);
   });
 
   test('POST /api/compras → aceita quantidade fracionada em kg', async () => {
