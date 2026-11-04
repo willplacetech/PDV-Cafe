@@ -49,8 +49,8 @@ const CustomerSchema = new mongoose.Schema({
 });
 
 CustomerSchema.index({ nome: 'text', telefone: 'text' });
-CustomerSchema.index({ clienteInterno: 1 }, { unique: true, partialFilterExpression: { clienteInterno: true } });
-CustomerSchema.index({ telefone: 1 }, { unique: true, partialFilterExpression: { telefone: { $gt: '' } } });
+CustomerSchema.index({ tenantId: 1, clienteInterno: 1 }, { unique: true, partialFilterExpression: { clienteInterno: true } });
+CustomerSchema.index({ tenantId: 1, telefone: 1 }, { unique: true, partialFilterExpression: { telefone: { $gt: '' } } });
 
 require('../utils/tenantSchema')(CustomerSchema);
 

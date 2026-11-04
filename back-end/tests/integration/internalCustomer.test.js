@@ -1,6 +1,7 @@
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../server');
+const Tenant = require('../../models/Tenant');
 const User = require('../../models/User');
 const Customer = require('../../models/Customer');
 const Product = require('../../models/Product');
@@ -9,10 +10,12 @@ const Comanda = require('../../models/Comanda');
 
 let token;
 let product;
+let tenant;
 beforeEach(async () => {
-  const user = await User.create({ username: 'internal-admin', password: 'test-password', role: 'admin' });
+  tenant = await Tenant.create({ nome: 'Internal Customer', slug: 'internal-customer', telefone: '11999990000', endereco: 'Rua de teste' });
+  const user = await User.create({ username: 'internal-admin', password: 'test-password', role: 'admin', tenantId: tenant._id });
   token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET);
-  product = await Product.create({ codigo: 'cafe-interno', nome: 'Café', categoria: 'Bebidas Quentes', tipo: 'venda', preco: 6, precoCompra: 2, estoque: 20, unidadeVenda: 'un' });
+  product = await Product.create({ codigo: 'cafe-interno', nome: 'Café', categoria: 'Bebidas Quentes', tipo: 'venda', preco: 6, precoCompra: 2, estoque: 20, unidadeVenda: 'un', tenantId: tenant._id });
 });
 const api = (method, url, body) => request(app)[method](url).set('Authorization', `Bearer ${token}`).set(require('../approvalFixture').headers(method, url, token, body)).send(body);
 const interno = async () => (await api('get', '/api/customers')).body.find(c => c.clienteInterno);
@@ -27,7 +30,7 @@ test('cadastro disponibiliza um único Cliente Interno sem telefone e protege su
 });
 
 test('consumo interno fecha sem pagamento, não gera dívida e baixa estoque uma vez', async () => {
-  const cliente = await Customer.create({ nome: 'Cliente Interno', clienteInterno: true });
+  const cliente = await Customer.create({ nome: 'Cliente Interno', clienteInterno: true, tenantId: tenant._id });
   const created = await api('post', '/api/comandas', { clienteId: cliente.id, itens: [{ produtoId: product.id, quantidade: 2 }] });
   expect(created.status).toBe(201);
   expect(created.body).toMatchObject({ utilizacaoInterna: true, valorTotal: 0, saldoDevedor: 0 });
@@ -46,7 +49,7 @@ test('consumo interno fecha sem pagamento, não gera dívida e baixa estoque uma
 });
 
 test('alterar itens ou trocar cliente mantém o valor correto sem cobrança interna', async () => {
-  const cliente = await Customer.create({ nome: 'Cliente Interno', clienteInterno: true });
+  const cliente = await Customer.create({ nome: 'Cliente Interno', clienteInterno: true, tenantId: tenant._id });
   const created = await api('post', '/api/comandas', { clienteId: cliente.id, itens: [{ produtoId: product.id, quantidade: 1 }] });
   const changed = await api('patch', `/api/comandas/${created.body._id}/itens/${created.body.itens[0]._id}`, { quantidade: 3 });
   expect(changed.body).toMatchObject({ utilizacaoInterna: true, valorTotal: 0, saldoDevedor: 0 });
@@ -57,7 +60,7 @@ test('alterar itens ou trocar cliente mantém o valor correto sem cobrança inte
 });
 
 test('pedido direto para Cliente Interno registra consumo sem pagamento', async () => {
-  const cliente = await Customer.create({ nome: 'Cliente Interno', clienteInterno: true });
+  const cliente = await Customer.create({ nome: 'Cliente Interno', clienteInterno: true, tenantId: tenant._id });
   const response = await api('post', '/api/orders', { clienteId: cliente.id, itens: [{ produtoId: product.id, quantidade: 2 }] });
   expect(response.status).toBe(201);
   expect(response.body).toMatchObject({ utilizacaoInterna: true, total: 0, status: 'pago', clienteNome: cliente.nome, pagamentos: [] });
@@ -65,9 +68,9 @@ test('pedido direto para Cliente Interno registra consumo sem pagamento', async 
 
 test('DRE contabiliza custo interno separado do CMV e lucro das vendas', async () => {
   const item = { produtoId: product.id, nome: 'Café', precoUnitario: 6, quantidade: 2, custoUnitarioHistorico: 2 };
-  await Order.create({ atendente: 'internal-admin', itens: [item], subtotal: 12, total: 0, status: 'pago', utilizacaoInterna: true });
-  await Order.create({ atendente: 'internal-admin', itens: [{ ...item, quantidade: 1 }], subtotal: 6, total: 6, status: 'pago' });
-  await Order.create({ atendente: 'internal-admin', itens: [item], subtotal: 12, total: 0, status: 'cancelado', utilizacaoInterna: true });
+  await Order.create({ atendente: 'internal-admin', itens: [item], subtotal: 12, total: 0, status: 'pago', utilizacaoInterna: true, tenantId: tenant._id });
+  await Order.create({ atendente: 'internal-admin', itens: [{ ...item, quantidade: 1 }], subtotal: 6, total: 6, status: 'pago', tenantId: tenant._id });
+  await Order.create({ atendente: 'internal-admin', itens: [item], subtotal: 12, total: 0, status: 'cancelado', utilizacaoInterna: true, tenantId: tenant._id });
   await Product.findByIdAndUpdate(product.id, { precoCompra: 99 });
   const response = await api('get', '/api/contabil/dre');
   expect(response.status).toBe(200);
@@ -75,7 +78,7 @@ test('DRE contabiliza custo interno separado do CMV e lucro das vendas', async (
 });
 
 test('comanda com recebimento não pode ser convertida em consumo interno', async () => {
-  const cliente = await Customer.create({ nome: 'Cliente Interno', clienteInterno: true });
+  const cliente = await Customer.create({ nome: 'Cliente Interno', clienteInterno: true, tenantId: tenant._id });
   const created = await api('post', '/api/comandas', { itens: [{ produtoId: product.id, quantidade: 2 }] });
   await api('patch', `/api/comandas/${created.body._id}/receber-parcial`, { formaPagamento: 'dinheiro', valorRecebido: 1, operacaoId: 'parcial-antes' });
   const response = await api('patch', `/api/comandas/${created.body._id}/detalhes`, { tipoAtendimento: 'balcao', clienteId: cliente.id });
@@ -84,7 +87,7 @@ test('comanda com recebimento não pode ser convertida em consumo interno', asyn
 });
 
 test('dashboard exclui consumo interno dos indicadores de lucro e vendas por produto', async () => {
-  await Order.create({ atendente: 'internal-admin', itens: [{ produtoId: product.id, nome: product.nome, precoUnitario: 6, quantidade: 2 }], subtotal: 12, total: 0, status: 'pago', utilizacaoInterna: true });
+  await Order.create({ atendente: 'internal-admin', itens: [{ produtoId: product.id, nome: product.nome, precoUnitario: 6, quantidade: 2 }], subtotal: 12, total: 0, status: 'pago', utilizacaoInterna: true, tenantId: tenant._id });
   const response = await api('get', '/api/dashboard');
   expect(response.status).toBe(200);
   expect(response.body.insights.curvaABC).toEqual([]);

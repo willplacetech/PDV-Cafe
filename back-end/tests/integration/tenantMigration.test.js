@@ -134,6 +134,46 @@ describe('migração tenant-scoped do PDV', () => {
     expect((await Tenant.findById(tenant._id)).planoRecursos).toBe('essencial');
   });
 
+  test('migração substitui índices globais por índices compostos com Tenant após associar dados', async () => {
+    const tenant = await criarTenant('migracao-indices-customer');
+    const customerId = new mongoose.Types.ObjectId();
+    const productId = new mongoose.Types.ObjectId();
+    await Customer.collection.createIndex(
+      { clienteInterno: 1 },
+      { name: 'legacy_clienteInterno_unique', unique: true, partialFilterExpression: { clienteInterno: true } },
+    );
+    await Product.collection.createIndex(
+      { codigo: 1 },
+      { name: 'legacy_codigo_unique', unique: true },
+    );
+    await Customer.collection.insertOne({
+      _id: customerId,
+      nome: 'Cliente legado',
+      clienteInterno: true,
+    });
+    await Product.collection.insertOne({ _id: productId, codigo: 'PRODUTO-LEGADO' });
+
+    await migrarTenantPdv({
+      mapeamento: mapear(tenant._id, [
+        idsDaColecao(Customer, tenant._id, [customerId]),
+        idsDaColecao(Product, tenant._id, [productId]),
+      ]),
+      modelos: [Customer, Product],
+    });
+
+    const customerIndexes = await Customer.collection.indexes();
+    expect(customerIndexes.some(index => index.name === 'legacy_clienteInterno_unique')).toBe(false);
+    expect(customerIndexes.some(index => index.unique
+      && index.key.tenantId === 1
+      && index.key.clienteInterno === 1)).toBe(true);
+
+    const productIndexes = await Product.collection.indexes();
+    expect(productIndexes.some(index => index.name === 'legacy_codigo_unique')).toBe(false);
+    expect(productIndexes.some(index => index.unique
+      && index.key.tenantId === 1
+      && index.key.codigo === 1)).toBe(true);
+  });
+
   test('aborta referências entre tenants sem reatribuir documentos', async () => {
     const primeiro = await criarTenant('ref-cafe-a');
     const segundo = await criarTenant('ref-cafe-b');

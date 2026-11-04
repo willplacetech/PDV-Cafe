@@ -7,7 +7,7 @@ const app = require('../server');
 
 test('configuração de mesas exige autenticação', async () => {
   const res = await request(app).get('/api/mesas');
-  assert.equal(res.status, 401);
+  assert.equal(res.status, 403);
 });
 
 test('origens Render de terceiros são recusadas', async () => {

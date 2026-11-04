@@ -41,9 +41,7 @@ const ProductSchema = new mongoose.Schema({
   codigo: {
     type: String,
     required: [true, 'Código é obrigatório'],
-    unique: true,
     trim: true,
-    index: true,
   },
   ncm: {
     type: String,
@@ -274,6 +272,7 @@ const ProductSchema = new mongoose.Schema({
 
 // Índice composto para busca
 ProductSchema.index({ nome: 'text', codigo: 'text' });
+ProductSchema.index({ tenantId: 1, codigo: 1 }, { unique: true });
 
 require('../utils/tenantSchema')(ProductSchema);
 

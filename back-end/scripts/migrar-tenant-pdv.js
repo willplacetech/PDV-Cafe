@@ -201,6 +201,30 @@ function validarColisoesUnicas(model, documentos) {
   }
 }
 
+async function sincronizarIndicesUnicosTenant(modelos) {
+  for (const model of modelos) {
+    const indicesAtuais = await model.collection.indexes();
+    const indicesSchema = model.schema.indexes();
+    const chavesUnicasSchema = indicesSchema
+      .filter(([, opcoes]) => opcoes.unique)
+      .map(([chaves]) => JSON.stringify(Object.entries(chaves)));
+
+    for (const [chaves, opcoes] of indicesSchema) {
+      if (!opcoes.unique || chaves.tenantId !== 1) continue;
+      const chavesLegadas = Object.fromEntries(Object.entries(chaves).filter(([campo]) => campo !== 'tenantId'));
+      if (!Object.keys(chavesLegadas).length) continue;
+
+      const chaveLegadaSerializada = JSON.stringify(Object.entries(chavesLegadas));
+      const indiceLegado = indicesAtuais.find(indice => indice.unique
+        && JSON.stringify(Object.entries(indice.key)) === chaveLegadaSerializada
+        && !chavesUnicasSchema.includes(chaveLegadaSerializada));
+      if (indiceLegado) await model.collection.dropIndex(indiceLegado.name);
+
+      await model.collection.createIndex(chaves, opcoes);
+    }
+  }
+}
+
 function validarReferencias(modelos, dadosPorColecao, mapasPorColecao) {
   const modeloPorNome = new Map(modelos.map(model => [model.modelName, model]));
   for (const model of modelos) {
@@ -367,6 +391,7 @@ async function migrarTenantPdv({ mapeamento, dryRun = false, modelos = modelosPa
   } finally {
     await session.endSession();
   }
+  if (!dryRun) await sincronizarIndicesUnicosTenant(modelos);
   return resultado;
 }
 

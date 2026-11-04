@@ -1,9 +1,11 @@
 const express = require('express');
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
+const server = require('../../server');
 const Tenant = require('../../models/Tenant');
 const User = require('../../models/User');
 const Product = require('../../models/Product');
+const Customer = require('../../models/Customer');
 const auth = require('../../middleware/auth');
 
 const app = express();
@@ -78,7 +80,7 @@ beforeEach(async () => {
   );
   await Product.create([
     { codigo: 'SALE-A', nome: 'Produto A', categoria: 'Outros', preco: 5, tenantId: tenantA._id },
-    { codigo: 'SALE-B', nome: 'Produto B', categoria: 'Outros', preco: 5, tenantId: tenantB._id },
+    { codigo: 'SALE-A', nome: 'Produto B', categoria: 'Outros', preco: 5, tenantId: tenantB._id },
   ]);
 });
 
@@ -101,7 +103,7 @@ test('atribui tenant autenticado aos novos produtos sem aceitar tenant do client
 
 test('não altera por ID um produto de outro tenant', async () => {
   const tenantB = await Tenant.findOne({ slug: 'tenant-b-sales' });
-  const productB = await Product.findOne({ codigo: 'SALE-B', tenantId: tenantB._id });
+  const productB = await Product.findOne({ codigo: 'SALE-A', tenantId: tenantB._id });
   const response = await request(app)
     .patch(`/products/${productB.id}`)
     .set('Authorization', `Bearer ${tokenA}`)
@@ -118,4 +120,59 @@ test('agregações também são limitadas ao tenant autenticado', async () => {
 
   expect(response.status).toBe(200);
   expect(response.body[0].names).toEqual(['Produto A']);
+});
+
+test('rotas reais do PDV isolam produtos e clientes entre tenants', async () => {
+  const tenantB = await Tenant.findOne({ slug: 'tenant-b-sales' });
+  const userB = await User.create({
+    username: 'sales-tenant-b',
+    password: 'senha-segura-123',
+    role: 'admin',
+    tenantId: tenantB._id,
+  });
+  const tokenB = jwt.sign(
+    { id: String(userB._id), role: 'admin' },
+    process.env.JWT_SECRET,
+    { algorithm: 'HS256' },
+  );
+  const customerA = await Customer.create({
+    nome: 'Cliente A',
+    telefone: '11999990001',
+    tenantId: tenantA._id,
+  });
+  const customerB = await Customer.create({
+    nome: 'Cliente B',
+    telefone: '11999990001',
+    tenantId: tenantB._id,
+  });
+
+  const [responseA, responseB, customersA, customersB, customerFromB] = await Promise.all([
+    request(server).get('/api/products').set('Authorization', `Bearer ${tokenA}`),
+    request(server).get('/api/products').set('Authorization', `Bearer ${tokenB}`),
+    request(server).get('/api/customers').set('Authorization', `Bearer ${tokenA}`),
+    request(server).get('/api/customers').set('Authorization', `Bearer ${tokenB}`),
+    request(server).get(`/api/customers/${customerB.id}`).set('Authorization', `Bearer ${tokenA}`),
+  ]);
+
+  expect(responseA.status).toBe(200);
+  expect(responseA.body.map(product => product.nome)).toEqual(['Produto A']);
+  expect(responseB.status).toBe(200);
+  expect(responseB.body.map(product => product.nome)).toEqual(['Produto B']);
+  expect(customersA.status).toBe(200);
+  expect(customersA.body.map(customer => customer.nome)).toContain(customerA.nome);
+  expect(customersA.body.map(customer => customer.nome)).not.toContain(customerB.nome);
+  expect(customersB.status).toBe(200);
+  expect(customersB.body.map(customer => customer.nome)).toContain(customerB.nome);
+  expect(customersB.body.map(customer => customer.nome)).not.toContain(customerA.nome);
+  expect(customerFromB.status).toBe(404);
+});
+
+test('rota real do PDV não revela produto de outro tenant por ID', async () => {
+  const productB = await Product.findOne({ nome: 'Produto B' });
+  const response = await request(server)
+    .get(`/api/products/${productB.id}`)
+    .set('Authorization', `Bearer ${tokenA}`);
+
+  expect(response.status).toBe(404);
+  expect((await Product.findById(productB.id)).nome).toBe('Produto B');
 });

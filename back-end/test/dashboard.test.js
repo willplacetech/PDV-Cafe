@@ -99,7 +99,8 @@ test('telefone do cliente é normalizado corretamente no fechamento da comanda',
 
 test('urgencias e montada em /api/dashboard, exige admin e retorna array', async (t) => {
   const serverSource = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
-  assert.match(serverSource, /app\.use\(['"]\/api\/dashboard['"],\s*require\(['"]\.\/routes\/dashboard['"]\)\)/);
+  assert.match(serverSource, /\[['"]\/api\/dashboard['"],\s*require\(['"]\.\/routes\/dashboard['"]\)\]/);
+  assert.match(serverSource, /app\.use\(path,\s*auth\.exigirTenant,\s*router\)/);
 
   const authLayer = dashboardRouter.stack.find((layer) => layer.handle === auth);
   assert.ok(authLayer, 'router must authenticate dashboard requests');

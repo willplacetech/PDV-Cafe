@@ -14,17 +14,28 @@ test('permite somente as origens próprias configuradas em qualquer ambiente', (
       'https://restaurante-pdv.onrender.com',
       'https://restaurante-pdv-back.onrender.com',
     ];
+    const developmentOrigins = [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://localhost:4173',
+      'http://127.0.0.1:4173',
+    ];
 
     for (const environment of ['production', 'development']) {
       process.env.NODE_ENV = environment;
-      assert.deepEqual(allowedOrigins(), permittedOrigins);
+      const expectedOrigins = environment === 'development'
+        ? [...permittedOrigins, ...developmentOrigins]
+        : permittedOrigins;
+      assert.deepEqual(allowedOrigins(), expectedOrigins);
       for (const origin of permittedOrigins) {
         assert.equal(trustedOrigin({ headers: { origin } }), true);
+      }
+      for (const origin of developmentOrigins) {
+        assert.equal(trustedOrigin({ headers: { origin } }), environment === 'development');
       }
       for (const origin of [
         'https://pdv-delivery-9j0a.onrender.com',
         'https://attacker.example',
-        'http://localhost:5173',
       ]) {
         assert.equal(trustedOrigin({ headers: { origin } }), false);
       }
