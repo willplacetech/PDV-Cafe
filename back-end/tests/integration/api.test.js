@@ -765,7 +765,7 @@ describe('API Endpoints', () => {
       valorTotal: 7,
       createdBy: admin._id,
     };
-    await Purchase.create([
+    await createForTenant(Purchase, [
       { ...compraBase, fornecedor: 'Fornecedor Alfa' },
       { ...compraBase, fornecedor: ' fornecedor alfa ' , numeroNF: 'NF-FORNECEDOR-2' },
       { ...compraBase, fornecedor: 'Fornecedor Cancelado', status: 'cancelada', numeroNF: 'NF-FORNECEDOR-3' },
