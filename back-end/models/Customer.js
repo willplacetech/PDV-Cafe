@@ -52,4 +52,6 @@ CustomerSchema.index({ nome: 'text', telefone: 'text' });
 CustomerSchema.index({ clienteInterno: 1 }, { unique: true, partialFilterExpression: { clienteInterno: true } });
 CustomerSchema.index({ telefone: 1 }, { unique: true, partialFilterExpression: { telefone: { $gt: '' } } });
 
+require('../utils/tenantSchema')(CustomerSchema);
+
 module.exports = mongoose.model('Customer', CustomerSchema);

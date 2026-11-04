@@ -19,4 +19,6 @@ const StockMovementSchema = new mongoose.Schema({
 StockMovementSchema.index({ createdAt: -1 });
 StockMovementSchema.index({ produtoId: 1, createdAt: -1 });
 
+require('../utils/tenantSchema')(StockMovementSchema);
+
 module.exports = mongoose.model('StockMovement', StockMovementSchema);

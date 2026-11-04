@@ -15,4 +15,6 @@ const configuracoesSchema = new mongoose.Schema({
   branding: { type: brandingSchema, default: () => ({}) },
 }, { timestamps: true });
 
+require('../utils/tenantSchema')(configuracoesSchema);
+
 module.exports = mongoose.model('Configuracoes', configuracoesSchema);

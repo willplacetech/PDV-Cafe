@@ -31,7 +31,7 @@ beforeEach(async () => {
 });
 
 test('somente admin cadastra; operadores consultam e nomes duplicados/taxas inválidas são recusados', async () => {
-  expect((await request(app).get('/api/payment-settings')).status).toBe(401);
+  expect((await request(app).get('/api/payment-settings')).status).toBe(403);
   expect((await api('post', '/payment-settings', { nome: 'Vale', taxaPercentual: 3 }, operatorToken)).status).toBe(403);
   const method = await createMethod();
   expect(method).toMatchObject({ label: 'Vale Refeição', taxaPercentual: 3, personalizada: true });

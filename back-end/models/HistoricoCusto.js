@@ -12,4 +12,6 @@ const historicoCustoSchema = new mongoose.Schema({
   data: { type: Date, default: Date.now },
 }, { timestamps: true });
 
+require('../utils/tenantSchema')(historicoCustoSchema);
+
 module.exports = mongoose.model('HistoricoCusto', historicoCustoSchema);

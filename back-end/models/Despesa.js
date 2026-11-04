@@ -38,4 +38,6 @@ despesaSchema.pre('save', function(next) {
   next();
 });
 
+require('../utils/tenantSchema')(despesaSchema);
+
 module.exports = mongoose.model('Despesa', despesaSchema);

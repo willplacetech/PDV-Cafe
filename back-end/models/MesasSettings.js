@@ -16,4 +16,6 @@ const mesasSettingsSchema = new mongoose.Schema({
   oferecerBalcao: { type: Boolean, default: true },
 }, { timestamps: true });
 
+require('../utils/tenantSchema')(mesasSettingsSchema);
+
 module.exports = mongoose.model('MesasSettings', mesasSettingsSchema);

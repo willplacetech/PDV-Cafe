@@ -275,4 +275,6 @@ const ProductSchema = new mongoose.Schema({
 // Índice composto para busca
 ProductSchema.index({ nome: 'text', codigo: 'text' });
 
+require('../utils/tenantSchema')(ProductSchema);
+
 module.exports = mongoose.model('Product', ProductSchema);

@@ -12,4 +12,6 @@ const paymentSettingsSchema = new mongoose.Schema({
   }],
 }, { timestamps: true });
 
+require('../utils/tenantSchema')(paymentSettingsSchema);
+
 module.exports = mongoose.model('PaymentSettings', paymentSettingsSchema);

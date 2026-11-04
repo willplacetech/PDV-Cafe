@@ -35,7 +35,7 @@ test('consulta exige administrador e pagina com filtros validados preservando da
     { usuarioSolicitante: operador.user.id, acao: 'login', sucesso: true, createdAt: new Date('2026-10-01T12:00:00Z') },
     { usuarioSolicitante: operador.user.id, acao: 'logout', sucesso: false },
   ]);
-  expect((await request(app).get('/api/auditoria')).status).toBe(401);
+  expect((await request(app).get('/api/auditoria')).status).toBe(403);
   expect((await request(app).get('/api/auditoria').set(operador.headers)).status).toBe(403);
   const res = await request(app).get('/api/auditoria').set(admin.headers).query({ usuario: operador.user.username, acao: 'login', dataInicio: '2026-10-01', dataFim: '2026-10-01', limit: 1 });
   expect(res.status).toBe(200);

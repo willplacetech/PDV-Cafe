@@ -30,4 +30,6 @@ const comandaSchema = new mongoose.Schema({
 comandaSchema.index({ atendente: 1, idempotencyKey: 1 }, { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } });
 comandaSchema.index({ 'pedidosQr.idempotencyKey': 1 }, { unique: true, partialFilterExpression: { 'pedidosQr.idempotencyKey': { $type: 'string' } } });
 comandaSchema.pre('save', async function(next) { if (!this.numero) { const ultima = await this.constructor.findOne({}, {}, { sort: { numero: -1 } }); this.numero = String(ultima ? Number(ultima.numero) + 1 : 1).padStart(4, '0'); } const { valorPago, saldoDevedor, statusPagamento } = calcularStatusPagamento({ valorTotal: this.valorTotal, historicoPagamentos: this.historicoPagamentos }); this.valorPago = valorPago; this.saldoDevedor = saldoDevedor; this.statusPagamento = this.status === 'cancelada' ? 'cancelado' : statusPagamento; next(); });
+require('../utils/tenantSchema')(comandaSchema);
+
 module.exports = mongoose.model('Comanda', comandaSchema);

@@ -3,13 +3,14 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const AuthSession = require('../models/AuthSession');
 const { getJwtSecret } = require('../utils/authConfig');
+const exigirTenant = require('./exigirTenant');
 
 const auth = async (req, res, next) => {
   const token = req.headers.authorization?.startsWith('Bearer ')
     ? req.headers.authorization.slice(7)
     : null;
 
-  if (!token) return res.status(401).json({ msg: 'Acesso não autorizado' });
+  if (!token) return res.status(403).json({ msg: 'Acesso não autorizado' });
 
   let claims;
   try {
@@ -68,5 +69,10 @@ auth.allowRoles = (...roles) => (req, res, next) => {
   if (!roles.includes(req.user?.role)) return res.status(403).json({ msg: 'Você não tem permissão para esta ação' });
   next();
 };
+
+auth.exigirTenant = (req, res, next) => auth(req, res, error => {
+  if (error) return next(error);
+  return exigirTenant(req, res, next);
+});
 
 module.exports = auth;

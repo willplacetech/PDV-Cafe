@@ -88,9 +88,9 @@ describe('API Endpoints', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  test('GET /api/products → 401 sem token', async () => {
+  test('GET /api/products → 403 sem token', async () => {
     const res = await request(app).get('/api/products');
-    expect(res.statusCode).toBe(401);
+    expect(res.statusCode).toBe(403);
   });
 
   test('GET /api/products/pdv → lista apenas produtos de venda', async () => {
@@ -780,8 +780,8 @@ describe('API Endpoints', () => {
     expect((await Comanda.findById(comanda._id)).saldoDevedor).toBe(0);
   });
 
-  test('GET /api/dashboard → 401 sem token', async () => {
+  test('GET /api/dashboard → 403 sem token', async () => {
     const res = await request(app).get('/api/dashboard');
-    expect(res.statusCode).toBe(401);
+    expect(res.statusCode).toBe(403);
   });
 });

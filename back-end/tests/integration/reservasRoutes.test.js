@@ -65,7 +65,7 @@ describe('API de reservas', () => {
 
   test('protege a agenda e permite acesso aos papéis autorizados', async () => {
     const semToken = await request(app).get('/api/reservas/agenda');
-    expect(semToken.status).toBe(401);
+    expect(semToken.status).toBe(403);
 
     const operador = await criarUsuario('operador');
     const agenda = await request(app).get('/api/reservas/agenda')

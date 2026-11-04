@@ -11,4 +11,6 @@ const operacaoSchema = new mongoose.Schema({
 
 operacaoSchema.index({ usuarioId: 1, tipo: 1, recursoId: 1, operacaoId: 1 }, { unique: true });
 
+require('../utils/tenantSchema')(operacaoSchema);
+
 module.exports = mongoose.model('OperacaoFinanceira', operacaoSchema);

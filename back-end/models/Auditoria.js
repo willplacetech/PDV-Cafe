@@ -17,4 +17,6 @@ auditoriaSchema.index({ acao: 1, createdAt: -1 });
 auditoriaSchema.index({ usuarioSolicitante: 1, createdAt: -1 });
 auditoriaSchema.index({ usuarioAutorizou: 1, createdAt: -1 });
 
+require('../utils/tenantSchema')(auditoriaSchema);
+
 module.exports = mongoose.model('Auditoria', auditoriaSchema);

@@ -122,7 +122,7 @@ test('restrição do Delivery acompanha mudança de perfil mesmo com claims anti
 });
 
 test('logout exige autenticação e revoga todas as sessões anteriores', async () => {
-  expect((await request(app).post('/api/auth/logout')).status).toBe(401);
+  expect((await request(app).post('/api/auth/logout')).status).toBe(403);
   const outroToken = assinar(operador, { tokenVersion: 0 });
   const response = await api('post', '/auth/logout', token);
   expect(response.status).toBe(204);

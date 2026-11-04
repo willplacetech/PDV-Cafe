@@ -68,4 +68,6 @@ fechamentoCaixaSchema.index({ chaveAbertura: 1 }, {
   partialFilterExpression: { tipoRegistro: 'fechamento', chaveAbertura: { $type: 'string' } },
 });
 
+require('../utils/tenantSchema')(fechamentoCaixaSchema);
+
 module.exports = mongoose.model('FechamentoCaixa', fechamentoCaixaSchema);

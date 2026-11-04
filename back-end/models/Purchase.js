@@ -38,4 +38,6 @@ const PurchaseSchema = new mongoose.Schema({
 PurchaseSchema.index({ data: -1 });
 PurchaseSchema.index({ numeroNF: 1 });
 
+require('../utils/tenantSchema')(PurchaseSchema);
+
 module.exports = mongoose.model('Purchase', PurchaseSchema);

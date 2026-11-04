@@ -72,7 +72,7 @@ const logoutAuth = (scope, bearerAuth) => async (req, res, next) => {
   const cookieLogout = readCookie(req, scope) && trustedOrigin(req) && req.get('X-CSRF-Protection') === '1';
   if (req.headers.authorization && !cookieLogout) return bearerAuth(req, res, next);
   const [id, secret, extra] = (readCookie(req, scope) || '').split('.');
-  if (!secret) return res.status(401).json({ msg: 'Sessão inválida ou expirada' });
+  if (!secret) return res.status(403).json({ msg: 'Acesso não autorizado' });
   return cookieProtection(req, res, async () => {
     try {
       if (extra || !mongoose.isObjectIdOrHexString(id) || !/^[A-Za-z0-9_-]{64}$/.test(secret)) return res.status(401).json({ msg: 'Sessão inválida ou expirada' });

@@ -51,7 +51,7 @@ test('PDV product endpoints and authentication remain available', async () => {
   const ranking = await get('/api/products/mais-vendidos');
   expect(ranking.status).toBe(200);
   expect(ranking.body).toEqual([]);
-  expect((await request(app).get('/api/products/sem-custo')).status).toBe(401);
+  expect((await request(app).get('/api/products/sem-custo')).status).toBe(403);
 });
 
 test('unknown API paths return JSON 404 without trying to open the frontend index', async () => {

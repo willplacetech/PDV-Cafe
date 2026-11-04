@@ -52,6 +52,8 @@ UserSchema.pre('save', async function (next) {
   next();
 });
 
+UserSchema.index({ tenantId: 1 });
+
 // Comparar senhas
 UserSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);

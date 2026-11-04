@@ -116,4 +116,6 @@ orderSchema.pre('save', async function(next) {
   next();
 });
 
+require('../utils/tenantSchema')(orderSchema);
+
 module.exports = mongoose.model('Order', orderSchema);

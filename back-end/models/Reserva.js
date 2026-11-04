@@ -20,4 +20,6 @@ const reservaSchema = new mongoose.Schema({
 
 reservaSchema.index({ data: 1, horario: 1, status: 1 });
 
+require('../utils/tenantSchema')(reservaSchema);
+
 module.exports = mongoose.model('Reserva', reservaSchema);

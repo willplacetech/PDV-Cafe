@@ -11,4 +11,6 @@ const RecipeAuditSchema = new mongoose.Schema({
 
 RecipeAuditSchema.index({ produtoId: 1, createdAt: -1 });
 
+require('../utils/tenantSchema')(RecipeAuditSchema);
+
 module.exports = mongoose.model('RecipeAudit', RecipeAuditSchema);

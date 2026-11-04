@@ -33,4 +33,6 @@ const RecipeSchema = new mongoose.Schema({
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 
+require('../utils/tenantSchema')(RecipeSchema);
+
 module.exports = mongoose.model('Recipe', RecipeSchema);
