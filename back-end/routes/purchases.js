@@ -65,6 +65,18 @@ const dataEmSaoPaulo = (valor) => {
   return `${values.year}-${values.month}-${values.day}`;
 };
 const hojeEmSaoPaulo = () => dataEmSaoPaulo(new Date());
+const mesEmSaoPaulo = (valor) => dataEmSaoPaulo(valor).slice(0, 7);
+const validarCompraDoMesCorrente = (compra, dataAtualizada) => {
+  const mesAtual = mesEmSaoPaulo(new Date());
+  if (mesEmSaoPaulo(compra.data) !== mesAtual || mesEmSaoPaulo(dataAtualizada) !== mesAtual) {
+    throw erroCompra('Somente compras do mês corrente podem ser alteradas ou excluídas', 409);
+  }
+};
+const estadoFinanceiroDaCompra = (dataVencimento) => {
+  const diaVencimento = dataEmSaoPaulo(dataVencimento);
+  if (diaVencimento > hojeEmSaoPaulo()) return { status: 'pendente', dataPagamento: undefined };
+  return { status: 'pago', dataPagamento: dataValida(diaVencimento) };
+};
 
 const validadoresCompra = [
   body('fornecedor').trim().notEmpty(),
@@ -171,8 +183,19 @@ const gravarMovimentosEHistorico = async (itens, produtosPorId, compra, usuarioI
   }
 };
 
-const registrarAuditoria = async ({ req, compra, acao, justificativa, session, anterior }) => {
+const resumoFinanceiroCompra = (contaPagar) => (contaPagar ? {
+  contaPagarId: String(contaPagar._id),
+  descricao: contaPagar.descricao,
+  valor: contaPagar.valor,
+  status: contaPagar.status,
+  dataVencimento: contaPagar.dataVencimento,
+  dataPagamento: contaPagar.dataPagamento,
+} : null);
+
+const registrarAuditoria = async ({ req, compra, acao, justificativa, session, anterior, contaPagar }) => {
   const resumo = {
+    status: compra.status,
+    justificativaCancelamento: compra.justificativaCancelamento,
     fornecedor: compra.fornecedor,
     numeroNF: compra.numeroNF,
     data: compra.data,
@@ -183,6 +206,7 @@ const registrarAuditoria = async ({ req, compra, acao, justificativa, session, a
       qtdEmbalagens: item.qtdEmbalagens,
       valorTotal: item.valorTotal,
     })),
+    financeiro: resumoFinanceiroCompra(contaPagar),
   };
   await Auditoria.create([{
     usuarioSolicitante: req.user.id,
@@ -325,6 +349,7 @@ router.post('/', validadoresCompra, async (req, res) => {
       const itens = await aplicarItensCompra(req.body.itens, req.body.metodoCusteio, produtosPorId, session);
       const valorTotalCompra = itens.reduce((total, item) => total + item.valorTotal, 0);
       const dataVencimentoPagamento = vencimentoValido(req.body.dataVencimentoPagamento || req.body.data);
+      const estadoFinanceiro = estadoFinanceiroDaCompra(dataVencimentoPagamento);
       [compra] = await Purchase.create([{
         fornecedor: req.body.fornecedor,
         numeroNF: req.body.numeroNF,
@@ -342,7 +367,7 @@ router.post('/', validadoresCompra, async (req, res) => {
         fornecedor: compra.fornecedor,
         valor: valorTotalCompra,
         dataVencimento: dataVencimentoPagamento,
-        status: 'pendente',
+        ...estadoFinanceiro,
         usuarioCadastro: req.user.id,
         origem: 'compra',
         compraId: compra._id,
@@ -350,7 +375,7 @@ router.post('/', validadoresCompra, async (req, res) => {
       compra.contaPagarId = contaPagar._id;
       await compra.save({ session });
       await gravarMovimentosEHistorico(itens, produtosPorId, compra, req.user.id, compra.data, session);
-      await registrarAuditoria({ req, compra, acao: 'purchase_create', session });
+      await registrarAuditoria({ req, compra, acao: 'purchase_create', session, contaPagar });
     });
     res.status(201).json(await compra.populate('itens.produtoId', 'nome codigo'));
   } catch (error) {
@@ -372,18 +397,17 @@ router.put('/:id', validadoresCompra, body('justificativa').trim().isLength({ mi
       compra = await Purchase.findById(req.params.id).session(session);
       if (!compra) throw erroCompra('Compra não encontrada', 404);
       if (compra.status === 'cancelada') throw erroCompra('Não é possível editar uma compra cancelada', 409);
-      if (dataEmSaoPaulo(compra.data) < hojeEmSaoPaulo() || dataEmSaoPaulo(req.body.data) < hojeEmSaoPaulo()) {
-        throw erroCompra('Somente compras com data a partir de hoje podem ser alteradas', 409);
-      }
-      const contaPagar = await obterContaPagar(compra, session);
-      if (contaPagar?.status === 'pago') throw erroCompra('Não é possível editar uma compra já paga. Faça um lançamento de ajuste.', 409);
+      validarCompraDoMesCorrente(compra, req.body.data);
+      let contaPagar = await obterContaPagar(compra, session);
 
       const resumoAnterior = {
+        status: compra.status,
         fornecedor: compra.fornecedor,
         numeroNF: compra.numeroNF,
         data: compra.data,
         dataVencimentoPagamento: compra.dataVencimentoPagamento,
         valorTotal: compra.valorTotal,
+        financeiro: resumoFinanceiroCompra(contaPagar),
         itens: compra.itens.map((item) => ({
           produtoId: String(item.produtoId),
           qtdEmbalagens: item.qtdEmbalagens,
@@ -397,6 +421,9 @@ router.put('/:id', validadoresCompra, body('justificativa').trim().isLength({ mi
       const itens = await aplicarItensCompra(req.body.itens, req.body.metodoCusteio, produtosPorId, session);
       const valorTotal = itens.reduce((total, item) => total + item.valorTotal, 0);
       const dataVencimentoPagamento = vencimentoValido(req.body.dataVencimentoPagamento || req.body.data);
+      const estadoFinanceiro = contaPagar?.status === 'pago'
+        ? { status: 'pago', dataPagamento: contaPagar.dataPagamento || new Date() }
+        : estadoFinanceiroDaCompra(dataVencimentoPagamento);
 
       compra.fornecedor = req.body.fornecedor;
       compra.numeroNF = req.body.numeroNF;
@@ -412,7 +439,8 @@ router.put('/:id', validadoresCompra, body('justificativa').trim().isLength({ mi
         contaPagar.fornecedor = compra.fornecedor;
         contaPagar.valor = valorTotal;
         contaPagar.dataVencimento = dataVencimentoPagamento;
-        contaPagar.status = dataVencimentoPagamento < new Date() ? 'atrasado' : 'pendente';
+        contaPagar.status = estadoFinanceiro.status;
+        contaPagar.dataPagamento = estadoFinanceiro.dataPagamento;
         await contaPagar.save({ session });
         compra.contaPagarId = contaPagar._id;
         await compra.save({ session });
@@ -423,11 +451,12 @@ router.put('/:id', validadoresCompra, body('justificativa').trim().isLength({ mi
           fornecedor: compra.fornecedor,
           valor: valorTotal,
           dataVencimento: dataVencimentoPagamento,
-          status: 'pendente',
+          ...estadoFinanceiro,
           usuarioCadastro: req.user.id,
           origem: 'compra',
           compraId: compra._id,
         }], { session });
+        contaPagar = novaContaPagar;
         compra.contaPagarId = novaContaPagar._id;
         await compra.save({ session });
       }
@@ -440,6 +469,7 @@ router.put('/:id', validadoresCompra, body('justificativa').trim().isLength({ mi
         justificativa: req.body.justificativa.trim(),
         session,
         anterior: resumoAnterior,
+        contaPagar,
       });
     });
     res.json(await compra.populate('itens.produtoId', 'nome codigo'));
@@ -462,13 +492,32 @@ router.delete('/:id', body('justificativa').trim().isLength({ min: 10, max: 1000
       compra = await Purchase.findById(req.params.id).session(session);
       if (!compra) throw erroCompra('Compra não encontrada', 404);
       if (compra.status === 'cancelada') throw erroCompra('Esta compra já foi excluída', 409);
+      validarCompraDoMesCorrente(compra, compra.data);
       const contaPagar = await obterContaPagar(compra, session);
-      if (contaPagar?.status === 'pago') throw erroCompra('Não é possível excluir uma compra já paga', 409);
 
       const produtosPorId = await validarReversao(compra, session);
       await reverterEfeitosCompra(compra, produtosPorId, req.user.id, session);
-      if (contaPagar) await Despesa.deleteOne({ _id: contaPagar._id }, { session });
+      if (contaPagar?.status !== 'pago') {
+        if (contaPagar) await Despesa.deleteOne({ _id: contaPagar._id }, { session });
+      } else {
+        contaPagar.descricao = `Pagamento mantido - compra cancelada NF ${compra.numeroNF}`;
+        await contaPagar.save({ session });
+      }
 
+      const resumoAnterior = {
+        status: compra.status,
+        fornecedor: compra.fornecedor,
+        numeroNF: compra.numeroNF,
+        data: compra.data,
+        dataVencimentoPagamento: compra.dataVencimentoPagamento,
+        valorTotal: compra.valorTotal,
+        financeiro: resumoFinanceiroCompra(contaPagar),
+        itens: compra.itens.map((item) => ({
+          produtoId: String(item.produtoId),
+          qtdEmbalagens: item.qtdEmbalagens,
+          valorTotal: item.valorTotal,
+        })),
+      };
       compra.status = 'cancelada';
       compra.justificativaCancelamento = req.body.justificativa.trim();
       compra.canceladaEm = new Date();
@@ -480,6 +529,8 @@ router.delete('/:id', body('justificativa').trim().isLength({ min: 10, max: 1000
         acao: 'purchase_cancel',
         justificativa: req.body.justificativa.trim(),
         session,
+        anterior: resumoAnterior,
+        contaPagar,
       });
     });
     res.json({ msg: 'Compra excluída e efeitos revertidos com sucesso', compraId: compra._id });

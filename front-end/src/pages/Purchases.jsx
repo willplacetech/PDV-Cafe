@@ -17,15 +17,22 @@ const today = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
-const todayInSaoPaulo = () => {
+const dateInSaoPaulo = (date = new Date()) => {
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).formatToParts(new Date());
+  }).formatToParts(new Date(date));
   const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
   return `${values.year}-${values.month}-${values.day}`;
+};
+const currentMonthBounds = () => {
+  const firstDay = `${dateInSaoPaulo().slice(0, 7)}-01`;
+  const [year, month] = firstDay.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return { firstDay, lastDay: `${firstDay.slice(0, 7)}-${String(lastDay).padStart(2, '0')}` };
 };
 const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Outros'];
@@ -51,6 +58,7 @@ const getNextProductCode = (productList) => {
 };
 
 export default function Purchases() {
+  const monthBounds = currentMonthBounds();
   const [products, setProducts] = useState([]);
   const [purchases, setPurchases] = useState([]);
   const [supplierSuggestions, setSupplierSuggestions] = useState([]);
@@ -252,10 +260,10 @@ export default function Purchases() {
       const payload = { ...form, itens };
       if (editingPurchaseId) {
         await api.put(`/compras/${editingPurchaseId}`, payload);
-        showToast('Compra atualizada; estoque, custos e conta a pagar foram sincronizados', 'success');
+        showToast('Compra atualizada; estoque, custos e reflexos financeiros foram sincronizados', 'success');
       } else {
         await api.post('/compras', payload);
-        showToast('Compra registrada; conta a pagar criada e estoque atualizado', 'success');
+        showToast('Compra registrada; financeiro e estoque atualizados conforme o vencimento', 'success');
       }
       setForm(newPurchaseForm());
       setEditingPurchaseId(null);
@@ -301,7 +309,9 @@ export default function Purchases() {
     setDeletingPurchase(true);
     try {
       await api.delete(`/compras/${purchaseToDelete._id}`, { data: { justificativa: deleteJustification.trim() } });
-      showToast('Compra excluída; estoque revertido e conta a pagar removida', 'success');
+      showToast(purchaseToDelete.contaPagarId?.status === 'pago'
+        ? 'Compra excluída e estoque revertido; pagamento real mantido no fluxo de caixa'
+        : 'Compra excluída; estoque revertido e conta pendente removida', 'success');
       setPurchaseToDelete(null);
       setDeleteJustification('');
       await load();
@@ -318,11 +328,11 @@ export default function Purchases() {
       <div className="purchases-grid">
         <label>Fornecedor<input required list="purchase-supplier-suggestions" value={form.fornecedor} onChange={(event) => setForm({ ...form, fornecedor: event.target.value })} /><datalist id="purchase-supplier-suggestions">{supplierSuggestions.map((supplier) => <option key={supplier} value={supplier} />)}</datalist></label>
         <label>Numero da NF<input required value={form.numeroNF} onChange={(event) => setForm({ ...form, numeroNF: event.target.value })} /></label>
-        <label>Data<input required type="date" min={editingPurchaseId ? todayInSaoPaulo() : undefined} value={form.data} onChange={(event) => setForm({ ...form, data: event.target.value })} /></label>
+        <label>Data<input required type="date" min={editingPurchaseId ? monthBounds.firstDay : undefined} max={editingPurchaseId ? monthBounds.lastDay : undefined} value={form.data} onChange={(event) => setForm({ ...form, data: event.target.value })} /></label>
         <label>Vencimento do pagamento<input required type="date" value={form.dataVencimentoPagamento} onChange={(event) => setForm({ ...form, dataVencimentoPagamento: event.target.value })} /></label>
         <label>Atualizacao de custo<SearchableSelect value={form.metodoCusteio} onChange={(event) => setForm({ ...form, metodoCusteio: event.target.value })}><option value="media_ponderada">Media ponderada</option><option value="ultimo_preco">Ultimo preco</option></SearchableSelect></label>
       </div>
-      <p className="purchase-payment-note">A compra cria uma conta pendente no Contas a Pagar com esse vencimento. A saída de caixa será registrada quando a conta for marcada como paga.</p>
+      <p className="purchase-payment-note">Compras com vencimento futuro geram pendência no Contas a Pagar. Com vencimento hoje ou anterior, entram como pagas e registram a saída no fluxo de caixa.</p>
       {editingPurchaseId && <label className="purchase-justification-field">Justificativa da alteração<input required minLength="10" maxLength="1000" value={form.justificativa} onChange={(event) => setForm({ ...form, justificativa: event.target.value })} placeholder="Explique o motivo da correção" /></label>}
       <div className="purchases-section-heading"><h2>Itens da compra</h2><button type="button" className="secondary btn btn-ghost" onClick={addItem}>Adicionar item</button></div>
       <div className="purchase-items">{form.itens.map((item, index) => {
@@ -364,9 +374,9 @@ export default function Purchases() {
         const snapshotsDisponiveis = itens.length > 0 && itens.every((item) => item.snapshotAntes && item.snapshotDepois);
         const contaPaga = purchase.contaPagarId?.status === 'pago';
         const vencimentoPagamento = purchase.contaPagarId?.dataVencimento || purchase.dataVencimentoPagamento;
-        const podeExcluir = purchase.status !== 'cancelada' && snapshotsDisponiveis && !contaPaga;
-        const dataCompra = String(purchase.data || '').slice(0, 10);
-        const podeAlterar = podeExcluir && dataCompra >= todayInSaoPaulo();
+        const compraDoMesCorrente = dateInSaoPaulo(purchase.data).slice(0, 7) === monthBounds.firstDay.slice(0, 7);
+        const podeExcluir = purchase.status !== 'cancelada' && snapshotsDisponiveis && compraDoMesCorrente;
+        const podeAlterar = podeExcluir;
         return (
           <article key={purchase._id} className={`purchase-history-card ${isExpanded ? 'expanded' : ''}`}>
             <div className="purchase-history-header" onClick={() => setExpandedPurchaseId(isExpanded ? null : purchase._id)}>
@@ -416,16 +426,16 @@ export default function Purchases() {
                   <span><strong>Método de custeio:</strong> {purchase.metodoCusteio === 'media_ponderada' ? 'Média ponderada' : 'Último preço'}</span>
                   <span><strong>Data da compra:</strong> {new Date(purchase.data).toLocaleDateString('pt-BR')}</span>
                   <span><strong>Vencimento:</strong> {vencimentoPagamento ? new Date(vencimentoPagamento).toLocaleDateString('pt-BR') : '—'}</span>
-                  <span><strong>Conta a pagar:</strong> {!purchase.contaPagarId ? 'Não vinculada' : contaPaga ? 'Paga' : purchase.contaPagarId.status === 'atrasado' ? 'Atrasada' : 'Pendente'}</span>
+                  <span><strong>Financeiro:</strong> {!purchase.contaPagarId ? 'Não vinculado' : contaPaga ? 'Paga' : purchase.contaPagarId.status === 'atrasado' ? 'Atrasada' : 'Pendente'}</span>
                   {purchase.createdBy && <span><strong>Registrado por:</strong> {purchase.createdBy.username || purchase.createdBy}</span>}
                   {purchase.status === 'cancelada' && purchase.justificativaCancelamento && <span><strong>Justificativa da exclusão:</strong> {purchase.justificativaCancelamento}</span>}
                 </div>
                 {purchase.status !== 'cancelada' && <div className="purchase-history-actions">
                   {podeAlterar && <button type="button" className="secondary btn btn-ghost" onClick={() => editarCompra(purchase)}>Editar compra</button>}
                   {podeExcluir && <button type="button" className="danger" onClick={() => { setPurchaseToDelete(purchase); setDeleteJustification(''); }}>Excluir compra</button>}
-                  {contaPaga && <span className="purchase-management-note">Compra paga não pode ser alterada ou excluída.</span>}
+                  {contaPaga && podeAlterar && <span className="purchase-management-note">A saída já paga será preservada no fluxo de caixa ao excluir; corrigir a compra atualiza o valor da saída.</span>}
                   {!contaPaga && !snapshotsDisponiveis && <span className="purchase-management-note">Registro legado sem histórico de reversão segura; faça um ajuste de estoque separado.</span>}
-                  {!contaPaga && snapshotsDisponiveis && !podeAlterar && <span className="purchase-management-note">Apenas compras com data de hoje em diante podem ser alteradas.</span>}
+                  {!compraDoMesCorrente && snapshotsDisponiveis && <span className="purchase-management-note">Somente compras do mês corrente podem ser alteradas ou excluídas.</span>}
                 </div>}
               </div>
             )}
@@ -437,7 +447,7 @@ export default function Purchases() {
     </section>
     {purchaseToDelete && <div className="purchase-supply-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !deletingPurchase) setPurchaseToDelete(null); }}>
       <form onSubmit={excluirCompra} className="purchase-supply-modal" role="dialog" aria-modal="true" aria-labelledby="delete-purchase-title">
-        <div className="purchase-supply-modal-header"><div><h2 id="delete-purchase-title">Excluir compra</h2><p>NF {purchaseToDelete.numeroNF} · {purchaseToDelete.fornecedor}. O estoque será revertido e a conta pendente removida.</p></div><button type="button" className="purchase-supply-button purchase-supply-close" onClick={() => setPurchaseToDelete(null)} aria-label="Fechar" disabled={deletingPurchase}>×</button></div>
+        <div className="purchase-supply-modal-header"><div><h2 id="delete-purchase-title">Excluir compra</h2><p>NF {purchaseToDelete.numeroNF} · {purchaseToDelete.fornecedor}. O estoque e os custos serão revertidos.{purchaseToDelete.contaPagarId?.status === 'pago' ? ' O pagamento já realizado será mantido no fluxo de caixa.' : ' A conta pendente será removida.'}</p></div><button type="button" className="purchase-supply-button purchase-supply-close" onClick={() => setPurchaseToDelete(null)} aria-label="Fechar" disabled={deletingPurchase}>×</button></div>
         <label className="purchase-supply-field full">Justificativa obrigatória<textarea required minLength="10" maxLength="1000" rows="4" value={deleteJustification} onChange={(event) => setDeleteJustification(event.target.value)} placeholder="Explique o motivo da exclusão" /></label>
         <div className="purchase-supply-actions"><button type="button" className="purchase-supply-button purchase-supply-button-secondary" onClick={() => setPurchaseToDelete(null)} disabled={deletingPurchase}>Cancelar</button><button type="submit" className="purchase-supply-button purchase-supply-button-primary" disabled={deletingPurchase}>{deletingPurchase ? 'Excluindo...' : 'Confirmar exclusão'}</button></div>
       </form>

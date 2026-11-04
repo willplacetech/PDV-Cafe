@@ -37,6 +37,7 @@ const dataHojeEmSaoPaulo = (date = new Date()) => {
   const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
   return `${values.year}-${values.month}-${values.day}`;
 };
+const dataInicioMesSaoPaulo = () => `${dataHojeEmSaoPaulo().slice(0, 7)}-01`;
 
 beforeEach(async () => {
   tenant = await Tenant.create({ nome: 'API test', slug: 'api-test', telefone: '11999999999', endereco: 'Rua de teste' });
@@ -719,7 +720,7 @@ describe('API Endpoints', () => {
     expect(excluirContaDiretamente.statusCode).toBe(409);
   });
 
-  test('POST /api/compras → vencimento de hoje continua pendente até a confirmação do pagamento', async () => {
+  test('POST /api/compras → compra com vencimento hoje entra como paga', async () => {
     const hoje = dataHojeEmSaoPaulo();
     const criada = await request(app)
       .post('/api/compras')
@@ -735,8 +736,15 @@ describe('API Endpoints', () => {
     expect(criada.statusCode).toBe(201);
     const compra = await Purchase.findOne({ numeroNF: 'NF-VENCIMENTO-HOJE' });
     const conta = await Despesa.findOne({ compraId: compra._id });
-    expect(conta.status).toBe('pendente');
+    expect(conta.status).toBe('pago');
+    expect(dataHojeEmSaoPaulo(conta.dataPagamento)).toBe(hoje);
     expect(conta.dataVencimento.toISOString()).toBe(`${hoje}T23:59:59.999Z`);
+    const fluxo = await request(app)
+      .get('/api/contabil/fluxo-caixa')
+      .query({ mes: hoje.slice(0, 7) })
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(fluxo.statusCode).toBe(200);
+    expect(fluxo.body.totalSaidas).toBe(7);
   });
 
   test('GET /api/compras/fornecedores → sugere nomes usados em compras ativas sem duplicatas', async () => {
@@ -771,17 +779,16 @@ describe('API Endpoints', () => {
     expect(resposta.body).toEqual(['Fornecedor Alfa']);
   });
 
-  test('PUT /api/compras/:id → bloqueia alteração de compra anterior a hoje', async () => {
-    const hoje = new Date(`${dataHojeEmSaoPaulo()}T12:00:00.000Z`);
-    hoje.setUTCDate(hoje.getUTCDate() - 1);
-    const ontem = hoje.toISOString().slice(0, 10);
+  test('PUT /api/compras/:id → bloqueia alteração de compra de mês anterior', async () => {
+    const [ano, mes] = dataHojeEmSaoPaulo().split('-').map(Number);
+    const mesAnterior = new Date(Date.UTC(ano, mes - 2, 15)).toISOString().slice(0, 10);
     const criada = await request(app)
       .post('/api/compras')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         fornecedor: 'Fornecedor Histórico',
         numeroNF: 'NF-DATA-ANTERIOR',
-        data: ontem,
+        data: mesAnterior,
         dataVencimentoPagamento: '2099-01-15',
         metodoCusteio: 'media_ponderada',
         itens: [{ produtoId: insumo._id, valorTotal: 7, qtdEmbalagens: 1, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
@@ -804,7 +811,7 @@ describe('API Endpoints', () => {
 
     expect(criada.statusCode).toBe(201);
     expect(resposta.statusCode).toBe(409);
-    expect(resposta.body.msg).toContain('a partir de hoje');
+    expect(resposta.body.msg).toContain('mês corrente');
     expect((await Purchase.findById(compra._id)).fornecedor).toBe('Fornecedor Histórico');
     expect((await Product.findById(insumo._id)).estoqueEmbalagens).toBe(estoqueAnterior);
   });
@@ -836,11 +843,11 @@ describe('API Endpoints', () => {
     expect(await Despesa.countDocuments({ compraId: compra._id })).toBe(1);
   });
 
-  test('PUT/DELETE /api/compras → exige justificativa e reverte estoque, custo e conta a pagar', async () => {
+  test('PUT/DELETE /api/compras → permite corrigir dentro do mês e reverte estoque, custos e finanças', async () => {
     const basePayload = {
       fornecedor: 'Fornecedor CRUD',
       numeroNF: 'NF-CRUD',
-      data: dataHojeEmSaoPaulo(),
+      data: dataInicioMesSaoPaulo(),
       dataVencimentoPagamento: '2099-01-15T00:00:00.000Z',
       metodoCusteio: 'media_ponderada',
       itens: [{ produtoId: insumo._id, valorTotal: 14, qtdEmbalagens: 2, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
@@ -857,12 +864,13 @@ describe('API Endpoints', () => {
       .send({ ...basePayload, justificativa: 'curta' });
     expect(semJustificativa.statusCode).toBe(400);
 
-    const ontem = new Date(`${dataHojeEmSaoPaulo()}T12:00:00.000Z`);
+    const [anoAtual, mesAtual] = dataHojeEmSaoPaulo().split('-').map(Number);
+    const ontem = new Date(Date.UTC(anoAtual, mesAtual - 1, 1));
     ontem.setUTCDate(ontem.getUTCDate() - 1);
     const dataAnterior = await request(app)
       .put(`/api/compras/${compra._id}`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ ...basePayload, data: ontem.toISOString().slice(0, 10), justificativa: 'A data anterior deve ser bloqueada' });
+      .send({ ...basePayload, data: ontem.toISOString().slice(0, 10), justificativa: 'A data fora do mês deve ser bloqueada' });
     expect(dataAnterior.statusCode).toBe(409);
 
     const atualizada = await request(app)
@@ -871,6 +879,7 @@ describe('API Endpoints', () => {
       .send({
         ...basePayload,
         numeroNF: 'NF-CRUD-CORRIGIDA',
+        data: dataHojeEmSaoPaulo(),
         itens: [{ ...basePayload.itens[0], valorTotal: 21, qtdEmbalagens: 3 }],
         justificativa: 'Correção da nota recebida',
       });
@@ -895,10 +904,12 @@ describe('API Endpoints', () => {
     expect(auditoriaAtualizacao.detalhes).toContain('Correção da nota recebida');
     expect(auditoriaAtualizacao.detalhes).toContain('"valorTotal":14');
     expect(auditoriaAtualizacao.detalhes).toContain('"valorTotal":21');
+    expect(auditoriaAtualizacao.detalhes).toContain('"status":"pendente"');
     expect(auditoriaExclusao.detalhes).toContain('Lançamento duplicado na nota');
+    expect(auditoriaExclusao.detalhes).toContain('"status":"pendente"');
   });
 
-  test('conta a pagar de compra gera saída de caixa ao marcar pagamento, sem virar despesa operacional na DRE', async () => {
+  test('compra paga pode ser corrigida e cancelada no mês, preservando a saída real no caixa', async () => {
     const dataCompra = new Date().toISOString();
     const criada = await request(app)
       .post('/api/compras')
@@ -919,11 +930,33 @@ describe('API Endpoints', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ dataPagamento: dataCompra });
     expect(paga.statusCode).toBe(200);
+    const dataPagamentoOriginal = (await Despesa.findById(conta._id)).dataPagamento.toISOString();
+    const atualizada = await request(app)
+      .put(`/api/compras/${compra._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        fornecedor: 'Fornecedor Fluxo',
+        numeroNF: 'NF-FLUXO',
+        data: dataHojeEmSaoPaulo(),
+        dataVencimentoPagamento: '2099-01-15T00:00:00.000Z',
+        metodoCusteio: 'media_ponderada',
+        itens: [{ produtoId: insumo._id, valorTotal: 20, qtdEmbalagens: 2, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+        justificativa: 'Correção de valor conciliada',
+      });
+    expect(atualizada.statusCode).toBe(200);
+    expect((await Despesa.findById(conta._id)).valor).toBe(20);
+    expect((await Despesa.findById(conta._id)).status).toBe('pago');
+    expect((await Despesa.findById(conta._id)).dataPagamento.toISOString()).toBe(dataPagamentoOriginal);
+
     const exclusaoCompraPaga = await request(app)
       .delete(`/api/compras/${compra._id}`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ justificativa: 'Compra foi paga e conciliada' });
-    expect(exclusaoCompraPaga.statusCode).toBe(409);
+    expect(exclusaoCompraPaga.statusCode).toBe(200);
+    expect((await Purchase.findById(compra._id)).status).toBe('cancelada');
+    expect((await Despesa.findById(conta._id)).status).toBe('pago');
+    expect((await Despesa.findById(conta._id)).descricao).toBe('Pagamento mantido - compra cancelada NF NF-FLUXO');
+    expect((await Product.findById(insumo._id)).estoqueEmbalagens).toBe(0);
 
     const mes = dataCompra.slice(0, 7);
     const [fluxo, dre] = await Promise.all([
@@ -931,10 +964,17 @@ describe('API Endpoints', () => {
       request(app).get('/api/contabil/dre').query({ mes }).set('Authorization', `Bearer ${adminToken}`),
     ]);
     expect(fluxo.statusCode).toBe(200);
-    expect(fluxo.body.totalSaidas).toBe(18);
+    expect(fluxo.body.totalSaidas).toBe(20);
     expect(dre.statusCode).toBe(200);
-    expect(dre.body.cmvComponentes.compras).toBe(18);
+    expect(dre.body.cmvComponentes.compras).toBe(0);
     expect(dre.body.despesasOperacionais).toBe(0);
+    const auditoriaAtualizacao = await Auditoria.findOne({ acao: 'purchase_update' });
+    const auditoriaExclusao = await Auditoria.findOne({ acao: 'purchase_cancel' });
+    expect(auditoriaAtualizacao.detalhes).toContain('"valor":18');
+    expect(auditoriaAtualizacao.detalhes).toContain('"valor":20');
+    expect(auditoriaAtualizacao.detalhes).toContain('"status":"pago"');
+    expect(auditoriaExclusao.detalhes).toContain('"status":"pago"');
+    expect(auditoriaExclusao.detalhes).toContain('"descricao":"Pagamento mantido - compra cancelada NF NF-FLUXO"');
   });
 
   test('POST /api/compras → aceita quantidade fracionada em kg', async () => {
