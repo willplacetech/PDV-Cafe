@@ -18,6 +18,17 @@ const jwtSecret = process.env.JWT_SECRET || 'desenvolvimento-altere-esta-chave';
 let adminToken, operadorToken, cozinhaToken;
 let produtoVenda, insumo;
 
+const dataHojeEmSaoPaulo = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
 beforeEach(async () => {
   const admin = await User.create({ username: 'admin', password: 'senha-segura-123', role: 'admin' });
   const operador = await User.create({ username: 'operador', password: 'senha-segura-123', role: 'operador' });
@@ -620,7 +631,7 @@ describe('API Endpoints', () => {
   });
 
   test('POST /api/compras → vencimento de hoje continua pendente até a confirmação do pagamento', async () => {
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = dataHojeEmSaoPaulo();
     const criada = await request(app)
       .post('/api/compras')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -637,6 +648,76 @@ describe('API Endpoints', () => {
     const conta = await Despesa.findOne({ compraId: compra._id });
     expect(conta.status).toBe('pendente');
     expect(conta.dataVencimento.toISOString()).toBe(`${hoje}T23:59:59.999Z`);
+  });
+
+  test('GET /api/compras/fornecedores → sugere nomes usados em compras ativas sem duplicatas', async () => {
+    const admin = await User.findOne({ username: 'admin' });
+    const compraBase = {
+      numeroNF: 'NF-FORNECEDOR',
+      data: new Date(),
+      metodoCusteio: 'media_ponderada',
+      itens: [{
+        produtoId: insumo._id,
+        valorTotal: 7,
+        qtdEmbalagens: 1,
+        conteudoPorEmbalagem: 1,
+        unidadeConteudo: 'kg',
+        quantidadeTotal: 1,
+        custoUnitario: 7,
+      }],
+      valorTotal: 7,
+      createdBy: admin._id,
+    };
+    await Purchase.create([
+      { ...compraBase, fornecedor: 'Fornecedor Alfa' },
+      { ...compraBase, fornecedor: ' fornecedor alfa ' , numeroNF: 'NF-FORNECEDOR-2' },
+      { ...compraBase, fornecedor: 'Fornecedor Cancelado', status: 'cancelada', numeroNF: 'NF-FORNECEDOR-3' },
+    ]);
+
+    const resposta = await request(app)
+      .get('/api/compras/fornecedores')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(resposta.statusCode).toBe(200);
+    expect(resposta.body).toEqual(['Fornecedor Alfa']);
+  });
+
+  test('PUT /api/compras/:id → bloqueia alteração de compra anterior a hoje', async () => {
+    const hoje = new Date(`${dataHojeEmSaoPaulo()}T12:00:00.000Z`);
+    hoje.setUTCDate(hoje.getUTCDate() - 1);
+    const ontem = hoje.toISOString().slice(0, 10);
+    const criada = await request(app)
+      .post('/api/compras')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        fornecedor: 'Fornecedor Histórico',
+        numeroNF: 'NF-DATA-ANTERIOR',
+        data: ontem,
+        dataVencimentoPagamento: '2099-01-15',
+        metodoCusteio: 'media_ponderada',
+        itens: [{ produtoId: insumo._id, valorTotal: 7, qtdEmbalagens: 1, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+      });
+    const compra = await Purchase.findOne({ numeroNF: 'NF-DATA-ANTERIOR' });
+    const estoqueAnterior = (await Product.findById(insumo._id)).estoqueEmbalagens;
+
+    const resposta = await request(app)
+      .put(`/api/compras/${compra._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        fornecedor: 'Fornecedor Histórico Corrigido',
+        numeroNF: 'NF-DATA-ANTERIOR',
+        data: dataHojeEmSaoPaulo(),
+        dataVencimentoPagamento: '2099-01-15',
+        metodoCusteio: 'media_ponderada',
+        itens: [{ produtoId: insumo._id, valorTotal: 10, qtdEmbalagens: 1, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+        justificativa: 'Correção de teste de limite de data',
+      });
+
+    expect(criada.statusCode).toBe(201);
+    expect(resposta.statusCode).toBe(409);
+    expect(resposta.body.msg).toContain('a partir de hoje');
+    expect((await Purchase.findById(compra._id)).fornecedor).toBe('Fornecedor Histórico');
+    expect((await Product.findById(insumo._id)).estoqueEmbalagens).toBe(estoqueAnterior);
   });
 
   test('DELETE /api/compras → bloqueia reversão quando o produto mudou depois da entrada', async () => {
@@ -670,7 +751,7 @@ describe('API Endpoints', () => {
     const basePayload = {
       fornecedor: 'Fornecedor CRUD',
       numeroNF: 'NF-CRUD',
-      data: new Date().toISOString(),
+      data: dataHojeEmSaoPaulo(),
       dataVencimentoPagamento: '2099-01-15T00:00:00.000Z',
       metodoCusteio: 'media_ponderada',
       itens: [{ produtoId: insumo._id, valorTotal: 14, qtdEmbalagens: 2, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
@@ -686,6 +767,14 @@ describe('API Endpoints', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ ...basePayload, justificativa: 'curta' });
     expect(semJustificativa.statusCode).toBe(400);
+
+    const ontem = new Date(`${dataHojeEmSaoPaulo()}T12:00:00.000Z`);
+    ontem.setUTCDate(ontem.getUTCDate() - 1);
+    const dataAnterior = await request(app)
+      .put(`/api/compras/${compra._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ ...basePayload, data: ontem.toISOString().slice(0, 10), justificativa: 'A data anterior deve ser bloqueada' });
+    expect(dataAnterior.statusCode).toBe(409);
 
     const atualizada = await request(app)
       .put(`/api/compras/${compra._id}`)

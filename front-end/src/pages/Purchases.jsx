@@ -17,6 +17,16 @@ const today = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
+const todayInSaoPaulo = () => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
 const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Outros'];
 const formatQuantidade = (valor, unidade) => `${Number(valor || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${unidade}`;
@@ -43,6 +53,7 @@ const getNextProductCode = (productList) => {
 export default function Purchases() {
   const [products, setProducts] = useState([]);
   const [purchases, setPurchases] = useState([]);
+  const [supplierSuggestions, setSupplierSuggestions] = useState([]);
   const [totalPurchases, setTotalPurchases] = useState(0);
   const paginacaoCompras = useUrlPagination('compras');
   const { paginaAtual, limiteAtual } = paginacaoCompras;
@@ -86,6 +97,18 @@ export default function Purchases() {
     const initialLoad = window.setTimeout(() => { void load(); }, 0);
     return () => window.clearTimeout(initialLoad);
   }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    api.get('/compras/fornecedores')
+      .then(({ data }) => {
+        if (active) setSupplierSuggestions(Array.isArray(data) ? data : []);
+      })
+      .catch((error) => {
+        if (active) showToast(error.response?.data?.msg || 'Não foi possível carregar sugestões de fornecedores', 'warning');
+      });
+    return () => { active = false; };
+  }, [showToast]);
 
   const updateItem = (index, field, value) => {
     setForm((current) => ({ ...current, itens: current.itens.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
@@ -293,9 +316,9 @@ export default function Purchases() {
     <header className="page-heading"><div><span className="purchases-eyebrow">PRODUCAO / COMPRAS</span><h1>Compras</h1><p>Registre entradas de insumos e atualize o custo pelo recebimento.</p></div></header>
     <form className="purchases-form" onSubmit={submit}>
       <div className="purchases-grid">
-        <label>Fornecedor<input required value={form.fornecedor} onChange={(event) => setForm({ ...form, fornecedor: event.target.value })} /></label>
+        <label>Fornecedor<input required list="purchase-supplier-suggestions" value={form.fornecedor} onChange={(event) => setForm({ ...form, fornecedor: event.target.value })} /><datalist id="purchase-supplier-suggestions">{supplierSuggestions.map((supplier) => <option key={supplier} value={supplier} />)}</datalist></label>
         <label>Numero da NF<input required value={form.numeroNF} onChange={(event) => setForm({ ...form, numeroNF: event.target.value })} /></label>
-        <label>Data<input required type="date" value={form.data} onChange={(event) => setForm({ ...form, data: event.target.value })} /></label>
+        <label>Data<input required type="date" min={editingPurchaseId ? todayInSaoPaulo() : undefined} value={form.data} onChange={(event) => setForm({ ...form, data: event.target.value })} /></label>
         <label>Vencimento do pagamento<input required type="date" value={form.dataVencimentoPagamento} onChange={(event) => setForm({ ...form, dataVencimentoPagamento: event.target.value })} /></label>
         <label>Atualizacao de custo<SearchableSelect value={form.metodoCusteio} onChange={(event) => setForm({ ...form, metodoCusteio: event.target.value })}><option value="media_ponderada">Media ponderada</option><option value="ultimo_preco">Ultimo preco</option></SearchableSelect></label>
       </div>
@@ -341,7 +364,9 @@ export default function Purchases() {
         const snapshotsDisponiveis = itens.length > 0 && itens.every((item) => item.snapshotAntes && item.snapshotDepois);
         const contaPaga = purchase.contaPagarId?.status === 'pago';
         const vencimentoPagamento = purchase.contaPagarId?.dataVencimento || purchase.dataVencimentoPagamento;
-        const podeAlterar = purchase.status !== 'cancelada' && snapshotsDisponiveis && !contaPaga;
+        const podeExcluir = purchase.status !== 'cancelada' && snapshotsDisponiveis && !contaPaga;
+        const dataCompra = String(purchase.data || '').slice(0, 10);
+        const podeAlterar = podeExcluir && dataCompra >= todayInSaoPaulo();
         return (
           <article key={purchase._id} className={`purchase-history-card ${isExpanded ? 'expanded' : ''}`}>
             <div className="purchase-history-header" onClick={() => setExpandedPurchaseId(isExpanded ? null : purchase._id)}>
@@ -396,10 +421,11 @@ export default function Purchases() {
                   {purchase.status === 'cancelada' && purchase.justificativaCancelamento && <span><strong>Justificativa da exclusão:</strong> {purchase.justificativaCancelamento}</span>}
                 </div>
                 {purchase.status !== 'cancelada' && <div className="purchase-history-actions">
-                  {podeAlterar ? <>
-                    <button type="button" className="secondary btn btn-ghost" onClick={() => editarCompra(purchase)}>Editar compra</button>
-                    <button type="button" className="danger" onClick={() => { setPurchaseToDelete(purchase); setDeleteJustification(''); }}>Excluir compra</button>
-                  </> : <span className="purchase-management-note">{contaPaga ? 'Compra paga não pode ser alterada ou excluída.' : 'Registro legado sem histórico de reversão segura; faça um ajuste de estoque separado.'}</span>}
+                  {podeAlterar && <button type="button" className="secondary btn btn-ghost" onClick={() => editarCompra(purchase)}>Editar compra</button>}
+                  {podeExcluir && <button type="button" className="danger" onClick={() => { setPurchaseToDelete(purchase); setDeleteJustification(''); }}>Excluir compra</button>}
+                  {contaPaga && <span className="purchase-management-note">Compra paga não pode ser alterada ou excluída.</span>}
+                  {!contaPaga && !snapshotsDisponiveis && <span className="purchase-management-note">Registro legado sem histórico de reversão segura; faça um ajuste de estoque separado.</span>}
+                  {!contaPaga && snapshotsDisponiveis && !podeAlterar && <span className="purchase-management-note">Apenas compras com data de hoje em diante podem ser alteradas.</span>}
                 </div>}
               </div>
             )}
