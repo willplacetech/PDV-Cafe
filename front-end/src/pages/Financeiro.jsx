@@ -49,6 +49,7 @@ export default function Financeiro() {
     dataInicio: searchParams.get('dataInicio') || '',
     dataFim: searchParams.get('dataFim') || '',
   }));
+  const [buscaDescricao, setBuscaDescricao] = useState('');
   const [form, setForm] = useState({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
   const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
   const [alterarTodasRecorrentes, setAlterarTodasRecorrentes] = useState(false);
@@ -80,6 +81,7 @@ export default function Financeiro() {
             ...(filtro.categoria ? { categoria: filtro.categoria } : {}),
             ...(filtro.dataInicio ? { dataInicio: filtro.dataInicio } : {}),
             ...(filtro.dataFim ? { dataFim: filtro.dataFim } : {}),
+            ...(buscaDescricao.trim() ? { descricao: buscaDescricao.trim() } : {}),
           },
         });
         const data = despesasResponse.data;
@@ -110,7 +112,7 @@ export default function Financeiro() {
 
     load();
     return () => { active = false; };
-  }, [mesSelecionado, mesComparacaoA, mesComparacaoB, showToast, tab, tentativaCarregamento, user, paginaAtual, limiteAtual, filtro]);
+  }, [mesSelecionado, mesComparacaoA, mesComparacaoB, showToast, tab, tentativaCarregamento, user, paginaAtual, limiteAtual, filtro, buscaDescricao]);
 
   useEffect(() => {
     if (!user || user.role !== 'admin' || tab !== 'despesas') return undefined;
@@ -139,6 +141,7 @@ export default function Financeiro() {
   }, [mesSelecionado, showToast, tab, tentativaResumo, user]);
 
   const despesasFiltradas = despesas;
+  const temFiltrosDespesa = Boolean(filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim || buscaDescricao.trim());
 
   const recarregarDespesas = async () => {
     const mesConsultado = mesSelecionado;
@@ -154,6 +157,7 @@ export default function Financeiro() {
             ...(filtro.categoria ? { categoria: filtro.categoria } : {}),
             ...(filtro.dataInicio ? { dataInicio: filtro.dataInicio } : {}),
             ...(filtro.dataFim ? { dataFim: filtro.dataFim } : {}),
+            ...(buscaDescricao.trim() ? { descricao: buscaDescricao.trim() } : {}),
           },
         }),
         api.get('/despesas/resumo', { params: { mes: mesConsultado } }),
@@ -193,8 +197,14 @@ export default function Financeiro() {
     paginacaoDespesas.definirFiltro(nome, valor);
   };
 
+  const alterarBuscaDescricao = (event) => {
+    setBuscaDescricao(event.target.value);
+    paginacaoDespesas.alterarPagina(1);
+  };
+
   const limparFiltrosDespesas = () => {
     setFiltro({ status: '', categoria: '', dataInicio: '', dataFim: '' });
+    setBuscaDescricao('');
     paginacaoDespesas.limparFiltros(['status', 'categoria', 'dataInicio', 'dataFim']);
   };
 
@@ -505,6 +515,11 @@ export default function Financeiro() {
 
             <div className="filters-grid">
               <label>
+                Buscar por descrição
+                <input type="search" value={buscaDescricao} onChange={alterarBuscaDescricao} placeholder="Digite para filtrar" />
+              </label>
+
+              <label>
                 Status
                 <SearchableSelect value={filtro.status} onChange={(event) => alterarFiltroDespesa('status', event.target.value)}>
                   <option value="">Todos</option>
@@ -540,10 +555,10 @@ export default function Financeiro() {
                 carregando={carregando}
                 erro={erroCarregamento}
                 vazio={totalDespesas === 0}
-                tituloVazio={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? 'Nenhuma despesa encontrada para os filtros atuais' : 'Nenhuma despesa cadastrada'}
-                mensagemVazia={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? 'Ajuste ou limpe os filtros para ver outras despesas.' : undefined}
-                acaoVaziaTexto={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? 'Limpar filtros' : undefined}
-                onAcaoVazia={filtro.status || filtro.categoria || filtro.dataInicio || filtro.dataFim ? limparFiltrosDespesas : undefined}
+                tituloVazio={temFiltrosDespesa ? 'Nenhuma despesa encontrada para os filtros atuais' : 'Nenhuma despesa cadastrada'}
+                mensagemVazia={temFiltrosDespesa ? 'Ajuste ou limpe os filtros para ver outras despesas.' : undefined}
+                acaoVaziaTexto={temFiltrosDespesa ? 'Limpar filtros' : undefined}
+                onAcaoVazia={temFiltrosDespesa ? limparFiltrosDespesas : undefined}
                 onRetry={retryFinanceiro}
               >
               <table className="financeiro-table">

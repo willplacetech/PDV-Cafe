@@ -34,6 +34,40 @@ beforeEach(async () => {
 });
 
 describe('API Endpoints', () => {
+  test('GET /api/despesas → filtra descrições por trecho sem diferenciar maiúsculas e respeita a paginação', async () => {
+    await Despesa.create([
+      { descricao: 'Compra chapa elétrica', categoria: 'Outros', valor: 125.60, dataVencimento: new Date('2026-10-10T00:00:00.000Z') },
+      { descricao: 'Reparo da CHAPA', categoria: 'Outros', valor: 80, dataVencimento: new Date('2026-10-11T00:00:00.000Z') },
+      { descricao: 'Compra de café', categoria: 'Outros', valor: 50, dataVencimento: new Date('2026-10-12T00:00:00.000Z') },
+    ]);
+
+    const resposta = await request(app)
+      .get('/api/despesas')
+      .query({ descricao: 'chapa', pagina: 1, limite: 1 })
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(resposta.statusCode).toBe(200);
+    expect(resposta.body.total).toBe(2);
+    expect(resposta.body.dados).toHaveLength(1);
+    expect(resposta.body.dados[0].descricao).toBe('Compra chapa elétrica');
+  });
+
+  test('GET /api/despesas → trata caracteres especiais da busca como texto literal', async () => {
+    await Despesa.create([
+      { descricao: 'Plano [A] de internet', categoria: 'Outros', valor: 100, dataVencimento: new Date('2026-10-10T00:00:00.000Z') },
+      { descricao: 'Plano A de internet', categoria: 'Outros', valor: 100, dataVencimento: new Date('2026-10-11T00:00:00.000Z') },
+    ]);
+
+    const resposta = await request(app)
+      .get('/api/despesas')
+      .query({ descricao: '[A]' })
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(resposta.statusCode).toBe(200);
+    expect(resposta.body).toHaveLength(1);
+    expect(resposta.body[0].descricao).toBe('Plano [A] de internet');
+  });
+
   test('GET /api/despesas/central-resumo → separa vencimentos de hoje, da semana e atrasados', async () => {
     const hoje = new Date(`${new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())}T00:00:00.000Z`);
     const inicioSemana = new Date(hoje);

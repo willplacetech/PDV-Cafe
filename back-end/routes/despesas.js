@@ -65,6 +65,10 @@ router.get('/', async (req, res) => {
     const filtro = {};
     if (req.query.status) filtro.status = req.query.status;
     if (req.query.categoria) filtro.categoria = req.query.categoria;
+    const descricao = typeof req.query.descricao === 'string' ? req.query.descricao.trim() : '';
+    if (descricao) {
+      filtro.descricao = { $regex: descricao.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+    }
     if (req.query.dataInicio || req.query.dataFim) {
       filtro.dataVencimento = {};
       if (req.query.dataInicio) filtro.dataVencimento.$gte = new Date(`${req.query.dataInicio}T00:00:00`);
