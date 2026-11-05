@@ -7,9 +7,17 @@ const Tenant = require('../models/Tenant');
 const MesasSettings = require('../models/MesasSettings');
 const { garantirTokensMesas } = require('../utils/mesaTokens');
 const { runWithTenant } = require('../utils/tenantContext');
+const rateLimit = require('express-rate-limit');
 
 const router = express.Router();
 const STATUS_PERMITIDOS = new Set(['pendente', 'confirmada', 'check_in', 'cancelada', 'no_show']);
+const limitarCriacaoPublica = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { msg: 'Muitas solicitações de reserva. Tente novamente mais tarde.' },
+});
 
 const normalizarTelefone = (telefone) => String(telefone || '').replace(/\D/g, '');
 const dataValida = (data) => {
@@ -64,7 +72,7 @@ const buscarMesa = async (mesaToken) => {
   return settings.mesas.find(mesa => mesa.ativa && mesa.token === mesaToken) || null;
 };
 
-router.post('/', tenantPublico, async (req, res, next) => {
+router.post('/', limitarCriacaoPublica, tenantPublico, async (req, res, next) => {
   const validacao = validarReserva(req.body);
   if (!validacao.ok) return res.status(400).json({ msg: validacao.msg });
   try {

@@ -3,8 +3,16 @@ const crypto = require('node:crypto');
 const Product = require('../models/Product');
 const Tenant = require('../models/Tenant');
 const PedidoEntrega = require('../models/PedidoEntrega');
+const rateLimit = require('express-rate-limit');
 
 const router = express.Router();
+const limitarPedidosPublicos = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { msg: 'Muitas solicitações de delivery. Tente novamente mais tarde.' },
+});
 const normalizarTelefone = value => String(value || '').replace(/\D/g, '');
 const texto = (value, max) => String(value || '').trim().slice(0, max);
 const obterTenant = () => Tenant.findOne({ ativo: true, pdvIntegrado: true }).sort({ createdAt: 1 });
@@ -18,7 +26,7 @@ router.get('/catalogo', async (req, res, next) => {
   } catch (error) { return next(error); }
 });
 
-router.post('/pedidos', async (req, res, next) => {
+router.post('/pedidos', limitarPedidosPublicos, async (req, res, next) => {
   const nomeCliente = texto(req.body?.nomeCliente, 160);
   const telefone = normalizarTelefone(req.body?.telefone);
   const entrada = req.body?.endereco || {};

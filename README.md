@@ -51,7 +51,7 @@ Crie `back-end/.env` a partir de `.env.example` com `MONGO_URI`. Em banco novo, 
 
 Blueprint de referência: `render.yaml` (ambiente de teste). Ajuste a **branch** do serviço para `Generico` (ou a branch de apresentação) no painel do Render.
 
-Informe `MONGO_URI` (e `ADMIN_PASSWORD` se for banco novo). Não versionar secrets no GitHub.
+Informe `MONGO_URI` (e `ADMIN_PASSWORD` se for banco novo). O Blueprint define `TRUST_PROXY_HOPS=1` para o proxy do Render; em outros hosts, ajuste ao número de proxies reversos confiáveis. Cada endpoint público de criação de pedido de delivery ou reserva limita a 20 requisições por IP a cada 15 minutos. O armazenamento padrão dos limites é local à instância; configure um armazenamento compartilhado antes de escalar a API para várias instâncias. Não versionar secrets no GitHub.
 
 URLs de exemplo (substitua pelas do seu projeto):
 

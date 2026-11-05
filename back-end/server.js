@@ -12,6 +12,11 @@ const provisionarAdmin = require('./utils/provisionarAdmin');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
+const trustProxyHops = process.env.TRUST_PROXY_HOPS === undefined ? 0 : Number(process.env.TRUST_PROXY_HOPS);
+if (!Number.isSafeInteger(trustProxyHops) || trustProxyHops < 0) {
+  throw new Error('TRUST_PROXY_HOPS deve ser um inteiro não negativo.');
+}
+app.set('trust proxy', trustProxyHops);
 const { allowedOrigins } = require('./utils/sessionOrigins');
 const corsOptions = { origin: (requestOrigin, callback) => { const normalizedOrigin = requestOrigin?.replace(/\/$/, ''); if (!normalizedOrigin || allowedOrigins().includes(normalizedOrigin)) return callback(null, true); const error = new Error('Origem não autorizada pelo CORS'); error.status = 403; return callback(error); }, credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-CSRF-Protection', 'X-Autorizacao-Gerente'] };
 app.disable('x-powered-by');
