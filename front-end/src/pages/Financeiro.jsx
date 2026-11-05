@@ -52,7 +52,7 @@ export default function Financeiro() {
   const [buscaDescricao, setBuscaDescricao] = useState('');
   const [form, setForm] = useState({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
   const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
-  const [alterarTodasRecorrentes, setAlterarTodasRecorrentes] = useState(false);
+  const [alterarFuturasRecorrentes, setAlterarFuturasRecorrentes] = useState(false);
   const [formatoVencimentoRecorrente, setFormatoVencimentoRecorrente] = useState('dia');
   const [diaVencimentoRecorrente, setDiaVencimentoRecorrente] = useState('');
   const [salvandoDespesa, setSalvandoDespesa] = useState(false);
@@ -210,62 +210,6 @@ export default function Financeiro() {
 
   const estadoResumoAtual = estadoResumo.mes === mesSelecionado ? estadoResumo.status : 'loading';
 
-  const aplicarDiaNasParcelasRecorrentes = async (despesa, dia, camposAtualizacao) => {
-    const origemId = despesa.origemRecorrencia || despesa._id;
-    const { data: todasDespesas } = await api.get('/despesas');
-    const parcelasAbertas = todasDespesas.filter((parcela) => (
-      parcela.recorrente
-      && parcela.status !== 'pago'
-      && (String(parcela._id) === String(origemId) || String(parcela.origemRecorrencia) === String(origemId))
-    ));
-    const parcelas = parcelasAbertas.some((parcela) => String(parcela._id) === String(despesa._id))
-      ? parcelasAbertas
-      : [...parcelasAbertas, despesa].filter((parcela) => parcela.status !== 'pago');
-
-    if (!parcelas.length) {
-      throw new Error('Não há parcelas abertas da recorrência para atualizar');
-    }
-
-    const datasEsperadas = new Map();
-    for (const parcela of parcelas) {
-      const vencimentoAtual = new Date(parcela.dataVencimento);
-      const ano = vencimentoAtual.getUTCFullYear();
-      const mes = vencimentoAtual.getUTCMonth();
-      const ultimoDiaDoMes = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
-      const vencimento = new Date(Date.UTC(ano, mes, Math.min(dia, ultimoDiaDoMes)));
-      const dataIso = vencimento.toISOString();
-      datasEsperadas.set(String(parcela._id), dataIso);
-      await api.put(`/despesas/${parcela._id}`, {
-        ...camposAtualizacao,
-        dataVencimento: dataIso,
-      });
-    }
-
-    const { data: despesasAtuais } = await api.get('/despesas');
-    const despesasPorId = new Map(despesasAtuais.map((item) => [String(item._id), item]));
-    const naoAtualizadas = [...datasEsperadas].filter(([id, dataIso]) => (
-      !despesasPorId.has(id) || dateKey(despesasPorId.get(id).dataVencimento) !== dataIso.slice(0, 10)
-    ));
-
-    if (naoAtualizadas.length) {
-      throw new Error(`O servidor não confirmou a atualização de ${naoAtualizadas.length} parcela(s)`);
-    }
-
-    const { data: paginaAtualizada } = await api.get('/despesas', {
-      params: {
-        pagina: paginaAtual,
-        limite: limiteAtual,
-        ...(filtro.status ? { status: filtro.status } : {}),
-        ...(filtro.categoria ? { categoria: filtro.categoria } : {}),
-        ...(filtro.dataInicio ? { dataInicio: filtro.dataInicio } : {}),
-        ...(filtro.dataFim ? { dataFim: filtro.dataFim } : {}),
-      },
-    });
-    setDespesas(Array.isArray(paginaAtualizada) ? paginaAtualizada : paginaAtualizada.dados);
-    setTotalDespesas(Array.isArray(paginaAtualizada) ? paginaAtualizada.length : paginaAtualizada.total);
-    return parcelas.length;
-  };
-
   if (!user || user.role !== 'admin') return <Navigate to="/pdv" replace />;
 
   const salvarDespesa = async (event) => {
@@ -280,31 +224,24 @@ export default function Financeiro() {
       };
 
       if (despesaEmEdicao) {
-        const usaDiaVencimento = despesaEmEdicao.recorrente
-          && alterarTodasRecorrentes
-          && formatoVencimentoRecorrente === 'dia';
-        if (usaDiaVencimento) {
-          const quantidade = await aplicarDiaNasParcelasRecorrentes(
-            despesaEmEdicao,
-            Number(diaVencimentoRecorrente),
-            payload,
-          );
-          showToast(`${quantidade} parcela(s) pendente(s) ou atrasada(s) atualizada(s)`, 'success');
+        const propagarFuturas = despesaEmEdicao.recorrente && alterarFuturasRecorrentes;
+        if (propagarFuturas && formatoVencimentoRecorrente === 'dia') {
+          payload.diaVencimento = Number(diaVencimentoRecorrente);
         } else {
           payload.dataVencimento = form.dataVencimento;
-          const { data: despesaAtualizada } = await api.put(`/despesas/${despesaEmEdicao._id}`, {
-            ...payload,
-            alterarTodas: despesaEmEdicao.recorrente && alterarTodasRecorrentes,
-          });
-          if (alterarTodasRecorrentes) {
-            const quantidade = Number(despesaAtualizada.parcelasAtualizadas || 0);
-            if (!quantidade) {
-              throw new Error('O servidor não confirmou a atualização de nenhuma parcela recorrente');
-            }
-            showToast(`${quantidade} parcela(s) pendente(s) ou atrasada(s) atualizada(s)`, 'success');
-          } else {
-            showToast('Despesa atualizada com sucesso', 'success');
+        }
+        const { data: despesaAtualizada } = await api.put(`/despesas/${despesaEmEdicao._id}`, {
+          ...payload,
+          alterarFuturas: propagarFuturas,
+        });
+        if (propagarFuturas) {
+          const quantidade = Number(despesaAtualizada.parcelasAtualizadas || 0);
+          if (!quantidade) {
+            throw new Error('O servidor não confirmou a atualização de nenhuma parcela futura');
           }
+          showToast(`${quantidade} parcela(s) futura(s) em aberto atualizada(s)`, 'success');
+        } else {
+          showToast('Despesa atualizada com sucesso', 'success');
         }
       } else {
         await api.post('/despesas', {
@@ -317,7 +254,7 @@ export default function Financeiro() {
 
       setForm({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
       setDespesaEmEdicao(null);
-      setAlterarTodasRecorrentes(false);
+      setAlterarFuturasRecorrentes(false);
       setFormatoVencimentoRecorrente('dia');
       setDiaVencimentoRecorrente('');
       await recarregarDespesas();
@@ -341,7 +278,7 @@ export default function Financeiro() {
   const editarDespesa = (despesa) => {
     const dataVencimento = new Date(despesa.dataVencimento);
     setDespesaEmEdicao(despesa);
-    setAlterarTodasRecorrentes(Boolean(despesa.recorrente));
+    setAlterarFuturasRecorrentes(false);
     setFormatoVencimentoRecorrente(despesa.recorrente ? 'dia' : 'data');
     setDiaVencimentoRecorrente(String(dataVencimento.getUTCDate()));
     setForm({
@@ -357,7 +294,7 @@ export default function Financeiro() {
 
   const cancelarEdicaoDespesa = () => {
     setDespesaEmEdicao(null);
-    setAlterarTodasRecorrentes(false);
+    setAlterarFuturasRecorrentes(false);
     setFormatoVencimentoRecorrente('dia');
     setDiaVencimentoRecorrente('');
     setForm({ descricao: '', categoria: 'Outros', fornecedor: '', valor: '', dataVencimento: '', recorrente: false });
@@ -640,7 +577,7 @@ export default function Financeiro() {
               </label>
 
               {!(despesaEmEdicao?.recorrente
-                && alterarTodasRecorrentes
+                && alterarFuturasRecorrentes
                 && formatoVencimentoRecorrente === 'dia') && (
                 <label>
                   Vencimento
@@ -653,20 +590,20 @@ export default function Financeiro() {
                   <label className="checkbox-row financeiro-recurring-option">
                     <input
                       type="checkbox"
-                      checked={alterarTodasRecorrentes}
+                      checked={!alterarFuturasRecorrentes}
                       onChange={(event) => {
-                        setAlterarTodasRecorrentes(event.target.checked);
-                        if (event.target.checked) setFormatoVencimentoRecorrente('dia');
+                        setAlterarFuturasRecorrentes(!event.target.checked);
+                        if (!event.target.checked) setFormatoVencimentoRecorrente('dia');
                       }}
                     />
-                    Aplicar alterações a todas as parcelas pendentes e atrasadas desta recorrência
+                    Alterar somente esta parcela
                   </label>
                   <p className="financeiro-recurring-help">
-                    {alterarTodasRecorrentes
-                      ? 'O vencimento escolhido será aplicado a cada parcela aberta. Parcelas pagas não serão alteradas.'
-                      : 'A série não será alterada. Marque esta opção para aplicar a mudança a todas as parcelas abertas.'}
+                    {alterarFuturasRecorrentes
+                      ? 'A alteração será aplicada a esta parcela e às futuras em aberto. Parcelas anteriores e pagas serão preservadas.'
+                      : 'Somente esta parcela será alterada; as demais da recorrência permanecerão iguais.'}
                   </p>
-                  {alterarTodasRecorrentes && (
+                  {alterarFuturasRecorrentes && (
                     <>
                       <label>
                         Formato do vencimento

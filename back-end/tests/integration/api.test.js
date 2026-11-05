@@ -235,6 +235,74 @@ describe('API Endpoints', () => {
     expect(parcelaPagaPreservada.valor).toBe(1000);
   });
 
+  test('PUT /api/despesas/:id → propaga reajuste somente da parcela selecionada em diante', async () => {
+    const origem = await createForTenant(Despesa, {
+      descricao: 'Internet',
+      categoria: 'Internet',
+      valor: 100,
+      dataVencimento: new Date('2027-01-10T00:00:00.000Z'),
+      recorrente: true,
+    });
+    const parcelaAnterior = await createForTenant(Despesa, {
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2027-02-10T00:00:00.000Z'),
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+    const parcelaSelecionada = await createForTenant(Despesa, {
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2027-03-10T00:00:00.000Z'),
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+    const parcelaFutura = await createForTenant(Despesa, {
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2027-04-10T00:00:00.000Z'),
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+    const parcelaFuturaPaga = await createForTenant(Despesa, {
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2027-05-10T00:00:00.000Z'),
+      dataPagamento: new Date('2027-05-10T00:00:00.000Z'),
+      status: 'pago',
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+
+    const resposta = await request(app)
+      .put(`/api/despesas/${parcelaSelecionada._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        descricao: 'Internet reajustada',
+        valor: 120,
+        dataVencimento: '2027-03-15',
+        alterarFuturas: true,
+      });
+
+    expect(resposta.statusCode).toBe(200);
+    expect(resposta.body.parcelasAtualizadas).toBe(2);
+    await expect(Despesa.findById(origem._id).then((despesa) => despesa.valor)).resolves.toBe(100);
+    await expect(Despesa.findById(parcelaAnterior._id).then((despesa) => despesa.valor)).resolves.toBe(100);
+    await expect(Despesa.findById(parcelaSelecionada._id).then((despesa) => ({
+      valor: despesa.valor,
+      vencimento: despesa.dataVencimento.toISOString(),
+    }))).resolves.toEqual({ valor: 120, vencimento: '2027-03-15T00:00:00.000Z' });
+    await expect(Despesa.findById(parcelaFutura._id).then((despesa) => ({
+      valor: despesa.valor,
+      vencimento: despesa.dataVencimento.toISOString(),
+    }))).resolves.toEqual({ valor: 120, vencimento: '2027-04-15T00:00:00.000Z' });
+    await expect(Despesa.findById(parcelaFuturaPaga._id).then((despesa) => despesa.valor)).resolves.toBe(100);
+  });
+
   test('PUT /api/despesas/:id → aplica dia de vencimento e limita ao último dia do mês', async () => {
     const origem = await Despesa.create({
       descricao: 'Assinatura mensal',
