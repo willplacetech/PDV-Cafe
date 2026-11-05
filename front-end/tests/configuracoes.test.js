@@ -53,7 +53,7 @@ test('settings wait for authentication and load after admin login without remoun
   await app.render({ user: null, loading: false });
   assert.deepEqual(app.states, [true, false, false]);
   await app.render({ user: { id: 'operator', role: 'operador' }, loading: false });
-  assert.equal(calls.length, 1);
+  assert.deepEqual(calls, ['/configuracoes', '/configuracoes']);
 });
 
 test('a settings response arriving after logout cannot replace safe defaults', async () => {

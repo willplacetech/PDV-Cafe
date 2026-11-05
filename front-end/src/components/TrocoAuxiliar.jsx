@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 const formatMoney = (value) =>
   `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
@@ -20,13 +20,20 @@ export default function TrocoAuxiliar({
   valorRecebido: valorControlado,
   onChangeValorRecebido,
 }) {
-  const [interno, setInterno] = useState('');
   const controlado = valorControlado !== undefined;
+  const [estadoInterno, setEstadoInterno] = useState({
+    formaPagamento: undefined,
+    controlado: false,
+    totalAPagar: undefined,
+    valor: '',
+  });
+  const parametrosCorrespondem = estadoInterno.formaPagamento === formaPagamento
+    && estadoInterno.controlado === controlado
+    && Object.is(estadoInterno.totalAPagar, totalAPagar);
+  const interno = parametrosCorrespondem ? estadoInterno.valor : '';
   const recebidoTexto = controlado ? String(valorControlado ?? '') : interno;
 
-  useEffect(() => {
-    if (!controlado) setInterno('');
-  }, [formaPagamento, controlado, totalAPagar]);
+  const setInterno = (valor) => setEstadoInterno({ formaPagamento, controlado, totalAPagar, valor });
 
   if (formaPagamento !== 'dinheiro') return null;
 

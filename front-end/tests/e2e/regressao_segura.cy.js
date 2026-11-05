@@ -16,6 +16,9 @@ describe('Regressões de cobrança e mesas sem banco externo', () => {
       if (path.endsWith('/mesas')) return request.reply(mesas);
       if (path.includes('/products/mais-vendidos')) return request.reply([]);
       if (path.includes('/products')) return request.reply([produto]);
+      if (path.endsWith('/comandas/a-receber')) {
+        return request.reply({ dados: [comanda], total: 1, pagina: 1, limite: 25 });
+      }
       if (path.includes('/comandas')) return request.reply([comanda]);
       return request.reply([]);
     });
@@ -48,15 +51,15 @@ describe('Regressões de cobrança e mesas sem banco externo', () => {
     cy.get('.table-shortcut').should('have.length', 1).and('contain', 'Varanda');
   });
 
-  it('abrir comanda bloqueia botão durante envio e leva chave de idempotência', () => {
+  it('salvar comanda bloqueia botão durante envio e envia id idempotente', () => {
     cy.intercept('POST', '**/api/comandas', (request) => {
-      expect(request.headers['idempotency-key']).to.match(/^[0-9a-f-]{36}$/i);
+      expect(request.body.idTemporario).to.match(/^[0-9a-f-]{36}$/i);
       request.reply({ delay: 1000, body: comanda });
     }).as('abrirComanda');
     visitar('/pdv');
     cy.contains(produto.nome).click();
-    cy.contains('button', 'Abrir Comanda').click().should('be.disabled');
+    cy.contains('button', 'Salvar em aberto').click().should('be.disabled');
     cy.wait('@abrirComanda');
-    cy.url().should('include', '/atendimento/mesas');
+    cy.contains('Comanda #1 salva em aberto').should('be.visible');
   });
 });

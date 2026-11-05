@@ -20,7 +20,8 @@ api.interceptors.response.use(undefined, err => {
     return solicitarAutorizacao(acao).then(token => {
       if (!token) {
         // Toggle desligado no frontend: reenvia sem header (backend decide).
-        const { 'X-Autorizacao-Gerente': _ignored, ...headers } = err.config.headers || {};
+        const headers = { ...(err.config.headers || {}) };
+        delete headers['X-Autorizacao-Gerente'];
         return api.request({ ...err.config, _gerenteRetry: true, headers });
       }
       return api.request({

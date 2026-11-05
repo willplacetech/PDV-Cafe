@@ -765,6 +765,7 @@ export default function Layout({ children }) {
 
       <footer style={{ padding: '8px 16px', fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center' }}>
         <span>Sabor de Abraço · v{APP_GIT_HASH}</span>
+        <a href="/CHANGELOG.md" style={{ marginLeft: 8, color: 'inherit' }}>Novidades</a>
       </footer>
     </div>
   );
