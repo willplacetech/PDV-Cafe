@@ -212,14 +212,19 @@ describe('API Endpoints', () => {
   });
 
   test('PUT /api/despesas/:id → propaga reajuste somente da parcela selecionada em diante', async () => {
-    const origem = await createForTenant(Despesa, {
+    const usuarioAdmin = await User.findById(jwt.decode(adminToken).id);
+    const criarDespesa = (dados) => Despesa.create({
+      ...dados,
+      ...(usuarioAdmin.tenantId ? { tenantId: usuarioAdmin.tenantId } : {}),
+    });
+    const origem = await criarDespesa({
       descricao: 'Internet',
       categoria: 'Internet',
       valor: 100,
       dataVencimento: new Date('2027-01-10T00:00:00.000Z'),
       recorrente: true,
     });
-    const parcelaAnterior = await createForTenant(Despesa, {
+    const parcelaAnterior = await criarDespesa({
       descricao: origem.descricao,
       categoria: origem.categoria,
       valor: origem.valor,
@@ -227,7 +232,7 @@ describe('API Endpoints', () => {
       recorrente: true,
       origemRecorrencia: origem._id,
     });
-    const parcelaSelecionada = await createForTenant(Despesa, {
+    const parcelaSelecionada = await criarDespesa({
       descricao: origem.descricao,
       categoria: origem.categoria,
       valor: origem.valor,
@@ -235,7 +240,7 @@ describe('API Endpoints', () => {
       recorrente: true,
       origemRecorrencia: origem._id,
     });
-    const parcelaFutura = await createForTenant(Despesa, {
+    const parcelaFutura = await criarDespesa({
       descricao: origem.descricao,
       categoria: origem.categoria,
       valor: origem.valor,
@@ -243,7 +248,7 @@ describe('API Endpoints', () => {
       recorrente: true,
       origemRecorrencia: origem._id,
     });
-    const parcelaFuturaPaga = await createForTenant(Despesa, {
+    const parcelaFuturaPaga = await criarDespesa({
       descricao: origem.descricao,
       categoria: origem.categoria,
       valor: origem.valor,
