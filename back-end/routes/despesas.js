@@ -204,6 +204,7 @@ router.put('/:id', [
   body('dataVencimento').optional().isISO8601(),
   body('diaVencimento').optional().isInt({ min: 1, max: 31 }),
   body('alterarTodas').optional().isBoolean(),
+  body('alterarFuturas').optional().isBoolean(),
 ], async (req, res) => {
   if (!validate(req, res)) return;
   if (!idValido(req.params.id, res)) return;
@@ -224,13 +225,20 @@ router.put('/:id', [
       atualizacoes.dataVencimento = new Date(req.body.dataVencimento);
     }
 
-    if (req.body.diaVencimento !== undefined && req.body.alterarTodas !== true) {
-      return res.status(400).json({ msg: 'O dia de vencimento só pode ser aplicado a toda a recorrência' });
+    const alterarTodas = req.body.alterarTodas === true;
+    const alterarFuturas = req.body.alterarFuturas === true;
+
+    if (req.body.diaVencimento !== undefined && !alterarTodas && !alterarFuturas) {
+      return res.status(400).json({ msg: 'O dia de vencimento só pode ser aplicado à recorrência' });
     }
 
-    if (req.body.alterarTodas === true) {
+    if (alterarTodas || alterarFuturas) {
       if (!despesa.recorrente) {
         return res.status(400).json({ msg: 'Esta despesa não faz parte de uma recorrência' });
+      }
+
+      if (alterarTodas && alterarFuturas) {
+        return res.status(400).json({ msg: 'Escolha propagar para todas ou somente para as parcelas futuras' });
       }
 
       if (req.body.dataVencimento !== undefined && req.body.diaVencimento !== undefined) {
@@ -238,26 +246,35 @@ router.put('/:id', [
       }
 
       const origemId = despesa.origemRecorrencia || despesa._id;
-      const despesasDaSerie = await Despesa.find({
+      const filtroSerie = {
         $or: [
-          { _id: origemId, status: { $ne: 'pago' } },
-          { origemRecorrencia: origemId, status: { $ne: 'pago' } },
-          { _id: req.params.id, status: { $ne: 'pago' } },
+          { _id: origemId },
+          { origemRecorrencia: origemId },
+          { _id: req.params.id },
         ],
-      });
+        status: { $ne: 'pago' },
+      };
+      if (alterarFuturas) {
+        if (despesa.status === 'pago') {
+          return res.status(400).json({ msg: 'Não é possível propagar a partir de uma parcela paga' });
+        }
+        filtroSerie.dataVencimento = { $gte: despesa.dataVencimento };
+      }
+
+      const despesasDaSerie = await Despesa.find(filtroSerie);
       if (!despesasDaSerie.length) {
         return res.status(400).json({ msg: 'Não há parcelas pendentes ou atrasadas para atualizar; despesas pagas são preservadas' });
       }
       const deslocamentoVencimento = atualizacoes.dataVencimento
         ? atualizacoes.dataVencimento.getTime() - despesa.dataVencimento.getTime()
-        : 0;
+        : null;
       const diaVencimento = req.body.diaVencimento === undefined ? null : Number(req.body.diaVencimento);
 
       await Promise.all(despesasDaSerie.map(async (parcela) => {
         camposEditaveis.forEach((campo) => {
           if (atualizacoes[campo] !== undefined) parcela[campo] = atualizacoes[campo];
         });
-        if (atualizacoes.dataVencimento) {
+        if (deslocamentoVencimento !== null) {
           parcela.dataVencimento = new Date(parcela.dataVencimento.getTime() + deslocamentoVencimento);
         }
         if (diaVencimento !== null) {
