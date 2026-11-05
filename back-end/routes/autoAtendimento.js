@@ -7,10 +7,12 @@ const Comanda = require('../models/Comanda');
 const Customer = require('../models/Customer');
 const MesasSettings = require('../models/MesasSettings');
 const Product = require('../models/Product');
+const Tenant = require('../models/Tenant');
 const { calcularPrecoComDesconto, calcularPrecoGrupo, dinheiro } = require('../utils/descontosQuantidade');
 const { ajustarEstoque } = require('../utils/movimentarEstoqueVenda');
 const { precoPorUnidade } = require('../utils/pesoProduto');
 const { produtoControlaPeso } = require('../utils/estoqueProduto');
+const { runWithTenant } = require('../utils/tenantContext');
 
 const router = express.Router();
 const atendenteQr = 'Autoatendimento QR';
@@ -46,6 +48,54 @@ const localizarMesa = async (mesaToken, session) => {
   if (session) query = query.session(session);
   const settings = await query.lean();
   return settings?.mesas?.find((mesa) => mesa.token === mesaToken) || null;
+};
+
+const resolverTenantMesa = async (mesaToken) => {
+  const settings = await MesasSettings.findOne({
+    _id: 'principal',
+    mesas: { $elemMatch: { token: mesaToken, ativa: true } },
+  }).select('mesas tenantId').lean();
+  const mesa = settings?.mesas?.find((item) => item.token === mesaToken && item.ativa);
+  if (!mesa) return null;
+
+  if (settings.tenantId) {
+    const tenant = await Tenant.findOne({ _id: settings.tenantId, ativo: true }).select('_id').lean();
+    return tenant ? { tenantId: String(tenant._id) } : { unavailable: true };
+  }
+
+  const tenantsAtivos = await Tenant.find({ ativo: true }).select('_id').limit(2).lean();
+  if (tenantsAtivos.length === 1) {
+    const tenantId = String(tenantsAtivos[0]._id);
+    const associacao = await MesasSettings.updateOne(
+      { _id: 'principal', tenantId: null },
+      { $set: { tenantId } },
+    );
+    if (associacao.matchedCount === 1) return { tenantId };
+
+    const settingsAtualizadas = await MesasSettings.findById('principal').select('tenantId').lean();
+    if (settingsAtualizadas?.tenantId) {
+      const tenantAtual = await Tenant.findOne({ _id: settingsAtualizadas.tenantId, ativo: true }).select('_id').lean();
+      return tenantAtual ? { tenantId: String(tenantAtual._id) } : { unavailable: true };
+    }
+    return { unavailable: true };
+  }
+  if (tenantsAtivos.length > 1 || await Tenant.exists({})) return { unavailable: true };
+  return { tenantId: null };
+};
+
+const aplicarTenantDaMesa = async (req, res, next) => {
+  const mesaToken = req.params.mesaToken || req.body?.mesaToken;
+  if (typeof mesaToken !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(mesaToken)) return next();
+
+  try {
+    const resolucao = await resolverTenantMesa(mesaToken);
+    if (!resolucao) return res.status(404).json({ msg: 'Mesa não encontrada' });
+    if (resolucao.unavailable) return res.status(503).json({ msg: 'Autoatendimento indisponível no momento.' });
+    req.tenantPublicoId = resolucao.tenantId;
+    return resolucao.tenantId ? runWithTenant(resolucao.tenantId, next) : next();
+  } catch (error) {
+    return next(error);
+  }
 };
 
 const validarItens = (itensSolicitados) => {
@@ -214,12 +264,16 @@ const construirItens = (itensSolicitados, produtos) => {
   return itens;
 };
 
-router.get('/auto-atendimento/:mesaToken', async (req, res, next) => {
+router.get('/auto-atendimento/:mesaToken', aplicarTenantDaMesa, async (req, res, next) => {
   try {
     if (!/^[A-Za-z0-9_-]{43}$/.test(req.params.mesaToken)) return res.status(404).json({ msg: 'Mesa não encontrada' });
     const mesa = await localizarMesa(req.params.mesaToken);
     if (!mesa?.ativa) return res.status(404).json({ msg: 'Mesa não encontrada' });
-    const produtos = await Product.find({ tipo: 'venda', ativo: true })
+    const produtos = await Product.find({
+      ...(req.tenantPublicoId ? { tenantId: req.tenantPublicoId } : {}),
+      tipo: 'venda',
+      ativo: true,
+    })
       .select('_id nome categoria preco unidadeVenda pesoPorUnidade unidadePeso')
       .sort({ nome: 1, _id: 1 })
       .lean();
@@ -238,7 +292,7 @@ router.get('/auto-atendimento/:mesaToken', async (req, res, next) => {
   }
 });
 
-router.post('/auto-atendimento/:mesaToken/cotacao', limitarCotacoesQr, async (req, res, next) => {
+router.post('/auto-atendimento/:mesaToken/cotacao', limitarCotacoesQr, aplicarTenantDaMesa, async (req, res, next) => {
   try {
     if (!/^[A-Za-z0-9_-]{43}$/.test(req.params.mesaToken)) return res.status(404).json({ msg: 'Mesa não encontrada' });
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)
@@ -250,7 +304,12 @@ router.post('/auto-atendimento/:mesaToken/cotacao', limitarCotacoesQr, async (re
 
     const itensSolicitados = validarItens(req.body.itens);
     const productIds = [...new Set(itensSolicitados.map((item) => item.produtoId))];
-    const produtos = await Product.find({ _id: { $in: productIds }, tipo: 'venda', ativo: true });
+    const produtos = await Product.find({
+      ...(req.tenantPublicoId ? { tenantId: req.tenantPublicoId } : {}),
+      _id: { $in: productIds },
+      tipo: 'venda',
+      ativo: true,
+    });
     if (produtos.length !== productIds.length) throw erroValidacao('Um ou mais produtos não estão disponíveis');
     const itens = construirItens(itensSolicitados, produtos);
     const itensCotados = resumirCotacao(itens);
@@ -267,7 +326,7 @@ router.post('/auto-atendimento/:mesaToken/cotacao', limitarCotacoesQr, async (re
   }
 });
 
-router.post('/auto-atendimento', limitarPedidosQr, async (req, res, next) => {
+router.post('/auto-atendimento', limitarPedidosQr, aplicarTenantDaMesa, async (req, res, next) => {
   let session;
   let hash;
   let idempotencyKey;
@@ -304,7 +363,12 @@ router.post('/auto-atendimento', limitarPedidosQr, async (req, res, next) => {
       if (!mesa?.ativa) throw Object.assign(new Error('Mesa não encontrada'), { status: 404 });
 
       const productIds = [...new Set(pedido.itens.map((item) => item.produtoId))];
-      const produtos = await Product.find({ _id: { $in: productIds }, tipo: 'venda', ativo: true }).session(session);
+      const produtos = await Product.find({
+        ...(req.tenantPublicoId ? { tenantId: req.tenantPublicoId } : {}),
+        _id: { $in: productIds },
+        tipo: 'venda',
+        ativo: true,
+      }).session(session);
       if (produtos.length !== productIds.length) throw erroValidacao('Um ou mais produtos não estão disponíveis');
       const itens = construirItens(pedido.itens, produtos);
       validarCotacao(pedido.cotacaoToken, pedido.mesaToken, itens);

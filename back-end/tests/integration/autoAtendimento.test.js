@@ -1,6 +1,8 @@
+const crypto = require('crypto');
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../server');
+const Tenant = require('../../models/Tenant');
 const User = require('../../models/User');
 const MesasSettings = require('../../models/MesasSettings');
 const Product = require('../../models/Product');
@@ -10,9 +12,21 @@ const StockMovement = require('../../models/StockMovement');
 
 let token;
 let product;
+let tenant;
 
 beforeEach(async () => {
-  const user = await User.create({ username: 'autoatendimento-admin', password: 'test-password', role: 'admin' });
+  tenant = await Tenant.create({
+    nome: 'Café Autoatendimento',
+    slug: 'cafe-autoatendimento',
+    telefone: '11999990000',
+    endereco: 'Rua Principal, 1',
+  });
+  const user = await User.create({
+    username: 'autoatendimento-admin',
+    password: 'test-password',
+    role: 'admin',
+    tenantId: tenant._id,
+  });
   token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET);
   product = await Product.create({
     codigo: 'qr-cafe',
@@ -22,6 +36,7 @@ beforeEach(async () => {
     preco: 6,
     estoque: 20,
     unidadeVenda: 'un',
+    tenantId: tenant._id,
   });
 });
 
@@ -97,7 +112,7 @@ test('PUT preserva tokens por id, ignora token forjado e cria token para mesa no
 test('GET de mesas continua exigindo autenticação', async () => {
   const response = await request(app).get('/api/mesas');
 
-  expect(response.status).toBe(401);
+  expect(response.status).toBe(403);
 });
 
 test('cardápio público retorna somente produtos ativos e campos públicos', async () => {
@@ -151,6 +166,120 @@ test('cardápio público recusa token inválido e mesa inativa', async () => {
   expect(inactive.status).toBe(404);
 });
 
+test('cardápio, cotação e pedido QR ficam restritos ao tenant associado à mesa', async () => {
+  const tenantA = await Tenant.create({
+    nome: 'Café QR A',
+    slug: 'cafe-qr-a',
+    telefone: '11999990001',
+    endereco: 'Rua A, 1',
+  });
+  const tenantB = await Tenant.create({
+    nome: 'Café QR B',
+    slug: 'cafe-qr-b',
+    telefone: '11999990002',
+    endereco: 'Rua B, 2',
+  });
+  const tokenMesaA = crypto.randomBytes(32).toString('base64url');
+  await MesasSettings.create({
+    _id: 'principal',
+    tenantId: tenantA._id,
+    mesas: [{ id: 1, numero: 1, nome: 'Mesa A', lugares: 4, ativa: true, token: tokenMesaA }],
+  });
+  const produtoA = await Product.create({
+    codigo: 'qr-compartilhado',
+    nome: 'Produto do Café A',
+    categoria: 'Bebidas Quentes',
+    tipo: 'venda',
+    preco: 6,
+    estoque: 20,
+    unidadeVenda: 'un',
+    tenantId: tenantA._id,
+  });
+  const produtoB = await Product.create({
+    codigo: 'qr-compartilhado',
+    nome: 'Produto do Café B',
+    categoria: 'Bebidas Quentes',
+    tipo: 'venda',
+    preco: 9,
+    estoque: 30,
+    unidadeVenda: 'un',
+    tenantId: tenantB._id,
+  });
+
+  const cardapio = await request(app).get(`/api/pedidos/auto-atendimento/${tokenMesaA}`);
+  expect(cardapio.status).toBe(200);
+  expect(cardapio.body.produtos.map(({ produtoId, nome, preco }) => ({ produtoId, nome, preco }))).toEqual([
+    { produtoId: String(produtoA._id), nome: 'Produto do Café A', preco: 6 },
+  ]);
+
+  const cotacaoA = await request(app)
+    .post(`/api/pedidos/auto-atendimento/${tokenMesaA}/cotacao`)
+    .send({ itens: [{ produtoId: String(produtoA._id), quantidade: 1 }] });
+  expect(cotacaoA.status).toBe(200);
+
+  const cotacaoB = await request(app)
+    .post(`/api/pedidos/auto-atendimento/${tokenMesaA}/cotacao`)
+    .send({ itens: [{ produtoId: String(produtoB._id), quantidade: 1 }] });
+  expect(cotacaoB.status).toBe(400);
+
+  const pedidoB = await request(app)
+    .post('/api/pedidos/auto-atendimento')
+    .set('Idempotency-Key', 'qr-tenant-cross-order')
+    .send(payloadQr(tokenMesaA, {
+      itens: [{ produtoId: String(produtoB._id), quantidade: 1 }],
+      cotacaoToken: cotacaoA.body.cotacaoToken,
+    }));
+  expect(pedidoB.status).toBe(400);
+  expect(pedidoB.body.msg).toMatch(/produtos não estão disponíveis/i);
+  expect(await Comanda.countDocuments()).toBe(0);
+  expect(await Customer.countDocuments()).toBe(0);
+  expect((await Product.findById(produtoB._id)).estoque).toBe(30);
+  expect(await StockMovement.countDocuments()).toBe(0);
+
+  const pedidoA = await request(app)
+    .post('/api/pedidos/auto-atendimento')
+    .set('Idempotency-Key', 'qr-tenant-a-valid-order')
+    .send(payloadQr(tokenMesaA, {
+      itens: [{ produtoId: String(produtoA._id), quantidade: 1 }],
+      cotacaoToken: cotacaoA.body.cotacaoToken,
+    }));
+  expect(pedidoA.status).toBe(201);
+  const comandaA = await Comanda.findOne({ idempotencyKey: 'qr-tenant-a-valid-order' }).lean();
+  expect(String(comandaA.tenantId)).toBe(String(tenantA._id));
+  expect((await Product.findById(produtoA._id)).estoque).toBe(19);
+  expect((await Product.findById(produtoB._id)).estoque).toBe(30);
+  expect(await StockMovement.countDocuments({ produtoId: produtoA._id, tenantId: tenantA._id })).toBe(1);
+});
+
+test('QR sem tenant associado falha fechado quando há tenants configurados', async () => {
+  await Tenant.create({
+    nome: 'Café sem vínculo',
+    slug: 'cafe-sem-vinculo',
+    telefone: '11999990003',
+    endereco: 'Rua C, 3',
+  });
+  const tokenSemTenant = crypto.randomBytes(32).toString('base64url');
+  await MesasSettings.create({
+    _id: 'principal',
+    mesas: [{ id: 1, numero: 1, nome: 'Mesa sem vínculo', lugares: 4, ativa: true, token: tokenSemTenant }],
+  });
+  const response = await request(app).get(`/api/pedidos/auto-atendimento/${tokenSemTenant}`);
+
+  expect(response.status).toBe(503);
+  expect(response.body.produtos).toBeUndefined();
+});
+
+test('QR legado sem tenant permanece disponível quando há apenas um estabelecimento ativo', async () => {
+  const tokenLegado = await mesaToken();
+  await MesasSettings.collection.updateOne({ _id: 'principal' }, { $unset: { tenantId: '' } });
+
+  const response = await request(app).get(`/api/pedidos/auto-atendimento/${tokenLegado}`);
+
+  expect(response.status).toBe(200);
+  expect(response.body.produtos.map(({ produtoId }) => produtoId)).toEqual([String(product._id)]);
+  expect(String((await MesasSettings.collection.findOne({ _id: 'principal' })).tenantId)).toBe(String(tenant._id));
+});
+
 test.each([
   ['nome ausente', { clienteNome: undefined }],
   ['telefone ausente', { clienteTelefone: undefined }],
@@ -170,7 +299,11 @@ test.each([
 });
 
 test('pedido usa mesa e preço do servidor, preserva Cliente existente e oculta telefone da resposta', async () => {
-  const customer = await Customer.create({ nome: 'Nome já cadastrado', telefone: '11999998888' });
+  const customer = await Customer.create({
+    nome: 'Nome já cadastrado',
+    telefone: '11999998888',
+    tenantId: tenant._id,
+  });
   const tokenMesa = await mesaToken();
   const response = await pedidoQr(payloadQr(tokenMesa, {
     clienteNome: 'Nome enviado pelo QR',
@@ -233,6 +366,7 @@ test('cotação pública aplica descontos por quantidade e por grupo do servidor
     preco: 8,
     estoque: 20,
     unidadeVenda: 'un',
+    tenantId: tenant._id,
     grupoDesconto: { nome: 'Combo QR', quantidadeMinima: 3, precoPromocional: 5, ativo: true },
   });
   const tokenMesa = await mesaToken();
@@ -430,6 +564,7 @@ test('KDS inclui todos os itens QR e continua filtrando itens comuns por A Fazer
     mesa: '2',
     tipoAtendimento: 'mesa',
     status: 'aberta',
+    tenantId: tenant._id,
     itens: [
       { produtoId: product.id, nome: 'Item sem preparo', precoUnitario: 6, quantidade: 1, aFazer: false },
       { produtoId: product.id, nome: 'Item em preparo', precoUnitario: 6, quantidade: 1, aFazer: true },

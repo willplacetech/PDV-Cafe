@@ -73,6 +73,7 @@ describe('limites para criação de recursos públicos', () => {
       nome: 'Café',
       tipo: 'venda',
       preco: 5,
+      tenantId: tenant._id,
     });
 
     const respostas = [];
@@ -87,5 +88,53 @@ describe('limites para criação de recursos públicos', () => {
     expect(respostas.slice(0, 20).every(resposta => resposta.status === 201)).toBe(true);
     expect(respostas[20].status).toBe(429);
     expect(await PedidoEntrega.countDocuments({ tenantId: tenant._id })).toBe(20);
+  });
+
+  test('catálogo e pedido público usam somente os produtos do tenant integrado', async () => {
+    const tenantA = await criarTenant({ pdvIntegrado: true });
+    const tenantB = await criarTenant({ slug: 'outro-cafe' });
+    await Product.create([
+      { codigo: 'CAFE-COMPARTILHADO', nome: 'Café A', tipo: 'venda', preco: 5, tenantId: tenantA._id },
+      { codigo: 'CAFE-COMPARTILHADO', nome: 'Café B', tipo: 'venda', preco: 9, tenantId: tenantB._id },
+      { codigo: 'CAFE-SOMENTE-B', nome: 'Produto B privado', tipo: 'venda', preco: 3, tenantId: tenantB._id },
+    ]);
+
+    const catalogo = await request(app).get('/api/publico/delivery/catalogo');
+    expect(catalogo.status).toBe(200);
+    expect(catalogo.body.produtos.map(({ codigo, nome, preco }) => ({ codigo, nome, preco }))).toEqual([
+      { codigo: 'CAFE-COMPARTILHADO', nome: 'Café A', preco: 5 },
+    ]);
+
+    const pedidoCompartilhado = await request(app)
+      .post('/api/publico/delivery/pedidos')
+      .set('Idempotency-Key', 'delivery-tenant-a')
+      .send({ ...pedidoValido(), itens: [{ codigo: 'CAFE-COMPARTILHADO', quantidade: 1 }] });
+    expect(pedidoCompartilhado.status).toBe(201);
+    expect(pedidoCompartilhado.body.pedido.itens).toEqual([
+      { descricao: 'Café A', quantidade: 1, precoUnitario: 5 },
+    ]);
+    expect(String(pedidoCompartilhado.body.pedido.tenantId)).toBe(String(tenantA._id));
+
+    const produtoDoTenantB = await request(app)
+      .post('/api/publico/delivery/pedidos')
+      .set('Idempotency-Key', 'delivery-tenant-b-product')
+      .send({ ...pedidoValido(), itens: [{ codigo: 'CAFE-SOMENTE-B', quantidade: 1 }] });
+    expect(produtoDoTenantB.status).toBe(400);
+    expect(await PedidoEntrega.countDocuments({ tenantId: tenantA._id })).toBe(1);
+    expect(await PedidoEntrega.countDocuments({ tenantId: tenantB._id })).toBe(0);
+  });
+
+  test('catálogo público não retorna produtos quando não há tenant integrado', async () => {
+    await Product.create({
+      codigo: 'CAFE-LEGADO',
+      nome: 'Produto sem tenant integrado',
+      tipo: 'venda',
+      preco: 5,
+    });
+
+    const response = await request(app).get('/api/publico/delivery/catalogo');
+
+    expect(response.status).toBe(503);
+    expect(response.body.produtos).toBeUndefined();
   });
 });
