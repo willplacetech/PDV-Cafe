@@ -4,11 +4,13 @@ import ReactDOM from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App.jsx';
 import './styles/theme.css';
+import { installPreloadErrorRecovery } from './services/appVersion.js';
 import { applyBrandingToDocument, fetchServerBranding } from './config/branding.js';
 
 applyBrandingToDocument();
 void fetchServerBranding();
 
+installPreloadErrorRecovery(window);
 registerSW({
   immediate: true,
   onRegisterError: (error) => console.error('[PWA] Não foi possível registrar o service worker.', error),
