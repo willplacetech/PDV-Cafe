@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { APP_GIT_HASH, fetchPublishedAppVersion, waitForServiceWorkerUpdate } from '../src/services/appVersion.js';
+import {
+  APP_GIT_HASH,
+  fetchPublishedAppVersion,
+  installPreloadErrorRecovery,
+  waitForServiceWorkerUpdate,
+} from '../src/services/appVersion.js';
 
 test('uses dev as the local hash fallback when Vite does not inject a git hash', () => {
   assert.equal(APP_GIT_HASH, 'dev');
@@ -59,4 +64,59 @@ test('fails explicitly when the service worker does not take control', async () 
     waitForServiceWorkerUpdate({ update: async () => {} }, serviceWorker, 1),
     /não assumiu o controle/i,
   );
+});
+
+test('reloads once after a failed Vite preload for each app version', () => {
+  const values = new Map();
+  let reloadCount = 0;
+  const browser = new EventTarget();
+  browser.sessionStorage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+  };
+  browser.location = { reload: () => { reloadCount += 1; } };
+
+  const removeOldVersionHandler = installPreloadErrorRecovery(browser, 'commit-old');
+  const firstError = new Event('vite:preloadError', { cancelable: true });
+  browser.dispatchEvent(firstError);
+
+  assert.equal(firstError.defaultPrevented, true);
+  assert.equal(reloadCount, 1);
+
+  const repeatedError = new Event('vite:preloadError', { cancelable: true });
+  browser.dispatchEvent(repeatedError);
+
+  assert.equal(repeatedError.defaultPrevented, false);
+  assert.equal(reloadCount, 1);
+  removeOldVersionHandler();
+
+  installPreloadErrorRecovery(browser, 'commit-new');
+  const newVersionError = new Event('vite:preloadError', { cancelable: true });
+  browser.dispatchEvent(newVersionError);
+
+  assert.equal(newVersionError.defaultPrevented, true);
+  assert.equal(reloadCount, 2);
+});
+
+test('does not reload when session storage cannot guard against a reload loop', () => {
+  let reloadCount = 0;
+  const browser = new EventTarget();
+  browser.sessionStorage = {
+    getItem: () => { throw new Error('Storage unavailable'); },
+    setItem: () => {},
+  };
+  browser.location = { reload: () => { reloadCount += 1; } };
+
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    installPreloadErrorRecovery(browser, 'commit-123');
+    const event = new Event('vite:preloadError', { cancelable: true });
+    browser.dispatchEvent(event);
+
+    assert.equal(event.defaultPrevented, false);
+    assert.equal(reloadCount, 0);
+  } finally {
+    console.error = originalConsoleError;
+  }
 });

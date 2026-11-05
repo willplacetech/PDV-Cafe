@@ -1,6 +1,25 @@
 export const APP_VERSION = import.meta.env?.VITE_APP_VERSION || 'development';
 export const APP_GIT_HASH = typeof __GIT_HASH__ === 'string' ? __GIT_HASH__ : 'dev';
 
+export const installPreloadErrorRecovery = (browserWindow, appVersion = APP_VERSION) => {
+  const recoveryKey = `pdv:preload-recovery:${appVersion}`;
+  const handlePreloadError = (event) => {
+    try {
+      if (browserWindow.sessionStorage.getItem(recoveryKey) === '1') return;
+      browserWindow.sessionStorage.setItem(recoveryKey, '1');
+    } catch (error) {
+      console.error('[PWA] Não foi possível proteger a recuperação contra recarregamentos repetidos.', error);
+      return;
+    }
+
+    event.preventDefault();
+    browserWindow.location.reload();
+  };
+
+  browserWindow.addEventListener('vite:preloadError', handlePreloadError);
+  return () => browserWindow.removeEventListener('vite:preloadError', handlePreloadError);
+};
+
 export const fetchPublishedAppVersion = async (fetchImpl = globalThis.fetch) => {
   if (typeof fetchImpl !== 'function') throw new Error('A verificação de versão não está disponível neste navegador.');
 
