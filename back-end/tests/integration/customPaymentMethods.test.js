@@ -136,7 +136,6 @@ test('exclui forma personalizada sem apagar recebimentos e impede novo uso', asy
   await api('post', `/comandas/${command._id}/fechar`, { metodoPagamento: method.value, operacaoId: 'delete-history' });
   const path = `/payment-settings/${method.value}`;
   expect((await api('delete', path, undefined, operatorToken)).status).toBe(403);
-  expect((await api('delete', '/payment-settings/cartao_credito')).status).toBe(400);
   const deleted = await api('delete', path);
   expect(deleted.status).toBe(200);
   expect(deleted.body.formasPagamento.some(p => p.value === method.value)).toBe(false);
@@ -145,4 +144,29 @@ test('exclui forma personalizada sem apagar recebimentos e impede novo uso', asy
   expect((await api('post', `/comandas/${next._id}/fechar`, { metodoPagamento: method.value, operacaoId: 'deleted-use' })).status).toBe(400);
   expect((await api('delete', path)).status).toBe(404);
   expect((await api('get', '/dashboard')).body.relatorioMes.pagamentos).toEqual(expect.arrayContaining([expect.objectContaining({ tipo: method.value, bruto: 100, taxa: 3, total: 97 })]));
+});
+
+test('renomeia e exclui forma pré-cadastrada sem apagar histórico e impede novo uso', async () => {
+  const command = await createCommand();
+  const original = await api('post', `/comandas/${command._id}/fechar`, { metodoPagamento: 'cartao_credito', operacaoId: 'default-before-rename' });
+  expect(original.status).toBe(200);
+  const mes = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
+  const renamed = await api('patch', '/contabil/taxas-cartao', { mes, tipo: 'cartao_credito', nome: 'Crédito Empresa', taxaPercentual: 0 });
+  expect(renamed.status).toBe(200);
+  expect(renamed.body.formasPagamento.find(forma => forma.value === 'cartao_credito')).toMatchObject({ label: 'Crédito Empresa', gerenciavel: true });
+
+  const nextCommand = await createCommand();
+  const nextPayment = await api('post', `/comandas/${nextCommand._id}/fechar`, { metodoPagamento: 'cartao_credito', operacaoId: 'default-after-rename' });
+  expect(nextPayment.status).toBe(200);
+  expect(nextPayment.body.pedido.pagamentos[0].rotuloPagamento).toBe('Crédito Empresa');
+
+  const deleted = await api('delete', '/payment-settings/cartao_credito');
+  expect(deleted.status).toBe(200);
+  expect(deleted.body.formasPagamento.some(forma => forma.value === 'cartao_credito')).toBe(false);
+  expect((await Comanda.findById(command._id)).historicoPagamentos[0].valor).toBe(100);
+
+  const afterDelete = await createCommand();
+  const rejected = await api('post', `/comandas/${afterDelete._id}/fechar`, { metodoPagamento: 'cartao_credito', operacaoId: 'deleted-default-use' });
+  expect(rejected.status).toBe(400);
+  expect((await Comanda.findById(afterDelete._id)).historicoPagamentos).toHaveLength(0);
 });

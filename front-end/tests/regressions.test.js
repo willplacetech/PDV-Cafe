@@ -147,6 +147,17 @@ test('remover linha retira desconto quando grupo perde mínimo', async () => {
   assert.equal(updated[0].precoUnitario, 10);
 });
 
+test('PDV aplica percentual do grupo sobre o preço normal individual de cada produto', () => {
+  const functions = source('PDV').split('const formatMoney = ')[1].split('export default function PDV')[0];
+  const precoComDescontoGrupo = evaluate(`const formatMoney = ${functions}`, {}, 'precoComDescontoGrupo');
+  const produtoA = { preco: 80, grupoDesconto: { nome: 'Bebidas', ativo: true, quantidadeMinima: 2, percentualDesconto: 10 } };
+  const produtoB = { preco: 120, grupoDesconto: { nome: 'Bebidas', ativo: true, quantidadeMinima: 2, percentualDesconto: 10 } };
+  const carrinho = [{ produto: produtoA, quantidade: 1 }, { produto: produtoB, quantidade: 1 }];
+
+  assert.equal(precoComDescontoGrupo(produtoA, 1, carrinho, produtoA.preco).precoUnitario, 72);
+  assert.equal(precoComDescontoGrupo(produtoB, 1, carrinho, produtoB.preco).precoUnitario, 108);
+});
+
 test('cliques repetidos ao abrir comanda enviam apenas uma requisição', async () => {
   let sends = 0;
   let release;

@@ -57,6 +57,23 @@ test('calcularPrecoGrupo aplica preço promocional quando total do grupo atinge 
   assert.equal(result.faltamParaGrupo, 0);
 });
 
+test('calcularPrecoGrupo aplica o percentual ao preço normal de cada produto do grupo', () => {
+  const produtoA = { preco: 80, grupoDesconto: { nome: 'Bebidas', quantidadeMinima: 2, percentualDesconto: 10, ativo: true } };
+  const produtoB = { preco: 120, grupoDesconto: { nome: 'Bebidas', quantidadeMinima: 2, percentualDesconto: 10, ativo: true } };
+  const cartItens = [
+    { produto: produtoA, quantidade: 1 },
+    { produto: produtoB, quantidade: 1 },
+  ];
+
+  const resultadoA = calcularPrecoGrupo(produtoA, 1, cartItens, produtoA.preco);
+  const resultadoB = calcularPrecoGrupo(produtoB, 1, cartItens, produtoB.preco);
+
+  assert.equal(resultadoA.precoUnitario, 72);
+  assert.equal(resultadoA.economiaUnitario, 8);
+  assert.equal(resultadoB.precoUnitario, 108);
+  assert.equal(resultadoB.economiaUnitario, 12);
+});
+
 test('calcularPrecoGrupo não aplica desconto quando total do grupo é insuficiente', () => {
   const produtoA = { preco: 16, grupoDesconto: { nome: 'Cookies', quantidadeMinima: 5, precoPromocional: 14, ativo: true } };
   const produtoB = { preco: 16, grupoDesconto: { nome: 'Cookies', quantidadeMinima: 5, precoPromocional: 14, ativo: true } };

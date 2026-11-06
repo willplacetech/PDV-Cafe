@@ -57,6 +57,35 @@ test('PDV product endpoints and authentication remain available', async () => {
   expect((await request(app).get('/api/products/sem-custo')).status).toBe(403);
 });
 
+});
+
+test('PDV compatibility returns the percentage price for each product in a discount group', async () => {
+  await Product.create([
+    {
+      codigo: 'grupo-20',
+      nome: 'Doce de 20',
+      tipo: 'venda',
+      preco: 20,
+      grupoDesconto: { nome: 'Doces', quantidadeMinima: 2, percentualDesconto: 10, ativo: true },
+      tenantId: tenant._id,
+    },
+    {
+      codigo: 'grupo-40',
+      nome: 'Doce de 40',
+      tipo: 'venda',
+      preco: 40,
+      grupoDesconto: { nome: 'Doces', quantidadeMinima: 2, percentualDesconto: 10, ativo: true },
+      tenantId: tenant._id,
+    },
+  ]);
+
+  const response = await get('/api/products/pdv');
+
+  expect(response.status).toBe(200);
+  expect(response.body.find(product => product.codigo === 'grupo-20').grupoDesconto.precoPromocional).toBe(18);
+  expect(response.body.find(product => product.codigo === 'grupo-40').grupoDesconto.precoPromocional).toBe(36);
+});
+
 test('unknown API paths return JSON 404 without trying to open the frontend index', async () => {
   const sendFile = jest.spyOn(require('express').response, 'sendFile');
   try {

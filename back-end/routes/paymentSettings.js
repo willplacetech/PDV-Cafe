@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const auth = require('../middleware/auth');
 const { exigirAutorizacao } = require('../middleware/exigirAutorizacao');
 const PaymentSettings = require('../models/PaymentSettings');
-const { ROTULOS_PAGAMENTO, catalogoDaConfiguracao, normalizarNome, formaPersonalizada } = require('../utils/formasPagamento');
+const { ROTULOS_PAGAMENTO, FORMAS_GERENCIAVEIS, catalogoDaConfiguracao, normalizarNome, formaPersonalizada } = require('../utils/formasPagamento');
 
 const router = express.Router();
 router.use(auth);
@@ -20,6 +20,8 @@ router.post('/', auth.allowRoles('admin'), exigirAutorizacao('alterar_taxas_cart
   if (!nome || nome.length > 80 || /[\u0000-\u001f\u007f]/.test(nome) || req.body.taxaPercentual == null || req.body.taxaPercentual === '' || !Number.isFinite(taxaPercentual) || taxaPercentual < 0 || taxaPercentual > 100) return res.status(400).json({ msg: 'Informe nome e taxa entre 0% e 100%.' });
   if (Object.values(ROTULOS_PAGAMENTO).some(rotulo => normalizarNome(rotulo) === nomeNormalizado)) return res.status(409).json({ msg: 'Já existe uma forma de pagamento com este nome.' });
   try {
+    const existente = await PaymentSettings.findOne({ chave: 'principal' }).lean();
+    if (catalogoDaConfiguracao(existente).some(forma => normalizarNome(forma.label) === nomeNormalizado)) return res.status(409).json({ msg: 'Já existe uma forma de pagamento com este nome.' });
     await PaymentSettings.updateOne({ chave: 'principal' }, { $setOnInsert: { chave: 'principal' } }, { upsert: true });
     const tipo = `personalizado_${new mongoose.Types.ObjectId()}`;
     const configuracao = await PaymentSettings.findOneAndUpdate({ chave: 'principal', 'formasPersonalizadas.nomeNormalizado': { $ne: nomeNormalizado }, 'formasPersonalizadas.49': { $exists: false } }, { $push: { formasPersonalizadas: { tipo, nome, nomeNormalizado, taxaPercentual } } }, { new: true, runValidators: true });
@@ -31,8 +33,19 @@ router.post('/', auth.allowRoles('admin'), exigirAutorizacao('alterar_taxas_cart
 
 router.delete('/:tipo', auth.allowRoles('admin'), exigirAutorizacao('alterar_taxas_cartao'), async (req, res) => {
   const { tipo } = req.params;
-  if (!formaPersonalizada(tipo)) return res.status(400).json({ msg: 'Somente formas de pagamento personalizadas podem ser excluídas.' });
+  const formaPadraoGerenciavel = FORMAS_GERENCIAVEIS.includes(tipo);
+  if (!formaPersonalizada(tipo) && !formaPadraoGerenciavel) return res.status(400).json({ msg: 'Somente formas de pagamento gerenciáveis podem ser excluídas.' });
   try {
+    if (formaPadraoGerenciavel) {
+      await PaymentSettings.updateOne({ chave: 'principal' }, { $setOnInsert: { chave: 'principal' } }, { upsert: true });
+      const configuracao = await PaymentSettings.findOneAndUpdate(
+        { chave: 'principal', formasDesativadas: { $ne: tipo } },
+        { $addToSet: { formasDesativadas: tipo } },
+        { new: true, runValidators: true },
+      );
+      if (!configuracao) return res.status(404).json({ msg: 'Forma de pagamento não encontrada.' });
+      return res.json({ formasPagamento: catalogoDaConfiguracao(configuracao) });
+    }
     const configuracao = await PaymentSettings.findOneAndUpdate(
       { chave: 'principal', 'formasPersonalizadas.tipo': tipo },
       { $pull: { formasPersonalizadas: { tipo } } },
