@@ -66,14 +66,16 @@ describe('Cancelar comanda no PDV', () => {
   it('mantém os itens ao desistir e descarta rascunho sem criar comanda', () => {
     let saves = 0;
     cy.intercept('POST', '**/api/comandas', () => { saves++; });
-    cy.intercept('POST', '**/api/auth/autorizar', { tokenAutorizacao: token(), autorizado: true });
+    cy.intercept('POST', '**/api/auth/autorizar', request => {
+      expect(request.body).to.deep.equal({ acao: 'cancelar_venda' });
+      request.reply({ tokenAutorizacao: token(), autorizado: true });
+    }).as('approval');
     panel().contains('button', 'Cancelar comanda').click();
     cy.get('[role="dialog"]').contains('button', 'Cancelar').click();
     panel().contains('Subtotal: R$ 6,00').should('be.visible');
     panel().contains('button', 'Cancelar comanda').click();
     cy.get('[role="dialog"]').contains('button', 'Cancelar comanda').click();
-    cy.get('[role="dialog"] input[type="password"]').type('senha-gerente');
-    cy.get('[role="dialog"]').contains('button', 'Confirmar').click();
+    cy.wait('@approval');
     panel().contains('Comanda sem itens').should('be.visible');
     cy.then(() => expect(saves).to.equal(0));
   });

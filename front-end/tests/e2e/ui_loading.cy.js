@@ -30,18 +30,18 @@ describe('Carregamento das telas e foco de entregas', () => {
   });
 
   it('recarrega usuários após erro sem perder os indicadores de carregamento', () => {
-    cy.intercept('GET', '**/api/auth/users', { statusCode: 400, body: { msg: 'Falha na lista de usuários' } });
+    cy.intercept('GET', '**/api/auth/users*', { statusCode: 400, body: { msg: 'Falha na lista de usuários' } });
     cy.visit('/usuarios');
     cy.contains('[role="alert"]', 'Falha na lista de usuários').should('be.visible');
-    cy.intercept('GET', '**/api/auth/users', { delay: 250, body: [{ ...user, ativo: true }] }).as('usuarios');
+    cy.intercept('GET', '**/api/auth/users*', { delay: 1000, body: [{ ...user, ativo: true }] }).as('usuarios');
     cy.contains('[role="alert"]', 'Falha na lista de usuários').within(() => {
       cy.contains('button', 'Tentar novamente').click();
     });
-    cy.contains('[role="status"]', 'Carregando usuários').should('be.visible');
+    cy.get('.users-panel').first().find('[role="status"][aria-label="Carregando lista"]').should('be.visible');
     cy.wait('@usuarios');
     cy.contains('td', user.username).should('be.visible');
     cy.contains('Falha na lista de usuários').should('not.exist');
-    cy.contains('Carregando usuários').should('not.exist');
+    cy.get('.users-panel').first().find('[role="status"][aria-label="Carregando lista"]').should('not.exist');
   });
 
   it('orienta liberar pop-ups quando o navegador bloqueia o relatório mensal', () => {

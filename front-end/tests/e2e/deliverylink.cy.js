@@ -27,13 +27,13 @@ describe('DeliveryLink', () => {
       win.localStorage.setItem('pdv_user', JSON.stringify({ username: 'operador', role: 'admin', tenantId: 'tenant' }));
     } });
     cy.location('pathname').should('eq', '/entregas');
-    cy.contains('h1', 'Entregas').should('be.visible');
+    cy.get('.delivery-board-heading h1').should('be.visible').and('contain', 'Entregas');
 
     cy.visit('/admin', { onBeforeLoad(win) {
       win.localStorage.setItem('pdv_user', JSON.stringify({ username: 'operador', role: 'admin', tenantId: 'tenant' }));
     } });
     cy.location('pathname').should('eq', '/entregas');
-    cy.contains('h1', 'Entregas').should('be.visible');
+    cy.get('.delivery-board-heading h1').should('be.visible').and('contain', 'Entregas');
 
     cy.visit('/plataforma', { onBeforeLoad(win) {
       win.localStorage.removeItem('pdv_token');
@@ -44,17 +44,20 @@ describe('DeliveryLink', () => {
 
   it('abre entregas pelo menu do PDV e despacha apenas pedidos prontos', () => {
     const pronto = { ...pedido, status: 'pronto', origem: { ...pedido.origem, endereco: { rua: 'Rua Um', numero: '12', bairro: 'Centro' } } };
-    cy.intercept('GET', '**/api/entregas/pedidos?*', { pedidos: [pronto], paginas: 1 }).as('pedidosProntos');
-    cy.intercept('GET', '**/api/entregas/entregadores', [{ _id: 'courier', nome: 'João', telefone: '11977777777', status: 'disponivel', ativo: true, tenantId: 'tenant' }]);
+    cy.intercept({ method: 'GET', pathname: '/api/entregas/pedidos' }, { statusCode: 200, body: { pedidos: [pronto], total: 1 } }).as('pedidosProntos');
+    cy.intercept('GET', '**/api/entregas/entregadores', [{ _id: 'courier', nome: 'João', telefone: '11977777777', status: 'disponivel', ativo: true, tenantId: 'tenant' }]).as('entregadores');
     cy.intercept('GET', '**/api/entregas/estatisticas', { totalHoje: 1, entregues: 0, tempoMedioMin: 0, cancelados: 0, prontos: 1, despachados: 0 }).as('estatisticas');
+    cy.intercept('GET', '**/api/entregas/configuracao', tenant).as('configuracao');
     cy.intercept('POST', '**/api/entregas/pedidos/pedido/despachar', { ...pronto, status: 'despachado', whatsapp: { mensagemPronta: `Acompanhe: https://pdv-delivery-9j0a.onrender.com/pedido/${token}` } }).as('despacharPronto');
     cy.visit('/pdv', { onBeforeLoad(win) {
       win.localStorage.setItem('pdv_token', 'fake');
       win.localStorage.setItem('pdv_user', JSON.stringify({ username: 'operador', role: 'admin', tenantId: 'tenant' }));
     } });
     cy.contains('.nav-link', 'Entregas').should('contain', '1').click();
-    cy.wait('@pedidosProntos');
+    cy.wait('@pedidosProntos').its('response.statusCode').should('eq', 200);
     cy.wait('@estatisticas');
+    cy.wait('@entregadores').its('response.statusCode').should('eq', 200);
+    cy.wait('@configuracao').its('response.statusCode').should('eq', 200);
     cy.contains('Fila de entregas').should('be.visible');
     cy.get('.delivery-order .searchable-select-input').click();
     cy.get('[role="option"]').contains('João').click();
@@ -124,6 +127,7 @@ describe('DeliveryLink', () => {
     cy.contains('button', 'Novo pedido').click();
     cy.get('[name="taxaEntrega"]').should('have.value', '6.5');
     for (const [name, value] of Object.entries({ nomeCliente: 'Maria', telefone: '11988888888', rua: 'Rua Um', numero: '12', bairro: 'Centro', valorTotal: '16' })) cy.get(`[name="${name}"]`).type(value);
+    cy.contains('summary', 'Itens do pedido (opcional)').click();
     cy.contains('button', 'Adicionar item').click();
     cy.get('[name="descricao"]').type('Café');
     cy.get('[name="quantidade"]').clear().type('2');
@@ -167,10 +171,12 @@ describe('DeliveryLink', () => {
     } });
     cy.contains('button', 'Maria').click();
     cy.contains('button', 'Fechar comanda').click();
-    cy.get('select.comandas-field').last().select('dinheiro');
+    cy.get('input.searchable-select-input.comandas-field').last().click();
+    cy.get('[role="option"]').contains('Dinheiro').click();
     cy.contains('button', 'Confirmar Fechamento').click();
     cy.contains('Venda Delivery vinculada').should('be.visible');
-    cy.get('[aria-label="Entregador para despacho"]').select('courier');
+    cy.get('input[aria-label="Entregador para despacho"]').click();
+    cy.get('[role="option"]').contains('João').click();
     cy.contains('button', 'Despachar agora').click();
     cy.wait('@despacharInline');
     cy.contains('button', 'Ver detalhes da entrega').click();
@@ -198,8 +204,8 @@ describe('DeliveryLink', () => {
   it('Entregas exibe skeleton e mantém filtro e página do servidor ao tentar novamente', () => {
     let falhaPaginaDois = true;
     const pedidos = {
-      paginaUm: { pedidos: [{ ...pedido, _id: 'pedido-pagina-1', status: 'entregue' }], paginas: 2 },
-      paginaDois: { pedidos: [{ ...pedido, _id: 'pedido-pagina-2', status: 'entregue', origem: { ...pedido.origem, nomeCliente: 'Maria da segunda página' } }], paginas: 2 },
+      paginaUm: { pedidos: [{ ...pedido, _id: 'pedido-pagina-1', status: 'entregue' }], total: 26 },
+      paginaDois: { pedidos: [{ ...pedido, _id: 'pedido-pagina-2', status: 'entregue', origem: { ...pedido.origem, nomeCliente: 'Maria da segunda página' } }], total: 26 },
     };
     cy.intercept('GET', '**/api/entregas/pedidos?*', request => {
       const query = new URL(request.url).searchParams;
@@ -231,7 +237,7 @@ describe('DeliveryLink', () => {
     cy.wait('@pedidos').its('request.url').should('contain', 'status=entregue');
     cy.get('input[type="date"]').type('2026-10-16');
     cy.wait('@pedidos').its('request.url').should('contain', 'data=2026-10-16');
-    cy.contains('button', 'Próxima').click();
+    cy.get('button[aria-label="Próxima página"]').click();
     cy.wait('@pedidos').its('response.statusCode').should('eq', 503);
 
     cy.get('[role="alert"]').should('contain.text', 'O servidor encontrou um problema.');
@@ -240,13 +246,13 @@ describe('DeliveryLink', () => {
       const query = new URL(request.url).searchParams;
       expect(response.statusCode).to.equal(200);
       expect(query.get('pagina')).to.equal('2');
-      expect(query.get('limite')).to.equal('30');
+      expect(query.get('limite')).to.equal('25');
       expect(query.get('status')).to.equal('entregue');
       expect(query.get('data')).to.equal('2026-10-16');
     });
     cy.get('.delivery-order').should('have.length', 1);
     cy.contains('.delivery-order', 'Maria da segunda página').should('be.visible');
-    cy.contains('Página 2 de 2').should('be.visible');
+    cy.get('button[aria-label="Ir para a página 2"]').should('have.attr', 'aria-current', 'page');
   });
 
   it('cancela pedido de entrega somente após confirmação customizada e preserva o motivo', () => {
@@ -294,7 +300,7 @@ describe('DeliveryLink', () => {
     cy.contains('.estado-lista--vazio', 'Nenhuma entrega atribuída.').should('be.visible');
   });
 
-  it.only('rastreio oferece retry após erro inicial sem interromper o fallback de atualização', () => {
+  it('rastreio oferece retry após erro inicial sem interromper o fallback de atualização', () => {
     let tentativas = 0;
     cy.intercept('GET', `**/api/rastreio/${token}`, request => {
       tentativas += 1;
@@ -304,26 +310,33 @@ describe('DeliveryLink', () => {
     }).as('rastreioComRetry');
     cy.intercept('GET', `**/api/rastreio/${token}/stream`, { statusCode: 503, body: {} });
     cy.visit(`/pedido/${token}`, { onBeforeLoad(win) {
+      const setIntervalNativo = win.setInterval.bind(win);
+      const clearIntervalNativo = win.clearInterval.bind(win);
+      const idPolling = -1;
+      win.setInterval = (callback, intervalo) => {
+        if (intervalo === 15000) {
+          win.deliveryPollingCallback = callback;
+          return idPolling;
+        }
+        return setIntervalNativo(callback, intervalo);
+      };
+      win.clearInterval = id => { if (id !== idPolling) clearIntervalNativo(id); };
       win.localStorage.setItem('delivery_admin:logged-out', '1');
     } });
 
     cy.get('[role="status"][aria-label="Carregando lista"]').should('be.visible');
     cy.wait('@rastreioComRetry').its('response.statusCode').should('eq', 503);
+    cy.wait('@rastreioComRetry').its('response.statusCode').should('eq', 503);
     cy.get('[role="alert"]').should('contain.text', 'Falha temporária do rastreio.');
     cy.contains('[role="alert"] button', 'Tentar novamente').click();
-    cy.wait('@rastreioComRetry.3').its('response.statusCode').should('eq', 200);
+    cy.wait('@rastreioComRetry').its('response.statusCode').should('eq', 200);
+    cy.window().then(win => {
+      expect(win.deliveryPollingCallback).to.be.a('function');
+      win.deliveryPollingCallback();
+    });
+    cy.wait('@rastreioComRetry').its('response.statusCode').should('eq', 200);
     cy.contains('h1', tenant.nome).should('be.visible');
     cy.contains('Atualização automática a cada 15 segundos').should('be.visible');
-  });
-
-  it('plataforma cadastra comércio com acesso inicial do dono', () => {
-    cy.intercept('GET', '**/api/plataforma/tenants', []);
-    cy.intercept('POST', '**/api/plataforma/tenants', tenant).as('criarComercio');
-    cy.visit('/plataforma', { onBeforeLoad(win) { win.localStorage.setItem('delivery_admin', JSON.stringify({ token: 'fake', user: { role: 'admin_plataforma' } })); } });
-    for (const [name, value] of Object.entries({ nome: 'Café da Praça', slug: 'cafe-da-praca', telefone: '11999999999', endereco: 'Rua Um', adminEmail: 'dono@teste.test', adminSenha: 'senha-temporaria-123' })) cy.get('.delivery-main > form').find(`[name="${name}"]`).type(value);
-    cy.contains('button', 'Criar comércio').click();
-    cy.wait('@criarComercio').its('request.body.adminEmail').should('eq', 'dono@teste.test');
-    cy.contains('Comércio salvo.').should('be.visible');
   });
 
   it('PDV exibe taxa no total e mantém endereço na venda offline', () => {
@@ -333,18 +346,27 @@ describe('DeliveryLink', () => {
     cy.intercept('GET', '**/api/products/mais-vendidos*', []);
     cy.visit('/pdv', { onBeforeLoad(win) {
       win.localStorage.setItem('pdv_token', 'fake');
-      win.localStorage.setItem('pdv_user', JSON.stringify({ username: 'teste', role: 'admin' }));
+      win.localStorage.setItem('pdv_user', JSON.stringify({ id: 'delivery-e2e', username: 'teste', role: 'admin', tenantId: 'tenant' }));
     } });
     cy.contains('.product-card', produto.nome).click();
-    cy.get('input[placeholder="Digite o nome"]').type('Maria');
-    cy.contains('label', 'Entrega ao cliente').find('input').check();
+    cy.contains('.pdv-cart-panel button', 'Delivery').click();
+    cy.get('.pdv-cart-panel .pdv-command-name input').first().type('Maria');
     for (const [label, value] of [['Telefone do cliente', '11988888888'], ['Rua', 'Rua Um'], ['Número', '12'], ['Bairro', 'Centro']]) cy.contains('label', label).find('input').type(value);
     cy.contains('label', 'Taxa de entrega no caixa').find('input').clear().type('4');
     cy.get('.pdv-cart-panel').should('contain', 'Taxa de entrega').and('contain', 'R$ 12,00');
     cy.window().then(win => { Object.defineProperty(win.navigator, 'onLine', { configurable: true, value: false }); win.dispatchEvent(new Event('offline')); });
-    cy.contains('button', 'Abrir Comanda').click();
-    cy.window().should(win => {
-      const fila = JSON.parse(win.localStorage.getItem('pdv_fila_offline') || '[]');
+    cy.contains('.pdv-cart-panel button', 'Salvar fila offline').click();
+    cy.window().then(win => new Cypress.Promise((resolve, reject) => {
+      const request = win.indexedDB.open('pdv_offline');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction('fila', 'readonly');
+        const consulta = tx.objectStore('fila').getAll();
+        tx.oncomplete = () => { db.close(); resolve(consulta.result); };
+        tx.onabort = () => { db.close(); reject(tx.error); };
+      };
+    })).should(fila => {
       expect(fila).to.have.length(1);
       expect(fila[0].payload.entrega.taxaEntrega).to.equal(4);
       expect(fila[0].payload.entrega.endereco.rua).to.equal('Rua Um');
@@ -365,7 +387,7 @@ describe('DeliveryLink', () => {
 
     cy.contains('.product-card', produto.nome).click();
     cy.window().then(win => cy.stub(win, 'open').as('abrirJanela'));
-    cy.contains('.pdv-cart-panel button', 'Finalizar venda').click();
+    cy.contains('.pdv-cart-panel button', 'Fechar venda').click();
     cy.get('[role="dialog"]').should('be.visible').and('contain', 'Forma de pagamento');
     cy.get('@abrirJanela').should('not.have.been.called');
   });

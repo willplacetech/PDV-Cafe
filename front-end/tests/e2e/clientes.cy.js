@@ -24,7 +24,7 @@
 
   it('cancela ou confirma a exclusão do cliente no diálogo acessível', () => {
     const customer = { _id: 'feedback-delete', nome: 'Cliente para excluir', telefone: '11999887766', cafesFidelidade: 0 };
-    cy.intercept('GET', '**/api/customers', { statusCode: 200, body: [customer] }).as('customers');
+    cy.intercept('GET', '**/api/customers*', { statusCode: 200, body: [customer] }).as('customers');
     cy.intercept('DELETE', '**/api/customers/feedback-delete', { statusCode: 204 }).as('deleteCustomer');
     cy.visit('/clientes');
     cy.wait('@customers');
@@ -47,12 +47,20 @@
       telefone: '11999887766',
       cafesFidelidade: 0,
     }));
-    cy.intercept('GET', '**/api/customers', { statusCode: 200, body: customers }).as('customers');
+    cy.intercept('GET', '**/api/customers*', (request) => {
+      const url = new URL(request.url);
+      const pagina = Number(url.searchParams.get('pagina') || 1);
+      const limite = Number(url.searchParams.get('limite') || 25);
+      request.reply({
+        statusCode: 200,
+        body: { dados: customers.slice((pagina - 1) * limite, pagina * limite), total: customers.length },
+      });
+    }).as('customers');
     cy.visit('/clientes');
     cy.wait('@customers');
     cy.contains('tbody tr', 'Cliente 1').should('be.visible');
     cy.contains('tbody tr', 'Cliente 26').should('not.exist');
-    cy.get('.paginacao').contains('button', '2').click();
+    cy.get('.paginacao-minimalista').contains('button', '2').click();
     cy.contains('tbody tr', 'Cliente 26').should('be.visible');
     cy.contains('tbody tr', 'Cliente 1').should('not.exist');
     cy.contains('tbody tr', 'Cliente 26').contains('button', 'Editar').click();
@@ -60,7 +68,7 @@
   });
 
   it('mostra skeleton e permite iniciar o cadastro após uma resposta vazia válida', () => {
-    cy.intercept('GET', '**/api/customers', { delay: 300, statusCode: 200, body: [] }).as('customers');
+    cy.intercept('GET', '**/api/customers*', { delay: 300, statusCode: 200, body: [] }).as('customers');
     cy.visit('/clientes');
     cy.get('[role="status"][aria-label="Carregando lista"]').should('be.visible');
     cy.wait('@customers');
@@ -71,7 +79,7 @@
 
   it('mostra erro de carga com retry e troca para vazio após a consulta repetir', () => {
     let attempts = 0;
-    cy.intercept('GET', '**/api/customers', (request) => {
+    cy.intercept('GET', '**/api/customers*', (request) => {
       attempts += 1;
       request.reply(attempts <= 2
         ? { statusCode: 503, body: { msg: 'Falha temporária ao carregar clientes.' } }

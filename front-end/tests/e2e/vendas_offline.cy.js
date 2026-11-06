@@ -15,6 +15,33 @@ const verificarFila = (verificar, tentativas = 30) => cy.window().then(window =>
   }
 });
 
+const prepararFilaOffline = (fila = []) => cy.window().then(window => new Cypress.Promise((resolve, reject) => {
+  const request = window.indexedDB.open('pdv_offline', 1);
+  request.onerror = () => reject(request.error);
+  request.onupgradeneeded = () => {
+    const database = request.result;
+    if (!database.objectStoreNames.contains('fila')) database.createObjectStore('fila', { keyPath: 'idTemporario' });
+    if (!database.objectStoreNames.contains('metadata')) database.createObjectStore('metadata', { keyPath: 'key' });
+  };
+  request.onsuccess = () => {
+    const database = request.result;
+    const transaction = database.transaction(['fila', 'metadata'], 'readwrite');
+    const store = transaction.objectStore('fila');
+    store.clear();
+    transaction.objectStore('metadata').clear();
+    fila.forEach(item => store.put(item));
+    transaction.oncomplete = () => {
+      database.close();
+      window.dispatchEvent(new Event('pdv:fila-offline-atualizada'));
+      resolve();
+    };
+    transaction.onabort = () => {
+      database.close();
+      reject(transaction.error);
+    };
+  };
+}));
+
 describe('Vendas offline', () => {
   const produto = {
     _id: '64b000000000000000000001',
@@ -27,11 +54,18 @@ describe('Vendas offline', () => {
     unidadeVenda: 'un',
     descontosPorQuantidade: [],
   };
+  const usuarioOffline = {
+    id: 'usuario-offline-e2e',
+    username: 'teste',
+    role: 'admin',
+    tenantId: 'tenant-offline-e2e',
+  };
 
   it('salva a venda sem rede e sincroniza automaticamente ao reconectar', () => {
     cy.intercept('GET', '**/api/products/pdv', [produto]);
     cy.intercept('GET', '**/api/customers', []);
     cy.intercept('GET', '**/api/products/mais-vendidos?limite=8', []);
+    cy.intercept('POST', '**/api/auth/refresh').as('sessionRefresh');
     let tentativas = 0;
     cy.intercept('POST', '**/api/comandas', (request) => {
       tentativas += 1;
@@ -45,20 +79,23 @@ describe('Vendas offline', () => {
 
     cy.visit('/pdv', {
       onBeforeLoad(window) {
-        window.indexedDB.deleteDatabase('pdv_offline');
         window.localStorage.setItem('pdv_token', 'token-teste');
-        window.localStorage.setItem('pdv_user', JSON.stringify({ username: 'teste', role: 'admin' }));
+        window.localStorage.setItem('pdv_user', JSON.stringify(usuarioOffline));
+        window.localStorage.removeItem('pdv_fila_offline');
       },
     });
 
-    cy.contains('.product-card', 'Café offline').should('be.visible').click();
-    cy.clock();
-    cy.window().then((window) => {
+    cy.wait('@sessionRefresh');
+    cy.contains('.product-card', 'Café offline').should('be.visible');
+    cy.window().then(window => {
       Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: false });
       window.dispatchEvent(new Event('offline'));
     });
+    prepararFilaOffline();
+    cy.contains('.product-card', 'Café offline').click();
+    cy.clock(Date.now(), ['Date', 'setTimeout', 'clearTimeout']);
 
-    cy.contains('button', 'Salvar em aberto').click();
+    cy.contains('button', 'Salvar fila offline').scrollIntoView().click();
     cy.contains('venda salva! Envia automaticamente quando voltar.').should('be.visible');
     verificarFila((fila) => {
       expect(fila).to.have.length(1);
@@ -88,26 +125,33 @@ describe('Vendas offline', () => {
   });
 
   it('bloqueia nova venda quando já existem 50 pendências e mantém o carrinho', () => {
-    const filaCheia = Array.from({ length: 50 }, (_, indice) => ({
-      idTemporario: `pendente-${indice}`,
-      endpoint: '/comandas',
-      payload: { idTemporario: `pendente-${indice}` },
-      status: 'pendente',
-    }));
+    const filaCheia = Array.from({ length: 50 }, (_, indice) => {
+      const idTemporario = `pendente-${indice}`;
+      return {
+        idTemporario,
+        endpoint: '/comandas',
+        payload: { idTemporario },
+        status: 'pendente',
+        criadaEm: new Date(2026, 0, indice + 1).toISOString(),
+        ownerId: usuarioOffline.id,
+        tenantId: usuarioOffline.tenantId,
+        role: usuarioOffline.role,
+      };
+    });
 
     cy.visit('/pdv', {
       onBeforeLoad(window) {
-        window.indexedDB.deleteDatabase('pdv_offline');
         window.localStorage.setItem('pdv_token', 'token-teste');
-        window.localStorage.setItem('pdv_user', JSON.stringify({ username: 'teste', role: 'admin' }));
+        window.localStorage.setItem('pdv_user', JSON.stringify(usuarioOffline));
         window.localStorage.setItem('pdv_catalogo_offline', JSON.stringify([produto]));
-        window.localStorage.setItem('pdv_fila_offline', JSON.stringify(filaCheia));
+        window.localStorage.removeItem('pdv_fila_offline');
         Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: false });
       },
     });
 
+    prepararFilaOffline(filaCheia);
     cy.contains('.product-card', 'Café offline').should('be.visible').click();
-    cy.contains('button', 'Salvar em aberto').click();
+    cy.contains('button', 'Salvar fila offline').scrollIntoView().click();
     cy.contains('Limite de 50 vendas pendentes atingido').should('be.visible');
     verificarFila((fila) => {
       expect(fila).to.have.length(50);
@@ -123,20 +167,22 @@ describe('Vendas offline', () => {
     cy.intercept('POST', '**/api/comandas', { statusCode: 500, body: {} });
     cy.visit('/pdv', {
       onBeforeLoad(window) {
-        window.indexedDB.deleteDatabase('pdv_offline');
         window.localStorage.setItem('pdv_token', 'token-teste');
-        window.localStorage.setItem('pdv_user', JSON.stringify({ username: 'teste', role: 'admin' }));
+        window.localStorage.setItem('pdv_user', JSON.stringify(usuarioOffline));
         window.localStorage.setItem('pdv_catalogo_offline', JSON.stringify([produto]));
+        window.localStorage.removeItem('pdv_fila_offline');
         Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: false });
       },
     });
+    prepararFilaOffline();
 
     for (let indice = 0; indice < 2; indice += 1) {
       cy.contains('.product-card', produto.nome).click();
-      cy.contains('.pdv-cart-panel button', 'Salvar em aberto').click();
+      cy.contains('.pdv-cart-panel button', 'Salvar fila offline').click();
       verificarFila((fila) => {
         expect(fila).to.have.length(indice + 1);
       });
+      if (indice === 0) cy.get('.pdv-mobile-cart-backdrop').click('topLeft');
     }
 
     cy.reload();

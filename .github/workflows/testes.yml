@@ -2,9 +2,10 @@ name: Testes Automatizados
 
 on:
   push:
-    branches: [main, master, feature/pwa-offline-sincronizacao]
+    branches: [main, master, feature/pwa-offline-sincronizacao, Generico]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, Generico]
+  workflow_dispatch:
 
 jobs:
   test:

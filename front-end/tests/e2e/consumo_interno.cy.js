@@ -11,7 +11,7 @@ describe('Consumo da equipe', () => {
     cy.intercept('GET', '**/api/**', req => {
       const path = new URL(req.url).pathname;
       if (path.endsWith('/mesas')) return req.reply(tables);
-      if (path.endsWith('/customers')) return req.reply([customer]);
+      if (path.endsWith('/customers') || path.endsWith('/customers/pdv')) return req.reply([customer]);
       if (path.endsWith('/comandas')) return req.reply(commands);
       if (path.endsWith('/products') || path.endsWith('/products/pdv')) return req.reply([product]);
       if (path.endsWith('/entregas/estatisticas')) return req.reply({ prontos: 0, despachados: 0 });
@@ -37,7 +37,7 @@ describe('Consumo da equipe', () => {
     }).as('close');
     cy.visit('/pdv', { onBeforeLoad(win) { win.localStorage.setItem('pdv_user', JSON.stringify(profile)); cy.stub(win, 'open'); } });
     cy.get('.product-card').contains(product.nome).click();
-    cy.get('.pdv-cart-panel [role="combobox"]').first().type(`${customer.nome}{enter}`);
+    cy.contains('label', 'Cliente').parent().find('[role="combobox"]').type(`${customer.nome}{enter}`);
   });
 
   const panel = () => cy.get('.pdv-cart-panel');
@@ -70,7 +70,8 @@ describe('Consumo da equipe', () => {
     cy.get('.mesas-drawer-table').contains('Mesa 2').click();
     cy.get('.pdv-payment-dialog').should('not.exist');
     cy.get('#sidebar-desktop').contains('Mesas / Comandas').click();
-    cy.get('.mesas-drawer-table').contains('Mesa 2').click();
+    cy.contains('.comanda-select-button', '#1').click();
+    cy.contains('button', 'Abrir no PDV').click();
     cy.location('pathname').should('equal', '/pdv');
     panel().contains('button', 'Retomar consumo interno').click();
     cy.contains('Consumo interno registrado!').should('be.visible');
@@ -81,7 +82,8 @@ describe('Consumo da equipe', () => {
     panel().contains('button', 'Salvar em aberto').click();
     cy.wait('@save');
     cy.visit('/comandas');
-    cy.get('.mesas-overview').contains('button', '#1').click();
+    cy.contains('.comanda-select-button', '#1').click();
+    cy.contains('button', 'Abrir no PDV').click();
     cy.location('pathname').should('equal', '/pdv');
     panel().contains('button', 'Registrar consumo interno').click();
     cy.wait('@close');

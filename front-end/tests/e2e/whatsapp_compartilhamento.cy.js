@@ -13,9 +13,10 @@ describe('Compartilhamento por WhatsApp', () => {
       pedido: { ...comanda, total: 16, status: 'pago', pagamentos: [{ tipo: 'dinheiro', valorRecebido: 16 }] },
     }).as('fechar');
     cy.visit('/comandas');
-    cy.contains('button', 'Maria').click();
-    cy.contains('button', 'Fechar comanda').click();
-    cy.chooseOption('[role="combobox"].comandas-field', 'Dinheiro');
+    cy.get('.comandas-list-card').contains('.comanda-select-button', 'Maria').click();
+    cy.get('.comandas-detail-card').contains('button', 'Fechar comanda').click();
+    cy.contains('label', 'Forma de pagamento').parent().find('[role="combobox"]').click();
+    cy.contains('[role="option"]', 'Dinheiro').click();
     cy.contains('button', 'Confirmar Fechamento').click();
     cy.wait('@fechar');
   });

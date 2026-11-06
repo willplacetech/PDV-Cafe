@@ -60,10 +60,13 @@ export default function ConfirmarAcao({ titulo, mensagem, acaoTexto = 'Confirmar
       showToast(error?.response?.data?.msg || error.message || 'Não foi possível concluir a ação.', 'error');
     }
   };
+  const trigger = Array.isArray(children)
+    ? children.find(child => typeof child === 'function') ?? children
+    : children;
 
   return (
     <>
-      {typeof children === 'function' ? children({ onClick: handleAbrir }) : null}
+      {typeof trigger === 'function' ? trigger({ onClick: handleAbrir }) : trigger}
       {aberto && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',

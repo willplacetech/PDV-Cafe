@@ -61,7 +61,7 @@ describe('Selects pesquisáveis compartilhados', () => {
 
   it('marca o campo inválido e limpa o erro ao escolher uma opção válida', () => {
     cy.contains('button', 'Salvar').click();
-    cy.get('#produto').should('have.attr', 'aria-invalid', 'true').and('have.css', 'border-color', 'rgb(220, 38, 38)');
+    cy.get('#produto').should('have.attr', 'aria-invalid', 'true').and('have.css', 'border-color', 'rgb(196, 92, 82)');
     cy.get('#produto').type('cafe{enter}');
     cy.get('#produto').should('not.have.attr', 'aria-invalid', 'true');
     cy.contains('button', 'Salvar').click();
