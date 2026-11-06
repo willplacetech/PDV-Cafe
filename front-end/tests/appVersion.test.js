@@ -4,6 +4,7 @@ import {
   APP_GIT_HASH,
   fetchPublishedAppVersion,
   installPreloadErrorRecovery,
+  restorePreloadRecoveryPath,
   waitForServiceWorkerUpdate,
 } from '../src/services/appVersion.js';
 
@@ -66,36 +67,61 @@ test('fails explicitly when the service worker does not take control', async () 
   );
 });
 
-test('reloads once after a failed Vite preload for each app version', () => {
+test('clears stale app caches and reloads once after a failed Vite preload', async () => {
   const values = new Map();
-  let reloadCount = 0;
+  const deletedCaches = [];
+  let unregisterCount = 0;
+  let replacedUrl;
   const browser = new EventTarget();
   browser.sessionStorage = {
     getItem: (key) => values.get(key) ?? null,
     setItem: (key, value) => values.set(key, value),
   };
-  browser.location = { reload: () => { reloadCount += 1; } };
+  browser.navigator = {
+    serviceWorker: {
+      getRegistrations: async () => [{ unregister: async () => { unregisterCount += 1; } }],
+    },
+  };
+  browser.caches = {
+    keys: async () => ['workbox-precache', 'app-shell'],
+    delete: async (key) => { deletedCaches.push(key); },
+  };
+  browser.location = {
+    href: 'https://pdv.example/login?from=expired',
+    replace: (url) => { replacedUrl = url; },
+  };
 
   const removeOldVersionHandler = installPreloadErrorRecovery(browser, 'commit-old');
   const firstError = new Event('vite:preloadError', { cancelable: true });
   browser.dispatchEvent(firstError);
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(firstError.defaultPrevented, true);
-  assert.equal(reloadCount, 1);
+  assert.equal(unregisterCount, 1);
+  assert.deepEqual(deletedCaches, ['workbox-precache', 'app-shell']);
+  assert.equal(new URL(replacedUrl).pathname, '/__pdv-recovery/commit-old/index.html');
+  const recoveredBrowser = {
+    location: { href: replacedUrl },
+    history: { replaceState: (_state, _title, url) => { recoveredBrowser.location.href = new URL(url, replacedUrl).href; } },
+  };
+  assert.equal(restorePreloadRecoveryPath(recoveredBrowser), true);
+  assert.equal(new URL(recoveredBrowser.location.href).pathname, '/login');
+  assert.equal(new URL(recoveredBrowser.location.href).search, '?from=expired');
 
   const repeatedError = new Event('vite:preloadError', { cancelable: true });
   browser.dispatchEvent(repeatedError);
 
   assert.equal(repeatedError.defaultPrevented, false);
-  assert.equal(reloadCount, 1);
+  assert.equal(unregisterCount, 1);
   removeOldVersionHandler();
 
   installPreloadErrorRecovery(browser, 'commit-new');
   const newVersionError = new Event('vite:preloadError', { cancelable: true });
   browser.dispatchEvent(newVersionError);
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(newVersionError.defaultPrevented, true);
-  assert.equal(reloadCount, 2);
+  assert.equal(unregisterCount, 2);
 });
 
 test('does not reload when session storage cannot guard against a reload loop', () => {

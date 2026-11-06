@@ -2,7 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, isAbsolute, resolve } from 'node:path'
 import { env } from 'node:process'
 
 const gitCommit = env.RENDER_GIT_COMMIT || (() => {
@@ -15,9 +16,16 @@ const gitCommit = env.RENDER_GIT_COMMIT || (() => {
 const appVersion = gitCommit || 'dev'
 const gitHash = (gitCommit || 'dev').slice(0, 7)
 const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8')
+let recoveryOutputDir = ''
 
 const appVersionPlugin = {
   name: 'app-version',
+  configResolved(config) {
+    if (config.command !== 'build') return
+    recoveryOutputDir = isAbsolute(config.build.outDir)
+      ? config.build.outDir
+      : resolve(config.root, config.build.outDir)
+  },
   configureServer(server) {
     server.middlewares.use('/version.json', (_request, response) => {
       response.setHeader('Cache-Control', 'no-store')
@@ -40,6 +48,12 @@ const appVersionPlugin = {
       fileName: 'CHANGELOG.md',
       source: changelog,
     })
+  },
+  closeBundle() {
+    if (!recoveryOutputDir) return
+    const recoveryFile = resolve(recoveryOutputDir, '__pdv-recovery', encodeURIComponent(appVersion), 'index.html')
+    mkdirSync(dirname(recoveryFile), { recursive: true })
+    writeFileSync(recoveryFile, readFileSync(resolve(recoveryOutputDir, 'index.html')))
   },
 }
 

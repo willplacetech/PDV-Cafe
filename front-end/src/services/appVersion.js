@@ -1,6 +1,30 @@
 export const APP_VERSION = import.meta.env?.VITE_APP_VERSION || 'development';
 export const APP_GIT_HASH = typeof __GIT_HASH__ === 'string' ? __GIT_HASH__ : 'dev';
 
+export const restorePreloadRecoveryPath = (browserWindow) => {
+  const recoveryPath = new URL(browserWindow.location.href);
+  if (!recoveryPath.pathname.startsWith('/__pdv-recovery/')) return false;
+
+  const originalPath = recoveryPath.searchParams.get('__pdv_path');
+  if (!originalPath?.startsWith('/') || originalPath.startsWith('//')) {
+    console.error('[PWA] O caminho original para recuperar a aplicação é inválido.');
+    return false;
+  }
+
+  const destination = new URL(originalPath, recoveryPath.origin);
+  if (destination.origin !== recoveryPath.origin) {
+    console.error('[PWA] O caminho de recuperação não pode alterar a origem da aplicação.');
+    return false;
+  }
+
+  browserWindow.history.replaceState(
+    null,
+    '',
+    `${destination.pathname}${destination.search}${destination.hash}`,
+  );
+  return true;
+};
+
 export const installPreloadErrorRecovery = (browserWindow, appVersion = APP_VERSION) => {
   const recoveryKey = `pdv:preload-recovery:${appVersion}`;
   const handlePreloadError = (event) => {
@@ -13,7 +37,35 @@ export const installPreloadErrorRecovery = (browserWindow, appVersion = APP_VERS
     }
 
     event.preventDefault();
-    browserWindow.location.reload();
+    const clearStaleAppData = async () => {
+      const registrations = await browserWindow.navigator?.serviceWorker?.getRegistrations?.() ?? [];
+      const cacheNames = await browserWindow.caches?.keys?.() ?? [];
+      await Promise.all([
+        ...registrations.map((registration) => registration.unregister()),
+        ...cacheNames.map((cacheName) => browserWindow.caches.delete(cacheName)),
+      ]);
+    };
+    const reloadWithFreshAssets = () => {
+      try {
+        const currentUrl = new URL(browserWindow.location.href);
+        const retryUrl = new URL(
+          `/__pdv-recovery/${encodeURIComponent(appVersion)}/index.html`,
+          currentUrl.origin,
+        );
+        retryUrl.searchParams.set(
+          '__pdv_path',
+          `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
+        );
+        browserWindow.location.replace(retryUrl.href);
+      } catch (error) {
+        console.error('[PWA] Não foi possível atualizar o endereço para recarregar os arquivos.', error);
+        browserWindow.location.reload();
+      }
+    };
+
+    void clearStaleAppData()
+      .catch((error) => console.error('[PWA] Não foi possível limpar os recursos locais antigos.', error))
+      .finally(reloadWithFreshAssets);
   };
 
   browserWindow.addEventListener('vite:preloadError', handlePreloadError);
