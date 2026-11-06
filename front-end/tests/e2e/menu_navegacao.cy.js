@@ -27,7 +27,7 @@ describe('Navegação e grupos de menu', () => {
 
   it('navega para o dashboard pelo menu', () => {
     cy.get('#sidebar-desktop').contains('button', 'GESTÃO').click();
-    cy.get('#sidebar-desktop a[href="/dashboard"]').click();
+    cy.get('#sidebar-desktop a[href="/dashboard"]:visible').first().click();
     cy.location('pathname').should('equal', '/dashboard');
     cy.get('.dashboard-heading h1').should('be.visible');
   });

@@ -18,9 +18,9 @@ describe('Padrão dos controles existentes', () => {
       cy.viewport(width, 844);
       visit('/produtos');
       cy.get('.product-card-edit').click();
-      cy.contains('label', 'Nome *').find('input').should('have.css', 'min-height', '48px').and('have.css', 'border-radius', '10px');
+      cy.contains('label', 'Nome *').find('input').should('have.css', 'min-height', '40px').and('have.css', 'border-radius', '8px');
       visit('/clientes');
-      cy.get('#customer-form .input-field').first().should('have.css', 'min-height', '48px').and('have.css', 'border-radius', '10px');
+      cy.get('#customer-form .input-field').first().should('have.css', 'min-height', '40px').and('have.css', 'border-radius', '8px');
     });
   }
 
@@ -39,18 +39,18 @@ describe('Padrão dos controles existentes', () => {
     visit('/caixa');
     cy.contains('label', 'Total em dinheiro').find('input').should('have.css', 'font-size', '18px');
     visit('/usuarios');
-    cy.get('input[autocomplete="username"]').focus().should('have.css', 'border-color', 'rgb(169, 79, 43)');
+    cy.get('input[autocomplete="username"]').focus().should('have.css', 'border-color', 'rgb(79, 157, 106)');
   });
 
   it('usa texto escuro no botão primário do tema escuro', () => {
     visit('/clientes');
     cy.document().then(doc => { doc.documentElement.dataset.theme = 'dark'; });
-    cy.get('#customer-form .btn-primary').should('have.css', 'color', 'rgb(45, 32, 26)');
+    cy.get('#customer-form .btn-primary').should('have.css', 'color', 'rgb(42, 56, 48)');
   });
 
   it('preserva a borda de erro no select focado dentro do formulário de produtos', () => {
     visit('/produtos');
     cy.get('.product-essential-grid [role="combobox"]').first().focus().invoke('attr', 'aria-invalid', 'true')
-      .should('have.css', 'border-color', 'rgb(220, 38, 38)');
+      .should('have.css', 'border-color', 'rgb(196, 92, 82)');
   });
 });
