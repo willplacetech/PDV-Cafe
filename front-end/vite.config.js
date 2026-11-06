@@ -18,6 +18,11 @@ const gitHash = (gitCommit || 'dev').slice(0, 7)
 const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8')
 let recoveryOutputDir = ''
 
+const appendVersionToAssetUrls = (content) => content.replace(
+  /((?:\.\/|\/assets\/)[^"'\s]+\.js)(?=["'])/g,
+  (assetUrl) => `${assetUrl}?v=${encodeURIComponent(appVersion)}`,
+)
+
 const appVersionPlugin = {
   name: 'app-version',
   configResolved(config) {
@@ -57,6 +62,18 @@ const appVersionPlugin = {
   },
 }
 
+const versionedAssetUrlsPlugin = {
+  name: 'versioned-asset-urls',
+  transformIndexHtml: {
+    order: 'post',
+    handler: appendVersionToAssetUrls,
+  },
+  renderChunk(code) {
+    const versionedCode = appendVersionToAssetUrls(code)
+    return versionedCode === code ? null : { code: versionedCode, map: null }
+  },
+}
+
 export default defineConfig({
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
@@ -65,6 +82,7 @@ export default defineConfig({
   plugins: [
     react(),
     appVersionPlugin,
+    versionedAssetUrlsPlugin,
     VitePWA({
       registerType: 'autoUpdate',
       manifest: false,
