@@ -17,7 +17,7 @@ beforeEach(async () => {
   tenant = await Tenant.create({ nome: 'Café teste', slug: 'cafe-teste', telefone: '11999999999', endereco: 'Rua Um' });
   user = await User.create({ username: 'comanda-test', password: 'test-password', role: 'admin', tenantId: tenant.id });
   token = jwt.sign({ id: user.id, username: user.username, role: user.role, tenantId: tenant.id }, process.env.JWT_SECRET);
-  product = await Product.create({ codigo: 'cafe', nome: 'Café', categoria: 'Bebidas Quentes', tipo: 'venda', preco: 6, estoque: 20, unidadeVenda: 'un' });
+  product = await Product.create({ codigo: 'cafe', nome: 'Café', categoria: 'Bebidas Quentes', tipo: 'venda', preco: 6, estoque: 20, unidadeVenda: 'un', tenantId: tenant.id });
 });
 const api = (method, url, payload) => request(app)[method](url).set('Authorization', `Bearer ${token}`).set(require('../approvalFixture').headers(method, url, token, payload)).send(payload);
 
@@ -38,7 +38,7 @@ test('preço editado persiste ao salvar, alterar quantidade e fechar venda', asy
 });
 
 test('comanda normal fechada soma um ponto de fidelidade ao cliente', async () => {
-  const customer = await Customer.create({ nome: 'Cliente fidelidade', cafesFidelidade: 9 });
+  const customer = await Customer.create({ nome: 'Cliente fidelidade', cafesFidelidade: 9, tenantId: tenant.id });
   const created = await api('post', '/api/comandas', {
     tipoAtendimento: 'balcao',
     clienteId: customer.id,
@@ -67,14 +67,14 @@ test('preço zero é preservado sem substituir pelo preço de catálogo', async 
 });
 
 test('dashboard inclui venda delivery paga antes da entrega e isola faturamento de outro comércio', async () => {
-  const order = await Order.create({ atendente: user.username, subtotal: 20, total: 25, taxaEntrega: 5, status: 'pago', tipoAtendimento: 'delivery' });
-  const comanda = await Comanda.create({ atendente: user.username, tipoAtendimento: 'delivery', status: 'fechada', pedidoId: order.id, entrega: { tenantId: tenant.id } });
+  const order = await Order.create({ atendente: user.username, subtotal: 20, total: 25, taxaEntrega: 5, status: 'pago', tipoAtendimento: 'delivery', tenantId: tenant.id });
+  const comanda = await Comanda.create({ atendente: user.username, tipoAtendimento: 'delivery', status: 'fechada', pedidoId: order.id, entrega: { tenantId: tenant.id }, tenantId: tenant.id });
   order.comandaId = comanda.id;
   await order.save();
-  await Order.create({ atendente: user.username, subtotal: 25, total: 25, status: 'pago', tipoAtendimento: 'balcao' });
+  await Order.create({ atendente: user.username, subtotal: 25, total: 25, status: 'pago', tipoAtendimento: 'balcao', tenantId: tenant.id });
   const other = await Tenant.create({ nome: 'Outro', slug: 'outro', telefone: '11888888888', endereco: 'Rua Dois' });
   const otherUser = await User.create({ username: 'outro-admin', password: 'test-password', role: 'admin', tenantId: other.id });
-  await Order.create({ atendente: otherUser.username, subtotal: 500, total: 500, status: 'pago', tipoAtendimento: 'balcao' });
+  await Order.create({ atendente: otherUser.username, subtotal: 500, total: 500, status: 'pago', tipoAtendimento: 'balcao', tenantId: other.id });
   const response = await api('get', '/api/dashboard/delivery?periodo=hoje');
   expect(response.status).toBe(200);
   expect(response.body.totalPedidos).toBe(1);
@@ -99,8 +99,8 @@ test('dashboard inclui delivery criado diretamente em Entregas, sem venda PDV', 
 });
 
 test('delivery vinculado ao PDV é contado uma vez quando também foi entregue', async () => {
-  const order = await Order.create({ atendente: user.username, subtotal: 20, total: 25, taxaEntrega: 5, status: 'pago', tipoAtendimento: 'delivery' });
-  const comanda = await Comanda.create({ atendente: user.username, tipoAtendimento: 'delivery', status: 'fechada', pedidoId: order.id, entrega: { tenantId: tenant.id } });
+  const order = await Order.create({ atendente: user.username, subtotal: 20, total: 25, taxaEntrega: 5, status: 'pago', tipoAtendimento: 'delivery', tenantId: tenant.id });
+  const comanda = await Comanda.create({ atendente: user.username, tipoAtendimento: 'delivery', status: 'fechada', pedidoId: order.id, entrega: { tenantId: tenant.id }, tenantId: tenant.id });
   order.comandaId = comanda.id;
   await order.save();
   await PedidoEntrega.create({ tenantId: tenant.id, fonte: 'pdv', vendaId: comanda.id, origem: { nomeCliente: 'Maria', telefone: '11999999999', endereco: { rua: 'Rua Um', numero: '1', bairro: 'Centro' } }, valorTotal: 20, taxaEntrega: 5, status: 'entregue' });

@@ -39,7 +39,7 @@ test('QR ESC/POS inclui armazenamento e impressão dos dados', () => {
 });
 
 test('cupom imprime itens, totais, pagamento e dados autorizados da NFC-e', () => {
-  const bytes = montarCupomVenda({
+  const { payload } = montarCupomVenda({
     numero: '104',
     subtotal: 25,
     desconto: 2,
@@ -49,13 +49,24 @@ test('cupom imprime itens, totais, pagamento e dados autorizados da NFC-e', () =
     itens: [{ nome: 'Café', quantidade: 2, precoUnitario: 12.5 }],
     nfce: { status: 'autorizada', chaveAcesso: '123456', urlDanfe: 'https://exemplo.test/danfe', protocolo: '7890' },
   }, { empresa: { nome: 'Café de Teste', cnpj: '00.000.000/0001-00' } });
-  const printable = new TextDecoder().decode(bytes);
+  const printable = new TextDecoder().decode(payload);
   assert.match(printable, /Café de Teste/);
-  assert.match(printable, /2 x Café/);
+  assert.match(printable, /2x Café/);
   assert.match(printable, /TOTAL/);
   assert.match(printable, /DOCUMENTO FISCAL/);
   assert.match(printable, /123456/);
   assert.match(printable, /7890/);
+});
+
+test('HTML do cupom escapa dados fornecidos pelo usuário', () => {
+  const { html } = montarCupomVenda({
+    numero: '1',
+    total: 10,
+    itens: [{ nome: '<img onerror="evil()">', quantidade: 1, precoUnitario: 10 }],
+  });
+
+  assert.ok(!html.includes('<img onerror'));
+  assert.ok(html.includes('&lt;img onerror=&quot;evil()&quot;&gt;'));
 });
 
 test('pedido de cozinha separa os setores e destaca observações', () => {
@@ -73,9 +84,9 @@ test('pedido de cozinha separa os setores e destaca observações', () => {
     ],
   });
   assert.deepEqual(tickets.map((ticket) => ticket.setor), ['Cozinha', 'Bar']);
-  assert.match(new TextDecoder().decode(tickets[0].data), /SEM CEBOLA/);
-  assert.match(new TextDecoder().decode(tickets[0].data), /Mesa 5/);
-  assert.match(new TextDecoder().decode(tickets[1].data), /2 x Suco/);
+  assert.match(new TextDecoder().decode(tickets[0].payload), /SEM CEBOLA/);
+  assert.match(new TextDecoder().decode(tickets[0].payload), /Mesa 5/);
+  assert.match(new TextDecoder().decode(tickets[1].payload), /2x Suco/);
 });
 
 test('preferências locais guardam largura, automação, cabeçalho e setores', () => {
@@ -131,7 +142,7 @@ test('impressão tenta BLE, USB e sistema nessa ordem e guarda o trabalho penden
     );
     const pending = listarImpressoesPendentes();
     assert.equal(pending.length, 1);
-    assert.match(pending[0].tipo, /^cupom-105$/);
+    assert.equal(pending[0].tipo, 'cupom-venda');
   } finally {
     if (previous) Object.defineProperty(globalThis, 'localStorage', previous);
     else delete globalThis.localStorage;

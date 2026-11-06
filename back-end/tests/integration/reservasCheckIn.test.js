@@ -1,19 +1,28 @@
 const request = require('supertest');
 const app = require('../../server');
 const Reserva = require('../../models/Reserva');
+const Tenant = require('../../models/Tenant');
 const Comanda = require('../../models/Comanda');
 const MesasSettings = require('../../models/MesasSettings');
 const { garantirTokensMesas } = require('../../utils/mesaTokens');
+
+let tenant;
+beforeEach(async () => {
+  tenant = await Tenant.create({ nome: 'Reservation check-in', slug: 'reservation-check-in', telefone: '11999999999', endereco: 'Rua de teste' });
+});
 
 const reservaValida = (overrides = {}) => ({
   codigo: 'CHECKIN1234', data: '2026-11-20', horario: '19:30', pessoas: 4,
   nome: 'Ana Souza', telefone: '11999998888', ...overrides,
 });
 
+const criarReserva = (overrides = {}) => Reserva.create({ ...reservaValida(overrides), tenantId: tenant._id });
+
 const prepararMesa = async (overrides = {}) => {
   const settings = await MesasSettings.create({
     _id: 'principal',
     mesas: [{ id: 7, numero: 7, nome: 'Mesa 7', lugares: 4, ativa: true, ...overrides }],
+    tenantId: tenant._id,
   });
   await garantirTokensMesas(settings);
   return settings.mesas[0];
@@ -22,7 +31,7 @@ const prepararMesa = async (overrides = {}) => {
 describe('check-in de reserva', () => {
   test('marca check-in, abre comanda e devolve redirecionamento da mesa', async () => {
     const mesa = await prepararMesa();
-    const reserva = await Reserva.create(reservaValida({ codigo: 'CHECKIN0001' }));
+    const reserva = await criarReserva({ codigo: 'CHECKIN0001' });
 
     const response = await request(app).post(`/api/reservas/${reserva.codigo}/check-in`)
       .send({ mesaToken: mesa.token });
@@ -38,7 +47,7 @@ describe('check-in de reserva', () => {
 
   test.each(['cancelada', 'no_show'])('recusa check-in em reserva %s', async status => {
     const mesa = await prepararMesa();
-    const reserva = await Reserva.create(reservaValida({ codigo: `CHECKIN${status.slice(0, 4).toUpperCase()}`, status }));
+    const reserva = await criarReserva({ codigo: `CHECKIN${status.slice(0, 4).toUpperCase()}`, status });
 
     const response = await request(app).post(`/api/reservas/${reserva.codigo}/check-in`)
       .send({ mesaToken: mesa.token });
@@ -49,7 +58,7 @@ describe('check-in de reserva', () => {
 
   test('recusa mesa inexistente ou inativa', async () => {
     await prepararMesa({ ativa: false });
-    await Reserva.create(reservaValida({ codigo: 'CHECKIN0002' }));
+    await criarReserva({ codigo: 'CHECKIN0002' });
 
     const response = await request(app).post('/api/reservas/CHECKIN0002/check-in')
       .send({ mesaToken: 'token-inexistente' });
@@ -59,7 +68,7 @@ describe('check-in de reserva', () => {
 
   test('repetir check-in retorna a mesma comanda sem duplicar', async () => {
     const mesa = await prepararMesa();
-    const reserva = await Reserva.create(reservaValida({ codigo: 'CHECKIN0003' }));
+    const reserva = await criarReserva({ codigo: 'CHECKIN0003' });
     const endpoint = `/api/reservas/${reserva.codigo}/check-in`;
 
     const primeira = await request(app).post(endpoint).send({ mesaToken: mesa.token });
@@ -77,7 +86,7 @@ describe('check-in de reserva', () => {
     segundaMesa.mesas.push({ id: 8, numero: 8, nome: 'Mesa 8', lugares: 4, ativa: true });
     await garantirTokensMesas(segundaMesa);
     const outraMesa = segundaMesa.mesas.find(mesa => mesa.id === 8);
-    const reserva = await Reserva.create(reservaValida({ codigo: 'CHECKIN0004' }));
+    const reserva = await criarReserva({ codigo: 'CHECKIN0004' });
 
     await request(app).post(`/api/reservas/${reserva.codigo}/check-in`).send({ mesaToken: primeiraMesa.token });
     const response = await request(app).post(`/api/reservas/${reserva.codigo}/check-in`).send({ mesaToken: outraMesa.token });

@@ -6,14 +6,17 @@ const Comanda = require('../../models/Comanda');
 const Order = require('../../models/Order');
 const Product = require('../../models/Product');
 const FechamentoCaixa = require('../../models/FechamentoCaixa');
+const Tenant = require('../../models/Tenant');
 
 let token;
 let comanda;
+let tenant;
 beforeEach(async () => {
-  const user = await User.create({ username: 'payment-admin', password: 'test-password', role: 'admin' });
+  tenant = await Tenant.create({ nome: 'Payment idempotency', slug: 'payment-idempotency', telefone: '11999999999', endereco: 'Rua de teste' });
+  const user = await User.create({ username: 'payment-admin', password: 'test-password', role: 'admin', tenantId: tenant._id });
   token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET);
-  const product = await Product.create({ codigo: 'PAY', nome: 'Cafe', preco: 20, estoque: 10 });
-  comanda = await Comanda.create({ atendente: user.username, valorTotal: 20, estoqueBaixado: true, itens: [{ produtoId: product.id, nome: product.nome, precoUnitario: 20, quantidade: 1 }] });
+  const product = await Product.create({ codigo: 'PAY', nome: 'Cafe', preco: 20, estoque: 10, tenantId: tenant._id });
+  comanda = await Comanda.create({ atendente: user.username, valorTotal: 20, estoqueBaixado: true, itens: [{ produtoId: product.id, nome: product.nome, precoUnitario: 20, quantidade: 1 }], tenantId: tenant._id });
 });
 afterEach(() => jest.restoreAllMocks());
 const partial = (key, body = { valorRecebido: 5, formaPagamento: 'dinheiro' }) => {
@@ -60,7 +63,7 @@ test('requires valid operation key and accepts operacaoId body', async () => {
   expect((await Comanda.findById(comanda.id)).valorPago).toBe(5);
 });
 test.each(['pagar', 'quitar'])('order %s replays final payment', async (path) => {
-  const order = await Order.create({ numero: '0001', subtotal: 20, total: 20, atendente: 'payment-admin', itens: comanda.itens });
+  const order = await Order.create({ numero: '0001', subtotal: 20, total: 20, atendente: 'payment-admin', itens: comanda.itens, tenantId: tenant._id });
   const body = path === 'pagar' ? { tipo: 'pix', valorRecebido: 20 } : {};
   const first = await payOrder(order.id, path, 'order-operation', body);
   const replay = await payOrder(order.id, path, 'order-operation', body);
@@ -70,7 +73,7 @@ test.each(['pagar', 'quitar'])('order %s replays final payment', async (path) =>
   expect((await Order.findById(order.id)).pagamentos).toHaveLength(1);
 });
 test('linked order receipt replays single source of truth in comanda', async () => {
-  const order = await Order.create({ numero: '0001', subtotal: 20, total: 20, atendente: 'payment-admin', itens: comanda.itens, comandaId: comanda.id });
+  const order = await Order.create({ numero: '0001', subtotal: 20, total: 20, atendente: 'payment-admin', itens: comanda.itens, comandaId: comanda.id, tenantId: tenant._id });
   const body = { tipo: 'pix', valorRecebido: 5 };
   const first = await payOrder(order.id, 'pagar', 'linked', body);
   const replay = await payOrder(order.id, 'pagar', 'linked', body);
@@ -81,10 +84,10 @@ test('linked order receipt replays single source of truth in comanda', async () 
 });
 test('customer settlement is atomic and replays original batch even after a new debt', async () => {
   const customerId = new (require('mongoose').Types.ObjectId)();
-  for (let i = 1; i <= 2; i++) await Order.create({ numero: `000${i}`, subtotal: 20, total: 20, clienteId: customerId, atendente: 'payment-admin', itens: comanda.itens });
+  for (let i = 1; i <= 2; i++) await Order.create({ numero: `000${i}`, subtotal: 20, total: 20, clienteId: customerId, atendente: 'payment-admin', itens: comanda.itens, tenantId: tenant._id });
   const settle = () => request(app).patch(`/api/orders/cliente/${customerId}/quitar`).set('Authorization', `Bearer ${token}`).set('Idempotency-Key', 'batch').send({ tipo: 'pix' });
   const first = await settle();
-  await Order.create({ numero: '0003', subtotal: 20, total: 20, clienteId: customerId, atendente: 'payment-admin', itens: comanda.itens });
+  await Order.create({ numero: '0003', subtotal: 20, total: 20, clienteId: customerId, atendente: 'payment-admin', itens: comanda.itens, tenantId: tenant._id });
   const replay = await settle();
   expect(first.status).toBe(200);
   expect(first.body.pedidos).toHaveLength(2);
@@ -103,8 +106,8 @@ test('closing comanda replays order without another payment or order', async () 
 });
 test('customer batch with missing partial-payment history rolls back earlier receipts and the operation ledger', async () => {
   const customerId = new (require('mongoose').Types.ObjectId)();
-  const valid = await Order.create({ numero: '0001', subtotal: 20, total: 20, clienteId: customerId, atendente: 'payment-admin', itens: comanda.itens });
-  await Order.create({ numero: '0002', subtotal: 20, total: 20, status: 'parcial', clienteId: customerId, atendente: 'payment-admin', itens: comanda.itens, comandaId: new (require('mongoose').Types.ObjectId)() });
+  const valid = await Order.create({ numero: '0001', subtotal: 20, total: 20, clienteId: customerId, atendente: 'payment-admin', itens: comanda.itens, tenantId: tenant._id });
+  await Order.create({ numero: '0002', subtotal: 20, total: 20, status: 'parcial', clienteId: customerId, atendente: 'payment-admin', itens: comanda.itens, comandaId: new (require('mongoose').Types.ObjectId)(), tenantId: tenant._id });
   const response = await request(app).patch(`/api/orders/cliente/${customerId}/quitar`).set('Authorization', `Bearer ${token}`).set('Idempotency-Key', 'failed-batch').send({ tipo: 'pix' });
   expect(response.status).toBe(400);
   expect((await Order.findById(valid.id)).pagamentos).toHaveLength(0);

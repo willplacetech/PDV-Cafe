@@ -2,17 +2,20 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../server');
 const User = require('../../models/User');
+const Tenant = require('../../models/Tenant');
 const FechamentoCaixa = require('../../models/FechamentoCaixa');
 
 let tokens;
+let tenant;
 const dia = '2026-10-06';
 const movimento = { tipo: 'suplementacao', valor: 10, motivo: 'Troco' };
 
 beforeAll(async () => { await FechamentoCaixa.init(); });
 beforeEach(async () => {
+  tenant = await Tenant.create({ nome: 'Cash concurrency', slug: 'cash-concurrency', telefone: '11999999999', endereco: 'Rua de teste' });
   tokens = {};
   for (const role of ['admin', 'operador']) {
-    const user = await User.create({ username: `caixa-${role}`, password: 'test-password', role });
+    const user = await User.create({ username: `caixa-${role}`, password: 'test-password', role, tenantId: tenant._id });
     tokens[role] = jwt.sign({ id: user.id, username: user.username, role }, process.env.JWT_SECRET);
   }
 });
@@ -142,7 +145,7 @@ test.each(['admin', 'operador'])('caixa fechado permanece imutável para %s', as
 });
 
 test('índice de abertura preserva históricos duplicados e permite vários ajustes', async () => {
-  const legado = { data: new Date('2026-10-05T03:00:00Z'), usuarioAbertura: 'legado', turno: 'principal', status: 'fechado' };
+  const legado = { data: new Date('2026-10-05T03:00:00Z'), usuarioAbertura: 'legado', turno: 'principal', status: 'fechado', tenantId: tenant._id };
   await FechamentoCaixa.create([legado, legado]);
   const id = await abrir();
   expect((await api(`/${id}/fechar`, { valorContado: 0 })).status).toBe(200);

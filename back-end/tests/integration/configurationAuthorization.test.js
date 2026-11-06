@@ -2,11 +2,13 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../server');
 const User = require('../../models/User');
+const Tenant = require('../../models/Tenant');
 const Configuracoes = require('../../models/Configuracoes');
 const Auditoria = require('../../models/Auditoria');
 
 test('atualiza a autorização gerencial e registra detalhes compatíveis com auditoria', async () => {
-  const admin = await User.create({ username: 'admin-config', password: 'senha-admin-config-123', role: 'admin' });
+  const tenant = await Tenant.create({ nome: 'Config authorization', slug: 'config-authorization', telefone: '11999999999', endereco: 'Rua de teste' });
+  const admin = await User.create({ username: 'admin-config', password: 'senha-admin-config-123', role: 'admin', tenantId: tenant._id });
   const token = jwt.sign({ id: admin.id }, process.env.JWT_SECRET);
 
   const response = await request(app)

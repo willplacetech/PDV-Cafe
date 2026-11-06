@@ -2,18 +2,26 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../server');
 const User = require('../../models/User');
+const Tenant = require('../../models/Tenant');
 const Order = require('../../models/Order');
 const Comanda = require('../../models/Comanda');
 
 let token;
+let tenant;
 
 beforeEach(async () => {
-  const admin = await User.create({ username: 'orders-page-admin', password: 'isolated-password-123', role: 'admin' });
+  tenant = await Tenant.create({ nome: 'Orders page', slug: 'orders-page', telefone: '11999999999', endereco: 'Rua de teste' });
+  const admin = await User.create({
+    username: 'orders-page-admin',
+    password: 'isolated-password-123',
+    role: 'admin',
+    tenantId: tenant._id,
+  });
   token = jwt.sign({ id: admin.id, role: admin.role }, process.env.JWT_SECRET);
   await Order.create([
-    { numero: '900001', subtotal: 10, total: 10, status: 'pago', atendente: admin.username, clienteNome: 'Pago' },
-    { numero: '900002', subtotal: 10, total: 10, status: 'pendente', atendente: admin.username, clienteNome: 'Pendente A' },
-    { numero: '900003', subtotal: 10, total: 10, status: 'pendente', atendente: admin.username, clienteNome: 'Pendente B' },
+    { numero: '900001', subtotal: 10, total: 10, status: 'pago', atendente: admin.username, clienteNome: 'Pago', tenantId: tenant._id },
+    { numero: '900002', subtotal: 10, total: 10, status: 'pendente', atendente: admin.username, clienteNome: 'Pendente A', tenantId: tenant._id },
+    { numero: '900003', subtotal: 10, total: 10, status: 'pendente', atendente: admin.username, clienteNome: 'Pendente B', tenantId: tenant._id },
   ]);
 });
 
@@ -41,12 +49,13 @@ test('open receivable tabs return the standard pagination envelope', async () =>
       atendente: 'orders-page-admin',
       clienteNome: 'Conta A',
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      tenantId: tenant._id,
       historicoPagamentos: [
         { valor: 2, formaPagamento: 'dinheiro' },
         { valor: 5, formaPagamento: 'credito_loja' },
       ],
     },
-    { numero: 'R-002', valorTotal: 18, atendente: 'orders-page-admin', clienteNome: 'Conta B', createdAt: new Date('2026-01-02T00:00:00.000Z') },
+    { numero: 'R-002', valorTotal: 18, atendente: 'orders-page-admin', clienteNome: 'Conta B', createdAt: new Date('2026-01-02T00:00:00.000Z'), tenantId: tenant._id },
   ]);
 
   const response = await get('/api/comandas/a-receber?pagina=2&limite=1');

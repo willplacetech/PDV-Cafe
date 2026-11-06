@@ -2,6 +2,7 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../server');
 const User = require('../../models/User');
+const Tenant = require('../../models/Tenant');
 const Product = require('../../models/Product');
 const Order = require('../../models/Order');
 const Comanda = require('../../models/Comanda');
@@ -11,6 +12,7 @@ const { calcularOutrosMeios } = require('../../utils/caixa');
 let token;
 let operatorToken;
 let product;
+let tenant;
 const api = (method, path, body, authToken = token) => request(app)[method](`/api${path}`).set('Authorization', `Bearer ${authToken}`).set(require('../approvalFixture').headers(method, path, authToken, body, jwt.decode(token).id)).send(body);
 const createMethod = async () => {
   const response = await api('post', '/payment-settings', { nome: 'Vale Refeição', taxaPercentual: 3 });
@@ -23,11 +25,12 @@ const createCommand = async () => {
   return response.body;
 };
 beforeEach(async () => {
-  const admin = await User.create({ username: 'payment-admin', password: 'test-password', role: 'admin' });
-  const operator = await User.create({ username: 'payment-operator', password: 'test-password', role: 'operador' });
+  tenant = await Tenant.create({ nome: 'Payments', slug: 'payments', telefone: '11999999999', endereco: 'Rua de teste' });
+  const admin = await User.create({ username: 'payment-admin', password: 'test-password', role: 'admin', tenantId: tenant._id });
+  const operator = await User.create({ username: 'payment-operator', password: 'test-password', role: 'operador', tenantId: tenant._id });
   token = jwt.sign({ id: admin.id, username: admin.username, role: admin.role }, process.env.JWT_SECRET);
   operatorToken = jwt.sign({ id: operator.id, username: operator.username, role: operator.role }, process.env.JWT_SECRET);
-  product = await Product.create({ codigo: 'payment-test', nome: 'Produto teste', preco: 100, estoque: 20 });
+  product = await Product.create({ codigo: 'payment-test', nome: 'Produto teste', preco: 100, estoque: 20, tenantId: tenant._id });
 });
 
 test('somente admin cadastra; operadores consultam e nomes duplicados/taxas inválidas são recusados', async () => {
@@ -85,11 +88,11 @@ test('recebe comanda parcialmente e quita pedido vinculado com taxa sem contar d
 
 test('taxa alterada reprocessa somente o mês solicitado, tanto pedido quanto comanda', async () => {
   const method = await createMethod();
-  const order = await Order.create({ atendente: 'payment-admin', total: 100, subtotal: 100, status: 'pendente', itens: [] });
+  const order = await Order.create({ atendente: 'payment-admin', total: 100, subtotal: 100, status: 'pendente', itens: [], tenantId: tenant._id });
   const paid = await api('patch', `/orders/${order.id}/pagar`, { tipo: method.value, valorRecebido: 100, operacaoId: 'custom-standalone' });
   expect(paid.status).toBe(200);
   expect(paid.body.pagamentos[0]).toMatchObject({ taxaValor: 3, valorLiquido: 97 });
-  const oldOrder = await Order.create({ atendente: 'payment-admin', total: 100, subtotal: 100, status: 'pago', pagamentos: [{ tipo: method.value, valorRecebido: 100, taxaPercentual: 3, taxaValor: 3, valorLiquido: 97, dataPagamento: new Date('2020-01-15T12:00:00Z') }] });
+  const oldOrder = await Order.create({ atendente: 'payment-admin', total: 100, subtotal: 100, status: 'pago', pagamentos: [{ tipo: method.value, valorRecebido: 100, taxaPercentual: 3, taxaValor: 3, valorLiquido: 97, dataPagamento: new Date('2020-01-15T12:00:00Z') }], tenantId: tenant._id });
   const command = await createCommand();
   expect((await api('post', `/comandas/${command._id}/fechar`, { metodoPagamento: method.value, operacaoId: 'custom-rate-command' })).status).toBe(200);
   const mes = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);

@@ -3,16 +3,25 @@ const jwt = require('jsonwebtoken');
 const app = require('../../server');
 const User = require('../../models/User');
 const Reserva = require('../../models/Reserva');
+const Tenant = require('../../models/Tenant');
+
+let tenant;
+beforeEach(async () => {
+  tenant = await Tenant.create({ nome: 'Reservations routes', slug: 'reservations-routes', telefone: '11999999999', endereco: 'Rua de teste' });
+});
 
 const criarUsuario = async (role = 'admin') => {
   const user = await User.create({
     username: `reservas-${role}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     password: 'reservas-password-123',
     role,
+    tenantId: tenant._id,
   });
   const token = jwt.sign({ id: user.id, role }, process.env.JWT_SECRET);
   return { user, token };
 };
+
+const criarReserva = (dados) => Reserva.create({ ...dados, tenantId: tenant._id });
 
 const reservaValida = (overrides = {}) => ({
   data: '2026-11-20',
@@ -55,7 +64,7 @@ describe('API de reservas', () => {
   });
 
   test('consulta uma reserva por código sem autenticação', async () => {
-    const criada = await Reserva.create({ ...reservaValida(), telefone: '11999998888', codigo: 'ABCDEF1234' });
+    const criada = await criarReserva({ ...reservaValida(), telefone: '11999998888', codigo: 'ABCDEF1234' });
 
     const response = await request(app).get(`/api/reservas/${criada.codigo.toLowerCase()}`);
 
@@ -88,7 +97,7 @@ describe('API de reservas', () => {
 
   test('altera status e registra datas de confirmação e cancelamento', async () => {
     const admin = await criarUsuario('admin');
-    const criada = await Reserva.create({ ...reservaValida(), telefone: '11999998888', codigo: 'STATUS1234' });
+    const criada = await criarReserva({ ...reservaValida(), telefone: '11999998888', codigo: 'STATUS1234' });
 
     const confirmada = await request(app).patch(`/api/reservas/${criada.codigo}/status`)
       .set('Authorization', `Bearer ${admin.token}`)
@@ -121,7 +130,7 @@ describe('API de reservas', () => {
   });
 
   test('cancela reserva pendente e impede novo cancelamento', async () => {
-    const criada = await Reserva.create({ ...reservaValida(), telefone: '11999998888', codigo: 'CANCEL1234' });
+    const criada = await criarReserva({ ...reservaValida(), telefone: '11999998888', codigo: 'CANCEL1234' });
 
     const primeira = await request(app).delete(`/api/reservas/${criada.codigo}`);
     expect(primeira.status).toBe(200);
@@ -132,7 +141,7 @@ describe('API de reservas', () => {
   });
 
   test.each(['check_in', 'no_show', 'cancelada'])('não cancela reserva com status terminal %s', async status => {
-    const criada = await Reserva.create({ ...reservaValida(), telefone: '11999998888', codigo: `TERM${status.slice(0, 6).toUpperCase()}`, status });
+    const criada = await criarReserva({ ...reservaValida(), telefone: '11999998888', codigo: `TERM${status.slice(0, 6).toUpperCase()}`, status });
 
     const response = await request(app).delete(`/api/reservas/${criada.codigo}`);
 

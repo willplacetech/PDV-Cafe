@@ -2,13 +2,15 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../server');
 const User = require('../../models/User');
+const Tenant = require('../../models/Tenant');
 const Order = require('../../models/Order');
 
 test('falha HTTP do provedor bloqueia nova emissao ate reconciliar o documento', async () => {
-  const user = await User.create({ username: 'fiscal-confirmation', password: 'test-password', role: 'admin' });
+  const tenant = await Tenant.create({ nome: 'Fiscal confirmation', slug: 'fiscal-confirmation', telefone: '11999999999', endereco: 'Rua de teste' });
+  const user = await User.create({ username: 'fiscal-confirmation', password: 'test-password', role: 'admin', tenantId: tenant._id });
   const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET);
   const order = await Order.create({ numero: 'fiscal-confirmation', atendente: user.username,
-    itens: [], subtotal: 10, total: 10 });
+    itens: [], subtotal: 10, total: 10, tenantId: tenant._id });
   const keys = ['NFCE_CNPJ', 'NFCE_IE', 'NFCE_RAZAO_SOCIAL', 'NFCE_ENDERECO_LOGRADOURO',
     'NFCE_ENDERECO_NUMERO', 'NFCE_ENDERECO_BAIRRO', 'NFCE_ENDERECO_MUNICIPIO',
     'NFCE_ENDERECO_UF', 'NFCE_ENDERECO_CEP', 'NFCE_CERTIFICATE_PFX_BASE64',

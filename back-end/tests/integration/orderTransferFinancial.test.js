@@ -6,24 +6,27 @@ const User = require('../../models/User');
 const Product = require('../../models/Product');
 const Comanda = require('../../models/Comanda');
 const Order = require('../../models/Order');
+const Tenant = require('../../models/Tenant');
 const { carregarPagamentosDoPeriodo } = require('../../utils/pagamento');
 
 let token, product, source, destination, order;
+let tenant;
 const receiptDate = new Date('2026-09-02T12:00:00Z');
 const period = { inicio: new Date('2026-09-02T00:00:00Z'), fim: new Date('2026-09-03T00:00:00Z') };
 const move = () => request(app).patch(`/api/orders/${order.id}/alterar-comanda`).set('Authorization', `Bearer ${token}`).send({ comandaId: destination.id });
 const pay = (id, key) => request(app).patch(`/api/orders/${id}/pagar`).set('Authorization', `Bearer ${token}`).set('Idempotency-Key', key).send({ tipo: 'pix', valorRecebido: 5 });
 beforeEach(async () => {
-  const user = await User.create({ username: 'transfer-admin', password: 'test-password', role: 'admin' });
+  tenant = await Tenant.create({ nome: 'Order transfer', slug: 'order-transfer', telefone: '11999999999', endereco: 'Rua de teste' });
+  const user = await User.create({ username: 'transfer-admin', password: 'test-password', role: 'admin', tenantId: tenant._id });
   token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET);
-  product = await Product.create({ codigo: 'TRANSFER', nome: 'Cafe', preco: 20, estoque: 9 });
+  product = await Product.create({ codigo: 'TRANSFER', nome: 'Cafe', preco: 20, estoque: 9, tenantId: tenant._id });
   source = await Comanda.create({ atendente: user.username, status: 'fechada', valorTotal: 20, estoqueBaixado: true,
     itens: [{ produtoId: product.id, nome: product.nome, precoUnitario: 20, quantidade: 1 }],
-    historicoPagamentos: [{ valor: 5, formaPagamento: 'dinheiro', data: receiptDate, usuario: user.username }, { valor: 15, formaPagamento: 'credito_loja', data: receiptDate }] });
-  order = await Order.create({ numero: '000001', atendente: user.username, subtotal: 20, total: 20, status: 'parcial', comandaId: source.id, itens: source.itens });
+    historicoPagamentos: [{ valor: 5, formaPagamento: 'dinheiro', data: receiptDate, usuario: user.username }, { valor: 15, formaPagamento: 'credito_loja', data: receiptDate }], tenantId: tenant._id });
+  order = await Order.create({ numero: '000001', atendente: user.username, subtotal: 20, total: 20, status: 'parcial', comandaId: source.id, itens: source.itens, tenantId: tenant._id });
   source.pedidoId = order.id;
   await source.save();
-  destination = await Comanda.create({ atendente: user.username, numero: '0002' });
+  destination = await Comanda.create({ atendente: user.username, numero: '0002', tenantId: tenant._id });
 });
 afterEach(() => jest.restoreAllMocks());
 
@@ -128,7 +131,7 @@ test('listing linked order exposes the comanda balance when totals differ', asyn
 });
 
 test('listing zero-total linked order treats the comanda as settled despite the order total', async () => {
-  const zeroTotalComanda = await Comanda.create({ atendente: 'transfer-admin', status: 'fechada', valorTotal: 0 });
+  const zeroTotalComanda = await Comanda.create({ atendente: 'transfer-admin', status: 'fechada', valorTotal: 0, tenantId: tenant._id });
   const inconsistentOrder = await Order.create({
     numero: '000002',
     atendente: 'transfer-admin',
@@ -136,6 +139,7 @@ test('listing zero-total linked order treats the comanda as settled despite the 
     total: 82.3,
     status: 'pendente',
     comandaId: zeroTotalComanda.id,
+    tenantId: tenant._id,
   });
 
   const response = await request(app).get('/api/orders').set('Authorization', `Bearer ${token}`);
@@ -154,12 +158,14 @@ test('receivables summary follows the receivables page and handles linked orders
     atendente: 'transfer-admin',
     status: 'fechada',
     valorTotal: 40,
+    tenantId: tenant._id,
   });
 
   const inconsistentComanda = await Comanda.create({
     atendente: 'transfer-admin',
     status: 'fechada',
     valorTotal: 10,
+    tenantId: tenant._id,
   });
   await Order.create({
     numero: '000003',
@@ -168,12 +174,14 @@ test('receivables summary follows the receivables page and handles linked orders
     total: 30,
     status: 'pendente',
     comandaId: inconsistentComanda.id,
+    tenantId: tenant._id,
   });
 
   const openComanda = await Comanda.create({
     atendente: 'transfer-admin',
     status: 'aberta',
     valorTotal: 25,
+    tenantId: tenant._id,
   });
   await Order.create({
     numero: '000004',
@@ -182,6 +190,7 @@ test('receivables summary follows the receivables page and handles linked orders
     total: 25,
     status: 'pendente',
     comandaId: openComanda.id,
+    tenantId: tenant._id,
   });
 
   const response = await request(app)

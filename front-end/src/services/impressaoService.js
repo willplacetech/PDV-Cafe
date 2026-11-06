@@ -488,10 +488,10 @@ function money(value) {
 
 function escapeHtml(value) {
   return String(value ?? '')
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
 
@@ -531,6 +531,12 @@ export function montarCupomVenda(venda, { empresa = {}, paperWidth = '80mm' } = 
       const label = pagamento.rotuloPagamento || paymentLabels[pagamento.tipo] || pagamento.tipo;
       builder.text(`${label}: R$ ${money(pagamento.valorRecebido)}`).newLine();
     }
+  }
+  if (venda.nfce?.status === 'autorizada') {
+    builder.separator().bold(true).text('DOCUMENTO FISCAL').bold(false).newLine();
+    if (venda.nfce.chaveAcesso) builder.text(`Chave: ${venda.nfce.chaveAcesso}`).newLine();
+    if (venda.nfce.protocolo) builder.text(`Protocolo: ${venda.nfce.protocolo}`).newLine();
+    if (venda.nfce.urlDanfe) builder.text(venda.nfce.urlDanfe).newLine();
   }
   builder.separator().align('center').text(nomeEmpresa).newLine().text('Obrigado!').newLine().feed(3).cut();
   const html = buildCupomHtml(venda, empresa);
@@ -609,11 +615,15 @@ export function montarPedidosCozinha(pedido, {
     builder.align('center').bold(true).text(setor.toUpperCase()).bold(false).newLine();
     builder.text(`Pedido #${pedido.numero || ''}`).newLine();
     if (pedido.comandaNumero) builder.text(`Comanda #${pedido.comandaNumero}`).newLine();
+    const mesaNumero = pedido.mesa && typeof pedido.mesa === 'object' ? pedido.mesa.numero : pedido.mesa;
+    if (mesaNumero !== undefined && mesaNumero !== null && String(mesaNumero).trim()) {
+      builder.text(`Mesa ${mesaNumero}`).newLine();
+    }
     builder.separator().align('left');
     for (const item of itens) {
       builder.bold(true).text(`${item.quantidade}x ${item.nome}`).bold(false).newLine();
       if (item.modificadores?.length) builder.text(`  ${item.modificadores.join(', ')}`).newLine();
-      if (item.observacao) builder.text(`  Obs: ${item.observacao}`).newLine();
+      if (item.observacao) builder.bold(true).text(`  Obs: ${String(item.observacao).toLocaleUpperCase('pt-BR')}`).bold(false).newLine();
     }
     builder.feed(3).cut();
     const html = `<!DOCTYPE html><html><body style="font-family:monospace;width:76mm;padding:4mm">

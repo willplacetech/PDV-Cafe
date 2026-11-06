@@ -11,10 +11,10 @@ const pagamentoLabels = {
 const dinheiro = (value) => Number(value || 0).toFixed(2).replace('.', ',');
 
 const HTML_ESCAPE = {
-  '&': '&',
-  '<': '<',
-  '>': '>',
-  '"': '"',
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
   "'": '&#39;',
 };
 

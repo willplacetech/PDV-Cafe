@@ -7,10 +7,13 @@ const Comanda = require('../../models/Comanda');
 const Order = require('../../models/Order');
 const StockMovement = require('../../models/StockMovement');
 const RuntimeSettings = require('../../models/RuntimeSettings');
+const Tenant = require('../../models/Tenant');
 
 let token;
+let tenant;
 beforeEach(async () => {
-  const user = await User.create({ username: 'review-admin', password: 'test-password', role: 'admin' });
+  tenant = await Tenant.create({ nome: 'Review regression', slug: 'review-regression', telefone: '11999999999', endereco: 'Rua de teste' });
+  const user = await User.create({ username: 'review-admin', password: 'test-password', role: 'admin', tenantId: tenant._id });
   token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET);
 });
 
@@ -18,7 +21,7 @@ const api = (method, path, body) => request(app)[method](path).set('Authorizatio
 const bolo = async (extra = {}) => Product.create({
   codigo: 'peso', nome: 'Bolo', categoria: 'Doces', tipo: 'venda', preco: 40,
   estoque: 5, estoquePesoKg: 2.5, unidadeVenda: 'kg', pesoPorUnidade: 0.5,
-  unidadePeso: 'kg', precoCompra: 5, ...extra,
+  unidadePeso: 'kg', precoCompra: 5, tenantId: tenant._id, ...extra,
 });
 const fatia = (produto, peso = 0.2) => ({ produtoId: produto.id, quantidade: 1, tipoVenda: 'peso', pesoVendidoKg: peso });
 
@@ -112,8 +115,8 @@ test('cancelamento de pedido estorna peso e não cria peças', async () => {
 });
 
 test('liberação de venda sem ingrediente não cria estoque ao cancelar', async () => {
-  const insumo = await Product.create({ codigo: 'ingrediente', nome: 'Farinha', categoria: 'Insumos', tipo: 'insumo', preco: 0, precoCompra: 10, unidadeConteudo: 'kg', conteudoPorEmbalagem: 1, estoqueEmbalagens: 10, estoqueInsumos: 10 });
-  const produto = await Product.create({ codigo: 'coz', nome: 'Preparado', categoria: 'Outros', tipo: 'venda', tipoProduto: 'coz', aFazer: true, preco: 10, permitirVendaSemInsumo: true, fichaTecnica: [{ produtoId: insumo.id, quantidade: 0.2, unidade: 'kg' }] });
+  const insumo = await Product.create({ codigo: 'ingrediente', nome: 'Farinha', categoria: 'Insumos', tipo: 'insumo', preco: 0, precoCompra: 10, unidadeConteudo: 'kg', conteudoPorEmbalagem: 1, estoqueEmbalagens: 10, estoqueInsumos: 10, tenantId: tenant._id });
+  const produto = await Product.create({ codigo: 'coz', nome: 'Preparado', categoria: 'Outros', tipo: 'venda', tipoProduto: 'coz', aFazer: true, preco: 10, permitirVendaSemInsumo: true, fichaTecnica: [{ produtoId: insumo.id, quantidade: 0.2, unidade: 'kg' }], tenantId: tenant._id });
   const created = await api('post', '/api/comandas', { itens: [{ produtoId: produto.id, quantidade: 1 }] });
   expect(created.status).toBe(201);
   const canceled = await api('patch', `/api/comandas/${created.body._id}/cancelar`);
@@ -169,7 +172,7 @@ test('ID fiscal inválido devolve 400 sem rejeição assíncrona', async () => {
 
 test('NFC-e pendente mantém estado indeterminado e bloqueia reenvio', async () => {
   const produto = await bolo();
-  const order = await Order.create({ numero: '1', atendente: 'review-admin', itens: [{ produtoId: produto.id, precoUnitario: 10, quantidade: 1 }], subtotal: 10, total: 10 });
+  const order = await Order.create({ numero: '1', atendente: 'review-admin', itens: [{ produtoId: produto.id, precoUnitario: 10, quantidade: 1 }], subtotal: 10, total: 10, tenantId: tenant._id });
   const keys = ['NFCE_CNPJ', 'NFCE_IE', 'NFCE_RAZAO_SOCIAL', 'NFCE_ENDERECO_LOGRADOURO', 'NFCE_ENDERECO_NUMERO', 'NFCE_ENDERECO_BAIRRO', 'NFCE_ENDERECO_MUNICIPIO', 'NFCE_ENDERECO_UF', 'NFCE_ENDERECO_CEP', 'NFCE_CERTIFICATE_PFX_BASE64', 'NFCE_CERTIFICATE_PASSWORD', 'NFCE_PROVIDER_URL'];
   const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   keys.forEach((key) => { process.env[key] = 'test-placeholder'; });

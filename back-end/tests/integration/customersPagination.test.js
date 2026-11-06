@@ -2,17 +2,25 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../server');
 const User = require('../../models/User');
+const Tenant = require('../../models/Tenant');
 const Customer = require('../../models/Customer');
 
 let token;
+let tenant;
 
 beforeEach(async () => {
-  const admin = await User.create({ username: 'customer-page-admin', password: 'isolated-password-123', role: 'admin' });
+  tenant = await Tenant.create({ nome: 'Customer page', slug: 'customer-page', telefone: '11999999999', endereco: 'Rua de teste' });
+  const admin = await User.create({
+    username: 'customer-page-admin',
+    password: 'isolated-password-123',
+    role: 'admin',
+    tenantId: tenant._id,
+  });
   token = jwt.sign({ id: admin.id, role: admin.role }, process.env.JWT_SECRET);
   await Customer.create([
-    { nome: 'Ana', telefone: '1111111111', cpf: '12345678901' },
-    { nome: 'Beatriz', telefone: '2222222222' },
-    { nome: 'Carla', telefone: '3333333333' },
+    { nome: 'Ana', telefone: '1111111111', cpf: '12345678901', tenantId: tenant._id },
+    { nome: 'Beatriz', telefone: '2222222222', tenantId: tenant._id },
+    { nome: 'Carla', telefone: '3333333333', tenantId: tenant._id },
   ]);
 });
 

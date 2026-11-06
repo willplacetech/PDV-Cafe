@@ -2,12 +2,15 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../server');
 const User = require('../../models/User');
+const Tenant = require('../../models/Tenant');
 const Product = require('../../models/Product');
 
 let token;
+let tenant;
 
 beforeEach(async () => {
-  const admin = await User.create({ username: 'stock-alert-admin', password: 'test-password', role: 'admin' });
+  tenant = await Tenant.create({ nome: 'Stock alerts', slug: 'stock-alerts', telefone: '11999999999', endereco: 'Rua de teste' });
+  const admin = await User.create({ username: 'stock-alert-admin', password: 'test-password', role: 'admin', tenantId: tenant._id });
   token = jwt.sign({ id: admin.id, username: admin.username, role: admin.role }, process.env.JWT_SECRET);
   await Product.create([
     {
@@ -20,6 +23,7 @@ beforeEach(async () => {
       estoqueMinimoEmbalagens: 5,
       conteudoPorEmbalagem: 1,
       unidadeCompra: 'kg',
+      tenantId: tenant._id,
     },
     {
       codigo: 'INACTIVE-LOW',
@@ -32,6 +36,7 @@ beforeEach(async () => {
       estoqueMinimoEmbalagens: 5,
       conteudoPorEmbalagem: 1,
       unidadeCompra: 'kg',
+      tenantId: tenant._id,
     },
   ]);
 });

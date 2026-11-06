@@ -1,7 +1,7 @@
 # Auditoria e roadmap de segurança — branch `Generico`
 
 **Data:** 2026-11-05
-**Branch/HEAD:** `Generico` / `1fd05e9`
+**Branch/HEAD:** `Generico` / `1e3f069` (rechecagem local não commitada)
 **Escopo:** revalidação local de evidências e planejamento; nenhum deploy ou alteração operacional remota foi realizado.
 
 ## Limite da verificação
@@ -14,10 +14,9 @@ O plano [2026-10-06-seguranca-integridade.md](./superpowers/plans/2026-10-06-seg
 
 - **Dependências de produção:** `npm --prefix back-end audit --omit=dev` e `npm --prefix front-end audit --omit=dev` — 0 vulnerabilidades em cada pacote.
 - **Dependências completas:** backend — 19 alertas (3 low, 16 moderate); frontend — 9 alertas (2 low, 7 moderate). Os alertas reportados estão em dependências de desenvolvimento. O `npm audit fix --force` propõe downgrades incompatíveis (Jest 25, `vite-plugin-pwa` 1.1 e ESLint 9); não foi aplicado.
-- **Build frontend:** passou.
-- **Testes unitários frontend:** 112 testes, 105 passaram e 7 falharam (`impressaoService.test.js`, `layout.test.js` e `regressions.test.js`).
-- **Lint frontend:** falhou com 44 erros, incluindo símbolo não definido, blocos vazios e imports/variáveis não usados.
-- **Testes backend:** `npm --prefix back-end test` passou os 110 testes unitários, mas a integração falhou: 20/41 suítes e 161/414 testes falharam; 253 testes passaram. O processo continuou ativo após imprimir o resumo final e foi encerrado depois de capturar a saída.
+- **Baseline frontend inicial:** build passou; 105/112 testes unitários passaram e o lint reportou 44 erros.
+- **Fase 0 frontend (rechecagem em 2026-11-06):** `npm run test:unit` — 116/116 testes passaram; `npm run lint` — passou sem erros; `npm run build` — passou.
+- **Baseline backend inicial:** a primeira execução de integração registrou 20/41 suítes e 161/414 testes com falha; 253 passaram. Na rechecagem de 2026-11-06, `npm run test:unit` — 110/110 passaram — e `npm run test:integration` — 41/41 suítes e 419/419 passaram.
 - **Segurança operacional:** configuração real do Render, TLS, backups/restauração, retenção de dados e ingestão do Sentry não podem ser comprovados somente pelo checkout.
 - **Revisão dos 40 requisitos:** 1 atendido, 19 parciais, 1 pendente, 2 não aplicáveis e 17 não verificáveis; foi identificado um achado acionável HIGH de isolamento por tenant em consultas públicas.
 
@@ -31,7 +30,7 @@ O plano [2026-10-06-seguranca-integridade.md](./superpowers/plans/2026-10-06-seg
 | Headers e limites | Express usa Helmet; há limites para login, QR, delivery público e criação pública de pedidos/reservas. O `render.yaml` não declara headers de segurança para o site estático. Os limites padrão são locais à instância. | Pendente: configurar headers no frontend estático; assegurar cobertura das rotas públicas e usar store compartilhado antes de escalar horizontalmente. |
 | Logs e erros | O middleware de erro registra `err.message` e `err.stack`; erros de cliente também registram mensagem. A resposta também repassa `err.message` para status abaixo de 500 e 503. | Pendente: sanitizar/redigir mensagens e dados sensíveis nos logs e usar allowlist de mensagens públicas; manter detalhes técnicos apenas em canal restrito. |
 | CI da branch | `.github/workflows/testes.yml` dispara push para `main`, `master` e `feature/pwa-offline-sincronizacao`, não para `Generico`. | Pendente: incluir a branch correta no gatilho e exigir os checks antes de integrar/publicar. |
-| Qualidade da aplicação | Build passou; 7/112 testes frontend falharam; lint reportou 44 erros. A execução backend também apresentou falhas de integração. | Bloqueador de baseline: corrigir/investigar as falhas antes de considerar a branch pronta para implantação. |
+| Qualidade da aplicação | Rechecagem em 2026-11-06: frontend 116/116 testes, lint e build passaram; backend 110/110 testes unitários e 419/419 testes de integração passaram. | Baselines locais frontend/backend restabelecidos; a CI de `Generico` ainda precisa ser habilitada e executada. |
 | Segredos | Busca textual no código encontrou placeholders e valores de teste, incluindo a constante legada usada para rejeição; não encontrou credencial de produção evidente. | Evidência limitada: a busca não substitui scanner de segredos nem análise do histórico Git; executar ambos antes de liberar. |
 | Privacidade/retenção | Não foi localizada política publicada de privacidade/retenção no código ou documentação consultada. Há menções a validação jurídica antes de produção. | Pendente de responsável jurídico/privacidade: definir finalidade, base legal, retenção, descarte e atendimento a solicitações. |
 | Backup/restauração | O runbook manda o operador confirmar backup recuperável; não há evidência de exercício de restauração nesta auditoria. | Pendente externo: executar restauração em ambiente descartável, registrar data, escopo, duração e resultado. |
@@ -43,12 +42,14 @@ As prioridades são uma ordem de execução sugerida, não uma classificação d
 
 ### Fase 0 — Restabelecer baseline verificável
 
-1. Reproduzir e corrigir as 7 falhas unitárias frontend; documentar causa e regressão coberta.
-2. Corrigir os 44 erros do lint, começando por símbolos indefinidos e imports órfãos; repetir lint após cada conjunto relacionado.
-3. Investigar as falhas de integração backend por causa comum, sem mascarar erros ou reduzir asserções; preservar as 21 suítes e 253 testes que já passam.
+1. **Frontend concluído nesta rechecagem:** os testes desatualizados foram alinhados aos contratos atuais sem enfraquecer suas asserções; corrigidos escapes HTML em relatórios/impressão. A regressão de rota lazy em `Comandas.jsx` foi corrigida restaurando a implementação íntegra anterior à remoção acidental do arquivo, com teste explícito do export default.
+2. **Lint frontend concluído nesta rechecagem:** corrigido o formatador ausente na auditoria, removidos imports órfãos e substituídos catches silenciosos por avisos explícitos. O lint agora termina sem erros.
+3. **Integração backend concluída localmente em 2026-11-06:** fixtures das suítes afetadas foram associados a tenants válidos, sem alterar o middleware de isolamento nem reduzir asserções. Reexecução completa: 41/41 suítes e 419/419 testes passaram.
 4. Habilitar CI em `Generico` e executar nele testes backend, testes frontend, lint, build e auditorias de dependências.
 
-**Aceite:** todos os comandos do pipeline terminam com sucesso em execução limpa; artefatos e resultados vinculados ao SHA validado.
+**Verificação local:** frontend — `node --test tests/comandasPage.test.js` — passou; `node --test tests/formatarDataSegura.test.js` — 2/2 passaram; `npm run test:unit` — 116/116 passaram; `npm run lint` — passou; `npm run build` — passou. Backend (em `back-end/`) — `npm run test:unit` — 110/110 passaram; `npm run test:integration` — 41/41 suítes e 419/419 passaram.
+
+**Aceite da Fase 0:** parcial. Os baselines locais frontend e backend estão verdes; a CI de `Generico` ainda precisa ser habilitada e executada antes de considerar a branch pronta para implantação.
 
 ### Fase 1 — Fechar lacunas de proteção diretamente observadas
 
@@ -145,4 +146,8 @@ Evidências: `back-end/routes/deliveryPublico.js:20-25,38-44`; `back-end/routes/
 
 **Correção implementada localmente:** Delivery resolve o tenant ativo integrado no servidor e restringe catálogo e pedidos a ele. O QR resolve o tenant pela configuração persistida da mesa, aplica o contexto tenant-scoped a catálogo, cotação, pedido e estoque, e não aceita `tenantId` do cliente. QR legado sem vínculo é associado atomicamente quando há exatamente um tenant ativo; configurações ambíguas falham fechadas. A resolução e os fluxos públicos têm cobertura de integração para isolamento entre tenants, recusa de produtos alheios e compatibilidade legada.
 
-**Verificação da correção:** `npm --prefix back-end run test:integration -- --runTestsByPath tests/integration/autoAtendimento.test.js tests/integration/publicRateLimit.test.js tests/integration/deliveryRoutes.test.js tests/integration/tenantSales.test.js tests/integration/tenantMigration.test.js` — 5 suítes e 85 testes passaram. A suíte completa do backend está sendo executada; o resultado será registrado abaixo após sua conclusão. Isso valida o código local, mas não representa deploy nem evidência de configuração em produção.
+**Verificação da correção:** `npm --prefix back-end run test:integration -- --runTestsByPath tests/integration/autoAtendimento.test.js tests/integration/publicRateLimit.test.js tests/integration/deliveryRoutes.test.js tests/integration/tenantSales.test.js tests/integration/tenantMigration.test.js` — 5 suítes e 85 testes passaram. Na rechecagem de 2026-11-06, `npm run test:unit` — 110/110 passaram — e `npm run test:integration` — 41/41 suítes e 419/419 passaram (ambos executados em `back-end/`). As falhas da execução intermediária foram corrigidas nos fixtures, preservando o middleware de isolamento por tenant. Isso valida o código local, mas não representa deploy nem evidência de configuração em produção.
+
+### Rechecagem da branch `feature/pwa-offline-sincronizacao`
+
+Uma revisão estática somente leitura da referência `179197f3f9278a830e1e7aefde78e5da18d18e42` não encontrou o mesmo problema. O endpoint público `/rastreio/:token` (`back-end/routes/delivery.js:437-440`) expõe acompanhamento do pedido, não catálogo ou estoque. Criação de pedidos Delivery exige `tenantAuth` ou `integrationAuth` (`back-end/routes/delivery.js:125-128,247-259`), e não foi localizada rota pública de catálogo/cotação/pedido QR nessa branch. A conclusão limita-se ao código verificado nessa referência; não equivale a uma auditoria integral nem comprova configuração de produção.

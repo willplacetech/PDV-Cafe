@@ -5,18 +5,22 @@ const User = require('../../models/User');
 const Customer = require('../../models/Customer');
 const Product = require('../../models/Product');
 const Order = require('../../models/Order');
+const Tenant = require('../../models/Tenant');
 
 let token;
 let product;
+let tenant;
 beforeEach(async () => {
-  const user = await User.create({ username: 'reports-admin', password: 'test-password', role: 'admin' });
+  tenant = await Tenant.create({ nome: 'Dashboard reports', slug: 'dashboard-reports', telefone: '11999999999', endereco: 'Rua de teste' });
+  const user = await User.create({ username: 'reports-admin', password: 'test-password', role: 'admin', tenantId: tenant._id });
   token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET);
-  product = await Product.create({ codigo: 'reports-coffee', nome: 'Cafe', categoria: 'Outros', preco: 10, precoCompra: 8, estoque: 20 });
+  product = await Product.create({ codigo: 'reports-coffee', nome: 'Cafe', categoria: 'Outros', preco: 10, precoCompra: 8, estoque: 20, tenantId: tenant._id });
 });
 const dashboard = () => request(app).get('/api/dashboard').set('Authorization', `Bearer ${token}`);
 const sale = (extra = {}) => Order.create({
   atendente: 'reports-admin', subtotal: 20, total: 20, status: 'pago',
   itens: [{ produtoId: product.id, nome: product.nome, quantidade: 2, precoUnitario: 10, custoUnitarioHistorico: 3 }],
+  tenantId: tenant._id,
   ...extra,
 });
 
@@ -43,7 +47,7 @@ test('margem usa o custo historico em vez de custo atual ou campo inexistente', 
 });
 
 test('relatorio de clientes soma vendas e recebimentos sem incluir canceladas', async () => {
-  const customer = await Customer.create({ nome: 'Cliente relatorio' });
+  const customer = await Customer.create({ nome: 'Cliente relatorio', tenantId: tenant._id });
   const date = new Date();
   await sale({ clienteId: customer.id, clienteNome: customer.nome, status: 'parcial', pagamentos: [{ tipo: 'pix', valorRecebido: 5, dataPagamento: date }] });
   await sale({ clienteId: customer.id, clienteNome: customer.nome, status: 'cancelado' });

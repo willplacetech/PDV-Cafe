@@ -57,17 +57,35 @@ test('quitação total do cliente calcula o total aberto de todos os pedidos sem
 
 test('relatório de clientes imprime nome e telefone como texto', () => {
   let html = '';
-  const code = 'const imprimirRelatorioClientes = ' + section('Dashboard', 'const imprimirRelatorioClientes = ', 'const exportarClientesMailing');
-  const fn = evaluate(code, { textoSeguro, relatorioClientes: { clientes: [{ nome: '<img onerror="alert(1)">', telefone: '</span><script>evil()</script>' }] }, window: { open: () => ({ document: { write: value => { html = value; }, close() {} } }) } }, 'imprimirRelatorioClientes');
+  const code = 'const imprimirRelatorioClientes = ' + section('Dashboard', 'const imprimirRelatorioClientes = ', 'return (');
+  const fn = evaluate(code, { textoSeguro, marcaRelatorio: () => 'PDV', rodapeRelatorio: () => 'PDV', relatorioClientes: { clientes: [{ nome: '<img onerror="alert(1)">', telefone: '</span><script>evil()</script>' }] }, window: { open: () => ({ document: { write: value => { html = value; }, close() {} } }) } }, 'imprimirRelatorioClientes');
   fn();
   assert.ok(!html.includes('<img onerror'));
   assert.ok(!html.includes('<script>evil()'));
   assert.ok(html.includes('&lt;img'));
 });
 
-test('recebido líquido subtrai taxa atual do bruto', () => {
-  const code = 'const recebidoLiquidoAtual = ' + section('Dashboard', 'const recebidoLiquidoAtual = ', 'const aReceberMensal');
-  assert.equal(evaluate(code, { relatorioMes: { recebido: 100, taxasCartao: 3 }, taxasCartaoAtual: 5 }, 'recebidoLiquidoAtual'), 95);
+test('relatório mensal imprime o valor recebido fornecido pela API sem recalcular taxas', () => {
+  let html = '';
+  const code = 'const imprimirRelatorioMes = ' + section('Dashboard', 'const imprimirRelatorioMes = ', 'const imprimirRelatorioClientes');
+  const imprimirRelatorioMes = evaluate(code, {
+    relatorioMes: {
+      pagamentos: [], produtos: [], vendasPorDia: [], status: {},
+      periodo: 'Novembro', pedidos: 1, clientes: 1, itens: 1,
+      ticketMedio: 100, total: 100, recebido: 100, pendente: 0,
+    },
+    textoSeguro: value => String(value),
+    rotuloPagamento: value => value,
+    money: value => Number(value || 0).toFixed(2).replace('.', ','),
+    marcaRelatorio: () => 'PDV',
+    rodapeRelatorio: () => 'PDV',
+    window: { open: () => ({ document: { write: value => { html = value; }, close() {} } }) },
+    showToast() {},
+  }, 'imprimirRelatorioMes');
+
+  imprimirRelatorioMes();
+
+  assert.match(html, /Recebido:<\/span><b>R\$ 100,00<\/b>/);
 });
 
 test('login bem sucedido mantém a sessão ativa sem recarregar o documento', async () => {
@@ -176,7 +194,7 @@ test('serviço do cupom escapa dados de produto no HTML de impressão', async ()
       }),
       error => error instanceof ImpressaoError,
     );
-    const job = listarImpressoesPendentes().find(pending => pending.tipo === 'cupom-1');
+    const job = listarImpressoesPendentes().find(pending => pending.tipo === 'cupom-venda');
     assert.ok(job);
     assert.ok(!job.html.includes('<img onerror'));
     assert.ok(job.html.includes('&lt;img onerror=&quot;evil()&quot;&gt;'));

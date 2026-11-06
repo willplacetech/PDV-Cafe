@@ -2,17 +2,19 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../server');
 const User = require('../../models/User');
+const Tenant = require('../../models/Tenant');
 const Product = require('../../models/Product');
 const Comanda = require('../../models/Comanda');
 const Order = require('../../models/Order');
 const { carregarPagamentosDoPeriodo } = require('../../utils/pagamento');
 
 let token, product, comanda;
+let tenant;
 const receiptDate = new Date('2026-09-02T12:00:00Z');
 const period = { inicio: new Date('2026-09-02T00:00:00Z'), fim: new Date('2026-09-03T00:00:00Z') };
 const cancel = (kind, id) => request(app).patch(`/api/${kind}/${id}/cancelar`).set('Authorization', `Bearer ${token}`).set('X-Autorizacao-Gerente', require('../approvalFixture')(token, 'cancelar_venda'));
 const makeOrder = async (extra = {}) => {
-  const order = await Order.create({ numero: '000001', atendente: 'cancel-admin', subtotal: 20, total: 20, itens: comanda.itens, ...extra });
+  const order = await Order.create({ numero: '000001', atendente: 'cancel-admin', subtotal: 20, total: 20, itens: comanda.itens, tenantId: tenant._id, ...extra });
   if (extra.comandaId) { comanda.pedidoId = order.id; await comanda.save(); }
   return order;
 };
@@ -31,11 +33,12 @@ test('desconto no fechamento não reduz total abaixo do valor recebido', async (
   expect(await Order.countDocuments()).toBe(0);
 });
 beforeEach(async () => {
-  const user = await User.create({ username: 'cancel-admin', password: 'test-password', role: 'admin' });
+  tenant = await Tenant.create({ nome: 'Cancellation financial', slug: 'cancellation-financial', telefone: '11999999999', endereco: 'Rua de teste' });
+  const user = await User.create({ username: 'cancel-admin', password: 'test-password', role: 'admin', tenantId: tenant._id });
   token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET);
-  product = await Product.create({ codigo: 'CANCEL', nome: 'Cafe', preco: 20, estoque: 9 });
+  product = await Product.create({ codigo: 'CANCEL', nome: 'Cafe', preco: 20, estoque: 9, tenantId: tenant._id });
   comanda = await Comanda.create({ atendente: user.username, valorTotal: 20, estoqueBaixado: true,
-    itens: [{ produtoId: product.id, nome: product.nome, precoUnitario: 20, quantidade: 1, controleEstoque: 'produto' }] });
+    itens: [{ produtoId: product.id, nome: product.nome, precoUnitario: 20, quantidade: 1, controleEstoque: 'produto' }], tenantId: tenant._id });
 });
 
 test('partial receipt blocks cancellation and preserves revenue, receipts and stock', async () => {
@@ -77,7 +80,7 @@ test('legacy cancelled comanda receipts remain in their original period exactly 
   comanda.historicoPagamentos = [{ valor: 10, formaPagamento: 'pix', data: receiptDate }];
   await comanda.save();
   const order = await makeOrder({ comandaId: comanda.id, status: 'cancelado', pagamentos: [{ tipo: 'pix', valorRecebido: 10, dataPagamento: receiptDate }] });
-  await Order.create({ numero: '000002', atendente: 'cancel-admin', subtotal: 20, total: 20, comandaId: comanda.id, pagamentos: order.pagamentos });
+  await Order.create({ numero: '000002', atendente: 'cancel-admin', subtotal: 20, total: 20, comandaId: comanda.id, pagamentos: order.pagamentos, tenantId: tenant._id });
   const receipts = await carregarPagamentosDoPeriodo(period);
   expect(receipts).toHaveLength(1);
   expect(receipts[0].valorRecebido).toBe(10);

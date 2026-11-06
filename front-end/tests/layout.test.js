@@ -11,7 +11,7 @@ const source = readFileSync(new URL('../src/components/Layout.jsx', import.meta.
 const { code } = await transformWithOxc(source, 'Layout.jsx', { jsx: { runtime: 'classic' } });
 const authContext = React.createContext({ user: { id: 'test', role: 'admin' }, logout() {} });
 const themeContext = React.createContext({ isDark: false, toggleTheme() {} });
-const branding = { name: 'PDV', tagline: 'Sistema de atendimento', logoUrl: '/logo.svg' };
+const branding = { name: 'Sabor de Abraço', tagline: 'Sistema de atendimento', logoUrl: '/logo.svg' };
 const Layout = new Function('React', 'Outlet', 'Link', 'useNavigate', 'useLocation', 'useContext', 'useState', 'useEffect', 'useCallback', 'AuthContext', 'ThemeContext', 'APP_GIT_HASH', 'StatusConexao', 'NovidadesModal', 'branding', `${code}; return Layout;`)(
   React, Outlet, Link, useNavigate, useLocation, React.useContext, React.useState, React.useEffect, React.useCallback,
   authContext, themeContext, 'test', () => null, () => null, branding,
@@ -22,10 +22,10 @@ test('authenticated layout renders the nested route instead of a blank page', ()
   assert.match(html, /<h1>Dashboard<\/h1>/);
 });
 
-test('footer shows the short git hash and links to the changelog', () => {
+test('footer shows the short git hash without restoring the disabled changelog link', () => {
   const html = renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement(Layout)));
   assert.match(html, /Sabor de Abraço · vtest/);
-  assert.match(html, /href="\/CHANGELOG\.md"[^>]*>Novidades<\/a>/);
+  assert.doesNotMatch(html, /href="\/CHANGELOG\.md"/);
 });
 
 test('layout still renders explicit children used by delivery', () => {

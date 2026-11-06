@@ -2,12 +2,14 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../server');
 const User = require('../../models/User');
+const Tenant = require('../../models/Tenant');
 const Product = require('../../models/Product');
 const Order = require('../../models/Order');
 const StockMovement = require('../../models/StockMovement');
 
 test('venda paga baixa estoque, registra custo historico e aparece no DRE', async () => {
-  const user = await User.create({ username: 'sales-stock-dre-admin', password: 'test-password', role: 'admin' });
+  const tenant = await Tenant.create({ nome: 'Sales stock DRE', slug: 'sales-stock-dre', telefone: '11999999999', endereco: 'Rua de teste' });
+  const user = await User.create({ username: 'sales-stock-dre-admin', password: 'test-password', role: 'admin', tenantId: tenant._id });
   const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET);
   const product = await Product.create({
     codigo: 'sales-stock-dre-coffee',
@@ -16,6 +18,7 @@ test('venda paga baixa estoque, registra custo historico e aparece no DRE', asyn
     preco: 10,
     precoCompra: 3,
     estoque: 10,
+    tenantId: tenant._id,
   });
 
   const saleResponse = await request(app)

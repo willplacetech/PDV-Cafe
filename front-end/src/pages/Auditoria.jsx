@@ -6,6 +6,7 @@ import EstadoLista from '../components/EstadoLista.jsx';
 import Paginacao from '../components/Paginacao.jsx';
 import useUrlPagination from '../hooks/useUrlPagination.js';
 import { updatePaginationParams } from '../utils/paginationUrl.js';
+import { formatarDataSegura } from '../utils/formatarDataSegura.js';
 
 const inputStyle = { width: '100%', minHeight: 40, padding: '8px 10px', borderRadius: 8 };
 
