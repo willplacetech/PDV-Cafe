@@ -69,7 +69,13 @@ const precoComDescontoGrupo = (produto, quantidade, cartItens, precoBase) => {
   const quantidadeMinima = Number(grupo.quantidadeMinima || 0);
   const grupoAtivo = quantidadeMinima > 0 && totalGrupo >= quantidadeMinima;
   const precoNormal = Number(precoBase);
-  const precoUnitario = grupoAtivo ? Number(grupo.precoPromocional) : precoNormal;
+  const percentualInformado = grupo.percentualDesconto !== undefined && grupo.percentualDesconto !== null && grupo.percentualDesconto !== '';
+  const percentualDesconto = Number(grupo.percentualDesconto);
+  const precoUnitario = grupoAtivo
+    ? percentualInformado && Number.isFinite(percentualDesconto)
+      ? Math.round((precoNormal * (1 - percentualDesconto / 100) + Number.EPSILON) * 100) / 100
+      : Number(grupo.precoPromocional)
+    : precoNormal;
   const qtd = Number(quantidade || 0);
   return {
     precoNormal,

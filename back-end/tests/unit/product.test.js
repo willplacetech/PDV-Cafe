@@ -59,7 +59,7 @@ describe('Product', () => {
     expect(produto.descontosPorQuantidade[0].quantidadeMinima).toBe(3);
   });
 
-  test('Produto com grupoDesconto deve validar campos', async () => {
+  test('Produto com percentualDesconto deve validar campos do grupo', async () => {
     const produto = await Product.create({
       codigo: '5001',
       nome: 'Bolinho',
@@ -67,11 +67,11 @@ describe('Product', () => {
       tipo: 'venda',
       categoria: 'Doces',
       estoque: 30,
-      grupoDesconto: { nome: 'Cookies', quantidadeMinima: 3, precoPromocional: 14, ativo: true },
+      grupoDesconto: { nome: 'Cookies', quantidadeMinima: 3, percentualDesconto: 10, ativo: true },
     });
     expect(produto.grupoDesconto).toBeDefined();
     expect(produto.grupoDesconto.nome).toBe('Cookies');
-    expect(produto.grupoDesconto.precoPromocional).toBe(14);
+    expect(produto.grupoDesconto.percentualDesconto).toBe(10);
   });
 
   test('Insumo deve ter categoria Insumos', async () => {

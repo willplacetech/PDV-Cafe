@@ -84,6 +84,40 @@ test('PDV reuses active products and invalidates the cache after editing a produ
   }
 });
 
+test('product API persists group percentage on create and update', async () => {
+  await Configuracoes.create({ _id: 'principal', exigirAutorizacaoGerente: false });
+  invalidarCacheConfiguracaoGerente();
+
+  const created = await request(app)
+    .post('/api/products')
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      codigo: 'grupo-percentual',
+      nome: 'Doce percentual',
+      tipo: 'venda',
+      categoria: 'Doces',
+      preco: 20,
+      grupoDesconto: { nome: 'Doces', quantidadeMinima: 2, percentualDesconto: 10, ativo: true },
+    });
+
+  expect(created.status).toBe(201);
+  expect(created.body.grupoDesconto).toMatchObject({ nome: 'Doces', quantidadeMinima: 2, percentualDesconto: 10, ativo: true });
+
+  const updated = await request(app)
+    .put(`/api/products/${created.body._id}`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ grupoDesconto: { nome: 'Doces', quantidadeMinima: 3, percentualDesconto: 15, ativo: true } });
+
+  expect(updated.status).toBe(200);
+  expect(updated.body.grupoDesconto).toMatchObject({ quantidadeMinima: 3, percentualDesconto: 15 });
+
+  const invalid = await request(app)
+    .put(`/api/products/${created.body._id}`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ grupoDesconto: { nome: 'Doces', quantidadeMinima: 3, percentualDesconto: 101, ativo: true } });
+  expect(invalid.status).toBe(400);
+});
+
 test('inventory list includes active stock items with normalized balances and no cost fields', async () => {
   await Product.create([
     { codigo: '10', nome: 'Bolo', tipo: 'venda', categoria: 'Doces', unidadeVenda: 'un', estoque: 6, preco: 12 },

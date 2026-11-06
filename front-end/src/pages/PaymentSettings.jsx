@@ -38,19 +38,20 @@ export default function PaymentSettings() {
 
   const salvar = async forma => {
     if (salvando) return;
-    const valor = forma.personalizada ? edicao?.taxaPercentual : taxas[forma.value] ?? forma.taxaPercentual;
-    const nome = forma.personalizada ? edicao?.nome.trim() : undefined;
-    if (!taxaValida(valor) || (forma.personalizada && !nome)) {
+    const gerenciavel = forma.personalizada || forma.gerenciavel;
+    const valor = gerenciavel ? edicao?.taxaPercentual : taxas[forma.value] ?? forma.taxaPercentual;
+    const nome = gerenciavel ? edicao?.nome.trim() : undefined;
+    if (!taxaValida(valor) || (gerenciavel && !nome)) {
       showToast('Informe nome e taxa entre 0% e 100%.', 'warning');
       return;
     }
     try {
       setSalvando(forma.value);
-      const { data } = await api.patch('/contabil/taxas-cartao', { mes: mesAtual(), tipo: forma.value, taxaPercentual: Number(valor), ...(forma.personalizada ? { nome } : {}) });
-      atualizarFormas(data.formasPagamento || formasPagamento.map(atual => atual.value === forma.value ? { ...atual, taxaPercentual: Number(valor), ...(forma.personalizada ? { label: nome } : {}) } : atual));
+      const { data } = await api.patch('/contabil/taxas-cartao', { mes: mesAtual(), tipo: forma.value, taxaPercentual: Number(valor), ...(gerenciavel ? { nome } : {}) });
+      atualizarFormas(data.formasPagamento || formasPagamento.map(atual => atual.value === forma.value ? { ...atual, taxaPercentual: Number(valor), ...(gerenciavel ? { label: nome } : {}) } : atual));
       setTaxas(atual => { const proximo = { ...atual }; delete proximo[forma.value]; return proximo; });
       setEdicao(null);
-      showToast(forma.personalizada ? 'Forma de pagamento atualizada. Taxa aplicada aos pagamentos do mês.' : 'Taxa salva e aplicada aos pagamentos do mês.', 'success');
+      showToast(gerenciavel ? 'Forma de pagamento atualizada. Taxa aplicada aos pagamentos do mês.' : 'Taxa salva e aplicada aos pagamentos do mês.', 'success');
     } catch (error) {
       showToast(error.response?.data?.msg || 'Não foi possível salvar a taxa.', 'error');
     } finally { setSalvando(''); }
@@ -82,7 +83,7 @@ export default function PaymentSettings() {
     <section className="payment-settings-grid" aria-label="Taxas das formas de pagamento">
       {formasComTaxa.map(forma => <article key={forma.value}>
         <h2>{forma.label}</h2>
-        {forma.personalizada ? edicao?.tipo === forma.value ? <form className="payment-settings-edit" onSubmit={event => { event.preventDefault(); void salvar(forma); }}>
+        {forma.personalizada || forma.gerenciavel ? edicao?.tipo === forma.value ? <form className="payment-settings-edit" onSubmit={event => { event.preventDefault(); void salvar(forma); }}>
           <label htmlFor={`nome-${forma.value}`}>Nome</label>
           <input id={`nome-${forma.value}`} type="text" maxLength={80} required autoFocus value={edicao.nome} disabled={bloqueado} onChange={event => setEdicao(atual => ({ ...atual, nome: event.target.value }))} />
           <label htmlFor={`taxa-${forma.value}`}>Taxa (%)</label>

@@ -1,0 +1,25 @@
+{
+  "lists": [
+    {
+      "id": "default",
+      "name": "Changes",
+      "comment": ""
+    }
+  ],
+  "active": "default",
+  "files": {
+    ".github/workflows/testes.yml": "default",
+    "UX-UI-Laws/7-Leis-UX-UI.md": "default",
+    "UX-UI-Laws/7-Leis-UX-UI.md.bak": "default",
+    "docs/security-roadmap-generico-2026-11-05.md": "default",
+    "front-end/src/components/ConfirmarAcao.jsx": "default",
+    "front-end/src/pages/Dashboard.jsx": "default",
+    "front-end/tests/e2e/cancelar_comanda.cy.js": "default",
+    "front-end/tests/e2e/clientes.cy.js": "default",
+    "front-end/tests/e2e/consumo_interno.cy.js": "default",
+    "front-end/tests/e2e/deliverylink.cy.js": "default",
+    "front-end/tests/e2e/ui_loading.cy.js": "default",
+    "front-end/tests/e2e/vendas_offline.cy.js": "default",
+    "front-end/tests/e2e/whatsapp_compartilhamento.cy.js": "default"
+  }
+}

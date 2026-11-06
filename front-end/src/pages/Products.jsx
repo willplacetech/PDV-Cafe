@@ -19,6 +19,17 @@ const filtrosTipo = ['Todos', 'Estoque de Venda', 'Estoque de Insumos'];
 const units = ['kg', 'L', 'un'];
 const decimalStep = (unidade) => unidade === 'un' ? '0.01' : '0.001';
 const decimalMinimum = (unidade) => unidade === 'un' ? 0.01 : 0.001;
+const grupoDescontoDoProduto = (produto) => {
+  const grupo = produto.grupoDesconto;
+  if (!grupo) return { nome: '', quantidadeMinima: '', percentualDesconto: '', ativo: false };
+  if (grupo.percentualDesconto !== undefined && grupo.percentualDesconto !== null) return grupo;
+  const preco = Number(produto.preco);
+  const promocional = Number(grupo.precoPromocional);
+  const percentualDesconto = preco > 0 && Number.isFinite(promocional)
+    ? String(Number((((preco - promocional) / preco) * 100).toFixed(6)))
+    : '';
+  return { ...grupo, percentualDesconto };
+};
 
 const vazio = {
   codigo: '',
@@ -32,7 +43,7 @@ const vazio = {
   categoria: 'Bebidas Quentes',
   preco: '',
   descontosPorQuantidade: [],
-  grupoDesconto: { nome: '', quantidadeMinima: '', precoPromocional: '', ativo: false },
+  grupoDesconto: { nome: '', quantidadeMinima: '', percentualDesconto: '', ativo: false },
   precoCompra: '',
   unidadeCompra: 'kg',
   conteudoPorEmbalagem: 1,
@@ -226,12 +237,9 @@ export default function Products() {
           showToast('⚠️ Quantidade mínima do grupo deve ser um inteiro positivo.', 'warning');
           return;
         }
-        if (Number(gd.precoPromocional) < 0) {
-          showToast('⚠️ Preço promocional do grupo não pode ser negativo.', 'warning');
-          return;
-        }
-        if (Number(gd.precoPromocional) >= Number(form.preco || 0)) {
-          showToast('⚠️ O preço promocional do grupo deve ser menor que o preço normal.', 'warning');
+        const percentual = Number(gd.percentualDesconto);
+        if (gd.percentualDesconto === '' || !Number.isFinite(percentual) || percentual < 0 || percentual > 100) {
+          showToast('⚠️ Percentual do grupo deve estar entre 0% e 100%.', 'warning');
           return;
         }
       }
@@ -268,10 +276,10 @@ export default function Products() {
       descontosPorQuantidade: tipo === 'venda' ? form.descontosPorQuantidade : [],
       grupoDesconto: tipo === 'venda' && form.grupoDesconto?.nome ? {
         nome: String(form.grupoDesconto.nome).trim(),
-        quantidadeMinima: Number(form.grupoDesconto.quantidadeMinima),
-        precoPromocional: Number(form.grupoDesconto.precoPromocional),
+        quantidadeMinima: form.grupoDesconto.quantidadeMinima === '' ? undefined : Number(form.grupoDesconto.quantidadeMinima),
+        percentualDesconto: form.grupoDesconto.percentualDesconto === '' ? undefined : Number(form.grupoDesconto.percentualDesconto),
         ativo: Boolean(form.grupoDesconto.ativo),
-      } : undefined,
+      } : null,
       precoCompra: limparCampoNumerico(form.precoCompra) ?? 0,
       custoUnitarioBase: calculoDireto && custoCompraAtual !== null ? custoCompraAtual : undefined,
       usavelEmReceita: tipo === 'insumo' || Boolean(form.usavelEmReceita),
@@ -319,7 +327,7 @@ export default function Products() {
       categoria: produto.categoria || 'Bebidas Quentes',
       preco: produto.preco ?? '',
       descontosPorQuantidade: produto.descontosPorQuantidade || [],
-      grupoDesconto: produto.grupoDesconto || { nome: '', quantidadeMinima: '', precoPromocional: '', ativo: false },
+      grupoDesconto: grupoDescontoDoProduto(produto),
       precoCompra: produto.precoCompra ?? '',
       unidadeCompra: unidadeCompra,
       unidade: produto.unidade || unidadeCompra,
@@ -606,16 +614,16 @@ export default function Products() {
                   </summary>
                   <div className="product-discount-content">
                     <p className="product-discount-description">
-                      Produtos com o <strong>mesmo nome de grupo</strong> e <strong>mesma categoria</strong> somam as quantidades. Ao atingir o mínimo, todos recebem o preço promocional.
+                      Produtos com o <strong>mesmo nome de grupo</strong> e <strong>mesma categoria</strong> somam as quantidades. Ao atingir o mínimo, o percentual é aplicado sobre o preço normal de cada produto.
                     </p>
                     <label className="product-discount-active">
-                      <input type="checkbox" checked={Boolean(form.grupoDesconto?.ativo)} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', quantidadeMinima: '', precoPromocional: '', ativo: false }), ativo: e.target.checked } })} />
+                      <input type="checkbox" checked={Boolean(form.grupoDesconto?.ativo)} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', quantidadeMinima: '', percentualDesconto: '', ativo: false }), ativo: e.target.checked } })} />
                       Ativar este desconto
                     </label>
                     <div className="product-discount-group-grid">
-                      <label><FieldLabel hint={form.grupoDesconto?.nome && <>? Produtos do grupo "{form.grupoDesconto.nome}" participar?o deste desconto.</>}>Nome do grupo</FieldLabel><input type="text" placeholder="Ex.: Cookies" value={form.grupoDesconto?.nome || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { quantidadeMinima: '', precoPromocional: '', ativo: false }), nome: e.target.value } })} /></label>
-                      <label>Quantidade mínima <input type="number" min={1} step={1} value={form.grupoDesconto?.quantidadeMinima || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', precoPromocional: '', ativo: false }), quantidadeMinima: e.target.value } })} /></label>
-                      <label>Preço promocional (R$) <input type="number" min={0} step="0.01" value={form.grupoDesconto?.precoPromocional || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', quantidadeMinima: '', ativo: false }), precoPromocional: e.target.value } })} /></label>
+                      <label><FieldLabel hint={form.grupoDesconto?.nome && <>Produtos do grupo "{form.grupoDesconto.nome}" participam deste desconto.</>}>Nome do grupo</FieldLabel><input type="text" placeholder="Ex.: Cookies" value={form.grupoDesconto?.nome || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { quantidadeMinima: '', percentualDesconto: '', ativo: false }), nome: e.target.value } })} /></label>
+                      <label>Quantidade mínima <input type="number" min={1} step={1} value={form.grupoDesconto?.quantidadeMinima || ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', percentualDesconto: '', ativo: false }), quantidadeMinima: e.target.value } })} /></label>
+                      <label>Percentual aplicado (%) <input type="number" min={0} max={100} step="0.01" value={form.grupoDesconto?.percentualDesconto ?? ''} onChange={(e) => setForm({ ...form, grupoDesconto: { ...(form.grupoDesconto || { nome: '', quantidadeMinima: '', ativo: false }), percentualDesconto: e.target.value } })} /></label>
                     </div>
                     {form.grupoDesconto?.nome && <small className="product-discount-hint">✓ Produtos do grupo "{form.grupoDesconto.nome}" participarão deste desconto.</small>}
                   </div>

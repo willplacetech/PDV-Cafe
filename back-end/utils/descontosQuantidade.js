@@ -52,7 +52,13 @@ const calcularPrecoGrupo = (produto, quantidade, cartItens = [], precoBase = pro
   const quantidadeMinima = Number(grupo.quantidadeMinima || 0);
   const grupoAtivo = quantidadeMinima > 0 && totalGrupo >= quantidadeMinima;
   const precoNormal = dinheiro(precoBase);
-  const precoUnitario = grupoAtivo ? dinheiro(grupo.precoPromocional) : precoNormal;
+  const percentualInformado = grupo.percentualDesconto !== undefined && grupo.percentualDesconto !== null && grupo.percentualDesconto !== '';
+  const percentualDesconto = Number(grupo.percentualDesconto);
+  const precoUnitario = grupoAtivo
+    ? percentualInformado && Number.isFinite(percentualDesconto)
+      ? dinheiro(precoNormal * (1 - percentualDesconto / 100))
+      : dinheiro(grupo.precoPromocional)
+    : precoNormal;
   return {
     precoNormal,
     precoUnitario,

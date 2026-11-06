@@ -9,7 +9,7 @@ const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
 const Despesa = require('../models/Despesa');
 const PaymentSettings = require('../models/PaymentSettings');
 const Purchase = require('../models/Purchase');
-const { ROTULOS_PAGAMENTO, normalizarNome, catalogoDaConfiguracao } = require('../utils/formasPagamento');
+const { ROTULOS_PAGAMENTO, FORMAS_GERENCIAVEIS, normalizarNome, catalogoDaConfiguracao } = require('../utils/formasPagamento');
 const { custoUnitarioDoItem } = require('../utils/custo');
 const { carregarPagamentosDoPeriodo, dinheiro: dinheiroPagamento } = require('../utils/pagamento');
 
@@ -90,20 +90,40 @@ router.patch('/taxas-cartao', exigirAutorizacao('alterar_taxas_cartao'), async (
       atualizados = 0;
       let configuracao = await PaymentSettings.findOne({ chave: 'principal' }).session(session);
       const personalizada = configuracao?.formasPersonalizadas.find(forma => forma.tipo === tipo);
-      if (!['cartao_credito', 'cartao_debito'].includes(tipo) && !personalizada) throw Object.assign(new Error('Forma de pagamento não cadastrada.'), { status: 400 });
+      const gerenciavel = FORMAS_GERENCIAVEIS.includes(tipo);
+      if (!gerenciavel && !personalizada) throw Object.assign(new Error('Forma de pagamento não cadastrada.'), { status: 400 });
       if (editarNome) {
-        if (!personalizada) throw Object.assign(new Error('Somente formas personalizadas podem ser renomeadas.'), { status: 400 });
-        const duplicado = Object.values(ROTULOS_PAGAMENTO).some(rotulo => normalizarNome(rotulo) === nomeNormalizado)
-          || configuracao.formasPersonalizadas.some(forma => forma.tipo !== tipo && forma.nomeNormalizado === nomeNormalizado);
+        const nomesPadrao = Object.entries(ROTULOS_PAGAMENTO).map(([forma, rotulo]) => ({
+          tipo: forma,
+          nome: configuracao?.formasPadraoNomes?.find(item => item.tipo === forma)?.nome || rotulo,
+        }));
+        const duplicado = nomesPadrao.some(forma => forma.tipo !== tipo && normalizarNome(forma.nome) === nomeNormalizado)
+          || (configuracao?.formasPersonalizadas || []).some(forma => forma.tipo !== tipo && forma.nomeNormalizado === nomeNormalizado);
         if (duplicado) throw Object.assign(new Error('Já existe uma forma de pagamento com este nome.'), { status: 409 });
-        personalizada.nome = nome;
-        personalizada.nomeNormalizado = nomeNormalizado;
       }
-      if (personalizada) {
-        personalizada.taxaPercentual = percentual;
-        await configuracao.save({ session });
+      if (!personalizada && !editarNome) {
+        configuracao = await PaymentSettings.findOneAndUpdate(
+          { chave: 'principal' },
+          { $set: { [tipo]: percentual } },
+          { upsert: true, new: true, setDefaultsOnInsert: true, session },
+        );
       } else {
-        configuracao = await PaymentSettings.findOneAndUpdate({ chave: 'principal' }, { $set: { [tipo]: percentual } }, { upsert: true, new: true, setDefaultsOnInsert: true, session });
+        if (!configuracao) configuracao = new PaymentSettings({ chave: 'principal' });
+        if (personalizada) personalizada.taxaPercentual = percentual;
+        else configuracao[tipo] = percentual;
+        if (editarNome) {
+          if (personalizada) {
+            personalizada.nome = nome;
+            personalizada.nomeNormalizado = nomeNormalizado;
+          } else {
+            const nomeConfigurado = configuracao.formasPadraoNomes.find(forma => forma.tipo === tipo);
+            if (nomeConfigurado) {
+              nomeConfigurado.nome = nome;
+              nomeConfigurado.nomeNormalizado = nomeNormalizado;
+            } else configuracao.formasPadraoNomes.push({ tipo, nome, nomeNormalizado });
+          }
+        }
+        await configuracao.save({ session });
       }
       formasPagamento = catalogoDaConfiguracao(configuracao);
       const { inicio, fim } = getMesRange(mes);

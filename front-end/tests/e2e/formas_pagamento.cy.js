@@ -3,7 +3,7 @@ const profile = { id: 'payment-admin', role: 'admin', username: 'teste', tenantI
 const custom = { value: 'personalizado_000000000000000000000001', label: 'Vale Refeição', taxaPercentual: 3, personalizada: true };
 const defaults = [
   { value: 'dinheiro', label: 'Dinheiro', taxaPercentual: 0 }, { value: 'pix', label: 'PIX', taxaPercentual: 0 },
-  { value: 'cartao_credito', label: 'Cartão de Crédito', taxaPercentual: 2 }, { value: 'cartao_debito', label: 'Cartão de Débito', taxaPercentual: 1 },
+  { value: 'cartao_credito', label: 'Cartão de Crédito', taxaPercentual: 2, gerenciavel: true }, { value: 'cartao_debito', label: 'Cartão de Débito', taxaPercentual: 1, gerenciavel: true },
   { value: 'credito_loja', label: 'Crédito na Loja', taxaPercentual: 0 },
 ];
 
@@ -18,7 +18,8 @@ describe('Formas de pagamento cadastradas', () => {
       const path = new URL(req.url).pathname;
       if (path.endsWith('/payment-settings')) return req.reply({ formasPagamento: methods });
       if (path.endsWith('/products') || path.endsWith('/products/pdv')) return req.reply([product]);
-      if (path.endsWith('/comandas') || path.endsWith('/comandas/a-receber')) return req.reply(commands);
+      if (path.endsWith('/comandas/a-receber')) return req.reply({ dados: commands, total: commands.length, totais: { totalBruto: 100, recebido: 0, saldoDevedor: 100 } });
+      if (path.endsWith('/comandas')) return req.reply(commands);
       if (path.endsWith('/mesas')) return req.reply({ mesas: [] });
       if (path.endsWith('/dashboard/delivery')) return req.reply({ totalPedidos: 0, receitaTotal: 0, freteTotal: 0, ticketMedio: 0, porEntregador: [] });
       if (path.endsWith('/dashboard/comparar-vendas')) {
@@ -34,7 +35,7 @@ describe('Formas de pagamento cadastradas', () => {
       req.reply({ statusCode: 201, body: { formaPagamento: custom, formasPagamento: methods } });
     }).as('newMethod');
     cy.intercept('POST', '**/api/comandas', req => {
-      const command = { ...req.body, _id: 'comanda-1', numero: '1', status: 'aberta', valorTotal: 100, historicoPagamentos: [], itens: req.body.itens.map((item, index) => ({ ...item, _id: `item-${index}`, nome: product.nome, precoUnitario: 100 })) };
+      const command = { ...req.body, _id: 'comanda-1', numero: '1', status: 'aberta', statusPagamento: 'pendente', saldoDevedor: 100, valorTotal: 100, historicoPagamentos: [], itens: req.body.itens.map((item, index) => ({ ...item, _id: `item-${index}`, nome: product.nome, precoUnitario: 100 })) };
       commands.push(command);
       req.reply({ statusCode: 201, body: command });
     }).as('saveCommand');
@@ -104,6 +105,29 @@ describe('Formas de pagamento cadastradas', () => {
     cy.get('.payment-settings-grid article').contains(custom.label).closest('article').should('contain', '4%');
   });
 
+  it('permite renomear e excluir uma forma de pagamento pré-cadastrada', () => {
+    cy.intercept('PATCH', '**/api/contabil/taxas-cartao', req => {
+      expect(req.body).to.include({ tipo: 'cartao_credito', nome: 'Crédito Empresa', taxaPercentual: 2 });
+      methods = methods.map(method => method.value === 'cartao_credito' ? { ...method, label: req.body.nome } : method);
+      req.reply({ formasPagamento: methods });
+    }).as('renameDefault');
+    const card = () => cy.get('.payment-settings-grid article').contains('Cartão de Crédito').closest('article');
+    card().contains('button', 'Editar').click();
+    card().find('input[type="text"]').clear().type('Crédito Empresa');
+    card().contains('button', 'Salvar alterações').click();
+    cy.wait('@renameDefault');
+    cy.get('.payment-settings-grid article').contains('Crédito Empresa').should('be.visible');
+
+    cy.intercept('DELETE', '**/api/payment-settings/cartao_credito', req => {
+      methods = methods.filter(method => method.value !== 'cartao_credito');
+      req.reply({ formasPagamento: methods });
+    }).as('deleteDefault');
+    cy.get('.payment-settings-grid article').contains('Crédito Empresa').closest('article').contains('button', 'Excluir').click();
+    cy.get('[role="dialog"]').contains('button', 'Excluir forma de pagamento').click();
+    cy.wait('@deleteDefault');
+    cy.get('.payment-settings-grid').should('not.contain', 'Crédito Empresa');
+  });
+
   it('edita nome no card, cancela edição, desiste da exclusão e confirma depois', () => {
     addMethod();
     receipts = [{ tipo: custom.value, rotuloPagamento: custom.label, bruto: 100, taxa: 3, total: 97 }];
@@ -136,7 +160,7 @@ describe('Formas de pagamento cadastradas', () => {
     cy.get('.payment-settings-grid').should('not.contain', 'Vale Alimentação');
     cy.reload();
     cy.get('.payment-settings-grid').should('not.contain', 'Vale Alimentação');
-    cy.get('.payment-settings-grid article').contains('Cartão de Crédito').closest('article').should('not.contain', 'Excluir');
+    cy.get('.payment-settings-grid article').contains('Cartão de Crédito').closest('article').should('contain', 'Excluir');
     cy.visit('/dashboard');
     cy.get('.dashboard-monthly').contains('button', 'Mostrar').click();
     cy.get('.dashboard-monthly-row').contains(custom.label).parent().should('contain', '3,00%').and('contain', '97,00');

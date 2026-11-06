@@ -63,6 +63,32 @@ const descontosDoProduto = (valor, tipo, precoNormal) => {
   }
   return descontos;
 };
+const normalizarGrupoDesconto = (valor, tipo, precoNormal) => {
+  if (tipo !== 'venda' || !valor || !String(valor.nome || '').trim()) return null;
+  const nome = String(valor.nome).trim();
+  const ativo = Boolean(valor.ativo);
+  const quantidadeInformada = valor.quantidadeMinima !== undefined && valor.quantidadeMinima !== null && valor.quantidadeMinima !== '';
+  const quantidadeMinima = quantidadeInformada ? Number(valor.quantidadeMinima) : undefined;
+  if (ativo && (!Number.isInteger(quantidadeMinima) || quantidadeMinima < 1)) throw new Error('Quantidade mínima do grupo deve ser um inteiro positivo');
+  if (quantidadeInformada && (!Number.isInteger(quantidadeMinima) || quantidadeMinima < 1)) throw new Error('Quantidade mínima do grupo deve ser um inteiro positivo');
+
+  const percentualInformado = valor.percentualDesconto !== undefined && valor.percentualDesconto !== null && valor.percentualDesconto !== '';
+  const percentualDesconto = percentualInformado ? Number(valor.percentualDesconto) : undefined;
+  if (percentualInformado && (!Number.isFinite(percentualDesconto) || percentualDesconto < 0 || percentualDesconto > 100)) throw new Error('Percentual do grupo deve estar entre 0% e 100%');
+
+  const promocionalInformado = valor.precoPromocional !== undefined && valor.precoPromocional !== null && valor.precoPromocional !== '';
+  const precoPromocional = promocionalInformado ? Number(valor.precoPromocional) : undefined;
+  if (!percentualInformado && ativo && !promocionalInformado) throw new Error('Informe o percentual do desconto por grupo');
+  if (promocionalInformado && (!Number.isFinite(precoPromocional) || precoPromocional < 0 || precoPromocional > precoNormal)) throw new Error('Preço promocional do grupo inválido');
+
+  return {
+    nome,
+    ...(quantidadeMinima !== undefined ? { quantidadeMinima } : {}),
+    ...(percentualDesconto !== undefined ? { percentualDesconto } : {}),
+    ...(!percentualInformado && precoPromocional !== undefined ? { precoPromocional } : {}),
+    ativo,
+  };
+};
 const validations = [
   body('codigo').trim().notEmpty(),
   body('nome').trim().notEmpty(),
@@ -451,6 +477,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const precoCompra = toNumberOrZero(data.precoCompra);
     const descontoPorUnidadeCompra = toNumberOrZero(data.rendimentoPorUnidadeCompra);
     const descontosPorQuantidade = descontosDoProduto(data.descontosPorQuantidade, tipo, precoVenda);
+    const grupoDesconto = normalizarGrupoDesconto(data.grupoDesconto, tipo, precoVenda);
     const unidadeConteudo = normalizarUnidade(data.unidadeConteudo || unidadeCompra);
     const conteudoPorEmbalagem = toNumberOrZero(data.conteudoPorEmbalagem || data.quantidade || 1);
     const estoqueEmbalagens = tipo === 'insumo' ? toNumberOrZero(data.estoqueEmbalagens ?? estoque) : 0;
@@ -474,6 +501,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
       categoria,
       preco: tipo === 'venda' ? precoVenda : 0,
       descontosPorQuantidade: descontosPorQuantidade || [],
+      grupoDesconto,
       usavelEmReceita: tipo === 'venda' ? Boolean(data.usavelEmReceita) : true,
       precoCompra,
       unidadeCompra,
@@ -605,6 +633,7 @@ router.put('/:id', auth, auth.allowRoles('admin', 'gerente'), exigirAutorizacao(
     const precoNormal = toNumberOrZero(data.precoVenda ?? data.preco ?? produtoAtualParaDesconto?.preco);
     const descontosPorQuantidade = descontosDoProduto(data.descontosPorQuantidade, tipo, precoNormal);
     if (descontosPorQuantidade !== undefined) fields.descontosPorQuantidade = descontosPorQuantidade;
+    if (data.grupoDesconto !== undefined) fields.grupoDesconto = normalizarGrupoDesconto(data.grupoDesconto, tipo, precoNormal);
     ['vendidoFracionado', 'permitirVendaSemInsumo'].forEach((key) => { if (data[key] !== undefined) fields[key] = Boolean(data[key]); });
     if (tipo === 'venda' && (data.tipoProduto !== undefined || data.aFazer !== undefined || data.producaoPropria !== undefined)) {
       fields.tipoProduto = tipoProduto;

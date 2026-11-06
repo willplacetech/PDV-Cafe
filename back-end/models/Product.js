@@ -16,6 +16,7 @@ const QuantityDiscountSchema = new mongoose.Schema({
 const GrupoDescontoSchema = new mongoose.Schema({
   nome: { type: String, trim: true },
   quantidadeMinima: { type: Number, min: 1 },
+  percentualDesconto: { type: Number, min: 0, max: 100 },
   precoPromocional: { type: Number, min: 0 },
   ativo: { type: Boolean, default: true },
 }, { _id: false });
