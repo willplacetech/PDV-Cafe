@@ -4,6 +4,7 @@ import {
   APP_GIT_HASH,
   fetchPublishedAppVersion,
   installPreloadErrorRecovery,
+  recoverStaleApp,
   restorePreloadRecoveryPath,
   waitForServiceWorkerUpdate,
 } from '../src/services/appVersion.js';
@@ -65,6 +66,63 @@ test('fails explicitly when the service worker does not take control', async () 
     waitForServiceWorkerUpdate({ update: async () => {} }, serviceWorker, 1),
     /não assumiu o controle/i,
   );
+});
+
+test('clears stale app resources and reloads the same route without touching user data', async () => {
+  const deletedCaches = [];
+  let unregistered = 0;
+  let replacedUrl;
+  const browser = {
+    location: {
+      href: 'https://pdv.example/entregas?status=prontos#fila',
+      replace: (url) => { replacedUrl = url; },
+    },
+    navigator: {
+      serviceWorker: {
+        getRegistrations: async () => [
+          { unregister: async () => { unregistered += 1; } },
+          { unregister: async () => { unregistered += 1; } },
+        ],
+      },
+    },
+    caches: {
+      keys: async () => ['workbox-precache', 'static-scripts'],
+      delete: async (name) => { deletedCaches.push(name); },
+    },
+    localStorage: { marker: 'preserve' },
+    indexedDB: { marker: 'preserve' },
+  };
+
+  await recoverStaleApp(browser, 'commit-new');
+
+  assert.equal(unregistered, 2);
+  assert.deepEqual(deletedCaches, ['workbox-precache', 'static-scripts']);
+  assert.equal(new URL(replacedUrl).pathname, '/__pdv-recovery/commit-new/index.html');
+  assert.equal(
+    new URL(replacedUrl).searchParams.get('__pdv_path'),
+    '/entregas?status=prontos#fila',
+  );
+  assert.equal(browser.localStorage.marker, 'preserve');
+  assert.equal(browser.indexedDB.marker, 'preserve');
+});
+
+test('does not reload when stale app resources cannot be cleared', async () => {
+  let replaced = false;
+  const browser = {
+    location: {
+      href: 'https://pdv.example/entregas',
+      replace: () => { replaced = true; },
+    },
+    navigator: {
+      serviceWorker: {
+        getRegistrations: async () => [{ unregister: async () => { throw new Error('blocked'); } }],
+      },
+    },
+    caches: { keys: async () => [] },
+  };
+
+  await assert.rejects(recoverStaleApp(browser, 'commit-new'), /blocked/);
+  assert.equal(replaced, false);
 });
 
 test('clears stale app caches and reloads once after a failed Vite preload', async () => {

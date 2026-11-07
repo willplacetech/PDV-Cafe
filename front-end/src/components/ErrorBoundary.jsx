@@ -1,10 +1,24 @@
 import { Component } from 'react';
 import { captureException } from '../utils/errorReporting.js';
+import { recoverStaleApp } from '../services/appVersion.js';
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, isRecovering: false, recoveryError: '' };
+  }
+
+  recuperarAplicativo = async () => {
+    this.setState({ isRecovering: true, recoveryError: '' });
+    try {
+      await recoverStaleApp(window);
+    } catch (error) {
+      console.error('[PWA] Não foi possível recuperar o aplicativo automaticamente.', error);
+      this.setState({
+        isRecovering: false,
+        recoveryError: 'Não foi possível atualizar automaticamente. Verifique sua conexão e tente novamente.',
+      });
+    }
   }
 
   static getDerivedStateFromError(error) {
@@ -32,16 +46,25 @@ export default class ErrorBoundary extends Component {
           <p style={{ margin: '0 0 16px', fontSize: 13 }}>
             Não foi possível carregar esta tela. Atualize a página ou entre em contato com o suporte.
           </p>
+          {this.state.recoveryError && (
+            <p role="alert" style={{ margin: '0 0 16px', fontSize: 13 }}>
+              {this.state.recoveryError}
+            </p>
+          )}
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={this.recuperarAplicativo}
+            disabled={this.state.isRecovering}
             style={{
               padding: '10px 20px', border: 'none', borderRadius: 8,
               background: 'var(--accent-primary)', color: 'var(--accent-text)',
-              fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              fontSize: 14, fontWeight: 600,
+              cursor: this.state.isRecovering ? 'wait' : 'pointer',
+              opacity: this.state.isRecovering ? 0.7 : 1,
+              fontFamily: 'inherit',
             }}
           >
-            Recarregar página
+            {this.state.isRecovering ? 'Atualizando…' : 'Corrigir e recarregar'}
           </button>
         </div>
       );

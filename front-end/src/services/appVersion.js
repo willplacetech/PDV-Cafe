@@ -25,6 +25,26 @@ export const restorePreloadRecoveryPath = (browserWindow) => {
   return true;
 };
 
+export const recoverStaleApp = async (browserWindow, appVersion = APP_VERSION) => {
+  const currentUrl = new URL(browserWindow.location.href);
+  const retryUrl = new URL(
+    `/__pdv-recovery/${encodeURIComponent(appVersion)}/index.html`,
+    currentUrl.origin,
+  );
+  retryUrl.searchParams.set(
+    '__pdv_path',
+    `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
+  );
+
+  const registrations = await browserWindow.navigator?.serviceWorker?.getRegistrations?.() ?? [];
+  const cacheNames = await browserWindow.caches?.keys?.() ?? [];
+  await Promise.all([
+    ...registrations.map((registration) => registration.unregister()),
+    ...cacheNames.map((cacheName) => browserWindow.caches.delete(cacheName)),
+  ]);
+  browserWindow.location.replace(retryUrl.href);
+};
+
 export const installPreloadErrorRecovery = (browserWindow, appVersion = APP_VERSION) => {
   const recoveryKey = `pdv:preload-recovery:${appVersion}`;
   const handlePreloadError = (event) => {
@@ -37,35 +57,10 @@ export const installPreloadErrorRecovery = (browserWindow, appVersion = APP_VERS
     }
 
     event.preventDefault();
-    const clearStaleAppData = async () => {
-      const registrations = await browserWindow.navigator?.serviceWorker?.getRegistrations?.() ?? [];
-      const cacheNames = await browserWindow.caches?.keys?.() ?? [];
-      await Promise.all([
-        ...registrations.map((registration) => registration.unregister()),
-        ...cacheNames.map((cacheName) => browserWindow.caches.delete(cacheName)),
-      ]);
-    };
-    const reloadWithFreshAssets = () => {
-      try {
-        const currentUrl = new URL(browserWindow.location.href);
-        const retryUrl = new URL(
-          `/__pdv-recovery/${encodeURIComponent(appVersion)}/index.html`,
-          currentUrl.origin,
-        );
-        retryUrl.searchParams.set(
-          '__pdv_path',
-          `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
-        );
-        browserWindow.location.replace(retryUrl.href);
-      } catch (error) {
-        console.error('[PWA] Não foi possível atualizar o endereço para recarregar os arquivos.', error);
-        browserWindow.location.reload();
-      }
-    };
-
-    void clearStaleAppData()
-      .catch((error) => console.error('[PWA] Não foi possível limpar os recursos locais antigos.', error))
-      .finally(reloadWithFreshAssets);
+    void recoverStaleApp(browserWindow, appVersion).catch((error) => {
+      console.error('[PWA] Não foi possível limpar os recursos locais antigos.', error);
+      browserWindow.location.reload();
+    });
   };
 
   browserWindow.addEventListener('vite:preloadError', handlePreloadError);
