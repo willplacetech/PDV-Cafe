@@ -16,6 +16,7 @@ import Paginacao from '../components/Paginacao.jsx';
 import useUrlPagination from '../hooks/useUrlPagination.js';
 import { updatePaginationParams } from '../utils/paginationUrl.js';
 import { buildOrdersQuery } from '../utils/orderQuery.js';
+import { parseNumericValue } from '../utils/numeric.js';
 import EstadoLista from '../components/EstadoLista.jsx';
 import TrocoAuxiliar from '../components/TrocoAuxiliar.jsx';
 
@@ -447,7 +448,7 @@ export default function ContasReceber() {
 
 
   const registrarPagamento = async () => {
-    const valorRecebido = Number(String(formPagamento.valorRecebido || '').replace(',', '.'));
+    const valorRecebido = parseNumericValue(formPagamento.valorRecebido, Number.NaN);
     if (!Number.isFinite(valorRecebido) || valorRecebido <= 0) return showToast('Informe um valor válido', 'warning');
     if (valorRecebido > saldoPagamentoIndividual) return showToast(`O valor não pode ser maior que o saldo pendente (R$ ${saldoPagamentoIndividual.toFixed(2)})`, 'warning');
 
@@ -507,9 +508,9 @@ export default function ContasReceber() {
   };
 
   const adicionarItemNovoPedido = () => {
-    if (!novoPedidoForm.produtoId || !Number.isFinite(Number(novoPedidoForm.quantidade)) || Number(novoPedidoForm.quantidade) < Number(passoQuantidadeNovoPedido)) return showToast('Selecione um produto e uma quantidade válida', 'warning');
+    const quantidade = parseNumericValue(novoPedidoForm.quantidade, Number.NaN);
+    if (!novoPedidoForm.produtoId || !Number.isFinite(quantidade) || quantidade < Number(passoQuantidadeNovoPedido)) return showToast('Selecione um produto e uma quantidade válida', 'warning');
     const produto = produtos.find((item) => item._id === novoPedidoForm.produtoId);
-    const quantidade = Number(novoPedidoForm.quantidade);
     if (!produto) return;
     if (!permiteFracionar(produto) && !Number.isInteger(quantidade)) return showToast('Este produto é vendido somente por unidade', 'warning');
     setNovoPedidoForm((form) => ({ ...form, produtoId: '', quantidade: '1', itens: [...form.itens, { produtoId: produto._id, nome: produto.nome, quantidade }] }));

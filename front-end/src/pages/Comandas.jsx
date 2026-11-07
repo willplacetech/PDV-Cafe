@@ -13,6 +13,7 @@ import { useToast } from '../components/useToast.js';
 import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 import { dataBR, normalizarPagamentos, saldoDevedor, statusPagamentoInfo, totalPago } from '../utils/formasPagamento.jsx';
+import { parseNumericValue, safeNumber } from '../utils/numeric.js';
 import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
 import EstadoLista from '../components/EstadoLista.jsx';
@@ -224,7 +225,7 @@ export default function Comandas() {
   };
 
   const subtotal = useMemo(() => (selected?.itens || []).reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0), [selected]);
-  const total = selected?.utilizacaoInterna ? 0 : Math.max(0, subtotal + Number(selected?.taxaEntrega || 0) - (Number(discount) || 0));
+  const total = selected?.utilizacaoInterna ? 0 : Math.max(0, subtotal + safeNumber(selected?.taxaEntrega, 0) - safeNumber(discount, 0));
   const jaRecebido = useMemo(() => totalPago(selected?.historicoPagamentos), [selected]);
   const saldoEmAberto = Math.max(0, total - jaRecebido);
 
@@ -306,10 +307,16 @@ export default function Comandas() {
   const addItem = async (event) => {
     event.preventDefault();
     if (!selected || !productId || adicionandoItemRef.current) return;
+    const quantidade = parseNumericValue(quantity, Number.NaN);
+    const pesoVendido = tipoVenda === 'peso' ? parseNumericValue(pesoVendidoKg, Number.NaN) : undefined;
+    if (!Number.isFinite(quantidade) || quantidade <= 0 || (!permiteFracionar(produtoSelecionado) && !Number.isInteger(quantidade)) || (tipoVenda === 'peso' && (!Number.isFinite(pesoVendido) || pesoVendido <= 0))) {
+      showToast('Informe uma quantidade e um peso válidos.', 'warning');
+      return;
+    }
     adicionandoItemRef.current = true;
     setAdicionandoItem(true);
     try {
-      const { data } = await api.post(`/comandas/${selected._id}/itens`, { produtoId: productId, quantidade: Number(quantity), tipoVenda: produtoPorPeso(produtoSelecionado) ? tipoVenda : 'unidade', pesoVendidoKg: tipoVenda === 'peso' ? Number(pesoVendidoKg) : undefined });
+      const { data } = await api.post(`/comandas/${selected._id}/itens`, { produtoId: productId, quantidade, tipoVenda: produtoPorPeso(produtoSelecionado) ? tipoVenda : 'unidade', pesoVendidoKg: tipoVenda === 'peso' ? pesoVendido : undefined });
       atualizarComandaLocal(data);
       setProductId(''); setQuantity('1'); setTipoVenda('inteiro'); setPesoVendidoKg('');
       showToast('Item adicionado à comanda.', 'success');
@@ -338,7 +345,7 @@ export default function Comandas() {
 
   const atualizarQuantidadeItem = async (itemId, valor) => {
     if (!selected) return;
-    const quantidade = Number(valor);
+    const quantidade = parseNumericValue(valor, Number.NaN);
     const itemAtual = selected.itens.find((item) => item._id === itemId);
     if (!Number.isFinite(quantidade) || quantidade < 0.001) {
       setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[itemId]; return proximas; });
@@ -434,13 +441,15 @@ export default function Comandas() {
   const confirmarFechamento = async ({ consumoInterno = false } = {}) => {
     const interno = Boolean(consumoInterno || selected?.utilizacaoInterna);
     if (!interno && !paymentMethod) { setPaymentError(true); showToast('Escolha a forma de pagamento', 'warning'); return; }
+    const desconto = interno ? 0 : parseNumericValue(discount, Number.NaN);
+    if (!Number.isFinite(desconto) || desconto < 0 || desconto > subtotal) { showToast('Informe um desconto válido entre zero e o subtotal.', 'warning'); return; }
     if (fechandoRef.current) return;
     fechandoRef.current = true;
     setFechando(true);
     const comandaFechada = selected;
     try {
       const { data } = await operacoesFechamentoRef.current.enviar('post', `/comandas/${selected._id}/fechar`, {
-        desconto: interno ? 0 : Number(discount),
+        desconto,
         metodoPagamento: interno ? undefined : paymentMethod,
         utilizacaoInterna: interno,
         telefone: interno ? undefined : telefoneModal,
@@ -785,7 +794,7 @@ export default function Comandas() {
               ))}
             </div>
 
-            {Number(selected?.taxaEntrega) > 0 && <p style={{ display: 'flex', justifyContent: 'space-between' }}><span>Taxa de entrega</span><strong>{formatMoney(selected.taxaEntrega)}</strong></p>}
+            {safeNumber(selected?.taxaEntrega, 0) > 0 && <p style={{ display: 'flex', justifyContent: 'space-between' }}><span>Taxa de entrega</span><strong>{formatMoney(selected.taxaEntrega)}</strong></p>}
 
             {/* desconto */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>

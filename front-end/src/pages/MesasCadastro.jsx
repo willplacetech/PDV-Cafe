@@ -102,6 +102,7 @@ export default function MesasCadastro() {
           <input
             type="number"
             min="1"
+            step="1"
             value={quantidadeTotal}
             readOnly
             style={{ background: 'var(--input-bg)' }}
@@ -147,6 +148,7 @@ export default function MesasCadastro() {
                       <input
                         type="number"
                         min="1"
+                        step="1"
                         value={mesa.lugares}
                         onChange={(e) => editarLugares(mesa.id, e.target.value)}
                         disabled={!podeAlterar}

@@ -1,10 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { parseNumericValue } from '../src/utils/numeric.js';
 
-const source = readFileSync(new URL('../src/pages/Caixa.jsx', import.meta.url), 'utf8');
+const source = readFileSync(
+  new URL('../src/pages/Caixa.jsx', import.meta.url),
+  'utf8'
+);
 const code = `${source.split('const registrarMovimento = ')[1].split('\n  };')[0]}\n  };`;
 const registrarMovimento = new Function(
+  'parseNumericValue',
   'bloqueado',
   'caixa',
   'movimento',
@@ -15,7 +20,7 @@ const registrarMovimento = new Function(
   'setSistema',
   'setMovimento',
   'showToast',
-  `const registrarMovimento = ${code}; return registrarMovimento;`,
+  `const registrarMovimento = ${code}; return registrarMovimento;`
 );
 
 test('registrar sangria atualiza dinheiro físico e preserva os meios eletrônicos', async () => {
@@ -30,16 +35,30 @@ test('registrar sangria atualiza dinheiro físico e preserva os meios eletrônic
   let caixaAtualizado = caixa;
   let sistemaAtualizado;
   const handler = registrarMovimento(
+    parseNumericValue,
     false,
     caixa,
     { tipo: 'sangria', valor: '20', responsavel: 'Ana', motivo: 'Troco' },
-    { post: async () => ({ data: { ...caixa, outrosMeios: { pix: 55, credito: 100, debito: 70 }, sistema: { saldoEsperado: 30 } } }) },
+    {
+      post: async () => ({
+        data: {
+          ...caixa,
+          outrosMeios: { pix: 55, credito: 100, debito: 70 },
+          sistema: { saldoEsperado: 30 },
+        },
+      }),
+    },
     async () => ({ data: { ...caixa, sistema: { saldoEsperado: 30 } } }),
     async () => 'approval-token',
-    (update) => { caixaAtualizado = typeof update === 'function' ? update(caixaAtualizado) : update; },
-    (sistema) => { sistemaAtualizado = sistema; },
+    (update) => {
+      caixaAtualizado =
+        typeof update === 'function' ? update(caixaAtualizado) : update;
+    },
+    (sistema) => {
+      sistemaAtualizado = sistema;
+    },
     () => {},
-    () => {},
+    () => {}
   );
 
   await handler({ preventDefault() {} });

@@ -9,6 +9,7 @@ import usePagination from '../hooks/usePagination.js';
 import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import EstadoLista from '../components/EstadoLista.jsx';
 import { useToast } from '../components/useToast.js';
+import { parseNumericValue } from '../utils/numeric.js';
 
 const statusNomes = { pendente: 'Pendente', pronto: 'Pronto', despachado: 'Despachado', a_caminho: 'A caminho', entregue: 'Entregue', cancelado: 'Cancelado' };
 const moeda = valor => Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -18,12 +19,24 @@ function FormularioPedido({ onCriado, onErro }) {
   const [salvando, setSalvando] = useState(false);
   const { showToast } = useToast();
   const salvar = async event => {
-    event.preventDefault(); setSalvando(true);
+    event.preventDefault();
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
+    const valorTotal = parseNumericValue(form.get('valorTotal'), Number.NaN);
+    const taxaEntrega = parseNumericValue(form.get('taxaEntrega'), Number.NaN);
+    const itensNumericos = itens.map((item) => ({
+      ...item,
+      quantidade: parseNumericValue(item.quantidade, Number.NaN),
+      precoUnitario: parseNumericValue(item.precoUnitario, Number.NaN),
+    }));
+    if (!Number.isFinite(valorTotal) || valorTotal < 0 || !Number.isFinite(taxaEntrega) || taxaEntrega < 0 || itensNumericos.some((item) => !Number.isFinite(item.quantidade) || item.quantidade <= 0 || !Number.isFinite(item.precoUnitario) || item.precoUnitario < 0)) {
+      showToast('Informe valores do pedido válidos e quantidades inteiras para os itens.', 'warning');
+      return;
+    }
+    setSalvando(true);
     const endereco = Object.fromEntries(['rua', 'numero', 'bairro', 'complemento', 'referencia'].map(c => [c, form.get(c) || '']));
     try {
-      await deliveryApi.post('/tenant/pedidos', { origem: { nomeCliente: form.get('nomeCliente'), telefone: form.get('telefone'), endereco }, valorTotal: Number(form.get('valorTotal')), taxaEntrega: Number(form.get('taxaEntrega')), itens: itens.map(i => ({ ...i, quantidade: Number(i.quantidade), precoUnitario: Number(i.precoUnitario) })) });
+      await deliveryApi.post('/tenant/pedidos', { origem: { nomeCliente: form.get('nomeCliente'), telefone: form.get('telefone'), endereco }, valorTotal, taxaEntrega, itens: itensNumericos });
       formElement.reset(); setItens([]); onCriado();
       showToast('Pedido de entrega criado.', 'success');
     } catch (error) {
@@ -128,7 +141,9 @@ function PainelComercio() {
   };
   const configurar = event => {
     event.preventDefault(); const form = new FormData(event.currentTarget);
-    void agir(async () => { await deliveryApi.put('/tenant/configuracao', { tempoEstimadoPadraoMin: Number(form.get('tempo')), mensagemWhatsApp: form.get('mensagem') }); setAviso('Configurações salvas.'); }, 'Configurações salvas.');
+    const tempoEstimadoPadraoMin = parseNumericValue(form.get('tempo'), Number.NaN);
+    if (!Number.isInteger(tempoEstimadoPadraoMin) || tempoEstimadoPadraoMin < 1) return showToast('Informe um tempo estimado inteiro maior que zero.', 'warning');
+    void agir(async () => { await deliveryApi.put('/tenant/configuracao', { tempoEstimadoPadraoMin, mensagemWhatsApp: form.get('mensagem') }); setAviso('Configurações salvas.'); }, 'Configurações salvas.');
   };
   return <>
     <p className="delivery-eyebrow">OPERAÇÃO DO DIA</p><h1>{tenant?.nome || 'Suas entregas'}</h1><p className="delivery-muted">Do pedido recebido à entrega confirmada.</p>

@@ -3,6 +3,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { exportarCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
+import { parseNumericValue } from '../utils/numeric.js';
 import { useToast } from '../components/useToast.js';
 import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import AreaTabs from '../components/AreaTabs.jsx';
@@ -214,19 +215,23 @@ export default function Financeiro() {
 
   const salvarDespesa = async (event) => {
     event.preventDefault();
+    const valor = parseNumericValue(form.valor, Number.NaN);
+    if (!Number.isFinite(valor) || valor <= 0) return showToast('Informe um valor de despesa válido.', 'warning');
     setSalvandoDespesa(true);
     try {
       const payload = {
         descricao: form.descricao,
         categoria: form.categoria,
         fornecedor: form.fornecedor,
-        valor: Number(form.valor),
+        valor,
       };
 
       if (despesaEmEdicao) {
         const propagarFuturas = despesaEmEdicao.recorrente && alterarFuturasRecorrentes;
         if (propagarFuturas && formatoVencimentoRecorrente === 'dia') {
-          payload.diaVencimento = Number(diaVencimentoRecorrente);
+          const diaVencimento = parseNumericValue(diaVencimentoRecorrente, Number.NaN);
+          if (!Number.isInteger(diaVencimento) || diaVencimento < 1 || diaVencimento > 31) return showToast('Informe um dia de vencimento entre 1 e 31.', 'warning');
+          payload.diaVencimento = diaVencimento;
         } else {
           payload.dataVencimento = form.dataVencimento;
         }

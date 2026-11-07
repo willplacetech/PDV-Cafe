@@ -27,6 +27,7 @@ import {
   imprimirPedidoCozinha,
 } from '../services/impressaoService.js';
 import TrocoAuxiliar from '../components/TrocoAuxiliar.jsx';
+import { parseNumericValue, safeNumber } from '../utils/numeric.js';
 
 
 const ENDERECO_VAZIO = { rua: '', numero: '', bairro: '', complemento: '', referencia: '' };
@@ -119,12 +120,12 @@ export default function PDV() {
     ...comandaAtual.entrega,
     enderecoAlternativo: comandaAtual.entrega.endereco || { ...ENDERECO_VAZIO },
     usarEnderecoCadastrado: false,
-    taxaEntrega: Number(comandaAtual.taxaEntrega || comandaAtual.entrega.taxaEntrega || 0),
+    taxaEntrega: safeNumber(comandaAtual.taxaEntrega ?? comandaAtual.entrega?.taxaEntrega, 0),
   } : comandaAtual.tipo === 'delivery' ? { telefone: '', endereco: { ...ENDERECO_VAZIO }, enderecoAlternativo: { ...ENDERECO_VAZIO }, usarEnderecoCadastrado: false, taxaEntrega: 0 } : null);
   const setEntregaPDV = (value) => {
     const entrega = typeof value === 'function' ? value(entregaPDV) : value;
     atualizarEntregaPDV(entrega);
-    setComandaAtual(atual => ({ ...atual, entrega, taxaEntrega: Number(entrega?.taxaEntrega || 0), status: 'rascunho' }));
+    setComandaAtual(atual => ({ ...atual, entrega, taxaEntrega: safeNumber(entrega?.taxaEntrega, 0), status: 'rascunho' }));
   };
 
   const navigate = useNavigate();
@@ -302,7 +303,7 @@ export default function PDV() {
 
 
   const alterarQtd = async (idx, qtd) => {
-    const quantidade = Number(qtd);
+    const quantidade = parseNumericValue(qtd, Number.NaN);
     if (!Number.isFinite(quantidade) || quantidade < 0.001) {
       setQuantidadesRascunho((atuais) => { const proximas = { ...atuais }; delete proximas[idx]; return proximas; });
       showToast('Informe uma quantidade válida', 'warning');
@@ -327,7 +328,7 @@ export default function PDV() {
 
   const alterarPreco = async (idx, valor) => {
     if (precosRascunho[idx] === undefined) return;
-    const preco = Number(String(valor).replace(',', '.'));
+    const preco = parseNumericValue(valor, Number.NaN);
     setPrecosRascunho({});
     if (String(valor).trim() === '' || !Number.isFinite(preco) || preco < 0) {
       showToast('Informe um preço unitário válido.', 'warning');
@@ -351,12 +352,12 @@ export default function PDV() {
   const clienteSelecionado = clientes.find(c => c._id === clienteId);
   const consumoInterno = Boolean(clienteSelecionado?.clienteInterno);
   const subtotal = carrinho.reduce((ac, i) => ac + i.precoUnitario * i.quantidade, 0);
-  const total = consumoInterno ? 0 : subtotal + (entregaPDV ? Number(entregaPDV.taxaEntrega) || 0 : 0);
+  const total = consumoInterno ? 0 : subtotal + (entregaPDV ? safeNumber(entregaPDV.taxaEntrega, 0) : 0);
   const comandasFidelidade = Number(clienteSelecionado?.cafesFidelidade || 0);
   const multiplicadorFidelidade = calcularMultiplicadorFidelidade(comandasFidelidade);
   const progressoFidelidade = Math.max(0, comandasFidelidade) % COMANDAS_POR_MULTIPLICADOR_FIDELIDADE;
   const jaRecebido = totalPago(comandaAtual.registroOriginal?.historicoPagamentos);
-  const totalFechamento = Math.max(0, subtotal + Number(comandaPagamento?.taxaEntrega || 0) - (Number(descontoFechamento) || 0));
+  const totalFechamento = Math.max(0, subtotal + safeNumber(comandaPagamento?.taxaEntrega, 0) - safeNumber(descontoFechamento, 0));
   const saldoFechamento = Math.max(0, totalFechamento - jaRecebido);
   const descontoQuantidadeTotal = carrinho.reduce((acumulado, item) => acumulado + Number(item.economiaQuantidade || 0), 0);
   const totalItens = carrinho.reduce((ac, i) => ac + i.quantidade, 0);
@@ -383,7 +384,10 @@ export default function PDV() {
     if (envioRef.current) return;
     if (!carrinho.length) return showToast('Carrinho vazio!', 'warning');
     const enderecoEntrega = entregaPDV?.usarEnderecoCadastrado ? clienteSelecionado?.enderecoEntrega : entregaPDV?.endereco;
-    if (entregaPDV && (!String(clienteSelecionado?.nome || clienteNome || '').trim() || !entregaPDV.telefone.trim() || !['rua', 'numero', 'bairro'].every(campo => enderecoEntrega?.[campo]?.trim()) || !Number.isFinite(Number(entregaPDV.taxaEntrega)) || Number(entregaPDV.taxaEntrega) < 0)) return showToast('Informe nome, telefone e endereco completo para entrega.', 'warning');
+    const taxaEntrega = entregaPDV ? parseNumericValue(entregaPDV.taxaEntrega, Number.NaN) : 0;
+    const itensValidos = carrinho.every((item) => Number.isFinite(parseNumericValue(item.quantidade, Number.NaN)) && parseNumericValue(item.quantidade, Number.NaN) > 0 && Number.isFinite(parseNumericValue(item.precoUnitario, Number.NaN)) && parseNumericValue(item.precoUnitario, Number.NaN) >= 0);
+    if (!itensValidos) return showToast('Revise as quantidades e os preços dos itens do carrinho.', 'warning');
+    if (entregaPDV && (!String(clienteSelecionado?.nome || clienteNome || '').trim() || !entregaPDV.telefone.trim() || !['rua', 'numero', 'bairro'].every(campo => enderecoEntrega?.[campo]?.trim()) || !Number.isFinite(taxaEntrega) || taxaEntrega < 0)) return showToast('Informe nome, telefone e endereco completo para entrega.', 'warning');
     envioRef.current = true;
     setEnviando(true);
 
@@ -394,7 +398,7 @@ export default function PDV() {
       itens: carrinho.map((item) => ({
         precoUnitarioManual: item.precoUnitarioManual,
         produtoId: item.produtoId,
-        quantidade: Number(item.quantidade),
+        quantidade: safeNumber(item.quantidade, 0),
         modificadores: item.modificadores || [],
       })),
     };
@@ -403,7 +407,7 @@ export default function PDV() {
       ...entregaPDV,
       endereco: enderecoEntrega,
       preservarEnderecoCadastrado: Boolean(clienteTemEnderecoCadastrado && entregaPDV.usarEnderecoCadastrado === false),
-      taxaEntrega: Number(entregaPDV.taxaEntrega),
+      taxaEntrega,
     };
 
     const assinatura = JSON.stringify(payload);
@@ -472,13 +476,13 @@ export default function PDV() {
           nome: item.nome,
           categoria: item.categoria,
           codigo: item.codigo,
-          quantidade: Number(item.quantidade),
-          precoUnitario: Number(item.precoUnitario),
+          quantidade: safeNumber(item.quantidade, 0),
+          precoUnitario: safeNumber(item.precoUnitario, 0),
           modificadores: item.modificadores || [],
         })),
         subtotal,
         desconto: 0,
-        taxaEntrega: Number(entregaPDV?.taxaEntrega || 0),
+        taxaEntrega: safeNumber(entregaPDV?.taxaEntrega, 0),
         total,
       };
       limparCarrinho();
@@ -526,7 +530,7 @@ export default function PDV() {
         ...entregaPDV,
         endereco: enderecoEntrega || ENDERECO_VAZIO,
         preservarEnderecoCadastrado: Boolean(clienteTemEnderecoCadastrado && entregaPDV.usarEnderecoCadastrado === false),
-        taxaEntrega: Number(entregaPDV.taxaEntrega || 0),
+        taxaEntrega: safeNumber(entregaPDV.taxaEntrega, 0),
       } : undefined,
     };
   };
@@ -561,12 +565,13 @@ export default function PDV() {
   const validarDadosEntrega = () => {
     if (!entregaPDV) return true;
     const enderecoEntrega = entregaPDV.usarEnderecoCadastrado ? clienteSelecionado?.enderecoEntrega : entregaPDV.endereco;
+    const taxaEntrega = parseNumericValue(entregaPDV.taxaEntrega, Number.NaN);
     const dadosValidos = Boolean(
       String(clienteSelecionado?.nome || clienteNome || '').trim()
       && entregaPDV.telefone.trim()
       && ['rua', 'numero', 'bairro'].every(campo => enderecoEntrega?.[campo]?.trim())
-      && Number.isFinite(Number(entregaPDV.taxaEntrega))
-      && Number(entregaPDV.taxaEntrega) >= 0
+      && Number.isFinite(taxaEntrega)
+      && taxaEntrega >= 0
     );
     if (!dadosValidos) showToast('Informe nome, telefone e endereço completo para entrega.', 'warning');
     return dadosValidos;
@@ -659,7 +664,7 @@ export default function PDV() {
       showToast('Escolha a forma de pagamento.', 'warning');
       return;
     }
-    const desconto = Number(String(descontoFechamento).replace(',', '.'));
+    const desconto = parseNumericValue(descontoFechamento, Number.NaN);
     if (!Number.isFinite(desconto) || desconto < 0 || desconto > subtotal) {
       showToast('Informe um desconto entre zero e o subtotal dos itens.', 'warning');
       return;
@@ -754,7 +759,7 @@ export default function PDV() {
           endereco: entrega?.endereco || { ...ENDERECO_VAZIO },
           enderecoAlternativo: entrega?.endereco || { ...ENDERECO_VAZIO },
           usarEnderecoCadastrado: false,
-          taxaEntrega: Number(carregada.taxaEntrega || 0),
+          taxaEntrega: safeNumber(carregada.taxaEntrega, 0),
         } : null);
         return;
       }
@@ -1229,7 +1234,7 @@ export default function PDV() {
                     <span>Subtotal</span>
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
                   </div>
-                  {entregaPDV && Number(entregaPDV.taxaEntrega) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}><span>Taxa de entrega</span><span>{formatMoney(Number(entregaPDV.taxaEntrega))}</span></div>}
+                  {entregaPDV && safeNumber(entregaPDV.taxaEntrega, 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}><span>Taxa de entrega</span><span>{formatMoney(safeNumber(entregaPDV.taxaEntrega, 0))}</span></div>}
                   {descontoQuantidadeTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13, color: 'var(--success-bg)', fontWeight: 700 }}><span>Desconto por quantidade</span><span>-{formatMoney(descontoQuantidadeTotal)}</span></div>}
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, fontWeight: 700, fontSize: 24, color: 'var(--accent-primary)' }}>
                     <span>Total</span>
@@ -1360,7 +1365,7 @@ export default function PDV() {
             <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)' }}>
               Comanda <strong>#{comandaDeliverySalva.numero}</strong> continua aberta e ainda não foi cobrada.
             </p>
-            {Number(comandaDeliverySalva.taxaEntrega ?? comandaDeliverySalva.entrega?.taxaEntrega) > 0 && (
+            {safeNumber(comandaDeliverySalva.taxaEntrega ?? comandaDeliverySalva.entrega?.taxaEntrega, 0) > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span>Taxa de entrega</span>
                 <strong>{formatMoney(comandaDeliverySalva.taxaEntrega ?? comandaDeliverySalva.entrega?.taxaEntrega)}</strong>
@@ -1395,7 +1400,7 @@ export default function PDV() {
             {carrinho.map((item, index) => <div key={item._id || index}><span>{item.quantidade}× {item.nome}{item.modificadores?.length > 0 && <small> ({item.modificadores.join(', ')})</small>}</span><strong>{formatMoney(item.quantidade * item.precoUnitario)}</strong></div>)}
           </div>
           <p>Subtotal: <strong>{formatMoney(subtotal)}</strong></p>
-          {Number(comandaPagamento?.taxaEntrega) > 0 && <p>Taxa de entrega: <strong>{formatMoney(comandaPagamento.taxaEntrega)}</strong></p>}
+          {safeNumber(comandaPagamento?.taxaEntrega, 0) > 0 && <p>Taxa de entrega: <strong>{formatMoney(comandaPagamento.taxaEntrega)}</strong></p>}
           <div className="pdv-payment-summary">
             <label>🔒 Desconto (R$) — autorização acima de 10%
               <input type="number" min="0" max={subtotal} step="0.01" disabled={enviando || Boolean(comandaPagamento?.metodoPagamento)} value={descontoFechamento} onChange={event => setDescontoFechamento(event.target.value)} />

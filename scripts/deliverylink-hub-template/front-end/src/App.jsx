@@ -229,7 +229,7 @@ function Hub({ session, onLogout, onError }) {
         <form className="form grid" onSubmit={createOrder}>
           <label>Customer<input name="customer" required maxLength="160" /></label><label>Phone<input name="phone" required maxLength="30" /></label>
           <label>Address<input name="address" required maxLength="500" /></label><label>Item<input name="item" required maxLength="240" /></label>
-          <label>Quantity<input name="quantity" type="number" min="0.001" step="0.001" defaultValue="1" required /></label>
+          <label>Quantity<input name="quantity" type="number" min="1" step="1" defaultValue="1" required /></label>
           <label>Unit price<input name="unitPrice" type="number" min="0" step="0.01" required /></label>
           <label>Order total<input name="total" type="number" min="0" step="0.01" required /></label>
           <label>Delivery fee<input name="deliveryFee" type="number" min="0" step="0.01" defaultValue={commerce?.defaultDeliveryFee || 0} required /></label>

@@ -6,6 +6,7 @@ import api from '../services/api.jsx';
 import Paginacao from '../components/Paginacao.jsx';
 import useUrlPagination from '../hooks/useUrlPagination.js';
 import { updatePaginationParams } from '../utils/paginationUrl.js';
+import { parseNumericValue } from '../utils/numeric.js';
 import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import EstadoLista from '../components/EstadoLista.jsx';
 import { useToast } from '../components/useToast.js';
@@ -234,13 +235,18 @@ export default function Entregas() {
   const salvarConfiguracao = event => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const taxaEntregaPadrao = parseNumericValue(form.get('taxaEntregaPadrao'), Number.NaN);
+    const tempoEstimadoPadraoMin = parseNumericValue(form.get('tempo'), Number.NaN);
+    if (!Number.isFinite(taxaEntregaPadrao) || taxaEntregaPadrao < 0 || !Number.isInteger(tempoEstimadoPadraoMin) || tempoEstimadoPadraoMin < 1) {
+      return showToast('Informe uma taxa válida e um tempo estimado inteiro maior que zero.', 'warning');
+    }
     void executar(
       () => api.put('/entregas/configuracao', {
         nome: form.get('nome'),
         telefone: form.get('telefone'),
         endereco: form.get('endereco'),
-        taxaEntregaPadrao: Number(form.get('taxaEntregaPadrao')),
-        tempoEstimadoPadraoMin: Number(form.get('tempo')),
+        taxaEntregaPadrao,
+        tempoEstimadoPadraoMin,
         mensagemWhatsApp: form.get('mensagem'),
       }),
       'Configurações salvas.'
@@ -343,7 +349,7 @@ export default function Entregas() {
       <label>Taxa padrão de entrega (R$)<input name="taxaEntregaPadrao" type="number" min="0" step="0.01" required defaultValue={comercio.taxaEntregaPadrao ?? comercio.taxaPorEntrega ?? 0} /></label>
       <label>Tempo estimado padrão (minutos)<input name="tempo" type="number" min="1" step="1" required defaultValue={comercio.configuracao.tempoEstimadoPadraoMin} /></label>
       <label><FieldLabel hint={<> Use {'{link}'} no ponto onde deve aparecer o rastreamento. </>}> Mensagem para o cliente </FieldLabel><textarea name="mensagem" required maxLength={1000} defaultValue={comercio.configuracao.mensagemWhatsApp} /></label>
-      
+
       <button disabled={ocupado}>{ocupado ? 'Salvando…' : 'Salvar configurações'}</button>
     </form>}
 
