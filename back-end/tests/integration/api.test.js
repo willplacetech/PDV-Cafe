@@ -753,6 +753,48 @@ describe('API Endpoints', () => {
     expect(res.statusCode).toBe(201);
   });
 
+  test('POST /api/compras → recebe quantidade direta sem conteúdo por embalagem', async () => {
+    const produto = await Product.create({
+      codigo: '999020',
+      nome: 'Arroz por quilo',
+      preco: 0,
+      tipo: 'insumo',
+      categoria: 'Insumos',
+      precoCompra: 10,
+      unidadeCompra: 'kg',
+      conteudoPorEmbalagem: 2,
+      unidadeConteudo: 'kg',
+      estoqueEmbalagens: 3,
+      estoqueInsumos: 3,
+      custoUnitarioBase: 0.005,
+    });
+
+    const res = await request(app)
+      .post('/api/compras')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        fornecedor: 'Fornecedor Quantidade Direta',
+        numeroNF: 'NF-QUANTIDADE-DIRETA',
+        data: dataHojeEmSaoPaulo(),
+        metodoCusteio: 'media_ponderada',
+        itens: [{ produtoId: produto._id, valorTotal: 32, quantidade: 8, unidadeConteudo: 'kg' }],
+      });
+
+    expect(res.statusCode).toBe(201);
+    const compra = await Purchase.findOne({ numeroNF: 'NF-QUANTIDADE-DIRETA' });
+    expect(compra.itens[0].qtdEmbalagens).toBeCloseTo(4, 8);
+    expect(compra.itens[0].conteudoPorEmbalagem).toBe(2);
+    expect(compra.itens[0].quantidadeTotal).toBe(8);
+    expect(compra.itens[0].unidadeConteudo).toBe('kg');
+    expect(compra.itens[0].custoUnitario).toBeCloseTo(0.004, 8);
+    const produtoAtualizado = await Product.findById(produto._id);
+    expect(produtoAtualizado.estoqueEmbalagens).toBe(7);
+    expect(produtoAtualizado.custoUnitarioBase).toBeCloseTo(62 / 14000, 8);
+    const movimento = await StockMovement.findOne({ referenciaId: compra._id, tipo: 'entrada' });
+    expect(movimento.quantidade).toBe(8);
+    expect(movimento.unidade).toBe('kg');
+  });
+
   test('POST /api/compras → cria conta a pagar com vencimento informado e registra auditoria', async () => {
     const dataCompra = new Date().toISOString();
     const vencimento = '2099-01-15';

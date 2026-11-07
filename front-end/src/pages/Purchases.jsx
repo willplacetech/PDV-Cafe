@@ -7,11 +7,9 @@ import useUrlPagination from '../hooks/useUrlPagination.js';
 import EstadoLista from '../components/EstadoLista.jsx';
 
 const units = ['kg', 'L', 'un'];
-const decimalStep = (unit) => unit === 'un' ? '0.01' : '0.001';
-const decimalMinimum = (unit) => unit === 'un' ? 0.01 : 0.001;
 const purchaseQuantityStep = (unit) => unit === 'un' ? '1' : '0.001';
 const purchaseQuantityMinimum = (unit) => unit === 'un' ? 1 : 0.001;
-const newItem = () => ({ produtoId: '', valorTotal: '', qtdEmbalagens: '1', conteudoPorEmbalagem: '', unidadeConteudo: 'un' });
+const newItem = () => ({ produtoId: '', valorTotal: '', quantidade: '', unidadeConteudo: 'un' });
 const newPurchaseForm = () => ({ fornecedor: '', numeroNF: '', data: today(), dataVencimentoPagamento: today(), metodoCusteio: 'media_ponderada', justificativa: '', itens: [newItem()] });
 const today = () => {
   const date = new Date();
@@ -38,17 +36,7 @@ const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { mini
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Outros'];
 const formatQuantidade = (valor, unidade) => `${Number(valor || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${unidade}`;
 const formatCustoUnitario = (valor, unidade) => `R$ ${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/${unidade}`;
-const newSupply = () => ({ tipoProduto: 'insumo', nome: '', precoCompra: '', precoVenda: '', conteudoPorEmbalagem: '1', unidadeConteudo: 'un', estoqueEmbalagens: '0', rendimentoPorReceita: '1' });
-const getInsumoMeta = (produto = {}) => {
-  const unidadeConteudo = produto.unidadeConteudo || 'un';
-  const unidadeCompra = produto.unidadeCompra || unidadeConteudo;
-  const precoCompra = Number(produto.precoCompra ?? 0);
-  const conteudoPorEmbalagem = Number(produto.conteudoPorEmbalagem ?? 1);
-  const custoUnitarioBase = Number(produto.custoUnitarioBase ?? (precoCompra && conteudoPorEmbalagem ? (precoCompra / conteudoPorEmbalagem) : 0));
-  const quantidadeDisponivel = Number(produto.estoqueInsumosTotal ?? ((Number(produto.estoqueInsumos ?? produto.estoqueEmbalagens ?? 0) * conteudoPorEmbalagem) || 0));
-
-  return { unidadeConteudo, unidadeCompra, precoCompra, conteudoPorEmbalagem, custoUnitarioBase, quantidadeDisponivel };
-};
+const newSupply = () => ({ tipoProduto: 'insumo', nome: '', categoria: 'Outros', unidadeConteudo: 'un' });
 const getNextProductCode = (productList) => {
   const maxNumber = productList.reduce((higher, product) => {
     const codeValue = Number(String(product.codigo || '').replace(/\D/g, ''));
@@ -122,20 +110,6 @@ export default function Purchases() {
     setForm((current) => ({ ...current, itens: current.itens.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
   };
 
-  const updatePurchaseQuantity = (index, value) => {
-    setForm((current) => ({
-      ...current,
-      itens: current.itens.map((item, itemIndex) => {
-        if (itemIndex !== index) return item;
-        const content = Number(item.conteudoPorEmbalagem);
-        return {
-          ...item,
-          qtdEmbalagens: value === '' ? '' : content > 0 ? String(Number(value) / content) : value,
-        };
-      }),
-    }));
-  };
-
   const selectProduct = (index, produtoId) => {
     const produto = products.find((item) => String(item._id) === String(produtoId));
     setForm((current) => ({
@@ -145,7 +119,6 @@ export default function Purchases() {
           ...item,
           produtoId,
           unidadeConteudo: produto?.unidadeConteudo || produto?.unidadeCompra || item.unidadeConteudo,
-          conteudoPorEmbalagem: produto?.conteudoPorEmbalagem > 0 ? String(produto.conteudoPorEmbalagem) : item.conteudoPorEmbalagem,
         }
         : item),
     }));
@@ -173,14 +146,8 @@ export default function Purchases() {
     event.preventDefault();
     const nome = supplyForm.nome.trim();
     const tipoProduto = supplyForm.tipoProduto || 'insumo';
-    const precoCompra = Number(supplyForm.precoCompra);
-    const precoVenda = Number(supplyForm.precoVenda);
-    const conteudoPorEmbalagem = Number(supplyForm.conteudoPorEmbalagem);
 
     if (!nome) return showToast('Informe o nome do insumo', 'warning');
-    if (!Number.isFinite(precoCompra) || precoCompra < 0) return showToast('Informe um preço de compra válido', 'warning');
-    if (tipoProduto !== 'insumo' && (!Number.isFinite(precoVenda) || precoVenda < 0)) return showToast('Informe um preço de venda válido', 'warning');
-    if (!Number.isFinite(conteudoPorEmbalagem) || conteudoPorEmbalagem < 0) return showToast('Informe um conteúdo de embalagem válido', 'warning');
 
     const produtoExistente = products.find((product) => String(product.nome || '').trim().toLowerCase() === nome.toLowerCase());
     if (produtoExistente) {
@@ -198,7 +165,6 @@ export default function Purchases() {
     try {
       const codigo = getNextProductCode(products);
       const unidadeConteudo = supplyForm.unidadeConteudo || 'un';
-      const custoUnitarioBase = Number(precoCompra && conteudoPorEmbalagem ? (precoCompra / conteudoPorEmbalagem) : 0);
       const response = await api.post('/products', {
         codigo,
         nome,
@@ -206,16 +172,15 @@ export default function Purchases() {
         tipoProduto: tipoProduto === 'insumo' ? undefined : tipoProduto,
         aFazer: tipoProduto === 'coz',
         producaoPropria: tipoProduto === 'producao',
-        categoria: tipoProduto === 'insumo' ? 'Insumos' : (tipoProduto === 'coz' ? 'Pratos na Hora' : 'Outros'),
-        preco: tipoProduto === 'insumo' ? 0 : precoVenda,
-        precoCompra: tipoProduto === 'insumo' ? precoCompra : undefined,
-        conteudoPorEmbalagem,
+        categoria: tipoProduto === 'insumo' ? 'Insumos' : (supplyForm.categoria || 'Outros'),
+        preco: 0,
+        precoCompra: 0,
+        conteudoPorEmbalagem: 1,
         unidadeConteudo,
         unidadeCompra: unidadeConteudo,
-        custoUnitarioBase,
-        estoque: tipoProduto === 'coz' ? 0 : Number(supplyForm.estoqueEmbalagens || 0),
-        estoqueEmbalagens: tipoProduto === 'insumo' ? Number(supplyForm.estoqueEmbalagens || 0) : undefined,
-        rendimentoPorReceita: tipoProduto === 'producao' ? Number(supplyForm.rendimentoPorReceita || 1) : 1,
+        estoque: 0,
+        estoqueEmbalagens: 0,
+        rendimentoPorReceita: 1,
         usavelEmReceita: false,
         ativo: true,
       });
@@ -236,7 +201,6 @@ export default function Purchases() {
             ...item,
             produtoId: newProduct._id,
             unidadeConteudo: newProduct.unidadeConteudo || newProduct.unidadeCompra || 'un',
-            conteudoPorEmbalagem: newProduct.conteudoPorEmbalagem > 0 ? String(newProduct.conteudoPorEmbalagem) : item.conteudoPorEmbalagem,
           }
           : item),
       }));
@@ -256,7 +220,7 @@ export default function Purchases() {
     event.preventDefault();
     setSaving(true);
     try {
-      const itens = form.itens.map((item) => ({ ...item, valorTotal: Number(item.valorTotal), qtdEmbalagens: Number(item.qtdEmbalagens), conteudoPorEmbalagem: Number(item.conteudoPorEmbalagem) }));
+      const itens = form.itens.map((item) => ({ ...item, valorTotal: Number(item.valorTotal), quantidade: Number(item.quantidade) }));
       const payload = { ...form, itens };
       if (editingPurchaseId) {
         await api.put(`/compras/${editingPurchaseId}`, payload);
@@ -287,8 +251,7 @@ export default function Purchases() {
       itens: (purchase.itens || []).map((item) => ({
         produtoId: item.produtoId?._id || item.produtoId || '',
         valorTotal: String(item.valorTotal ?? ''),
-        qtdEmbalagens: String(item.qtdEmbalagens ?? ''),
-        conteudoPorEmbalagem: String(item.conteudoPorEmbalagem ?? ''),
+        quantidade: String(item.quantidadeTotal ?? Number(item.qtdEmbalagens || 0) * Number(item.conteudoPorEmbalagem || 0)),
         unidadeConteudo: item.unidadeConteudo || 'un',
       })),
     });
@@ -337,19 +300,16 @@ export default function Purchases() {
       <div className="purchases-section-heading"><h2>Itens da compra</h2><button type="button" className="secondary btn btn-ghost" onClick={addItem}>Adicionar item</button></div>
       <div className="purchase-items">{form.itens.map((item, index) => {
         const unidadeConteudo = item.unidadeConteudo || 'un';
-        const total = Number(item.qtdEmbalagens || 0) * Number(item.conteudoPorEmbalagem || 0);
+        const total = Number(item.quantidade || 0);
         const unitCost = Number(item.valorTotal || 0) / (total || 1);
         const produtoSelecionado = products.find((product) => String(product._id) === String(item.produtoId));
-        const metaProduto = getInsumoMeta(produtoSelecionado || { unidadeConteudo, precoCompra: item.valorTotal, conteudoPorEmbalagem: item.conteudoPorEmbalagem || 1, custoUnitarioBase: unitCost, estoqueInsumos: item.qtdEmbalagens || 0 });
-        const unidadeExibicao = metaProduto.unidadeConteudo || unidadeConteudo;
-        const valorUnitario = Number(metaProduto.custoUnitarioBase || unitCost || 0);
+        const unidadeExibicao = produtoSelecionado?.unidadeConteudo || unidadeConteudo;
         return <div className="purchase-item" key={`purchase-item-${index}`}>
           <label className="purchase-product-field">Produto comprado<div className="purchase-product-input-group"><SearchableSelect required value={item.produtoId} onChange={(event) => selectProduct(index, event.target.value)}><option value="">Selecione</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} [{product.tipo === 'insumo' ? 'Insumo' : 'Revenda'}]</option>)}</SearchableSelect><button type="button" className="secondary purchase-new-supply-button btn btn-ghost" onClick={() => openSupplyModal(index)}>➕ Novo Produto</button></div></label>
           <label>Valor total<input required type="number" min="0.01" step="0.01" value={item.valorTotal} onChange={(event) => updateItem(index, 'valorTotal', event.target.value)} /></label>
-          <label>Quantidade comprada ({unidadeConteudo})<input required type="number" min={purchaseQuantityMinimum(item.unidadeConteudo)} step={purchaseQuantityStep(item.unidadeConteudo)} value={item.conteudoPorEmbalagem && total > 0 ? String(Number(total.toFixed(item.unidadeConteudo === 'un' ? 0 : 3))) : ''} onChange={(event) => updatePurchaseQuantity(index, event.target.value)} /></label>
-          <label>Conteúdo por embalagem<input required type="number" min={decimalMinimum(item.unidadeConteudo)} step={decimalStep(item.unidadeConteudo)} value={item.conteudoPorEmbalagem} onChange={(event) => updateItem(index, 'conteudoPorEmbalagem', event.target.value)} /></label>
+          <label>Quantidade comprada<input required type="number" min={purchaseQuantityMinimum(item.unidadeConteudo)} step={purchaseQuantityStep(item.unidadeConteudo)} value={item.quantidade} onChange={(event) => updateItem(index, 'quantidade', event.target.value)} /></label>
           <label>Unidade<SearchableSelect required value={item.unidadeConteudo} onChange={(event) => updateItem(index, 'unidadeConteudo', event.target.value)}>{units.map((unit) => <option key={unit}>{unit}</option>)}</SearchableSelect></label>
-          <div className="purchase-calculation"><span>Total: <strong>{formatQuantidade(total, unidadeExibicao)}</strong></span><span>Custo unitario: <strong>{formatCustoUnitario(valorUnitario, unidadeExibicao)}</strong></span></div>
+          <div className="purchase-calculation"><span>Total: <strong>{formatQuantidade(total, unidadeExibicao)}</strong></span><span>Custo unitario: <strong>{formatCustoUnitario(unitCost, unidadeExibicao)}</strong></span></div>
           <button type="button" className="danger" onClick={() => removeItem(index)} disabled={form.itens.length === 1}>Remover</button>
         </div>;
       })}</div>
@@ -395,10 +355,8 @@ export default function Purchases() {
                   <thead>
                     <tr>
                       <th>Produto</th>
-                      <th>Qtd. Embalagens</th>
-                      <th>Conteúdo/Emb.</th>
                       <th>Unidade</th>
-                      <th>Qtd. Total</th>
+                      <th>Quantidade</th>
                       <th>Valor Total</th>
                       <th>Custo Unit.</th>
                     </tr>
@@ -406,13 +364,11 @@ export default function Purchases() {
                   <tbody>
                     {itens.map((item, index) => {
                       const produto = item.produtoId || {};
-                      const quantidadeTotal = Number(item.qtdEmbalagens || 0) * Number(item.conteudoPorEmbalagem || 0);
+                      const quantidadeTotal = Number(item.quantidadeTotal ?? Number(item.qtdEmbalagens || 0) * Number(item.conteudoPorEmbalagem || 0));
                       const custoUnitario = quantidadeTotal > 0 ? Number(item.valorTotal || 0) / quantidadeTotal : 0;
                       return (
                         <tr key={index}>
                           <td>{produto.nome || '—'}</td>
-                          <td>{Number(item.qtdEmbalagens || 0).toLocaleString('pt-BR')}</td>
-                          <td>{Number(item.conteudoPorEmbalagem || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })}</td>
                           <td>{item.unidadeConteudo || 'un'}</td>
                           <td>{quantidadeTotal.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}</td>
                           <td>{money(item.valorTotal)}</td>
@@ -458,12 +414,11 @@ export default function Purchases() {
         <div className="purchase-supply-grid">
           <label className="purchase-supply-field full">Tipo de produto<SearchableSelect value={supplyForm.tipoProduto} onChange={(event) => setSupplyForm({ ...supplyForm, tipoProduto: event.target.value })}><option value="insumo">Insumo</option><option value="revenda">Revenda</option></SearchableSelect></label>
           <label className="purchase-supply-field full">Nome *<input required value={supplyForm.nome} onChange={(event) => setSupplyForm({ ...supplyForm, nome: event.target.value })} placeholder="Ex.: Farinha de trigo" /></label>
-          <label className="purchase-supply-field">Categoria<SearchableSelect value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value })}>{categoriasVenda.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}
-                  </SearchableSelect></label>
+          {supplyForm.tipoProduto !== 'insumo' && <label className="purchase-supply-field">Categoria<SearchableSelect value={supplyForm.categoria} onChange={(event) => setSupplyForm({ ...supplyForm, categoria: event.target.value })}>{categoriasVenda.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}</SearchableSelect></label>}
           <label className="purchase-supply-field">Unidade
             <SearchableSelect value={supplyForm.unidadeConteudo} onChange={(event) => setSupplyForm({ ...supplyForm, unidadeConteudo: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</SearchableSelect></label>
         </div>
-        <div className="purchase-supply-note">⚠️ Campos completos como estoque mínimo, marca e demais dados do produto podem ser editados depois em Cadastro → Insumos.</div>
+        <div className="purchase-supply-note">O produto será cadastrado na unidade selecionada. Quantidade, valor e estoque serão informados nesta compra.</div>
         <div className="purchase-supply-actions"><button type="button" className="purchase-supply-button purchase-supply-button-secondary" onClick={() => setSupplyModalOpen(false)}>Cancelar</button><button type="submit" className="purchase-supply-button purchase-supply-button-primary" disabled={savingSupply}>{savingSupply ? 'Salvando...' : 'Salvar e continuar'}</button></div>
       </form>
     </div>}
