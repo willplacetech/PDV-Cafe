@@ -21,11 +21,12 @@ let adminToken, operadorToken, cozinhaToken;
 let produtoVenda, insumo;
 let tenant;
 
-const createForTenant = (Model, documents) => Model.create(
-  Array.isArray(documents)
-    ? documents.map(document => ({ ...document, tenantId: tenant._id }))
-    : { ...documents, tenantId: tenant._id },
-);
+const createForTenant = (Model, documents) =>
+  Model.create(
+    Array.isArray(documents)
+      ? documents.map((document) => ({ ...document, tenantId: tenant._id }))
+      : { ...documents, tenantId: tenant._id }
+  );
 
 const dataHojeEmSaoPaulo = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -34,34 +35,86 @@ const dataHojeEmSaoPaulo = (date = new Date()) => {
     month: '2-digit',
     day: '2-digit',
   }).formatToParts(date);
-  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  const values = Object.fromEntries(
+    parts.map(({ type, value }) => [type, value])
+  );
   return `${values.year}-${values.month}-${values.day}`;
 };
 const dataInicioMesSaoPaulo = () => `${dataHojeEmSaoPaulo().slice(0, 7)}-01`;
 
 beforeEach(async () => {
-  tenant = await Tenant.create({ nome: 'API test', slug: 'api-test', telefone: '11999999999', endereco: 'Rua de teste' });
-  const admin = await User.create({ username: 'admin', password: 'senha-segura-123', role: 'admin', tenantId: tenant._id });
-  const operador = await User.create({ username: 'operador', password: 'senha-segura-123', role: 'operador', tenantId: tenant._id });
-  const cozinha = await User.create({ username: 'cozinha', password: 'senha-segura-123', role: 'cozinha', tenantId: tenant._id });
-  adminToken = jwt.sign({ id: admin._id, username: admin.username, role: admin.role }, jwtSecret, { expiresIn: '1h' });
-  operadorToken = jwt.sign({ id: operador._id, username: operador.username, role: operador.role }, jwtSecret, { expiresIn: '1h' });
-  cozinhaToken = jwt.sign({ id: cozinha._id, username: cozinha.username, role: cozinha.role }, jwtSecret, { expiresIn: '1h' });
+  tenant = await Tenant.create({
+    nome: 'API test',
+    slug: 'api-test',
+    telefone: '11999999999',
+    endereco: 'Rua de teste',
+  });
+  const admin = await User.create({
+    username: 'admin',
+    password: 'senha-segura-123',
+    role: 'admin',
+    tenantId: tenant._id,
+  });
+  const operador = await User.create({
+    username: 'operador',
+    password: 'senha-segura-123',
+    role: 'operador',
+    tenantId: tenant._id,
+  });
+  const cozinha = await User.create({
+    username: 'cozinha',
+    password: 'senha-segura-123',
+    role: 'cozinha',
+    tenantId: tenant._id,
+  });
+  adminToken = jwt.sign(
+    { id: admin._id, username: admin.username, role: admin.role },
+    jwtSecret,
+    { expiresIn: '1h' }
+  );
+  operadorToken = jwt.sign(
+    { id: operador._id, username: operador.username, role: operador.role },
+    jwtSecret,
+    { expiresIn: '1h' }
+  );
+  cozinhaToken = jwt.sign(
+    { id: cozinha._id, username: cozinha.username, role: cozinha.role },
+    jwtSecret,
+    { expiresIn: '1h' }
+  );
 
   produtoVenda = await createForTenant(Product, {
-    codigo: '1001', nome: 'Café Especial', preco: 8.50, tipo: 'venda', categoria: 'Bebidas Quentes', estoque: 100,
+    codigo: '1001',
+    nome: 'Café Especial',
+    preco: 8.5,
+    tipo: 'venda',
+    categoria: 'Bebidas Quentes',
+    estoque: 100,
   });
   insumo = await createForTenant(Product, {
-    codigo: '999001', nome: 'Açúcar', preco: 0, tipo: 'insumo', categoria: 'Insumos', precoCompra: 7,
-    unidadeCompra: 'kg', conteudoPorEmbalagem: 1, unidadeConteudo: 'kg', estoque: 10, custoUnitarioBase: 7,
+    codigo: '999001',
+    nome: 'Açúcar',
+    preco: 0,
+    tipo: 'insumo',
+    categoria: 'Insumos',
+    precoCompra: 7,
+    unidadeCompra: 'kg',
+    conteudoPorEmbalagem: 1,
+    unidadeConteudo: 'kg',
+    estoque: 10,
+    custoUnitarioBase: 7,
   });
 });
 
 describe('API Endpoints', () => {
   test('GET /api/despesas/central-resumo → separa vencimentos de hoje, da semana e atrasados', async () => {
-    const hoje = new Date(`${new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())}T00:00:00.000Z`);
+    const hoje = new Date(
+      `${new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())}T00:00:00.000Z`
+    );
     const inicioSemana = new Date(hoje);
-    inicioSemana.setUTCDate(inicioSemana.getUTCDate() - ((inicioSemana.getUTCDay() + 6) % 7));
+    inicioSemana.setUTCDate(
+      inicioSemana.getUTCDate() - ((inicioSemana.getUTCDay() + 6) % 7)
+    );
     const fimSemana = new Date(inicioSemana);
     fimSemana.setUTCDate(fimSemana.getUTCDate() + 6);
     const inicioProximaSemana = new Date(fimSemana);
@@ -71,11 +124,38 @@ describe('API Endpoints', () => {
     const fimDaSemanaEHoje = hoje.getTime() === fimSemana.getTime();
 
     await createForTenant(Despesa, [
-      { descricao: 'Vence hoje', categoria: 'Outros', valor: 100, dataVencimento: hoje },
-      { descricao: 'Vence no fim da semana', categoria: 'Outros', valor: 50, dataVencimento: fimSemana },
-      { descricao: 'Vencida semana passada', categoria: 'Outros', valor: 25, dataVencimento: inicioSemanaAnterior },
-      { descricao: 'Vence na próxima semana', categoria: 'Outros', valor: 200, dataVencimento: inicioProximaSemana },
-      { descricao: 'Já paga hoje', categoria: 'Outros', valor: 500, dataVencimento: hoje, dataPagamento: hoje, status: 'pago' },
+      {
+        descricao: 'Vence hoje',
+        categoria: 'Outros',
+        valor: 100,
+        dataVencimento: hoje,
+      },
+      {
+        descricao: 'Vence no fim da semana',
+        categoria: 'Outros',
+        valor: 50,
+        dataVencimento: fimSemana,
+      },
+      {
+        descricao: 'Vencida semana passada',
+        categoria: 'Outros',
+        valor: 25,
+        dataVencimento: inicioSemanaAnterior,
+      },
+      {
+        descricao: 'Vence na próxima semana',
+        categoria: 'Outros',
+        valor: 200,
+        dataVencimento: inicioProximaSemana,
+      },
+      {
+        descricao: 'Já paga hoje',
+        categoria: 'Outros',
+        valor: 500,
+        dataVencimento: hoje,
+        dataPagamento: hoje,
+        status: 'pago',
+      },
     ]);
 
     const resposta = await request(app)
@@ -83,7 +163,10 @@ describe('API Endpoints', () => {
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(resposta.statusCode).toBe(200);
-    expect(resposta.body.vencemHoje).toEqual({ valor: fimDaSemanaEHoje ? 150 : 100, count: fimDaSemanaEHoje ? 2 : 1 });
+    expect(resposta.body.vencemHoje).toEqual({
+      valor: fimDaSemanaEHoje ? 150 : 100,
+      count: fimDaSemanaEHoje ? 2 : 1,
+    });
     expect(resposta.body.vencemSemana).toEqual({ valor: 150, count: 2 });
     expect(resposta.body.atrasadas).toEqual({ valor: 25, count: 1 });
   });
@@ -202,10 +285,14 @@ describe('API Endpoints', () => {
     const parcelaAtualizada = await Despesa.findById(parcela._id);
     expect(origemAtualizada.descricao).toBe('Aluguel atualizado');
     expect(origemAtualizada.valor).toBe(1200);
-    expect(origemAtualizada.dataVencimento.toISOString()).toBe('2026-01-15T00:00:00.000Z');
+    expect(origemAtualizada.dataVencimento.toISOString()).toBe(
+      '2026-01-15T00:00:00.000Z'
+    );
     expect(parcelaAtualizada.descricao).toBe('Aluguel atualizado');
     expect(parcelaAtualizada.valor).toBe(1200);
-    expect(parcelaAtualizada.dataVencimento.toISOString()).toBe('2026-02-15T00:00:00.000Z');
+    expect(parcelaAtualizada.dataVencimento.toISOString()).toBe(
+      '2026-02-15T00:00:00.000Z'
+    );
     const parcelaPagaPreservada = await Despesa.findById(parcelaPaga._id);
     expect(parcelaPagaPreservada.descricao).toBe('Aluguel antigo');
     expect(parcelaPagaPreservada.valor).toBe(1000);
@@ -213,10 +300,11 @@ describe('API Endpoints', () => {
 
   test('PUT /api/despesas/:id → propaga reajuste somente da parcela selecionada em diante', async () => {
     const usuarioAdmin = await User.findById(jwt.decode(adminToken).id);
-    const criarDespesa = (dados) => Despesa.create({
-      ...dados,
-      ...(usuarioAdmin.tenantId ? { tenantId: usuarioAdmin.tenantId } : {}),
-    });
+    const criarDespesa = (dados) =>
+      Despesa.create({
+        ...dados,
+        ...(usuarioAdmin.tenantId ? { tenantId: usuarioAdmin.tenantId } : {}),
+      });
     const origem = await criarDespesa({
       descricao: 'Internet',
       categoria: 'Internet',
@@ -271,17 +359,27 @@ describe('API Endpoints', () => {
 
     expect(resposta.statusCode).toBe(200);
     expect(resposta.body.parcelasAtualizadas).toBe(2);
-    await expect(Despesa.findById(origem._id).then((despesa) => despesa.valor)).resolves.toBe(100);
-    await expect(Despesa.findById(parcelaAnterior._id).then((despesa) => despesa.valor)).resolves.toBe(100);
-    await expect(Despesa.findById(parcelaSelecionada._id).then((despesa) => ({
-      valor: despesa.valor,
-      vencimento: despesa.dataVencimento.toISOString(),
-    }))).resolves.toEqual({ valor: 120, vencimento: '2027-03-15T00:00:00.000Z' });
-    await expect(Despesa.findById(parcelaFutura._id).then((despesa) => ({
-      valor: despesa.valor,
-      vencimento: despesa.dataVencimento.toISOString(),
-    }))).resolves.toEqual({ valor: 120, vencimento: '2027-04-15T00:00:00.000Z' });
-    await expect(Despesa.findById(parcelaFuturaPaga._id).then((despesa) => despesa.valor)).resolves.toBe(100);
+    await expect(
+      Despesa.findById(origem._id).then((despesa) => despesa.valor)
+    ).resolves.toBe(100);
+    await expect(
+      Despesa.findById(parcelaAnterior._id).then((despesa) => despesa.valor)
+    ).resolves.toBe(100);
+    await expect(
+      Despesa.findById(parcelaSelecionada._id).then((despesa) => ({
+        valor: despesa.valor,
+        vencimento: despesa.dataVencimento.toISOString(),
+      }))
+    ).resolves.toEqual({ valor: 120, vencimento: '2027-03-15T00:00:00.000Z' });
+    await expect(
+      Despesa.findById(parcelaFutura._id).then((despesa) => ({
+        valor: despesa.valor,
+        vencimento: despesa.dataVencimento.toISOString(),
+      }))
+    ).resolves.toEqual({ valor: 120, vencimento: '2027-04-15T00:00:00.000Z' });
+    await expect(
+      Despesa.findById(parcelaFuturaPaga._id).then((despesa) => despesa.valor)
+    ).resolves.toBe(100);
   });
 
   test('PUT /api/despesas/:id → aplica dia de vencimento e limita ao último dia do mês', async () => {
@@ -316,12 +414,21 @@ describe('API Endpoints', () => {
 
     expect(resposta.statusCode).toBe(200);
     expect(resposta.body.parcelasAtualizadas).toBe(3);
-    await expect(Despesa.findById(origem._id).then((despesa) => despesa.dataVencimento.toISOString()))
-      .resolves.toBe('2027-01-31T00:00:00.000Z');
-    await expect(Despesa.findById(fevereiro._id).then((despesa) => despesa.dataVencimento.toISOString()))
-      .resolves.toBe('2027-02-28T00:00:00.000Z');
-    await expect(Despesa.findById(marco._id).then((despesa) => despesa.dataVencimento.toISOString()))
-      .resolves.toBe('2027-03-31T00:00:00.000Z');
+    await expect(
+      Despesa.findById(origem._id).then((despesa) =>
+        despesa.dataVencimento.toISOString()
+      )
+    ).resolves.toBe('2027-01-31T00:00:00.000Z');
+    await expect(
+      Despesa.findById(fevereiro._id).then((despesa) =>
+        despesa.dataVencimento.toISOString()
+      )
+    ).resolves.toBe('2027-02-28T00:00:00.000Z');
+    await expect(
+      Despesa.findById(marco._id).then((despesa) =>
+        despesa.dataVencimento.toISOString()
+      )
+    ).resolves.toBe('2027-03-31T00:00:00.000Z');
 
     const diaInvalido = await request(app)
       .put(`/api/despesas/${origem._id}`)
@@ -356,8 +463,12 @@ describe('API Endpoints', () => {
     expect(resposta.body.parcelasAtualizadas).toBe(2);
     const origemAtualizada = await Despesa.findById(origem._id);
     const parcelaAtualizada = await Despesa.findById(parcelaDia21._id);
-    expect(origemAtualizada.dataVencimento.toISOString()).toBe('2026-09-20T00:00:00.000Z');
-    expect(parcelaAtualizada.dataVencimento.toISOString()).toBe('2026-10-20T00:00:00.000Z');
+    expect(origemAtualizada.dataVencimento.toISOString()).toBe(
+      '2026-09-20T00:00:00.000Z'
+    );
+    expect(parcelaAtualizada.dataVencimento.toISOString()).toBe(
+      '2026-10-20T00:00:00.000Z'
+    );
   });
 
   test('PUT e DELETE /api/despesas/:id → altera e remove somente a despesa selecionada', async () => {
@@ -390,18 +501,38 @@ describe('API Endpoints', () => {
       .post('/api/products')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        codigo: '2100', nome: 'Revenda Teste', preco: 10, precoVenda: 10, precoCompra: 100,
-        conteudoPorEmbalagem: 20, unidade: 'un', unidadeCompra: 'un', unidadeVenda: 'un',
-        tipo: 'venda', tipoProduto: 'revenda', categoria: 'Outros', estoque: 20,
+        codigo: '2100',
+        nome: 'Revenda Teste',
+        preco: 10,
+        precoVenda: 10,
+        precoCompra: 100,
+        conteudoPorEmbalagem: 20,
+        unidade: 'un',
+        unidadeCompra: 'un',
+        unidadeVenda: 'un',
+        tipo: 'venda',
+        tipoProduto: 'revenda',
+        categoria: 'Outros',
+        estoque: 20,
       });
     expect(criado.statusCode).toBe(201);
     expect(criado.body.custoUnitarioBase).toBe(5);
 
     const alterado = await request(app)
       .put(`/api/products/${criado.body._id}`)
-      .set('X-Autorizacao-Gerente', require('../approvalFixture')(adminToken, 'alterar_preco'))
+      .set(
+        'X-Autorizacao-Gerente',
+        require('../approvalFixture')(adminToken, 'alterar_preco')
+      )
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ tipoProduto: 'revenda', precoCompra: 100, conteudoPorEmbalagem: 10, unidade: 'un', unidadeCompra: 'un', unidadeVenda: 'un' });
+      .send({
+        tipoProduto: 'revenda',
+        precoCompra: 100,
+        conteudoPorEmbalagem: 10,
+        unidade: 'un',
+        unidadeCompra: 'un',
+        unidadeVenda: 'un',
+      });
     expect(alterado.statusCode).toBe(200);
     expect(alterado.body.custoUnitarioBase).toBe(10);
   });
@@ -410,7 +541,13 @@ describe('API Endpoints', () => {
     const res = await request(app)
       .post('/api/products')
       .set('Authorization', `Bearer ${operadorToken}`)
-      .send({ codigo: '2002', nome: 'Produto', preco: 10, tipo: 'venda', categoria: 'Outros' });
+      .send({
+        codigo: '2002',
+        nome: 'Produto',
+        preco: 10,
+        tipo: 'venda',
+        categoria: 'Outros',
+      });
     expect(res.statusCode).toBe(403);
   });
 
@@ -423,22 +560,42 @@ describe('API Endpoints', () => {
         telefone: '11999999999',
         cpf: '12345678901',
         aniversario: '15061990',
-        enderecoEntrega: { rua: 'Rua das Flores', numero: '25', bairro: 'Centro', complemento: 'Casa 2', referencia: 'Ao lado da praça' },
+        enderecoEntrega: {
+          rua: 'Rua das Flores',
+          numero: '25',
+          bairro: 'Centro',
+          complemento: 'Casa 2',
+          referencia: 'Ao lado da praça',
+        },
       });
     expect(res.statusCode).toBe(201);
     expect(res.body.nome).toBe('João Silva');
-    expect(res.body.enderecoEntrega).toMatchObject({ rua: 'Rua das Flores', numero: '25', bairro: 'Centro' });
+    expect(res.body.enderecoEntrega).toMatchObject({
+      rua: 'Rua das Flores',
+      numero: '25',
+      bairro: 'Centro',
+    });
   });
 
   test('POST /api/customers → 409 telefone duplicado', async () => {
     await request(app)
       .post('/api/customers')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ nome: 'Maria', telefone: '11888888888', cpf: '98765432100', aniversario: '20011985' });
+      .send({
+        nome: 'Maria',
+        telefone: '11888888888',
+        cpf: '98765432100',
+        aniversario: '20011985',
+      });
     const res = await request(app)
       .post('/api/customers')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ nome: 'Maria Dup', telefone: '11888888888', cpf: '98765432100', aniversario: '' });
+      .send({
+        nome: 'Maria Dup',
+        telefone: '11888888888',
+        cpf: '98765432100',
+        aniversario: '',
+      });
     expect(res.statusCode).toBe(409);
   });
 
@@ -447,7 +604,15 @@ describe('API Endpoints', () => {
       .post('/api/orders')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, quantidade: 2, precoUnitario: 8.50, tipoVenda: 'unidade' }],
+        itens: [
+          {
+            produtoId: produtoVenda._id,
+            nome: produtoVenda.nome,
+            quantidade: 2,
+            precoUnitario: 8.5,
+            tipoVenda: 'unidade',
+          },
+        ],
         subtotal: 17,
         total: 17,
         clienteNome: 'Cliente Teste',
@@ -474,7 +639,9 @@ describe('API Endpoints', () => {
     expect(primeiraResposta.statusCode).toBe(201);
     expect(segundaResposta.statusCode).toBe(200);
     expect(segundaResposta.body._id).toBe(primeiraResposta.body._id);
-    expect(await Order.countDocuments({ idTemporario: payload.idTemporario })).toBe(1);
+    expect(
+      await Order.countDocuments({ idTemporario: payload.idTemporario })
+    ).toBe(1);
     expect((await Product.findById(produtoVenda._id)).estoque).toBe(99);
   });
 
@@ -488,26 +655,43 @@ describe('API Endpoints', () => {
 
   test('PUT /api/production/recipes/:id → altera Cookie Redvelvet 100g', async () => {
     const produto = await createForTenant(Product, {
-      codigo: '3001', nome: 'Cookie Redvelvet 100g', preco: 12, tipo: 'venda', tipoProduto: 'producao', producaoPropria: true,
-      categoria: 'Doces', estoque: 0,
+      codigo: '3001',
+      nome: 'Cookie Redvelvet 100g',
+      preco: 12,
+      tipo: 'venda',
+      tipoProduto: 'producao',
+      producaoPropria: true,
+      categoria: 'Doces',
+      estoque: 0,
     });
     const receita = await createForTenant(Recipe, {
-      nome: 'Cookie Redvelvet 100g', produtoId: produto._id, rendimento: 12, unidadeRendimento: 'un',
-      ingredientes: [{ produtoId: insumo._id, quantidade: 0.5, unidade: 'kg' }], createdBy: produto.createdBy,
+      nome: 'Cookie Redvelvet 100g',
+      produtoId: produto._id,
+      rendimento: 12,
+      unidadeRendimento: 'un',
+      ingredientes: [{ produtoId: insumo._id, quantidade: 0.5, unidade: 'kg' }],
+      createdBy: produto.createdBy,
     });
     const res = await request(app)
       .put(`/api/production/recipes/${receita._id}`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        nome: 'Cookie Redvelvet 100g', produtoId: String(produto._id), rendimento: 12, unidadeRendimento: 'un',
-        ingredientes: [{ produtoId: String(insumo._id), quantidade: 0.6, unidade: 'kg' }],
+        nome: 'Cookie Redvelvet 100g',
+        produtoId: String(produto._id),
+        rendimento: 12,
+        unidadeRendimento: 'un',
+        ingredientes: [
+          { produtoId: String(insumo._id), quantidade: 0.6, unidade: 'kg' },
+        ],
       });
     expect(res.statusCode).toBe(200);
     expect(res.body.nome).toBe('Cookie Redvelvet 100g');
   });
 
   test('POST /api/production/produce → abastece todos os produtos finais da ficha', async () => {
-    await Product.findByIdAndUpdate(insumo._id, { $set: { estoqueEmbalagens: 10, estoqueInsumos: 10 } });
+    await Product.findByIdAndUpdate(insumo._id, {
+      $set: { estoqueEmbalagens: 10, estoqueInsumos: 10 },
+    });
     const bolo = await createForTenant(Product, {
       codigo: 'multi-out-bolo',
       nome: 'Bolo inteiro',
@@ -542,7 +726,9 @@ describe('API Endpoints', () => {
           { produtoId: String(bolo._id), quantidade: 1, unidade: 'un' },
           { produtoId: String(fatia._id), quantidade: 8, unidade: 'un' },
         ],
-        ingredientes: [{ produtoId: String(insumo._id), quantidade: 0.5, unidade: 'kg' }],
+        ingredientes: [
+          { produtoId: String(insumo._id), quantidade: 0.5, unidade: 'kg' },
+        ],
       });
 
     expect(createRecipe.statusCode).toBe(201);
@@ -550,7 +736,10 @@ describe('API Endpoints', () => {
     expect(createRecipe.body.custoUnitario).toBeGreaterThan(0);
     const boloAtualizado = await Product.findById(bolo._id);
     const fatiaAtualizada = await Product.findById(fatia._id);
-    expect(boloAtualizado.custoUnitario).toBeCloseTo(fatiaAtualizada.custoUnitario, 6);
+    expect(boloAtualizado.custoUnitario).toBeCloseTo(
+      fatiaAtualizada.custoUnitario,
+      6
+    );
     expect(fatiaAtualizada.fichaTecnica[0].quantidade).toBeCloseTo(0.5 / 9, 6);
 
     const updateRecipe = await request(app)
@@ -568,13 +757,17 @@ describe('API Endpoints', () => {
     const production = await request(app)
       .post('/api/production/produce')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ receitas: [{ receitaId: createRecipe.body._id, quantidade: 2 }] });
+      .send({
+        receitas: [{ receitaId: createRecipe.body._id, quantidade: 2 }],
+      });
 
     expect(production.statusCode).toBe(201);
     expect(production.body.producoes[0].produtos).toHaveLength(2);
     expect((await Product.findById(bolo._id)).estoque).toBe(2);
     expect((await Product.findById(fatia._id)).estoque).toBe(16);
-    expect(await Production.countDocuments({ receitaId: createRecipe.body._id })).toBe(1);
+    expect(
+      await Production.countDocuments({ receitaId: createRecipe.body._id })
+    ).toBe(1);
   });
 
   test('POST /api/production/recipes → rejeita produtos finais de modos diferentes', async () => {
@@ -612,7 +805,9 @@ describe('API Endpoints', () => {
           { produtoId: String(sobDemanda._id), quantidade: 1, unidade: 'un' },
           { produtoId: String(porLote._id), quantidade: 1, unidade: 'un' },
         ],
-        ingredientes: [{ produtoId: String(insumo._id), quantidade: 0.5, unidade: 'kg' }],
+        ingredientes: [
+          { produtoId: String(insumo._id), quantidade: 0.5, unidade: 'kg' },
+        ],
       });
 
     expect(response.statusCode).toBe(400);
@@ -645,7 +840,9 @@ describe('API Endpoints', () => {
     expect(primeiraResposta.statusCode).toBe(201);
     expect(segundaResposta.statusCode).toBe(200);
     expect(segundaResposta.body._id).toBe(primeiraResposta.body._id);
-    expect(await Comanda.countDocuments({ idTemporario: payload.idTemporario })).toBe(1);
+    expect(
+      await Comanda.countDocuments({ idTemporario: payload.idTemporario })
+    ).toBe(1);
     expect((await Product.findById(produtoVenda._id)).estoque).toBe(99);
   });
 
@@ -667,8 +864,10 @@ describe('API Endpoints', () => {
 
     const abertas = await request(app)
       .get('/api/comandas?status=aberta')
-      .set('Authorization', `Bearer ${adminToken}`)
-    expect(abertas.body.some(comanda => comanda._id === resposta.body._id)).toBe(true);
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(
+      abertas.body.some((comanda) => comanda._id === resposta.body._id)
+    ).toBe(true);
   });
 
   test('vendas delivery são classificadas como Delivery no dashboard, inclusive comandas antigas vinculadas', async () => {
@@ -678,7 +877,11 @@ describe('API Endpoints', () => {
       .send({
         clienteNome: 'Pedido Delivery',
         itens: [{ produtoId: produtoVenda._id, quantidade: 1 }],
-        entrega: { telefone: '11999999999', endereco: { rua: 'Rua Um', numero: '10' }, taxaEntrega: 0 },
+        entrega: {
+          telefone: '11999999999',
+          endereco: { rua: 'Rua Um', numero: '10' },
+          taxaEntrega: 0,
+        },
       });
 
     expect(venda.statusCode).toBe(201);
@@ -688,7 +891,14 @@ describe('API Endpoints', () => {
     await createForTenant(Order, [
       {
         numero: '900001',
-        itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, precoUnitario: 8.5, quantidade: 1 }],
+        itens: [
+          {
+            produtoId: produtoVenda._id,
+            nome: produtoVenda.nome,
+            precoUnitario: 8.5,
+            quantidade: 1,
+          },
+        ],
         subtotal: 8.5,
         total: 8.5,
         status: 'pago',
@@ -697,7 +907,14 @@ describe('API Endpoints', () => {
       },
       {
         numero: '900002',
-        itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, precoUnitario: 12, quantidade: 1 }],
+        itens: [
+          {
+            produtoId: produtoVenda._id,
+            nome: produtoVenda.nome,
+            precoUnitario: 12,
+            quantidade: 1,
+          },
+        ],
         subtotal: 12,
         total: 12,
         status: 'pago',
@@ -711,7 +928,11 @@ describe('API Endpoints', () => {
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(dashboard.statusCode).toBe(200);
-    expect(dashboard.body.relatorioMes.vendasPorTipo).toEqual({ mesa: 0, balcao: 0, delivery: 20.5 });
+    expect(dashboard.body.relatorioMes.vendasPorTipo).toEqual({
+      mesa: 0,
+      balcao: 0,
+      delivery: 20.5,
+    });
   });
 
   test('POST /api/comandas preserva conflito de idempotencia ao reenviar venda offline alterada', async () => {
@@ -720,15 +941,21 @@ describe('API Endpoints', () => {
       clienteNome: 'Venda offline',
       itens: [{ produtoId: produtoVenda._id, quantidade: 1 }],
     };
-    const criar = (body) => request(app)
-      .post('/api/comandas')
-      .set('Authorization', `Bearer ${adminToken}`)
-      .set('Idempotency-Key', payload.idTemporario)
-      .send(body);
+    const criar = (body) =>
+      request(app)
+        .post('/api/comandas')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('Idempotency-Key', payload.idTemporario)
+        .send(body);
     expect((await criar(payload)).statusCode).toBe(201);
-    const alterada = await criar({ ...payload, itens: [{ produtoId: produtoVenda._id, quantidade: 2 }] });
+    const alterada = await criar({
+      ...payload,
+      itens: [{ produtoId: produtoVenda._id, quantidade: 2 }],
+    });
     expect(alterada.statusCode).toBe(409);
-    expect(await Comanda.countDocuments({ idTemporario: payload.idTemporario })).toBe(1);
+    expect(
+      await Comanda.countDocuments({ idTemporario: payload.idTemporario })
+    ).toBe(1);
     expect((await Product.findById(produtoVenda._id)).estoque).toBe(99);
   });
 
@@ -741,20 +968,22 @@ describe('API Endpoints', () => {
         numeroNF: '12345',
         data: new Date().toISOString(),
         metodoCusteio: 'media_ponderada',
-        itens: [{
-          produtoId: insumo._id,
-          valorTotal: 70,
-          qtdEmbalagens: 10,
-          conteudoPorEmbalagem: 1,
-          unidadeConteudo: 'kg',
-        }],
+        itens: [
+          {
+            produtoId: insumo._id,
+            valorTotal: 70,
+            qtdEmbalagens: 10,
+            conteudoPorEmbalagem: 1,
+            unidadeConteudo: 'kg',
+          },
+        ],
         valorTotal: 70,
       });
     expect(res.statusCode).toBe(201);
   });
 
   test('POST /api/compras → recebe quantidade direta sem conteúdo por embalagem', async () => {
-    const produto = await Product.create({
+    const produto = await createForTenant(Product, {
       codigo: '999020',
       nome: 'Arroz por quilo',
       preco: 0,
@@ -777,7 +1006,14 @@ describe('API Endpoints', () => {
         numeroNF: 'NF-QUANTIDADE-DIRETA',
         data: dataHojeEmSaoPaulo(),
         metodoCusteio: 'media_ponderada',
-        itens: [{ produtoId: produto._id, valorTotal: 32, quantidade: 8, unidadeConteudo: 'kg' }],
+        itens: [
+          {
+            produtoId: produto._id,
+            valorTotal: 32,
+            quantidade: 8,
+            unidadeConteudo: 'kg',
+          },
+        ],
       });
 
     expect(res.statusCode).toBe(201);
@@ -790,7 +1026,10 @@ describe('API Endpoints', () => {
     const produtoAtualizado = await Product.findById(produto._id);
     expect(produtoAtualizado.estoqueEmbalagens).toBe(7);
     expect(produtoAtualizado.custoUnitarioBase).toBeCloseTo(62 / 14000, 8);
-    const movimento = await StockMovement.findOne({ referenciaId: compra._id, tipo: 'entrada' });
+    const movimento = await StockMovement.findOne({
+      referenciaId: compra._id,
+      tipo: 'entrada',
+    });
     expect(movimento.quantidade).toBe(8);
     expect(movimento.unidade).toBe('kg');
   });
@@ -807,7 +1046,15 @@ describe('API Endpoints', () => {
         data: dataCompra,
         dataVencimentoPagamento: vencimento,
         metodoCusteio: 'media_ponderada',
-        itens: [{ produtoId: insumo._id, valorTotal: 35, qtdEmbalagens: 5, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+        itens: [
+          {
+            produtoId: insumo._id,
+            valorTotal: 35,
+            qtdEmbalagens: 5,
+            conteudoPorEmbalagem: 1,
+            unidadeConteudo: 'kg',
+          },
+        ],
       });
 
     expect(res.statusCode).toBe(201);
@@ -846,7 +1093,15 @@ describe('API Endpoints', () => {
         data: hoje,
         dataVencimentoPagamento: hoje,
         metodoCusteio: 'media_ponderada',
-        itens: [{ produtoId: insumo._id, valorTotal: 7, qtdEmbalagens: 1, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+        itens: [
+          {
+            produtoId: insumo._id,
+            valorTotal: 7,
+            qtdEmbalagens: 1,
+            conteudoPorEmbalagem: 1,
+            unidadeConteudo: 'kg',
+          },
+        ],
       });
     expect(criada.statusCode).toBe(201);
     const compra = await Purchase.findOne({ numeroNF: 'NF-VENCIMENTO-HOJE' });
@@ -868,22 +1123,33 @@ describe('API Endpoints', () => {
       numeroNF: 'NF-FORNECEDOR',
       data: new Date(),
       metodoCusteio: 'media_ponderada',
-      itens: [{
-        produtoId: insumo._id,
-        valorTotal: 7,
-        qtdEmbalagens: 1,
-        conteudoPorEmbalagem: 1,
-        unidadeConteudo: 'kg',
-        quantidadeTotal: 1,
-        custoUnitario: 7,
-      }],
+      itens: [
+        {
+          produtoId: insumo._id,
+          valorTotal: 7,
+          qtdEmbalagens: 1,
+          conteudoPorEmbalagem: 1,
+          unidadeConteudo: 'kg',
+          quantidadeTotal: 1,
+          custoUnitario: 7,
+        },
+      ],
       valorTotal: 7,
       createdBy: admin._id,
     };
     await createForTenant(Purchase, [
       { ...compraBase, fornecedor: 'Fornecedor Alfa' },
-      { ...compraBase, fornecedor: ' fornecedor alfa ' , numeroNF: 'NF-FORNECEDOR-2' },
-      { ...compraBase, fornecedor: 'Fornecedor Cancelado', status: 'cancelada', numeroNF: 'NF-FORNECEDOR-3' },
+      {
+        ...compraBase,
+        fornecedor: ' fornecedor alfa ',
+        numeroNF: 'NF-FORNECEDOR-2',
+      },
+      {
+        ...compraBase,
+        fornecedor: 'Fornecedor Cancelado',
+        status: 'cancelada',
+        numeroNF: 'NF-FORNECEDOR-3',
+      },
     ]);
 
     const resposta = await request(app)
@@ -896,7 +1162,9 @@ describe('API Endpoints', () => {
 
   test('PUT /api/compras/:id → bloqueia alteração de compra de mês anterior', async () => {
     const [ano, mes] = dataHojeEmSaoPaulo().split('-').map(Number);
-    const mesAnterior = new Date(Date.UTC(ano, mes - 2, 15)).toISOString().slice(0, 10);
+    const mesAnterior = new Date(Date.UTC(ano, mes - 2, 15))
+      .toISOString()
+      .slice(0, 10);
     const criada = await request(app)
       .post('/api/compras')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -906,10 +1174,19 @@ describe('API Endpoints', () => {
         data: mesAnterior,
         dataVencimentoPagamento: '2099-01-15',
         metodoCusteio: 'media_ponderada',
-        itens: [{ produtoId: insumo._id, valorTotal: 7, qtdEmbalagens: 1, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+        itens: [
+          {
+            produtoId: insumo._id,
+            valorTotal: 7,
+            qtdEmbalagens: 1,
+            conteudoPorEmbalagem: 1,
+            unidadeConteudo: 'kg',
+          },
+        ],
       });
     const compra = await Purchase.findOne({ numeroNF: 'NF-DATA-ANTERIOR' });
-    const estoqueAnterior = (await Product.findById(insumo._id)).estoqueEmbalagens;
+    const estoqueAnterior = (await Product.findById(insumo._id))
+      .estoqueEmbalagens;
 
     const resposta = await request(app)
       .put(`/api/compras/${compra._id}`)
@@ -920,15 +1197,27 @@ describe('API Endpoints', () => {
         data: dataHojeEmSaoPaulo(),
         dataVencimentoPagamento: '2099-01-15',
         metodoCusteio: 'media_ponderada',
-        itens: [{ produtoId: insumo._id, valorTotal: 10, qtdEmbalagens: 1, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+        itens: [
+          {
+            produtoId: insumo._id,
+            valorTotal: 10,
+            qtdEmbalagens: 1,
+            conteudoPorEmbalagem: 1,
+            unidadeConteudo: 'kg',
+          },
+        ],
         justificativa: 'Correção de teste de limite de data',
       });
 
     expect(criada.statusCode).toBe(201);
     expect(resposta.statusCode).toBe(409);
     expect(resposta.body.msg).toContain('mês corrente');
-    expect((await Purchase.findById(compra._id)).fornecedor).toBe('Fornecedor Histórico');
-    expect((await Product.findById(insumo._id)).estoqueEmbalagens).toBe(estoqueAnterior);
+    expect((await Purchase.findById(compra._id)).fornecedor).toBe(
+      'Fornecedor Histórico'
+    );
+    expect((await Product.findById(insumo._id)).estoqueEmbalagens).toBe(
+      estoqueAnterior
+    );
   });
 
   test('DELETE /api/compras → bloqueia reversão quando o produto mudou depois da entrada', async () => {
@@ -941,7 +1230,15 @@ describe('API Endpoints', () => {
         data: new Date().toISOString(),
         dataVencimentoPagamento: '2099-01-15',
         metodoCusteio: 'media_ponderada',
-        itens: [{ produtoId: insumo._id, valorTotal: 7, qtdEmbalagens: 1, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+        itens: [
+          {
+            produtoId: insumo._id,
+            valorTotal: 7,
+            qtdEmbalagens: 1,
+            conteudoPorEmbalagem: 1,
+            unidadeConteudo: 'kg',
+          },
+        ],
       });
     expect(criada.statusCode).toBe(201);
     const compra = await Purchase.findOne({ numeroNF: 'NF-ESTOQUE-ALTERADO' });
@@ -965,7 +1262,15 @@ describe('API Endpoints', () => {
       data: dataInicioMesSaoPaulo(),
       dataVencimentoPagamento: '2099-01-15T00:00:00.000Z',
       metodoCusteio: 'media_ponderada',
-      itens: [{ produtoId: insumo._id, valorTotal: 14, qtdEmbalagens: 2, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+      itens: [
+        {
+          produtoId: insumo._id,
+          valorTotal: 14,
+          qtdEmbalagens: 2,
+          conteudoPorEmbalagem: 1,
+          unidadeConteudo: 'kg',
+        },
+      ],
     };
     const criada = await request(app)
       .post('/api/compras')
@@ -985,7 +1290,11 @@ describe('API Endpoints', () => {
     const dataAnterior = await request(app)
       .put(`/api/compras/${compra._id}`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ ...basePayload, data: ontem.toISOString().slice(0, 10), justificativa: 'A data fora do mês deve ser bloqueada' });
+      .send({
+        ...basePayload,
+        data: ontem.toISOString().slice(0, 10),
+        justificativa: 'A data fora do mês deve ser bloqueada',
+      });
     expect(dataAnterior.statusCode).toBe(409);
 
     const atualizada = await request(app)
@@ -1012,15 +1321,31 @@ describe('API Endpoints', () => {
     expect((await Purchase.findById(compra._id)).status).toBe('cancelada');
     expect(await Despesa.countDocuments({ compraId: compra._id })).toBe(0);
     expect((await Product.findById(insumo._id)).estoqueEmbalagens).toBe(0);
-    expect(await Auditoria.countDocuments({ acao: { $in: ['purchase_create', 'purchase_update', 'purchase_cancel'] } })).toBe(3);
-    expect(await StockMovement.countDocuments({ referenciaId: compra._id })).toBe(4);
-    const auditoriaAtualizacao = await Auditoria.findOne({ acao: 'purchase_update' });
-    const auditoriaExclusao = await Auditoria.findOne({ acao: 'purchase_cancel' });
-    expect(auditoriaAtualizacao.detalhes).toContain('Correção da nota recebida');
+    expect(
+      await Auditoria.countDocuments({
+        acao: {
+          $in: ['purchase_create', 'purchase_update', 'purchase_cancel'],
+        },
+      })
+    ).toBe(3);
+    expect(
+      await StockMovement.countDocuments({ referenciaId: compra._id })
+    ).toBe(4);
+    const auditoriaAtualizacao = await Auditoria.findOne({
+      acao: 'purchase_update',
+    });
+    const auditoriaExclusao = await Auditoria.findOne({
+      acao: 'purchase_cancel',
+    });
+    expect(auditoriaAtualizacao.detalhes).toContain(
+      'Correção da nota recebida'
+    );
     expect(auditoriaAtualizacao.detalhes).toContain('"valorTotal":14');
     expect(auditoriaAtualizacao.detalhes).toContain('"valorTotal":21');
     expect(auditoriaAtualizacao.detalhes).toContain('"status":"pendente"');
-    expect(auditoriaExclusao.detalhes).toContain('Lançamento duplicado na nota');
+    expect(auditoriaExclusao.detalhes).toContain(
+      'Lançamento duplicado na nota'
+    );
     expect(auditoriaExclusao.detalhes).toContain('"status":"pendente"');
   });
 
@@ -1035,7 +1360,15 @@ describe('API Endpoints', () => {
         data: dataCompra,
         dataVencimentoPagamento: '2099-01-15T00:00:00.000Z',
         metodoCusteio: 'media_ponderada',
-        itens: [{ produtoId: insumo._id, valorTotal: 18, qtdEmbalagens: 2, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+        itens: [
+          {
+            produtoId: insumo._id,
+            valorTotal: 18,
+            qtdEmbalagens: 2,
+            conteudoPorEmbalagem: 1,
+            unidadeConteudo: 'kg',
+          },
+        ],
       });
     expect(criada.statusCode).toBe(201);
     const compra = await Purchase.findOne({ numeroNF: 'NF-FLUXO' });
@@ -1045,7 +1378,9 @@ describe('API Endpoints', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ dataPagamento: dataCompra });
     expect(paga.statusCode).toBe(200);
-    const dataPagamentoOriginal = (await Despesa.findById(conta._id)).dataPagamento.toISOString();
+    const dataPagamentoOriginal = (
+      await Despesa.findById(conta._id)
+    ).dataPagamento.toISOString();
     const atualizada = await request(app)
       .put(`/api/compras/${compra._id}`)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -1055,13 +1390,23 @@ describe('API Endpoints', () => {
         data: dataHojeEmSaoPaulo(),
         dataVencimentoPagamento: '2099-01-15T00:00:00.000Z',
         metodoCusteio: 'media_ponderada',
-        itens: [{ produtoId: insumo._id, valorTotal: 20, qtdEmbalagens: 2, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+        itens: [
+          {
+            produtoId: insumo._id,
+            valorTotal: 20,
+            qtdEmbalagens: 2,
+            conteudoPorEmbalagem: 1,
+            unidadeConteudo: 'kg',
+          },
+        ],
         justificativa: 'Correção de valor conciliada',
       });
     expect(atualizada.statusCode).toBe(200);
     expect((await Despesa.findById(conta._id)).valor).toBe(20);
     expect((await Despesa.findById(conta._id)).status).toBe('pago');
-    expect((await Despesa.findById(conta._id)).dataPagamento.toISOString()).toBe(dataPagamentoOriginal);
+    expect(
+      (await Despesa.findById(conta._id)).dataPagamento.toISOString()
+    ).toBe(dataPagamentoOriginal);
 
     const exclusaoCompraPaga = await request(app)
       .delete(`/api/compras/${compra._id}`)
@@ -1070,26 +1415,40 @@ describe('API Endpoints', () => {
     expect(exclusaoCompraPaga.statusCode).toBe(200);
     expect((await Purchase.findById(compra._id)).status).toBe('cancelada');
     expect((await Despesa.findById(conta._id)).status).toBe('pago');
-    expect((await Despesa.findById(conta._id)).descricao).toBe('Pagamento mantido - compra cancelada NF NF-FLUXO');
+    expect((await Despesa.findById(conta._id)).descricao).toBe(
+      'Pagamento mantido - compra cancelada NF NF-FLUXO'
+    );
     expect((await Product.findById(insumo._id)).estoqueEmbalagens).toBe(0);
 
     const mes = dataCompra.slice(0, 7);
     const [fluxo, dre] = await Promise.all([
-      request(app).get('/api/contabil/fluxo-caixa').query({ mes }).set('Authorization', `Bearer ${adminToken}`),
-      request(app).get('/api/contabil/dre').query({ mes }).set('Authorization', `Bearer ${adminToken}`),
+      request(app)
+        .get('/api/contabil/fluxo-caixa')
+        .query({ mes })
+        .set('Authorization', `Bearer ${adminToken}`),
+      request(app)
+        .get('/api/contabil/dre')
+        .query({ mes })
+        .set('Authorization', `Bearer ${adminToken}`),
     ]);
     expect(fluxo.statusCode).toBe(200);
     expect(fluxo.body.totalSaidas).toBe(20);
     expect(dre.statusCode).toBe(200);
     expect(dre.body.cmvComponentes.compras).toBe(0);
     expect(dre.body.despesasOperacionais).toBe(0);
-    const auditoriaAtualizacao = await Auditoria.findOne({ acao: 'purchase_update' });
-    const auditoriaExclusao = await Auditoria.findOne({ acao: 'purchase_cancel' });
+    const auditoriaAtualizacao = await Auditoria.findOne({
+      acao: 'purchase_update',
+    });
+    const auditoriaExclusao = await Auditoria.findOne({
+      acao: 'purchase_cancel',
+    });
     expect(auditoriaAtualizacao.detalhes).toContain('"valor":18');
     expect(auditoriaAtualizacao.detalhes).toContain('"valor":20');
     expect(auditoriaAtualizacao.detalhes).toContain('"status":"pago"');
     expect(auditoriaExclusao.detalhes).toContain('"status":"pago"');
-    expect(auditoriaExclusao.detalhes).toContain('"descricao":"Pagamento mantido - compra cancelada NF NF-FLUXO"');
+    expect(auditoriaExclusao.detalhes).toContain(
+      '"descricao":"Pagamento mantido - compra cancelada NF NF-FLUXO"'
+    );
   });
 
   test('POST /api/compras → aceita quantidade fracionada em kg', async () => {
@@ -1101,13 +1460,15 @@ describe('API Endpoints', () => {
         numeroNF: '12346',
         data: new Date().toISOString(),
         metodoCusteio: 'media_ponderada',
-        itens: [{
-          produtoId: insumo._id,
-          valorTotal: 7,
-          qtdEmbalagens: 0.35,
-          conteudoPorEmbalagem: 1,
-          unidadeConteudo: 'kg',
-        }],
+        itens: [
+          {
+            produtoId: insumo._id,
+            valorTotal: 7,
+            qtdEmbalagens: 0.35,
+            conteudoPorEmbalagem: 1,
+            unidadeConteudo: 'kg',
+          },
+        ],
         valorTotal: 7,
       });
 
@@ -1135,13 +1496,27 @@ describe('API Endpoints', () => {
 
   test('GET /api/dashboard → Hoje e acompanhamento usam a mesma receita', async () => {
     await createForTenant(Order, {
-      itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, precoUnitario: 25, quantidade: 1 }],
+      itens: [
+        {
+          produtoId: produtoVenda._id,
+          nome: produtoVenda.nome,
+          precoUnitario: 25,
+          quantidade: 1,
+        },
+      ],
       subtotal: 25,
       total: 25,
       status: 'pago',
       utilizacaoInterna: false,
       atendente: 'admin',
-      pagamentos: [{ tipo: 'dinheiro', valorRecebido: 25, dataPagamento: new Date(), quitado: true }],
+      pagamentos: [
+        {
+          tipo: 'dinheiro',
+          valorRecebido: 25,
+          dataPagamento: new Date(),
+          quitado: true,
+        },
+      ],
     });
     const res = await request(app)
       .get('/api/dashboard')
@@ -1156,10 +1531,19 @@ describe('API Endpoints', () => {
       status: 'fechada',
       valorTotal: 100,
       atendente: 'admin',
-      historicoPagamentos: [{ valor: 100, formaPagamento: 'credito_loja', data: new Date() }],
+      historicoPagamentos: [
+        { valor: 100, formaPagamento: 'credito_loja', data: new Date() },
+      ],
     });
     const order = await createForTenant(Order, {
-      itens: [{ produtoId: produtoVenda._id, nome: produtoVenda.nome, precoUnitario: 100, quantidade: 1 }],
+      itens: [
+        {
+          produtoId: produtoVenda._id,
+          nome: produtoVenda.nome,
+          precoUnitario: 100,
+          quantidade: 1,
+        },
+      ],
       subtotal: 100,
       total: 100,
       status: 'pendente',
