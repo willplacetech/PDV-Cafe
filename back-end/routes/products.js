@@ -430,18 +430,6 @@ router.get('/:id/historico-custo', auth, auth.allowRoles('admin'), async (req, r
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
-router.put('/:id/aplicar-preco', auth, auth.allowRoles('admin'), exigirAutorizacao('alterar_preco'), async (req, res) => {
-  try {
-    const { precoVenda } = req.body;
-    const produto = await Product.findById(req.params.id);
-    if (!produto) return res.status(404).json({ msg: 'Produto não encontrado' });
-    produto.preco = Number(precoVenda);
-    await produto.save();
-    invalidarCacheProdutos();
-    res.json(produto);
-  } catch (error) { res.status(400).json({ msg: error.message }); }
-});
-
 router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);

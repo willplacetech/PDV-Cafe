@@ -75,13 +75,38 @@ test('PDV reuses active products and invalidates the cache after editing a produ
       .set('Authorization', `Bearer ${token}`)
       .send({ nome: 'Produto atualizado', preco: 12 });
     expect(updated.status).toBe(200);
+    expect(updated.body.preco).toBe(12);
+    expect((await Product.findById(first.body[0]._id)).preco).toBe(12);
 
     const afterUpdate = await get('/api/products/pdv');
     expect(findSpy).toHaveBeenCalledTimes(2);
-    expect(afterUpdate.body.find(product => product._id === first.body[0]._id).nome).toBe('Produto atualizado');
+    expect(afterUpdate.body.find(product => product._id === first.body[0]._id)).toMatchObject({
+      nome: 'Produto atualizado',
+      preco: 12,
+    });
   } finally {
     findSpy.mockRestore();
   }
+});
+
+test('applying a product price persists it and invalidates the PDV cache', async () => {
+  await Configuracoes.create({ _id: 'principal', exigirAutorizacaoGerente: false });
+  invalidarCacheConfiguracaoGerente();
+
+  const product = await Product.findOne({ codigo: '1' });
+  const initialPdv = await get('/api/products/pdv');
+  expect(initialPdv.body.find(item => item._id === product.id).preco).toBe(10);
+
+  const updated = await request(app)
+    .put(`/api/products/${product.id}/aplicar-preco`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ preco: 12.5 });
+
+  expect(updated.status).toBe(200);
+  expect(updated.body.preco).toBe(12.5);
+  expect((await Product.findById(product.id)).preco).toBe(12.5);
+  const refreshedPdv = await get('/api/products/pdv');
+  expect(refreshedPdv.body.find(item => item._id === product.id).preco).toBe(12.5);
 });
 
 test('product API persists group percentage on create and update', async () => {
