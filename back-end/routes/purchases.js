@@ -87,11 +87,14 @@ const validadoresCompra = [
   body('itens').isArray({ min: 1 }),
   body('itens.*.produtoId').isMongoId(),
   body('itens.*.valorTotal').isFloat({ min: 0.000001 }),
-  body('itens.*.qtdEmbalagens').isFloat({ min: 0.000001 }),
-  body('itens.*.conteudoPorEmbalagem').isFloat({ min: 0.000001 }),
+  body('itens.*.quantidade').optional().isFloat({ min: 0.000001 }),
+  body('itens.*.qtdEmbalagens').optional().isFloat({ min: 0.000001 }),
+  body('itens.*.conteudoPorEmbalagem').optional().isFloat({ min: 0.000001 }),
   body('itens.*.unidadeConteudo').isIn(units),
   body('itens').custom((itens) => Array.isArray(itens) && itens.every((item) => (
-    validarQuantidadeCompra(item.qtdEmbalagens, item.conteudoPorEmbalagem, item.unidadeConteudo)
+    item.quantidade !== undefined
+      ? validarQuantidadeCompra(item.quantidade, 1, item.unidadeConteudo)
+      : validarQuantidadeCompra(item.qtdEmbalagens, item.conteudoPorEmbalagem, item.unidadeConteudo)
   ))).withMessage('Quantidade comprada inválida para a unidade informada'),
 ];
 
@@ -108,18 +111,37 @@ const aplicarItensCompra = async (itensSolicitados, metodoCusteio, produtosPorId
     const produto = produtosPorId.get(String(item.produtoId));
     const snapshotAntes = snapshotProduto(produto);
     const valorTotal = Number(item.valorTotal);
-    const qtdEmbalagens = Number(item.qtdEmbalagens);
-    const conteudoPorEmbalagem = Number(item.conteudoPorEmbalagem);
-    const quantidadeTotal = Number((qtdEmbalagens * conteudoPorEmbalagem).toFixed(6));
-    const quantidadeTotalBase = quantidadeBase(quantidadeTotal, item.unidadeConteudo);
-    const custoUnitario = valorTotal / quantidadeTotalBase;
+    const unidadeConteudo = normalizarUnidade(item.unidadeConteudo);
     const estoqueAtualBase = estoqueTotalBase(produto);
-    const conteudoAtualBase = quantidadeBase(produto.conteudoPorEmbalagem || 0, produto.unidadeConteudo || produto.unidadeVenda || 'un');
-    const conteudoNovoBase = quantidadeBase(conteudoPorEmbalagem, item.unidadeConteudo);
     const saldoExistente = estoqueAtualBase > 0 || Number(produto.estoque || 0) > 0 || Number(produto.estoqueEmbalagens || produto.estoqueInsumos || 0) > 0 || Number(produto.estoqueConteudoAberto || 0) > 0;
-    if (saldoExistente && (conteudoAtualBase !== conteudoNovoBase || normalizarUnidade(produto.unidadeConteudo) !== normalizarUnidade(item.unidadeConteudo))) {
-      throw erroCompra('A embalagem nao pode mudar enquanto existir saldo. Cadastre outro produto para a nova embalagem.');
+    let quantidadeTotal;
+    let conteudoPorEmbalagem;
+    let qtdEmbalagens;
+
+    if (item.quantidade !== undefined) {
+      quantidadeTotal = Number(Number(item.quantidade).toFixed(6));
+      const unidadeAtual = normalizarUnidade(produto.unidadeConteudo || produto.unidadeCompra || 'un');
+      if (saldoExistente && unidadeAtual !== unidadeConteudo) {
+        throw erroCompra('A unidade do produto nao pode mudar enquanto existir saldo. Cadastre outro produto para a nova unidade.');
+      }
+      if (!saldoExistente && unidadeAtual !== unidadeConteudo) {
+        produto.unidadeConteudo = unidadeConteudo;
+        produto.conteudoPorEmbalagem = 1;
+      }
+      conteudoPorEmbalagem = Number(produto.conteudoPorEmbalagem) > 0 ? Number(produto.conteudoPorEmbalagem) : 1;
+      qtdEmbalagens = Number((quantidadeTotal / conteudoPorEmbalagem).toPrecision(14));
+    } else {
+      qtdEmbalagens = Number(item.qtdEmbalagens);
+      conteudoPorEmbalagem = Number(item.conteudoPorEmbalagem);
+      quantidadeTotal = Number((qtdEmbalagens * conteudoPorEmbalagem).toFixed(6));
+      const conteudoAtualBase = quantidadeBase(produto.conteudoPorEmbalagem || 0, produto.unidadeConteudo || produto.unidadeVenda || 'un');
+      const conteudoNovoBase = quantidadeBase(conteudoPorEmbalagem, unidadeConteudo);
+      if (saldoExistente && (conteudoAtualBase !== conteudoNovoBase || normalizarUnidade(produto.unidadeConteudo) !== unidadeConteudo)) {
+        throw erroCompra('A embalagem nao pode mudar enquanto existir saldo. Cadastre outro produto para a nova embalagem.');
+      }
     }
+    const quantidadeTotalBase = quantidadeBase(quantidadeTotal, unidadeConteudo);
+    const custoUnitario = valorTotal / quantidadeTotalBase;
 
     const custoAtual = Number(produto.custoUnitarioBase || 0);
     const custoNovo = metodoCusteio === 'ultimo_preco'
@@ -129,7 +151,7 @@ const aplicarItensCompra = async (itensSolicitados, metodoCusteio, produtosPorId
         : custoUnitario);
 
     produto.conteudoPorEmbalagem = conteudoPorEmbalagem;
-    produto.unidadeConteudo = item.unidadeConteudo;
+    produto.unidadeConteudo = unidadeConteudo;
     if (produto.tipo === 'venda') {
       if (produtoControlaPeso(produto)) normalizarEstoqueLegado(produto);
       produto.estoque = Number(produto.estoque || 0) + qtdEmbalagens;
@@ -147,7 +169,7 @@ const aplicarItensCompra = async (itensSolicitados, metodoCusteio, produtosPorId
       valorTotal,
       qtdEmbalagens,
       conteudoPorEmbalagem,
-      unidadeConteudo: item.unidadeConteudo,
+      unidadeConteudo,
       quantidadeTotal,
       custoUnitario,
       snapshotAntes,
@@ -166,9 +188,9 @@ const gravarMovimentosEHistorico = async (itens, produtosPorId, compra, usuarioI
       tipo: 'entrada',
       origem: 'externo',
       destino: produto.tipo === 'venda' ? 'venda' : 'insumos',
-      quantidade: item.qtdEmbalagens,
-      quantidadePecas: item.qtdEmbalagens,
-      unidade: produto.unidadeVenda || 'embalagem',
+      quantidade: item.quantidadeTotal,
+      quantidadePecas: item.unidadeConteudo === 'un' ? item.quantidadeTotal : 0,
+      unidade: item.unidadeConteudo,
       referenciaId: compra._id,
       observacao: `Compra NF ${compra.numeroNF}`,
       createdBy: usuarioId,
@@ -261,9 +283,9 @@ const reverterEfeitosCompra = async (compra, produtosPorId, usuarioId, session) 
       tipo: 'saida',
       origem: produto.tipo === 'venda' ? 'venda' : 'insumos',
       destino: 'externo',
-      quantidade: item.qtdEmbalagens,
-      quantidadePecas: item.qtdEmbalagens,
-      unidade: produto.unidadeVenda || 'embalagem',
+      quantidade: item.quantidadeTotal,
+      quantidadePecas: item.unidadeConteudo === 'un' ? item.quantidadeTotal : 0,
+      unidade: item.unidadeConteudo,
       referenciaId: compra._id,
       observacao: `Estorno da compra NF ${compra.numeroNF}`,
       createdBy: usuarioId,

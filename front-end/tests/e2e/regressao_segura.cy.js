@@ -73,6 +73,37 @@ describe('Regressões de cobrança e mesas sem banco externo', () => {
     cy.then(() => expect(atualizacoes).to.equal(1));
   });
 
+  it('cadastra produto pela compra sem solicitar conteúdo por embalagem', () => {
+    const novoProduto = {
+      _id: 'produto-novo-compra',
+      codigo: '99901',
+      nome: 'Farinha nova',
+      tipo: 'insumo',
+      preco: 0,
+      precoCompra: 0,
+      conteudoPorEmbalagem: 1,
+      unidadeConteudo: 'un',
+      unidadeCompra: 'un',
+      estoqueEmbalagens: 0,
+      estoqueInsumos: 0,
+      ativo: true,
+    };
+    cy.intercept('POST', '**/api/products', (request) => {
+      expect(request.body.nome).to.equal('Farinha nova');
+      expect(request.body.unidadeConteudo).to.equal('un');
+      expect(request.body.conteudoPorEmbalagem).to.equal(1);
+      request.reply({ statusCode: 201, body: novoProduto });
+    }).as('cadastrarProduto');
+
+    visitar('/compras');
+    cy.contains('button', 'Novo Produto').click();
+    cy.get('[role="dialog"]').contains('Conteúdo por embalagem').should('not.exist');
+    cy.get('[role="dialog"] label').contains('Nome').find('input').type('Farinha nova');
+    cy.contains('button', 'Salvar e continuar').click();
+    cy.wait('@cadastrarProduto');
+    cy.contains('Insumo cadastrado e selecionado na compra').should('be.visible');
+  });
+
   it('salvar comanda bloqueia botão durante envio e envia id idempotente', () => {
     cy.intercept('POST', '**/api/comandas', (request) => {
       expect(request.body.idTemporario).to.match(/^[0-9a-f-]{36}$/i);
