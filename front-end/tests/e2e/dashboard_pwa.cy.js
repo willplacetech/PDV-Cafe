@@ -18,6 +18,19 @@ describe('Dashboard e PWA', () => {
     cy.get('.dashboard-heading h1').should('be.visible');
   });
 
+  it('exibe o dashboard principal sem aguardar o catálogo auxiliar', () => {
+    let produtosCarregados = false;
+    cy.intercept('GET', '**/api/products', request => {
+      request.on('response', response => response.setDelay(2000));
+      request.on('after:response', () => { produtosCarregados = true; });
+    }).as('dashboardProducts');
+
+    cy.visit('/dashboard');
+    cy.get('.dashboard-heading h1').should('be.visible');
+    cy.then(() => expect(produtosCarregados).to.equal(false));
+    cy.wait('@dashboardProducts');
+  });
+
   it('exibe skeletons nos indicadores de Delivery enquanto a consulta está pendente', () => {
     cy.clearLocalStorage();
     cy.intercept('POST', '**/api/auth/login', {

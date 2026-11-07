@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import viteConfig from '../vite.config.js';
+import viteConfig, { scriptCacheOptions } from '../vite.config.js';
 
 const plugin = viteConfig.plugins.find(({ name }) => name === 'versioned-asset-urls');
 const appVersion = JSON.parse(viteConfig.define['import.meta.env.VITE_APP_VERSION']);
@@ -23,4 +23,12 @@ test('adds the app version to emitted JavaScript URLs in the HTML shell', () => 
     plugin.transformIndexHtml.handler(html),
     `<script src="/assets/index.js?v=${appVersion}"></script><link href="/assets/vendor.js?v=${appVersion}">`,
   );
+});
+
+test('caches runtime scripts only when the response is JavaScript', () => {
+  assert.equal(scriptCacheOptions.cacheName, 'static-scripts-v2');
+  assert.deepEqual(scriptCacheOptions.cacheableResponse, {
+    statuses: [200],
+    headers: { 'content-type': 'application/javascript' },
+  });
 });

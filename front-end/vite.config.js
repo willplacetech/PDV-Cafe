@@ -18,6 +18,15 @@ const gitHash = (gitCommit || 'dev').slice(0, 7)
 const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8')
 let recoveryOutputDir = ''
 
+export const scriptCacheOptions = {
+  cacheName: 'static-scripts-v2',
+  networkTimeoutSeconds: 3,
+  cacheableResponse: {
+    statuses: [200],
+    headers: { 'content-type': 'application/javascript' },
+  },
+}
+
 const appendVersionToAssetUrls = (content) => content.replace(
   /((?:\.\/|\/assets\/)[^"'\s]+\.js)(?=["'])/g,
   (assetUrl) => `${assetUrl}?v=${encodeURIComponent(appVersion)}`,
@@ -109,15 +118,11 @@ export default defineConfig({
               networkTimeoutSeconds: 3,
             },
           },
-          // Scripts/workers: rede primeiro para não servir chunk com hash antigo após deploy
-          // (evita MIME text/html do fallback SPA em imports dinâmicos).
+          // Reject SPA HTML fallbacks so they cannot poison the runtime script cache.
           {
             urlPattern: ({ request }) => request.destination === 'script' || request.destination === 'worker',
             handler: 'NetworkFirst',
-            options: {
-              cacheName: 'static-scripts',
-              networkTimeoutSeconds: 3,
-            },
+            options: scriptCacheOptions,
           },
           {
             urlPattern: ({ request }) => ['style', 'font', 'image'].includes(request.destination),
