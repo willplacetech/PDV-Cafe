@@ -48,6 +48,28 @@ describe('Regressões de cobrança e mesas sem banco externo', () => {
     cy.get('.table-shortcut').should('have.length', 1).and('contain', 'Varanda');
   });
 
+  it('envia o novo preço do produto e impede salvar preço vazio', () => {
+    let atualizacoes = 0;
+    cy.intercept('PUT', '**/api/products/produto-1', (request) => {
+      atualizacoes += 1;
+      expect(request.body.preco).to.equal(12.5);
+      request.reply({ ...produto, preco: 12.5 });
+    }).as('atualizarProduto');
+
+    visitar('/produtos');
+    cy.contains('button', 'Editar').click();
+    cy.contains('label', 'Preço de venda (R$)').find('input').clear().type('12.5');
+    cy.contains('button', 'Atualizar').click();
+    cy.wait('@atualizarProduto');
+    cy.contains('Produto atualizado!').should('be.visible');
+
+    cy.contains('button', 'Editar').click();
+    cy.contains('label', 'Preço de venda (R$)').find('input').clear()
+      .then(($input) => expect($input[0].checkValidity()).to.equal(false));
+    cy.contains('button', 'Atualizar').click();
+    cy.then(() => expect(atualizacoes).to.equal(1));
+  });
+
   it('abrir comanda bloqueia botão durante envio e leva chave de idempotência', () => {
     cy.intercept('POST', '**/api/comandas', (request) => {
       expect(request.headers['idempotency-key']).to.match(/^[0-9a-f-]{36}$/i);

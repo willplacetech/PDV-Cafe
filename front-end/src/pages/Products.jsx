@@ -203,8 +203,8 @@ export default function Products() {
       return;
     }
     if (editing) {
-      const precoEdicao = Number(form.preco);
-      if (Number.isNaN(precoEdicao) || precoEdicao < 0) {
+      const precoEdicao = form.preco === '' ? Number.NaN : Number(form.preco);
+      if (!Number.isFinite(precoEdicao) || precoEdicao < 0) {
         showToast('⚠️ O preço do produto deve ser um número maior ou igual a zero.', 'warning');
         return;
       }
