@@ -306,7 +306,7 @@ export default function Products() {
       carregar();
     } catch (error) {
       const validationMessage = error.response?.data?.errors?.map((item) => `${item.path || 'campo'}: ${item.msg}`).join('; ');
-      showToast(error.response?.data?.error || error.response?.data?.msg || validationMessage || 'Não Não foi possível salvar o produto', 'error');
+      showToast(error.response?.data?.error || error.response?.data?.msg || validationMessage || 'Não foi possível salvar o produto', 'error');
     }
   };
 
@@ -568,7 +568,7 @@ export default function Products() {
                 {form.tipoProduto === 'revenda' && (
                   <>
                     <label>Preço de compra (R$) <input type="number" step="0.01" min={0} value={form.precoCompra} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
-                    <label><FieldLabel hint={<> Quantidade de unidades/contendo comprada na embalagem. </>}> Contendo por embalagem </FieldLabel><input type="number" step="0.001" min={0} value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /></label>
+                    <label><FieldLabel hint={<> Quantidade de unidades/conteúdo comprada na embalagem. </>}> Conteúdo por embalagem </FieldLabel><input type="number" step="0.001" min={0} value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /></label>
                   </>
                 )}
                 <label className="product-checkbox-label" style={{ gridColumn: '1 / -1' }}>
@@ -577,19 +577,19 @@ export default function Products() {
                 </label>
                 {form.usavelEmReceita && <>
                   <label>Preço de compra (R$) * <input type="number" step="0.01" min={0.01} required value={form.precoCompra} onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
-                  <label>Contendo por embalagem * <input type="number" step="0.001" min={0.001} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /></label>
-                  <label>Unidade do contendo
+                  <label>Conteúdo por embalagem * <input type="number" step="0.001" min={0.001} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, conteudoPorEmbalagem: event.target.value })} /></label>
+                  <label>Unidade do conteúdo
                     <SearchableSelect value={form.unidade} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</SearchableSelect>
                   </label>
                 </>}
               </div>
             </details>
             <section className="product-form-section">
-              <div className="product-section-title"><span>­⚙</span><div><strong>DESCONTOS E PROMOçòES</strong><small>Configure preços promocionais por quantidade ou grupo</small></div></div>
+              <div className="product-section-title"><span>⚙</span><div><strong>DESCONTOS E PROMOÇÕES</strong><small>Configure preços promocionais por quantidade ou grupo</small></div></div>
               <div className="product-form-grid">
                 <details className="product-discount-panel">
                   <summary className="product-discount-heading">
-                    <span><strong>­⚙ Desconto por Quantidade</strong><small>Opcional à {form.descontosPorQuantidade?.length || 0} faixas cadastradas</small></span>
+                    <span><strong>⚙ Desconto por Quantidade</strong><small>Opcional · {form.descontosPorQuantidade?.length || 0} faixas cadastradas</small></span>
                     <span className="product-discount-toggle" />
                   </summary>
                   <div className="product-discount-content">
@@ -609,7 +609,7 @@ export default function Products() {
                 </details>
                 <details className="product-discount-panel">
                   <summary className="product-discount-heading">
-                    <span><strong>­✓ Desconto por Grupo (Categoria)</strong><small>Opcional à agrupa produtos da mesma categoria</small></span>
+                    <span><strong>✓ Desconto por Grupo (Categoria)</strong><small>Opcional. Agrupa produtos da mesma categoria.</small></span>
                     <span className="product-discount-toggle" />
                   </summary>
                   <div className="product-discount-content">
@@ -642,31 +642,31 @@ export default function Products() {
                   <input className="product-checkbox" type="checkbox" checked={form.ativo} onChange={(event) => setForm({ ...form, ativo: event.target.checked })} />
                   Produto ativo
                 </label>
-                {form.tipoProduto === 'coz' && <div className="coz-recipe-panel"><strong>­📦 Ficha técnica vinculada</strong>{fichaProduto ? <><span>Custo/unidade: <b>{`R$ ${Number(fichaProduto.custoPorUnidade || 0).toFixed(2).replace('.', ',')}`}</b></span><span>Disponível: <b>{Number(fichaProduto.disponibilidade?.quantidade || 0)} {fichaProduto.unidadeRendimento}</b></span><small>Ingrediente limitante: {fichaProduto.disponibilidade?.limitante || 'nenhum'}</small></> : <span>Este produto ainda não tem ficha técnica. Crie-a em Produção para liberar a disponibilidade.</span>}<Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>{fichaProduto ? 'Editar ficha técnica →' : 'Criar ficha técnica →'}</Link></div>}
-                {form.tipoProduto === 'producao' && <div className="coz-recipe-panel"><strong>­📦 Ficha técnica vinculada</strong><span>Este produto é produzido internamente e usa uma ficha técnica para controlar o custo e o rendimento.</span><Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>Gerenciar ficha técnica →</Link></div>}
+                {form.tipoProduto === 'coz' && <div className="coz-recipe-panel"><strong>📦 Ficha técnica vinculada</strong>{fichaProduto ? <><span>Custo/unidade: <b>{`R$ ${Number(fichaProduto.custoPorUnidade || 0).toFixed(2).replace('.', ',')}`}</b></span><span>Disponível: <b>{Number(fichaProduto.disponibilidade?.quantidade || 0)} {fichaProduto.unidadeRendimento}</b></span><small>Ingrediente limitante: {fichaProduto.disponibilidade?.limitante || 'nenhum'}</small></> : <span>Este produto ainda não tem ficha técnica. Crie-a em Produção para liberar a disponibilidade.</span>}<Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>{fichaProduto ? 'Editar ficha técnica →' : 'Criar ficha técnica →'}</Link></div>}
+                {form.tipoProduto === 'producao' && <div className="coz-recipe-panel"><strong>📦 Ficha técnica vinculada</strong><span>Este produto é produzido internamente e usa uma ficha técnica para controlar o custo e o rendimento.</span><Link className="coz-recipe-link" to={`/producao/fichas?produto=${editing?._id || ''}`}>Gerenciar ficha técnica →</Link></div>}
               </div>
             </details>
             </>
           ) : (
             <>
             <section className="product-form-section">
-              <div className="product-section-title"><span>­⚠</span><div><strong>COMPRA</strong><small>Preço, contendo e quantidade de embalagens</small></div></div>
+              <div className="product-section-title"><span>⚠</span><div><strong>COMPRA</strong><small>Preço, conteúdo e quantidade de embalagens</small></div></div>
               <div className="product-form-grid">
                 <label>Preço de compra POR EMBALAGEM (R$) * <input type="number" step="0.01" min={0} value={form.precoCompra} required onChange={(event) => setForm({ ...form, precoCompra: event.target.value })} /></label>
-                <label><FieldLabel hint={<> Unidade em que voc├¬ compra </>}> Tipo de embalagem * </FieldLabel><SearchableSelect value={form.unidadeCompra} onChange={(event) => {
+                <label><FieldLabel hint={<> Unidade em que você compra </>}> Tipo de embalagem * </FieldLabel><SearchableSelect value={form.unidadeCompra} onChange={(event) => {
                     setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, conteudoPorEmbalagem: 1, unidadeConteudo: event.target.value });
                   }}>
                     {units.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                   </SearchableSelect>
                 </label>
-                <label><FieldLabel hint={<> Quanto tem dentro de cada embalagem </>}> Contendo da embalagem * </FieldLabel><div className="product-input-with-unit"><input type="number" step={decimalStep(form.unidade)} min={decimalMinimum(form.unidade)} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, quantidade: event.target.value, conteudoPorEmbalagem: event.target.value })} /><SearchableSelect value={form.unidade} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</SearchableSelect></div>
+                <label><FieldLabel hint={<> Quanto tem dentro de cada embalagem </>}> Conteúdo da embalagem * </FieldLabel><div className="product-input-with-unit"><input type="number" step={decimalStep(form.unidade)} min={decimalMinimum(form.unidade)} required value={form.conteudoPorEmbalagem} onChange={(event) => setForm({ ...form, quantidade: event.target.value, conteudoPorEmbalagem: event.target.value })} /><SearchableSelect value={form.unidade} onChange={(event) => setForm({ ...form, unidade: event.target.value, unidadeCompra: event.target.value, unidadeConteudo: event.target.value })}>{units.map((unidade) => <option key={unidade}>{unidade}</option>)}</SearchableSelect></div>
                 </label>
                 <label>Quantidade de embalagens em estoque * <input type="number" step="0.001" min={0} value={form.estoqueEmbalagens} required onChange={(event) => setForm({ ...form, estoqueEmbalagens: event.target.value })} /></label>
-                <label><FieldLabel hint={<> Mínimo em unidade de contendo </>}> Estoque mínimo ({form.unidadeConteudo}) </FieldLabel><input type="number" step="0.001" min={0} value={form.estoqueMinimoEmbalagens} onChange={(event) => setForm({ ...form, estoqueMinimoEmbalagens: event.target.value })} /></label>
+                <label><FieldLabel hint={<> Mínimo em unidade de conteúdo </>}> Estoque mínimo ({form.unidadeConteudo}) </FieldLabel><input type="number" step="0.001" min={0} value={form.estoqueMinimoEmbalagens} onChange={(event) => setForm({ ...form, estoqueMinimoEmbalagens: event.target.value })} /></label>
               </div>
             </section>
             <section className="product-form-section product-summary-section">
-              <div className="product-section-title"><span>📄</span><div><strong>RESUMO AUTOMÁTICO</strong><small>Calculado é nenhuma conta manual</small></div></div>
+              <div className="product-section-title"><span>📄</span><div><strong>RESUMO AUTOMÁTICO</strong><small>Calculado automaticamente, sem contas manuais.</small></div></div>
               <div className="product-summary-grid">
                 <div><span>Estoque total</span><strong>{(resumoInsumo?.total || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {resumoInsumo?.unidadeConteudo || form.unidadeCompra}</strong></div>
                 <div><span>Custo por kg</span><strong>R$ {(resumoInsumo?.custoPorKg || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>
@@ -682,7 +682,7 @@ export default function Products() {
 
           <div className="product-form-actions">
             <button type="submit" className="product-submit-button">
-              {editing ? '­✓ Atualizar' : 'Cadastrar'}
+              {editing ? '✓ Atualizar' : 'Cadastrar'}
             </button>
             {editing && (
               <button type="button" className="product-cancel-button" onClick={cancelar}>
@@ -788,7 +788,7 @@ export default function Products() {
                   <div className="product-card-actions">
                     <button type="button" className="product-card-edit" onClick={() => editarProduto(produto)}>Editar</button>
                     <ConfirmarAcao titulo="Excluir produto" mensagem="Excluir este produto?" acaoTexto="Excluir" onConfirmar={() => remover(produto._id)}>
-                      {({ onClick }) => <button type="button" className="product-card-delete" onClick={onClick}>­✓ Excluir</button>}
+                      {({ onClick }) => <button type="button" className="product-card-delete" onClick={onClick}>✓ Excluir</button>}
                     </ConfirmarAcao>
                   </div>
                 </div>

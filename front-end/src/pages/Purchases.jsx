@@ -81,7 +81,7 @@ export default function Purchases() {
       setPurchases(Array.isArray(data) ? data : data.dados);
       setTotalPurchases(Array.isArray(data) ? data.length : data.total);
     } catch (error) {
-      const message = error.response?.data?.msg || 'Nao foi possivel carregar as compras';
+      const message = error.response?.data?.msg || 'Não foi possível carregar as compras';
       setPurchaseLoadError(message);
       showToast(message, 'error');
     } finally {
@@ -101,7 +101,7 @@ export default function Purchases() {
         if (active) setSupplierSuggestions(Array.isArray(data) ? data : []);
       })
       .catch((error) => {
-        if (active) showToast(error.response?.data?.msg || 'N├úo foi poss├¡vel carregar sugest├Áes de fornecedores', 'warning');
+        if (active) showToast(error.response?.data?.msg || 'Não foi possível carregar sugestões de fornecedores', 'warning');
       });
     return () => { active = false; };
   }, [showToast]);
@@ -157,7 +157,7 @@ export default function Purchases() {
       setSupplyModalOpen(false);
       setSupplyTargetIndex(null);
       focusNextInput(targetIndex);
-      showToast(`J├í existe um insumo com este nome. ${produtoExistente.nome} foi selecionado automaticamente.`, 'warning');
+      showToast(`Já existe um insumo com este nome. ${produtoExistente.nome} foi selecionado automaticamente.`, 'warning');
       return;
     }
 
@@ -189,7 +189,7 @@ export default function Purchases() {
       if (tipoProduto !== 'insumo') {
         setSupplyModalOpen(false);
         setSupplyTargetIndex(null);
-        showToast(`${nome} cadastrado. Produtos que n├úo s├úo insumos n├úo entram como item de compra.`, 'success');
+        showToast(`${nome} cadastrado. Produtos que não são insumos não entram como item de compra.`, 'success');
         return;
       }
       const fallbackIndex = supplyTargetIndex ?? form.itens.findIndex((item) => !item.produtoId);
@@ -210,7 +210,7 @@ export default function Purchases() {
       showToast('Insumo cadastrado e selecionado na compra', 'success');
     } catch (error) {
       const validationMessage = error.response?.data?.errors?.map((item) => item.msg).join('; ');
-      showToast(error.response?.data?.msg || validationMessage || 'Nao foi possivel cadastrar o insumo', 'error');
+      showToast(error.response?.data?.msg || validationMessage || 'Não foi possível cadastrar o insumo', 'error');
     } finally {
       setSavingSupply(false);
     }
@@ -233,7 +233,7 @@ export default function Purchases() {
       setEditingPurchaseId(null);
       await load();
     } catch (error) {
-      showToast(error.response?.data?.msg || 'Nao foi possivel salvar a compra', 'error');
+      showToast(error.response?.data?.msg || 'Não foi possível salvar a compra', 'error');
     } finally {
       setSaving(false);
     }
@@ -273,30 +273,30 @@ export default function Purchases() {
     try {
       await api.delete(`/compras/${purchaseToDelete._id}`, { data: { justificativa: deleteJustification.trim() } });
       showToast(purchaseToDelete.contaPagarId?.status === 'pago'
-        ? 'Compra exclu├¡da e estoque revertido; pagamento real mantido no fluxo de caixa'
-        : 'Compra exclu├¡da; estoque revertido e conta pendente removida', 'success');
+        ? 'Compra excluída e estoque revertido; pagamento real mantido no fluxo de caixa'
+        : 'Compra excluída; estoque revertido e conta pendente removida', 'success');
       setPurchaseToDelete(null);
       setDeleteJustification('');
       await load();
     } catch (error) {
-      showToast(error.response?.data?.msg || 'Nao foi possivel excluir a compra', 'error');
+      showToast(error.response?.data?.msg || 'Não foi possível excluir a compra', 'error');
     } finally {
       setDeletingPurchase(false);
     }
   };
 
   return <div className="purchases-page">
-    <header className="page-heading"><div><span className="purchases-eyebrow">PRODUCAO / COMPRAS</span><h1>Compras</h1><p>Registre entradas de insumos e atualize o custo pelo recebimento.</p></div></header>
+    <header className="page-heading"><div><span className="purchases-eyebrow">PRODUÇÃO / COMPRAS</span><h1>Compras</h1><p>Registre entradas de insumos e atualize o custo pelo recebimento.</p></div></header>
     <form className="purchases-form" onSubmit={submit}>
       <div className="purchases-grid">
         <label>Fornecedor<input required list="purchase-supplier-suggestions" value={form.fornecedor} onChange={(event) => setForm({ ...form, fornecedor: event.target.value })} /><datalist id="purchase-supplier-suggestions">{supplierSuggestions.map((supplier) => <option key={supplier} value={supplier} />)}</datalist></label>
-        <label>Numero da NF<input required value={form.numeroNF} onChange={(event) => setForm({ ...form, numeroNF: event.target.value })} /></label>
+        <label>Número da NF<input required value={form.numeroNF} onChange={(event) => setForm({ ...form, numeroNF: event.target.value })} /></label>
         <label>Data<input required type="date" min={editingPurchaseId ? monthBounds.firstDay : undefined} max={editingPurchaseId ? monthBounds.lastDay : undefined} value={form.data} onChange={(event) => setForm({ ...form, data: event.target.value })} /></label>
         <label>Vencimento do pagamento<input required type="date" value={form.dataVencimentoPagamento} onChange={(event) => setForm({ ...form, dataVencimentoPagamento: event.target.value })} /></label>
-        <label>Atualizacao de custo<SearchableSelect value={form.metodoCusteio} onChange={(event) => setForm({ ...form, metodoCusteio: event.target.value })}><option value="media_ponderada">Media ponderada</option><option value="ultimo_preco">Ultimo preco</option></SearchableSelect></label>
+        <label>Atualização de custo<SearchableSelect value={form.metodoCusteio} onChange={(event) => setForm({ ...form, metodoCusteio: event.target.value })}><option value="media_ponderada">Média ponderada</option><option value="ultimo_preco">Último preço</option></SearchableSelect></label>
       </div>
-      <p className="purchase-payment-note">Compras com vencimento futuro geram pend├¬ncia no Contas a Pagar. Com vencimento hoje ou anterior, entram como pagas e registram a sa├¡da no fluxo de caixa.</p>
-      {editingPurchaseId && <label className="purchase-justification-field">Justificativa da altera├º├úo<input required minLength="10" maxLength="1000" value={form.justificativa} onChange={(event) => setForm({ ...form, justificativa: event.target.value })} placeholder="Explique o motivo da corre├º├úo" /></label>}
+      <p className="purchase-payment-note">Compras com vencimento futuro geram pendência no Contas a Pagar. Com vencimento hoje ou anterior, entram como pagas e registram a saída no fluxo de caixa.</p>
+      {editingPurchaseId && <label className="purchase-justification-field">Justificativa da alteração<input required minLength="10" maxLength="1000" value={form.justificativa} onChange={(event) => setForm({ ...form, justificativa: event.target.value })} placeholder="Explique o motivo da correção" /></label>}
       <div className="purchases-section-heading"><h2>Itens da compra</h2><button type="button" className="secondary btn btn-ghost" onClick={addItem}>Adicionar item</button></div>
       <div className="purchase-items">{form.itens.map((item, index) => {
         const unidadeConteudo = item.unidadeConteudo || 'un';
@@ -305,22 +305,22 @@ export default function Purchases() {
         const produtoSelecionado = products.find((product) => String(product._id) === String(item.produtoId));
         const unidadeExibicao = produtoSelecionado?.unidadeConteudo || unidadeConteudo;
         return <div className="purchase-item" key={`purchase-item-${index}`}>
-          <label className="purchase-product-field">Produto comprado<div className="purchase-product-input-group"><SearchableSelect required value={item.produtoId} onChange={(event) => selectProduct(index, event.target.value)}><option value="">Selecione</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} [{product.tipo === 'insumo' ? 'Insumo' : 'Revenda'}]</option>)}</SearchableSelect><button type="button" className="secondary purchase-new-supply-button btn btn-ghost" onClick={() => openSupplyModal(index)}>Ô×ò Novo Produto</button></div></label>
+          <label className="purchase-product-field">Produto comprado<div className="purchase-product-input-group"><SearchableSelect required value={item.produtoId} onChange={(event) => selectProduct(index, event.target.value)}><option value="">Selecione</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} [{product.tipo === 'insumo' ? 'Insumo' : 'Revenda'}]</option>)}</SearchableSelect><button type="button" className="secondary purchase-new-supply-button btn btn-ghost" onClick={() => openSupplyModal(index)}>+ Novo Produto</button></div></label>
           <label>Valor total<input required type="number" min="0.01" step="0.01" value={item.valorTotal} onChange={(event) => updateItem(index, 'valorTotal', event.target.value)} /></label>
           <label>Quantidade comprada<input required type="number" min={purchaseQuantityMinimum(item.unidadeConteudo)} step={purchaseQuantityStep(item.unidadeConteudo)} value={item.quantidade} onChange={(event) => updateItem(index, 'quantidade', event.target.value)} /></label>
           <label>Unidade<SearchableSelect required value={item.unidadeConteudo} onChange={(event) => updateItem(index, 'unidadeConteudo', event.target.value)}>{units.map((unit) => <option key={unit}>{unit}</option>)}</SearchableSelect></label>
-          <div className="purchase-calculation"><span>Total: <strong>{formatQuantidade(total, unidadeExibicao)}</strong></span><span>Custo unitario: <strong>{formatCustoUnitario(unitCost, unidadeExibicao)}</strong></span></div>
+          <div className="purchase-calculation"><span>Total: <strong>{formatQuantidade(total, unidadeExibicao)}</strong></span><span>Custo unitário: <strong>{formatCustoUnitario(unitCost, unidadeExibicao)}</strong></span></div>
           <button type="button" className="danger" onClick={() => removeItem(index)} disabled={form.itens.length === 1}>Remover</button>
         </div>;
       })}</div>
       <div className="purchase-total-summary" aria-live="polite"><span>Total acumulado da compra</span><strong>{money(totalCalculado)}</strong></div>
       <div className="purchase-form-actions">
-        <button className="primary btn btn-primary" disabled={saving}>{saving ? 'Salvando...' : editingPurchaseId ? 'Salvar altera├º├Áes' : 'Registrar compra'}</button>
-        {editingPurchaseId && <button type="button" className="secondary btn btn-ghost" onClick={cancelarEdicao} disabled={saving}>Cancelar edi├º├úo</button>}
+        <button className="primary btn btn-primary" disabled={saving}>{saving ? 'Salvando...' : editingPurchaseId ? 'Salvar alterações' : 'Registrar compra'}</button>
+        {editingPurchaseId && <button type="button" className="secondary btn btn-ghost" onClick={cancelarEdicao} disabled={saving}>Cancelar edição</button>}
       </div>
     </form>
     <section className="purchases-history">
-      <div className="purchases-section-heading"><h2>Historico de compras</h2><span>{purchases.length} registro(s)</span></div>
+      <div className="purchases-section-heading"><h2>Histórico de compras</h2><span>{purchases.length} registro(s)</span></div>
       <EstadoLista
         carregando={loadingPurchases}
         erro={purchaseLoadError}
@@ -342,11 +342,11 @@ export default function Purchases() {
             <div className="purchase-history-header" onClick={() => setExpandedPurchaseId(isExpanded ? null : purchase._id)}>
               <div>
                 <strong>{purchase.fornecedor}</strong>
-                <span>NF {purchase.numeroNF} ┬À {new Date(purchase.data).toLocaleDateString('pt-BR')}{purchase.status === 'cancelada' ? ' ┬À CANCELADA' : ''}</span>
+                <span>NF {purchase.numeroNF} · {new Date(purchase.data).toLocaleDateString('pt-BR')}{purchase.status === 'cancelada' ? ' · CANCELADA' : ''}</span>
               </div>
               <div className="purchase-history-summary">
                 <b>{money(purchase.valorTotal)}</b>
-                <span className="expand-icon">{isExpanded ? 'Ôû▓' : 'Ôû╝'}</span>
+                <span className="expand-icon">{isExpanded ? '−' : '+'}</span>
               </div>
             </div>
             {isExpanded && (
@@ -368,7 +368,7 @@ export default function Purchases() {
                       const custoUnitario = quantidadeTotal > 0 ? Number(item.valorTotal || 0) / quantidadeTotal : 0;
                       return (
                         <tr key={index}>
-                          <td>{produto.nome || 'ÔÇö'}</td>
+                          <td>{produto.nome || '—'}</td>
                           <td>{item.unidadeConteudo || 'un'}</td>
                           <td>{quantidadeTotal.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}</td>
                           <td>{money(item.valorTotal)}</td>
@@ -379,19 +379,19 @@ export default function Purchases() {
                   </tbody>
                 </table>
                 <div className="purchase-history-footer">
-                  <span><strong>M├®todo de custeio:</strong> {purchase.metodoCusteio === 'media_ponderada' ? 'M├®dia ponderada' : '├Ültimo pre├ºo'}</span>
+                  <span><strong>Método de custeio:</strong> {purchase.metodoCusteio === 'media_ponderada' ? 'Média ponderada' : 'Último preço'}</span>
                   <span><strong>Data da compra:</strong> {new Date(purchase.data).toLocaleDateString('pt-BR')}</span>
-                  <span><strong>Vencimento:</strong> {vencimentoPagamento ? new Date(vencimentoPagamento).toLocaleDateString('pt-BR') : 'ÔÇö'}</span>
-                  <span><strong>Financeiro:</strong> {!purchase.contaPagarId ? 'N├úo vinculado' : contaPaga ? 'Paga' : purchase.contaPagarId.status === 'atrasado' ? 'Atrasada' : 'Pendente'}</span>
+                  <span><strong>Vencimento:</strong> {vencimentoPagamento ? new Date(vencimentoPagamento).toLocaleDateString('pt-BR') : '—'}</span>
+                  <span><strong>Financeiro:</strong> {!purchase.contaPagarId ? 'Não vinculado' : contaPaga ? 'Paga' : purchase.contaPagarId.status === 'atrasado' ? 'Atrasada' : 'Pendente'}</span>
                   {purchase.createdBy && <span><strong>Registrado por:</strong> {purchase.createdBy.username || purchase.createdBy}</span>}
-                  {purchase.status === 'cancelada' && purchase.justificativaCancelamento && <span><strong>Justificativa da exclus├úo:</strong> {purchase.justificativaCancelamento}</span>}
+                  {purchase.status === 'cancelada' && purchase.justificativaCancelamento && <span><strong>Justificativa da exclusão:</strong> {purchase.justificativaCancelamento}</span>}
                 </div>
                 {purchase.status !== 'cancelada' && <div className="purchase-history-actions">
                   {podeAlterar && <button type="button" className="secondary btn btn-ghost" onClick={() => editarCompra(purchase)}>Editar compra</button>}
                   {podeExcluir && <button type="button" className="danger" onClick={() => { setPurchaseToDelete(purchase); setDeleteJustification(''); }}>Excluir compra</button>}
-                  {contaPaga && podeAlterar && <span className="purchase-management-note">A sa├¡da j├í paga ser├í preservada no fluxo de caixa ao excluir; corrigir a compra atualiza o valor da sa├¡da.</span>}
-                  {!contaPaga && !snapshotsDisponiveis && <span className="purchase-management-note">Registro legado sem hist├│rico de revers├úo segura; fa├ºa um ajuste de estoque separado.</span>}
-                  {!compraDoMesCorrente && snapshotsDisponiveis && <span className="purchase-management-note">Somente compras do m├¬s corrente podem ser alteradas ou exclu├¡das.</span>}
+                  {contaPaga && podeAlterar && <span className="purchase-management-note">A saída já paga será preservada no fluxo de caixa ao excluir; corrigir a compra atualiza o valor da saída.</span>}
+                  {!contaPaga && !snapshotsDisponiveis && <span className="purchase-management-note">Registro legado sem histórico de reversão segura; faça um ajuste de estoque separado.</span>}
+                  {!compraDoMesCorrente && snapshotsDisponiveis && <span className="purchase-management-note">Somente compras do mês corrente podem ser alteradas ou excluídas.</span>}
                 </div>}
               </div>
             )}
@@ -403,14 +403,14 @@ export default function Purchases() {
     </section>
     {purchaseToDelete && <div className="purchase-supply-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !deletingPurchase) setPurchaseToDelete(null); }}>
       <form onSubmit={excluirCompra} className="purchase-supply-modal" role="dialog" aria-modal="true" aria-labelledby="delete-purchase-title">
-        <div className="purchase-supply-modal-header"><div><h2 id="delete-purchase-title">Excluir compra</h2><p>NF {purchaseToDelete.numeroNF} ┬À {purchaseToDelete.fornecedor}. O estoque e os custos ser├úo revertidos.{purchaseToDelete.contaPagarId?.status === 'pago' ? ' O pagamento j├í realizado ser├í mantido no fluxo de caixa.' : ' A conta pendente ser├í removida.'}</p></div><button type="button" className="purchase-supply-button purchase-supply-close" onClick={() => setPurchaseToDelete(null)} aria-label="Fechar" disabled={deletingPurchase}>├ù</button></div>
-        <label className="purchase-supply-field full">Justificativa obrigat├│ria<textarea required minLength="10" maxLength="1000" rows="4" value={deleteJustification} onChange={(event) => setDeleteJustification(event.target.value)} placeholder="Explique o motivo da exclus├úo" /></label>
-        <div className="purchase-supply-actions"><button type="button" className="purchase-supply-button purchase-supply-button-secondary" onClick={() => setPurchaseToDelete(null)} disabled={deletingPurchase}>Cancelar</button><button type="submit" className="purchase-supply-button purchase-supply-button-primary" disabled={deletingPurchase}>{deletingPurchase ? 'Excluindo...' : 'Confirmar exclus├úo'}</button></div>
+        <div className="purchase-supply-modal-header"><div><h2 id="delete-purchase-title">Excluir compra</h2><p>NF {purchaseToDelete.numeroNF} · {purchaseToDelete.fornecedor}. O estoque e os custos serão revertidos.{purchaseToDelete.contaPagarId?.status === 'pago' ? ' O pagamento já realizado será mantido no fluxo de caixa.' : ' A conta pendente será removida.'}</p></div><button type="button" className="purchase-supply-button purchase-supply-close" onClick={() => setPurchaseToDelete(null)} aria-label="Fechar" disabled={deletingPurchase}>×</button></div>
+        <label className="purchase-supply-field full">Justificativa obrigatória<textarea required minLength="10" maxLength="1000" rows="4" value={deleteJustification} onChange={(event) => setDeleteJustification(event.target.value)} placeholder="Explique o motivo da exclusão" /></label>
+        <div className="purchase-supply-actions"><button type="button" className="purchase-supply-button purchase-supply-button-secondary" onClick={() => setPurchaseToDelete(null)} disabled={deletingPurchase}>Cancelar</button><button type="submit" className="purchase-supply-button purchase-supply-button-primary" disabled={deletingPurchase}>{deletingPurchase ? 'Excluindo...' : 'Confirmar exclusão'}</button></div>
       </form>
     </div>}
     {supplyModalOpen && <div className="purchase-supply-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSupplyModalOpen(false); }}>
       <form onSubmit={saveSupply} className="purchase-supply-modal" role="dialog" aria-modal="true" aria-labelledby="new-supply-title">
-        <div className="purchase-supply-modal-header"><div><h2 id="new-supply-title">Ô×ò Novo Produto</h2><p>Cadastre o insumo e continue o lan├ºamento da compra.</p></div><button type="button" className="purchase-supply-button purchase-supply-close" onClick={() => setSupplyModalOpen(false)} aria-label="Fechar modal">├ù</button></div>
+        <div className="purchase-supply-modal-header"><div><h2 id="new-supply-title">+ Novo Produto</h2><p>Cadastre o insumo e continue o lançamento da compra.</p></div><button type="button" className="purchase-supply-button purchase-supply-close" onClick={() => setSupplyModalOpen(false)} aria-label="Fechar modal">×</button></div>
         <div className="purchase-supply-grid">
           <label className="purchase-supply-field full">Tipo de produto<SearchableSelect value={supplyForm.tipoProduto} onChange={(event) => setSupplyForm({ ...supplyForm, tipoProduto: event.target.value })}><option value="insumo">Insumo</option><option value="revenda">Revenda</option></SearchableSelect></label>
           <label className="purchase-supply-field full">Nome *<input required value={supplyForm.nome} onChange={(event) => setSupplyForm({ ...supplyForm, nome: event.target.value })} placeholder="Ex.: Farinha de trigo" /></label>
@@ -418,7 +418,7 @@ export default function Purchases() {
           <label className="purchase-supply-field">Unidade
             <SearchableSelect value={supplyForm.unidadeConteudo} onChange={(event) => setSupplyForm({ ...supplyForm, unidadeConteudo: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</SearchableSelect></label>
         </div>
-        <div className="purchase-supply-note">O produto ser├í cadastrado na unidade selecionada. Quantidade, valor e estoque ser├úo informados nesta compra.</div>
+        <div className="purchase-supply-note">O produto será cadastrado na unidade selecionada. Quantidade, valor e estoque serão informados nesta compra.</div>
         <div className="purchase-supply-actions"><button type="button" className="purchase-supply-button purchase-supply-button-secondary" onClick={() => setSupplyModalOpen(false)}>Cancelar</button><button type="submit" className="purchase-supply-button purchase-supply-button-primary" disabled={savingSupply}>{savingSupply ? 'Salvando...' : 'Salvar e continuar'}</button></div>
       </form>
     </div>}

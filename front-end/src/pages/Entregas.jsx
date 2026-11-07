@@ -62,6 +62,7 @@ export default function Entregas() {
   const [ocupado, setOcupado] = useState(false);
   const [despachando, setDespachando] = useState('');
   const carregamentoRequestId = useRef(0);
+  const dadosCarregados = useRef(false);
   const pedidoFocado = useRef(null);
   const paginacaoHistorico = useUrlPagination();
   const { paginaAtual, limiteAtual } = paginacaoHistorico;
@@ -82,6 +83,7 @@ export default function Entregas() {
         api.get('/entregas/configuracao', { pdvSilenciosa: silencioso }),
       ]);
       if (requestId !== carregamentoRequestId.current) return;
+      dadosCarregados.current = true;
       setPedidos(pedidosResponse.data.pedidos || []);
       setTotalPedidos(pedidosResponse.data.total || 0);
       setEntregadores(entregadoresResponse.data || []);
@@ -90,7 +92,7 @@ export default function Entregas() {
       setAgora(Date.now());
       setErroLista('');
     } catch (error) {
-      if (requestId === carregamentoRequestId.current) {
+      if (requestId === carregamentoRequestId.current && (!silencioso || !dadosCarregados.current)) {
         setErroLista(error.response?.data?.msg || 'Não foi possível carregar as entregas.');
       }
     } finally {
