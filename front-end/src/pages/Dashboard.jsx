@@ -16,6 +16,7 @@ import Paginacao from '../components/Paginacao.jsx';
 import usePagination from '../hooks/usePagination.js';
 import DeliveryAnalytics from '../components/dashboard/DeliveryAnalytics.jsx';
 import CentralDoDia from '../components/dashboard/CentralDoDia.jsx';
+import { shouldSkipDashboardReload } from '../utils/dashboardLoad.js';
 
 const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const quantidadeComDuasCasas = (value) => Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -96,15 +97,37 @@ export default function Dashboard() {
     if (user?.role !== 'admin') return;
     let ativo = true;
     const mesConsultado = mesRelatorioSelecionadoRef.current;
-    Promise.all([api.get('/dashboard', { params: { mes: mesConsultado } }), api.get('/products'), api.get('/comandas'), api.get('/production/dashboard'), api.get('/products/sem-custo'), api.get('/products/reajuste-recomendado')])
-      .then(([dashboardResponse, productsResponse, comandasResponse, productionResponse, semCustoResponse, reajusteResponse]) => {
+    Promise.allSettled([
+      api.get('/dashboard', { params: { mes: mesConsultado } }),
+      api.get('/products'),
+      api.get('/comandas'),
+      api.get('/production/dashboard'),
+      api.get('/products/sem-custo'),
+      api.get('/products/reajuste-recomendado'),
+    ])
+      .then(([dashboardResult, productsResult, comandasResult, productionResult, semCustoResult, reajusteResult]) => {
         if (!ativo) return;
+
+        const dashboardResponse = dashboardResult.status === 'fulfilled' ? dashboardResult.value : null;
+        const productsResponse = productsResult.status === 'fulfilled' ? productsResult.value : null;
+        const comandasResponse = comandasResult.status === 'fulfilled' ? comandasResult.value : null;
+        const productionResponse = productionResult.status === 'fulfilled' ? productionResult.value : null;
+        const semCustoResponse = semCustoResult.status === 'fulfilled' ? semCustoResult.value : null;
+        const reajusteResponse = reajusteResult.status === 'fulfilled' ? reajusteResult.value : null;
+
+        if (!dashboardResponse) {
+          const mensagem = dashboardResult.reason?.response?.data?.msg || 'Não foi possível carregar o dashboard';
+          setErroDashboard(mensagem);
+          showToast(mensagem, 'error');
+          return;
+        }
+
         setData(dashboardResponse.data);
         setMesRelatorioCarregado(mesConsultado);
-        setProdutos(productsResponse.data);
-        setComandas(comandasResponse.data);
-        setProductionData(productionResponse.data);
-        setAlertasCusto({ semCusto: semCustoResponse.data || [], reajuste: reajusteResponse.data || [] });
+        setProdutos(productsResponse?.data || []);
+        setComandas(comandasResponse?.data || []);
+        setProductionData(productionResponse?.data || null);
+        setAlertasCusto({ semCusto: semCustoResponse?.data || [], reajuste: reajusteResponse?.data || [] });
         const pagamentos = dashboardResponse.data.relatorioMes?.pagamentos || [];
         const taxasConfiguradas = dashboardResponse.data.taxasCartao || {};
         setTaxasCartao({
@@ -125,14 +148,23 @@ export default function Dashboard() {
   useEffect(() => {
     if (user?.role !== 'admin') return;
     if (!data) return;
-    if (mesRelatorioCarregado === mesRelatorioSelecionado) return;
+
+    const deveIgnorarRecarga = shouldSkipDashboardReload({
+      selectedMonth: mesRelatorioSelecionado,
+      loadedMonth: mesRelatorioCarregado,
+      carregandoFechamento,
+    });
+
+    if (deveIgnorarRecarga) return;
 
     let ativo = true;
+    setCarregandoFechamento(true);
     api.get('/dashboard', { params: { mes: mesRelatorioSelecionado } })
       .then((response) => {
         if (!ativo) return;
         setData(response.data);
         setMesRelatorioCarregado(mesRelatorioSelecionado);
+        setErroFechamento('');
       })
       .catch((error) => {
         if (!ativo) return;
@@ -143,7 +175,7 @@ export default function Dashboard() {
       .finally(() => { if (ativo) setCarregandoFechamento(false); });
 
     return () => { ativo = false; };
-  }, [data, mesRelatorioCarregado, mesRelatorioSelecionado, tentativaFechamento, showToast, user?.role]);
+  }, [carregandoFechamento, data, mesRelatorioCarregado, mesRelatorioSelecionado, showToast, user?.role]);
 
   useEffect(() => {
     if (user?.role !== 'admin') return;
