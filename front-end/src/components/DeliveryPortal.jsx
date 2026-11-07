@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { lerSessao, salvarSessao, restaurarSessao, sairSessao, deliveryApi, courierApi, erroDelivery } from '../services/deliveryApi.js';
-import '../styles/delivery.css';
 import { runSessionLogin } from '../services/accessSession.js';
 
 export default function DeliveryPortal({ courier = false, plataforma = false, children }) {

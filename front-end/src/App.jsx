@@ -14,6 +14,7 @@ import Layout from './components/Layout.jsx';
 import { AuthContext } from './context/AuthContextDefinition.jsx';
 import { useToast } from './components/useToast.js';
 import { APP_VERSION, fetchPublishedAppVersion, waitForServiceWorkerUpdate } from './services/appVersion.js';
+import './styles/delivery.css';
 const Login = lazy(() => import('./pages/Login.jsx'));
 const PDV = lazy(() => import('./pages/PDV.jsx'));
 const Products = lazy(() => import('./pages/Products.jsx'));
