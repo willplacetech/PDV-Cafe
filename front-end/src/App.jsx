@@ -14,6 +14,7 @@ import Layout from './components/Layout.jsx';
 import { AuthContext } from './context/AuthContextDefinition.jsx';
 import { useToast } from './components/useToast.js';
 import { APP_VERSION, fetchPublishedAppVersion, waitForServiceWorkerUpdate } from './services/appVersion.js';
+import { installNumberInputWheelGuard } from './utils/numberInputWheelGuard.js';
 import './styles/delivery.css';
 const Login = lazy(() => import('./pages/Login.jsx'));
 const PDV = lazy(() => import('./pages/PDV.jsx'));
@@ -109,6 +110,8 @@ function DefaultLanding() {
 }
 
 export default function App() {
+  useEffect(() => installNumberInputWheelGuard(document), []);
+
   return (
     <ThemeProvider>
       <AuthProvider>
