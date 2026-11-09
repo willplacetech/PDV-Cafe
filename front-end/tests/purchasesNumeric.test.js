@@ -62,6 +62,58 @@ test('novo insumo pode ser salvo pelo modal sem preço de compra no formulário'
   assert.equal(form.itens[0].produtoId, 'product-1');
 });
 
+test('novo insumo envia preço de compra e fica disponível e selecionado no item da compra', async () => {
+  let payload;
+  let products = [];
+  let form = { itens: [{ produtoId: '' }] };
+  const createdProduct = {
+    _id: 'product-2',
+    nome: 'Farinha',
+    unidadeConteudo: 'kg',
+    precoCompra: 12.5,
+  };
+  const saveSupply = createSaveSupply({
+    supplyForm: {
+      nome: 'Farinha',
+      tipoProduto: 'insumo',
+      precoCompra: '12,50',
+      unidadeConteudo: 'kg',
+    },
+    products,
+    form,
+    supplyTargetIndex: null,
+    selectProduct() {},
+    setSupplyModalOpen() {},
+    setSupplyTargetIndex() {},
+    focusNextInput() {},
+    showToast: (message, type) => {
+      if (type !== 'success') throw new Error(message);
+    },
+    setSavingSupply() {},
+    getNextProductCode: () => '99902',
+    parseNumericValue,
+    api: {
+      post: async (_url, data) => {
+        payload = data;
+        return { data: createdProduct };
+      },
+    },
+    setProducts: (update) => {
+      products = update(products);
+    },
+    setForm: (update) => {
+      form = update(form);
+    },
+  });
+
+  await saveSupply({ preventDefault() {} });
+
+  assert.equal(payload.precoCompra, 12.5);
+  assert.deepEqual(products, [createdProduct]);
+  assert.equal(form.itens[0].produtoId, createdProduct._id);
+  assert.equal(form.itens[0].unidadeConteudo, createdProduct.unidadeConteudo);
+});
+
 test('parser rejects malformed thousands separators instead of changing the value', () => {
   assert.ok(Number.isNaN(parseNumericValue('1.2.3', Number.NaN)));
   assert.ok(Number.isNaN(parseNumericValue('1.23.456,7', Number.NaN)));

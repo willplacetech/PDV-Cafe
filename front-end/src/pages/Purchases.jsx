@@ -5,6 +5,7 @@ import { useToast } from '../components/useToast.js';
 import Paginacao from '../components/Paginacao.jsx';
 import useUrlPagination from '../hooks/useUrlPagination.js';
 import EstadoLista from '../components/EstadoLista.jsx';
+import { parseNumericValue } from '../utils/numeric.js';
 
 const units = ['kg', 'L', 'un'];
 const purchaseQuantityStep = (unit) => unit === 'un' ? '1' : '0.001';
@@ -36,7 +37,7 @@ const money = (value) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { mini
 const categoriasVenda = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Congelados', 'Sorvetes', 'Pratos na Hora', 'Outros'];
 const formatQuantidade = (valor, unidade) => `${Number(valor || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${unidade}`;
 const formatCustoUnitario = (valor, unidade) => `R$ ${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/${unidade}`;
-const newSupply = () => ({ tipoProduto: 'insumo', nome: '', categoria: 'Outros', unidadeConteudo: 'un' });
+const newSupply = () => ({ tipoProduto: 'insumo', nome: '', categoria: 'Outros', precoCompra: '', unidadeConteudo: 'un' });
 const getNextProductCode = (productList) => {
   const maxNumber = productList.reduce((higher, product) => {
     const codeValue = Number(String(product.codigo || '').replace(/\D/g, ''));
@@ -174,7 +175,7 @@ export default function Purchases() {
         producaoPropria: tipoProduto === 'producao',
         categoria: tipoProduto === 'insumo' ? 'Insumos' : (supplyForm.categoria || 'Outros'),
         preco: 0,
-        precoCompra: 0,
+        precoCompra: parseNumericValue(supplyForm.precoCompra, 0),
         conteudoPorEmbalagem: 1,
         unidadeConteudo,
         unidadeCompra: unidadeConteudo,
@@ -415,6 +416,7 @@ export default function Purchases() {
           <label className="purchase-supply-field full">Tipo de produto<SearchableSelect value={supplyForm.tipoProduto} onChange={(event) => setSupplyForm({ ...supplyForm, tipoProduto: event.target.value })}><option value="insumo">Insumo</option><option value="revenda">Revenda</option></SearchableSelect></label>
           <label className="purchase-supply-field full">Nome *<input required value={supplyForm.nome} onChange={(event) => setSupplyForm({ ...supplyForm, nome: event.target.value })} placeholder="Ex.: Farinha de trigo" /></label>
           {supplyForm.tipoProduto !== 'insumo' && <label className="purchase-supply-field">Categoria<SearchableSelect value={supplyForm.categoria} onChange={(event) => setSupplyForm({ ...supplyForm, categoria: event.target.value })}>{categoriasVenda.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}</SearchableSelect></label>}
+          <label className="purchase-supply-field">Preço de compra (R$)<input type="number" min="0" step="0.01" value={supplyForm.precoCompra} onChange={(event) => setSupplyForm({ ...supplyForm, precoCompra: event.target.value })} /></label>
           <label className="purchase-supply-field">Unidade
             <SearchableSelect value={supplyForm.unidadeConteudo} onChange={(event) => setSupplyForm({ ...supplyForm, unidadeConteudo: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</SearchableSelect></label>
         </div>

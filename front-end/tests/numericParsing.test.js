@@ -6,6 +6,7 @@ import {
   quantityStep,
   safeNumber,
 } from '../src/utils/numeric.js';
+import { shouldPreventNumberWheelScroll } from '../src/utils/numberInputWheelGuard.js';
 
 test('parseNumericValue aceita valores vazios e decimais brasileiros sem NaN', () => {
   assert.equal(parseNumericValue('', 0), 0);
@@ -30,4 +31,14 @@ test('passo e mínimo da quantidade respeitam kg/L fracionados e unidade inteira
   }
   assert.equal(quantityStep('un'), '1');
   assert.equal(quantityMinimum('un'), 1);
+});
+
+test('bloqueia rolagem do mouse em input numérico focado, mas não bloqueia zoom ou outros campos', () => {
+  const input = { type: 'number', matches: (selector) => selector === 'input[type="number"]' };
+  const textInput = { type: 'text', matches: (selector) => selector === 'input[type="number"]' };
+
+  assert.equal(shouldPreventNumberWheelScroll(input, input, false, false), true);
+  assert.equal(shouldPreventNumberWheelScroll(input, textInput, false, false), false);
+  assert.equal(shouldPreventNumberWheelScroll(input, input, true, false), false);
+  assert.equal(shouldPreventNumberWheelScroll(textInput, textInput, false, false), false);
 });
