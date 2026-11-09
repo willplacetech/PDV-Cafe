@@ -11,7 +11,6 @@ import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import EstadoLista from '../components/EstadoLista.jsx';
 import { useToast } from '../components/useToast.js';
 import { imprimirEntrega } from '../utils/imprimirEntrega.js';
-import '../styles/delivery.css';
 
 const STATUS_NOMES = {
   pendente: 'Aguardando preparo',
