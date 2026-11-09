@@ -12,7 +12,10 @@ const Auditoria = require('../../models/Auditoria');
 const Recipe = require('../../models/Recipe');
 const Production = require('../../models/Production');
 const Despesa = require('../../models/Despesa');
+<<<<<<< HEAD
 const Tenant = require('../../models/Tenant');
+=======
+>>>>>>> origin/feature/pwa-offline-sincronizacao
 const StockMovement = require('../../models/StockMovement');
 
 const jwtSecret = process.env.JWT_SECRET || 'desenvolvimento-altere-esta-chave';
@@ -38,6 +41,18 @@ const dataHojeEmSaoPaulo = (date = new Date()) => {
   const values = Object.fromEntries(
     parts.map(({ type, value }) => [type, value])
   );
+  return `${values.year}-${values.month}-${values.day}`;
+};
+const dataInicioMesSaoPaulo = () => `${dataHojeEmSaoPaulo().slice(0, 7)}-01`;
+
+const dataHojeEmSaoPaulo = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
   return `${values.year}-${values.month}-${values.day}`;
 };
 const dataInicioMesSaoPaulo = () => `${dataHojeEmSaoPaulo().slice(0, 7)}-01`;
@@ -107,6 +122,40 @@ beforeEach(async () => {
 });
 
 describe('API Endpoints', () => {
+  test('GET /api/despesas → filtra descrições por trecho sem diferenciar maiúsculas e respeita a paginação', async () => {
+    await Despesa.create([
+      { descricao: 'Compra chapa elétrica', categoria: 'Outros', valor: 125.60, dataVencimento: new Date('2026-10-10T00:00:00.000Z') },
+      { descricao: 'Reparo da CHAPA', categoria: 'Outros', valor: 80, dataVencimento: new Date('2026-10-11T00:00:00.000Z') },
+      { descricao: 'Compra de café', categoria: 'Outros', valor: 50, dataVencimento: new Date('2026-10-12T00:00:00.000Z') },
+    ]);
+
+    const resposta = await request(app)
+      .get('/api/despesas')
+      .query({ descricao: 'chapa', pagina: 1, limite: 1 })
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(resposta.statusCode).toBe(200);
+    expect(resposta.body.total).toBe(2);
+    expect(resposta.body.dados).toHaveLength(1);
+    expect(resposta.body.dados[0].descricao).toBe('Compra chapa elétrica');
+  });
+
+  test('GET /api/despesas → trata caracteres especiais da busca como texto literal', async () => {
+    await Despesa.create([
+      { descricao: 'Plano [A] de internet', categoria: 'Outros', valor: 100, dataVencimento: new Date('2026-10-10T00:00:00.000Z') },
+      { descricao: 'Plano A de internet', categoria: 'Outros', valor: 100, dataVencimento: new Date('2026-10-11T00:00:00.000Z') },
+    ]);
+
+    const resposta = await request(app)
+      .get('/api/despesas')
+      .query({ descricao: '[A]' })
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(resposta.statusCode).toBe(200);
+    expect(resposta.body).toHaveLength(1);
+    expect(resposta.body[0].descricao).toBe('Plano [A] de internet');
+  });
+
   test('GET /api/despesas/central-resumo → separa vencimentos de hoje, da semana e atrasados', async () => {
     const hoje = new Date(
       `${new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())}T00:00:00.000Z`
@@ -300,6 +349,7 @@ describe('API Endpoints', () => {
 
   test('PUT /api/despesas/:id → propaga reajuste somente da parcela selecionada em diante', async () => {
     const usuarioAdmin = await User.findById(jwt.decode(adminToken).id);
+<<<<<<< HEAD
     const criarDespesa = (dados) =>
       Despesa.create({
         ...dados,
@@ -307,6 +357,82 @@ describe('API Endpoints', () => {
       });
     const origem = await criarDespesa({
       descricao: 'Internet',
+=======
+    const criarDespesa = (dados) => Despesa.create({
+      ...dados,
+      ...(usuarioAdmin.tenantId ? { tenantId: usuarioAdmin.tenantId } : {}),
+    });
+    const origem = await criarDespesa({
+      descricao: 'Internet',
+      categoria: 'Internet',
+      valor: 100,
+      dataVencimento: new Date('2027-01-10T00:00:00.000Z'),
+      recorrente: true,
+    });
+    const parcelaAnterior = await criarDespesa({
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2027-02-10T00:00:00.000Z'),
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+    const parcelaSelecionada = await criarDespesa({
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2027-03-10T00:00:00.000Z'),
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+    const parcelaFutura = await criarDespesa({
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2027-04-10T00:00:00.000Z'),
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+    const parcelaFuturaPaga = await criarDespesa({
+      descricao: origem.descricao,
+      categoria: origem.categoria,
+      valor: origem.valor,
+      dataVencimento: new Date('2027-05-10T00:00:00.000Z'),
+      dataPagamento: new Date('2027-05-10T00:00:00.000Z'),
+      status: 'pago',
+      recorrente: true,
+      origemRecorrencia: origem._id,
+    });
+
+    const resposta = await request(app)
+      .put(`/api/despesas/${parcelaSelecionada._id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        descricao: 'Internet reajustada',
+        valor: 120,
+        dataVencimento: '2027-03-15',
+        alterarFuturas: true,
+      });
+
+    expect(resposta.statusCode).toBe(200);
+    expect(resposta.body.parcelasAtualizadas).toBe(2);
+    await expect(Despesa.findById(origem._id).then((despesa) => despesa.valor)).resolves.toBe(100);
+    await expect(Despesa.findById(parcelaAnterior._id).then((despesa) => despesa.valor)).resolves.toBe(100);
+    await expect(Despesa.findById(parcelaSelecionada._id).then((despesa) => ({
+      valor: despesa.valor,
+      vencimento: despesa.dataVencimento.toISOString(),
+    }))).resolves.toEqual({ valor: 120, vencimento: '2027-03-15T00:00:00.000Z' });
+    await expect(Despesa.findById(parcelaFutura._id).then((despesa) => ({
+      valor: despesa.valor,
+      vencimento: despesa.dataVencimento.toISOString(),
+    }))).resolves.toEqual({ valor: 120, vencimento: '2027-04-15T00:00:00.000Z' });
+    await expect(Despesa.findById(parcelaFuturaPaga._id).then((despesa) => despesa.valor)).resolves.toBe(100);
+  });
+
+  test('PUT /api/despesas/:id → aplica dia de vencimento e limita ao último dia do mês', async () => {
+    const origem = await Despesa.create({
+      descricao: 'Assinatura mensal',
+>>>>>>> origin/feature/pwa-offline-sincronizacao
       categoria: 'Internet',
       valor: 100,
       dataVencimento: new Date('2027-01-10T00:00:00.000Z'),
@@ -983,7 +1109,11 @@ describe('API Endpoints', () => {
   });
 
   test('POST /api/compras → recebe quantidade direta sem conteúdo por embalagem', async () => {
+<<<<<<< HEAD
     const produto = await createForTenant(Product, {
+=======
+    const produto = await Product.create({
+>>>>>>> origin/feature/pwa-offline-sincronizacao
       codigo: '999020',
       nome: 'Arroz por quilo',
       preco: 0,
@@ -1006,6 +1136,7 @@ describe('API Endpoints', () => {
         numeroNF: 'NF-QUANTIDADE-DIRETA',
         data: dataHojeEmSaoPaulo(),
         metodoCusteio: 'media_ponderada',
+<<<<<<< HEAD
         itens: [
           {
             produtoId: produto._id,
@@ -1014,6 +1145,9 @@ describe('API Endpoints', () => {
             unidadeConteudo: 'kg',
           },
         ],
+=======
+        itens: [{ produtoId: produto._id, valorTotal: 32, quantidade: 8, unidadeConteudo: 'kg' }],
+>>>>>>> origin/feature/pwa-offline-sincronizacao
       });
 
     expect(res.statusCode).toBe(201);
@@ -1026,10 +1160,14 @@ describe('API Endpoints', () => {
     const produtoAtualizado = await Product.findById(produto._id);
     expect(produtoAtualizado.estoqueEmbalagens).toBe(7);
     expect(produtoAtualizado.custoUnitarioBase).toBeCloseTo(62 / 14000, 8);
+<<<<<<< HEAD
     const movimento = await StockMovement.findOne({
       referenciaId: compra._id,
       tipo: 'entrada',
     });
+=======
+    const movimento = await StockMovement.findOne({ referenciaId: compra._id, tipo: 'entrada' });
+>>>>>>> origin/feature/pwa-offline-sincronizacao
     expect(movimento.quantidade).toBe(8);
     expect(movimento.unidade).toBe('kg');
   });
@@ -1046,6 +1184,7 @@ describe('API Endpoints', () => {
         data: dataCompra,
         dataVencimentoPagamento: vencimento,
         metodoCusteio: 'media_ponderada',
+<<<<<<< HEAD
         itens: [
           {
             produtoId: insumo._id,
@@ -1055,6 +1194,9 @@ describe('API Endpoints', () => {
             unidadeConteudo: 'kg',
           },
         ],
+=======
+        itens: [{ produtoId: insumo._id, valorTotal: 35, qtdEmbalagens: 5, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+>>>>>>> origin/feature/pwa-offline-sincronizacao
       });
 
     expect(res.statusCode).toBe(201);
@@ -1093,6 +1235,7 @@ describe('API Endpoints', () => {
         data: hoje,
         dataVencimentoPagamento: hoje,
         metodoCusteio: 'media_ponderada',
+<<<<<<< HEAD
         itens: [
           {
             produtoId: insumo._id,
@@ -1102,6 +1245,9 @@ describe('API Endpoints', () => {
             unidadeConteudo: 'kg',
           },
         ],
+=======
+        itens: [{ produtoId: insumo._id, valorTotal: 7, qtdEmbalagens: 1, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+>>>>>>> origin/feature/pwa-offline-sincronizacao
       });
     expect(criada.statusCode).toBe(201);
     const compra = await Purchase.findOne({ numeroNF: 'NF-VENCIMENTO-HOJE' });
@@ -1123,6 +1269,7 @@ describe('API Endpoints', () => {
       numeroNF: 'NF-FORNECEDOR',
       data: new Date(),
       metodoCusteio: 'media_ponderada',
+<<<<<<< HEAD
       itens: [
         {
           produtoId: insumo._id,
@@ -1150,6 +1297,24 @@ describe('API Endpoints', () => {
         status: 'cancelada',
         numeroNF: 'NF-FORNECEDOR-3',
       },
+=======
+      itens: [{
+        produtoId: insumo._id,
+        valorTotal: 7,
+        qtdEmbalagens: 1,
+        conteudoPorEmbalagem: 1,
+        unidadeConteudo: 'kg',
+        quantidadeTotal: 1,
+        custoUnitario: 7,
+      }],
+      valorTotal: 7,
+      createdBy: admin._id,
+    };
+    await Purchase.create([
+      { ...compraBase, fornecedor: 'Fornecedor Alfa' },
+      { ...compraBase, fornecedor: ' fornecedor alfa ' , numeroNF: 'NF-FORNECEDOR-2' },
+      { ...compraBase, fornecedor: 'Fornecedor Cancelado', status: 'cancelada', numeroNF: 'NF-FORNECEDOR-3' },
+>>>>>>> origin/feature/pwa-offline-sincronizacao
     ]);
 
     const resposta = await request(app)
@@ -1162,9 +1327,13 @@ describe('API Endpoints', () => {
 
   test('PUT /api/compras/:id → bloqueia alteração de compra de mês anterior', async () => {
     const [ano, mes] = dataHojeEmSaoPaulo().split('-').map(Number);
+<<<<<<< HEAD
     const mesAnterior = new Date(Date.UTC(ano, mes - 2, 15))
       .toISOString()
       .slice(0, 10);
+=======
+    const mesAnterior = new Date(Date.UTC(ano, mes - 2, 15)).toISOString().slice(0, 10);
+>>>>>>> origin/feature/pwa-offline-sincronizacao
     const criada = await request(app)
       .post('/api/compras')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -1174,6 +1343,7 @@ describe('API Endpoints', () => {
         data: mesAnterior,
         dataVencimentoPagamento: '2099-01-15',
         metodoCusteio: 'media_ponderada',
+<<<<<<< HEAD
         itens: [
           {
             produtoId: insumo._id,
@@ -1187,6 +1357,12 @@ describe('API Endpoints', () => {
     const compra = await Purchase.findOne({ numeroNF: 'NF-DATA-ANTERIOR' });
     const estoqueAnterior = (await Product.findById(insumo._id))
       .estoqueEmbalagens;
+=======
+        itens: [{ produtoId: insumo._id, valorTotal: 7, qtdEmbalagens: 1, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+      });
+    const compra = await Purchase.findOne({ numeroNF: 'NF-DATA-ANTERIOR' });
+    const estoqueAnterior = (await Product.findById(insumo._id)).estoqueEmbalagens;
+>>>>>>> origin/feature/pwa-offline-sincronizacao
 
     const resposta = await request(app)
       .put(`/api/compras/${compra._id}`)
@@ -1197,6 +1373,7 @@ describe('API Endpoints', () => {
         data: dataHojeEmSaoPaulo(),
         dataVencimentoPagamento: '2099-01-15',
         metodoCusteio: 'media_ponderada',
+<<<<<<< HEAD
         itens: [
           {
             produtoId: insumo._id,
@@ -1206,18 +1383,26 @@ describe('API Endpoints', () => {
             unidadeConteudo: 'kg',
           },
         ],
+=======
+        itens: [{ produtoId: insumo._id, valorTotal: 10, qtdEmbalagens: 1, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+>>>>>>> origin/feature/pwa-offline-sincronizacao
         justificativa: 'Correção de teste de limite de data',
       });
 
     expect(criada.statusCode).toBe(201);
     expect(resposta.statusCode).toBe(409);
     expect(resposta.body.msg).toContain('mês corrente');
+<<<<<<< HEAD
     expect((await Purchase.findById(compra._id)).fornecedor).toBe(
       'Fornecedor Histórico'
     );
     expect((await Product.findById(insumo._id)).estoqueEmbalagens).toBe(
       estoqueAnterior
     );
+=======
+    expect((await Purchase.findById(compra._id)).fornecedor).toBe('Fornecedor Histórico');
+    expect((await Product.findById(insumo._id)).estoqueEmbalagens).toBe(estoqueAnterior);
+>>>>>>> origin/feature/pwa-offline-sincronizacao
   });
 
   test('DELETE /api/compras → bloqueia reversão quando o produto mudou depois da entrada', async () => {
@@ -1230,6 +1415,7 @@ describe('API Endpoints', () => {
         data: new Date().toISOString(),
         dataVencimentoPagamento: '2099-01-15',
         metodoCusteio: 'media_ponderada',
+<<<<<<< HEAD
         itens: [
           {
             produtoId: insumo._id,
@@ -1239,6 +1425,9 @@ describe('API Endpoints', () => {
             unidadeConteudo: 'kg',
           },
         ],
+=======
+        itens: [{ produtoId: insumo._id, valorTotal: 7, qtdEmbalagens: 1, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+>>>>>>> origin/feature/pwa-offline-sincronizacao
       });
     expect(criada.statusCode).toBe(201);
     const compra = await Purchase.findOne({ numeroNF: 'NF-ESTOQUE-ALTERADO' });
@@ -1262,6 +1451,7 @@ describe('API Endpoints', () => {
       data: dataInicioMesSaoPaulo(),
       dataVencimentoPagamento: '2099-01-15T00:00:00.000Z',
       metodoCusteio: 'media_ponderada',
+<<<<<<< HEAD
       itens: [
         {
           produtoId: insumo._id,
@@ -1271,6 +1461,9 @@ describe('API Endpoints', () => {
           unidadeConteudo: 'kg',
         },
       ],
+=======
+      itens: [{ produtoId: insumo._id, valorTotal: 14, qtdEmbalagens: 2, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+>>>>>>> origin/feature/pwa-offline-sincronizacao
     };
     const criada = await request(app)
       .post('/api/compras')
@@ -1290,11 +1483,15 @@ describe('API Endpoints', () => {
     const dataAnterior = await request(app)
       .put(`/api/compras/${compra._id}`)
       .set('Authorization', `Bearer ${adminToken}`)
+<<<<<<< HEAD
       .send({
         ...basePayload,
         data: ontem.toISOString().slice(0, 10),
         justificativa: 'A data fora do mês deve ser bloqueada',
       });
+=======
+      .send({ ...basePayload, data: ontem.toISOString().slice(0, 10), justificativa: 'A data fora do mês deve ser bloqueada' });
+>>>>>>> origin/feature/pwa-offline-sincronizacao
     expect(dataAnterior.statusCode).toBe(409);
 
     const atualizada = await request(app)
@@ -1321,6 +1518,7 @@ describe('API Endpoints', () => {
     expect((await Purchase.findById(compra._id)).status).toBe('cancelada');
     expect(await Despesa.countDocuments({ compraId: compra._id })).toBe(0);
     expect((await Product.findById(insumo._id)).estoqueEmbalagens).toBe(0);
+<<<<<<< HEAD
     expect(
       await Auditoria.countDocuments({
         acao: {
@@ -1346,6 +1544,17 @@ describe('API Endpoints', () => {
     expect(auditoriaExclusao.detalhes).toContain(
       'Lançamento duplicado na nota'
     );
+=======
+    expect(await Auditoria.countDocuments({ acao: { $in: ['purchase_create', 'purchase_update', 'purchase_cancel'] } })).toBe(3);
+    expect(await StockMovement.countDocuments({ referenciaId: compra._id })).toBe(4);
+    const auditoriaAtualizacao = await Auditoria.findOne({ acao: 'purchase_update' });
+    const auditoriaExclusao = await Auditoria.findOne({ acao: 'purchase_cancel' });
+    expect(auditoriaAtualizacao.detalhes).toContain('Correção da nota recebida');
+    expect(auditoriaAtualizacao.detalhes).toContain('"valorTotal":14');
+    expect(auditoriaAtualizacao.detalhes).toContain('"valorTotal":21');
+    expect(auditoriaAtualizacao.detalhes).toContain('"status":"pendente"');
+    expect(auditoriaExclusao.detalhes).toContain('Lançamento duplicado na nota');
+>>>>>>> origin/feature/pwa-offline-sincronizacao
     expect(auditoriaExclusao.detalhes).toContain('"status":"pendente"');
   });
 
@@ -1360,6 +1569,7 @@ describe('API Endpoints', () => {
         data: dataCompra,
         dataVencimentoPagamento: '2099-01-15T00:00:00.000Z',
         metodoCusteio: 'media_ponderada',
+<<<<<<< HEAD
         itens: [
           {
             produtoId: insumo._id,
@@ -1369,6 +1579,9 @@ describe('API Endpoints', () => {
             unidadeConteudo: 'kg',
           },
         ],
+=======
+        itens: [{ produtoId: insumo._id, valorTotal: 18, qtdEmbalagens: 2, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+>>>>>>> origin/feature/pwa-offline-sincronizacao
       });
     expect(criada.statusCode).toBe(201);
     const compra = await Purchase.findOne({ numeroNF: 'NF-FLUXO' });
@@ -1378,9 +1591,13 @@ describe('API Endpoints', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ dataPagamento: dataCompra });
     expect(paga.statusCode).toBe(200);
+<<<<<<< HEAD
     const dataPagamentoOriginal = (
       await Despesa.findById(conta._id)
     ).dataPagamento.toISOString();
+=======
+    const dataPagamentoOriginal = (await Despesa.findById(conta._id)).dataPagamento.toISOString();
+>>>>>>> origin/feature/pwa-offline-sincronizacao
     const atualizada = await request(app)
       .put(`/api/compras/${compra._id}`)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -1390,6 +1607,7 @@ describe('API Endpoints', () => {
         data: dataHojeEmSaoPaulo(),
         dataVencimentoPagamento: '2099-01-15T00:00:00.000Z',
         metodoCusteio: 'media_ponderada',
+<<<<<<< HEAD
         itens: [
           {
             produtoId: insumo._id,
@@ -1399,14 +1617,21 @@ describe('API Endpoints', () => {
             unidadeConteudo: 'kg',
           },
         ],
+=======
+        itens: [{ produtoId: insumo._id, valorTotal: 20, qtdEmbalagens: 2, conteudoPorEmbalagem: 1, unidadeConteudo: 'kg' }],
+>>>>>>> origin/feature/pwa-offline-sincronizacao
         justificativa: 'Correção de valor conciliada',
       });
     expect(atualizada.statusCode).toBe(200);
     expect((await Despesa.findById(conta._id)).valor).toBe(20);
     expect((await Despesa.findById(conta._id)).status).toBe('pago');
+<<<<<<< HEAD
     expect(
       (await Despesa.findById(conta._id)).dataPagamento.toISOString()
     ).toBe(dataPagamentoOriginal);
+=======
+    expect((await Despesa.findById(conta._id)).dataPagamento.toISOString()).toBe(dataPagamentoOriginal);
+>>>>>>> origin/feature/pwa-offline-sincronizacao
 
     const exclusaoCompraPaga = await request(app)
       .delete(`/api/compras/${compra._id}`)
@@ -1415,13 +1640,18 @@ describe('API Endpoints', () => {
     expect(exclusaoCompraPaga.statusCode).toBe(200);
     expect((await Purchase.findById(compra._id)).status).toBe('cancelada');
     expect((await Despesa.findById(conta._id)).status).toBe('pago');
+<<<<<<< HEAD
     expect((await Despesa.findById(conta._id)).descricao).toBe(
       'Pagamento mantido - compra cancelada NF NF-FLUXO'
     );
+=======
+    expect((await Despesa.findById(conta._id)).descricao).toBe('Pagamento mantido - compra cancelada NF NF-FLUXO');
+>>>>>>> origin/feature/pwa-offline-sincronizacao
     expect((await Product.findById(insumo._id)).estoqueEmbalagens).toBe(0);
 
     const mes = dataCompra.slice(0, 7);
     const [fluxo, dre] = await Promise.all([
+<<<<<<< HEAD
       request(app)
         .get('/api/contabil/fluxo-caixa')
         .query({ mes })
@@ -1430,25 +1660,38 @@ describe('API Endpoints', () => {
         .get('/api/contabil/dre')
         .query({ mes })
         .set('Authorization', `Bearer ${adminToken}`),
+=======
+      request(app).get('/api/contabil/fluxo-caixa').query({ mes }).set('Authorization', `Bearer ${adminToken}`),
+      request(app).get('/api/contabil/dre').query({ mes }).set('Authorization', `Bearer ${adminToken}`),
+>>>>>>> origin/feature/pwa-offline-sincronizacao
     ]);
     expect(fluxo.statusCode).toBe(200);
     expect(fluxo.body.totalSaidas).toBe(20);
     expect(dre.statusCode).toBe(200);
     expect(dre.body.cmvComponentes.compras).toBe(0);
     expect(dre.body.despesasOperacionais).toBe(0);
+<<<<<<< HEAD
     const auditoriaAtualizacao = await Auditoria.findOne({
       acao: 'purchase_update',
     });
     const auditoriaExclusao = await Auditoria.findOne({
       acao: 'purchase_cancel',
     });
+=======
+    const auditoriaAtualizacao = await Auditoria.findOne({ acao: 'purchase_update' });
+    const auditoriaExclusao = await Auditoria.findOne({ acao: 'purchase_cancel' });
+>>>>>>> origin/feature/pwa-offline-sincronizacao
     expect(auditoriaAtualizacao.detalhes).toContain('"valor":18');
     expect(auditoriaAtualizacao.detalhes).toContain('"valor":20');
     expect(auditoriaAtualizacao.detalhes).toContain('"status":"pago"');
     expect(auditoriaExclusao.detalhes).toContain('"status":"pago"');
+<<<<<<< HEAD
     expect(auditoriaExclusao.detalhes).toContain(
       '"descricao":"Pagamento mantido - compra cancelada NF NF-FLUXO"'
     );
+=======
+    expect(auditoriaExclusao.detalhes).toContain('"descricao":"Pagamento mantido - compra cancelada NF NF-FLUXO"');
+>>>>>>> origin/feature/pwa-offline-sincronizacao
   });
 
   test('POST /api/compras → aceita quantidade fracionada em kg', async () => {

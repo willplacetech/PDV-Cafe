@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../../services/api.jsx';
 import { useToast } from '../useToast.js';
 import AlertasModal from './AlertasModal.jsx';
+import { parseNumericValue, quantityMinimum, quantityStep } from '../../utils/numeric.js';
 
 const dinheiro = (valor) => `R$ ${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const mensagemCobranca = (nome) => `Olá${nome ? `, ${nome}` : ''}! Passando para lembrar sobre o saldo pendente que consta aqui. Quando puder, entre em contato para combinarmos o pagamento. Obrigado!`;
@@ -42,7 +43,7 @@ export default function CentralDoDia() {
 
   const salvarReposicao = async (event) => {
     event.preventDefault();
-    const adicional = Number(quantidade);
+    const adicional = parseNumericValue(quantidade, Number.NaN);
     if (!reporProduto || !Number.isFinite(adicional) || adicional <= 0) {
       showToast('Informe uma quantidade maior que zero.', 'warning');
       return;
@@ -135,7 +136,7 @@ export default function CentralDoDia() {
       <form className="day-replenish-modal" onSubmit={salvarReposicao} onClick={(event) => event.stopPropagation()}>
         <h3>Repor estoque</h3><p>{reporProduto.nome} · atual: {Number(reporProduto.estoqueReposicao).toLocaleString('pt-BR')} {reporProduto.unidadeReposicao}</p>
         <label htmlFor="day-replenish-quantity">Quantidade a adicionar ({reporProduto.unidadeReposicao})</label>
-        <input id="day-replenish-quantity" type="number" min="0.001" step="any" value={quantidade} onChange={(event) => setQuantidade(event.target.value)} autoFocus required />
+        <input id="day-replenish-quantity" type="number" min={quantityMinimum(reporProduto.unidadeReposicao)} step={quantityStep(reporProduto.unidadeReposicao)} value={quantidade} onChange={(event) => setQuantidade(event.target.value)} autoFocus required />
         <div><button type="button" onClick={() => setReporProduto(null)} disabled={salvando}>Cancelar</button><button type="submit" disabled={salvando}>{salvando ? 'Salvando...' : 'Atualizar estoque'}</button></div>
       </form>
     </div>}

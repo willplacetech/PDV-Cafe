@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { deliveryApi, erroDelivery } from '../services/deliveryApi.js';
 import EstadoLista from '../components/EstadoLista.jsx';
-import '../styles/delivery.css';
 
 const etapas = [['pendente', 'Pedido recebido'], ['pronto', 'Pronto'], ['despachado', 'Despachado'], ['a_caminho', 'A caminho'], ['entregue', 'Entregue']];
 

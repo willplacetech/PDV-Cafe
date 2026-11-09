@@ -21,6 +21,7 @@ const {
   produtoControlaPeso,
 } = require('../utils/estoqueProduto');
 const { resolverTipoProduto } = require('../utils/produtoTipo');
+<<<<<<< HEAD
 const {
   calcularResumoCompleto,
   calcularCustoUnitarioBase,
@@ -30,6 +31,9 @@ const {
   custoPorBase,
   calcularCustoDaFichaTecnica,
 } = require('../utils/estoqueInsumo');
+=======
+const { calcularResumoCompleto, calcularCustoUnitarioBase, calcularEstoqueMinimoBase, estoqueTotalBase, paraBase, custoPorBase, calcularCustoDaFichaTecnica, resumoEstoqueInsumo } = require('../utils/estoqueInsumo');
+>>>>>>> origin/feature/pwa-offline-sincronizacao
 const { normalizarDescontos } = require('../utils/descontosQuantidade');
 const {
   UNIDADES_PERMITIDAS,
@@ -37,10 +41,15 @@ const {
   casasDecimaisValidas,
 } = require('../utils/unidades');
 const { enfileirarRecalculoPorInsumo } = require('../utils/filaCusto');
+const { cached, invalidate } = require('../utils/queryCache');
 
 const router = express.Router();
 const units = UNIDADES_PERMITIDAS;
 const compraUnits = UNIDADES_PERMITIDAS;
+const invalidarCacheProdutos = () => {
+  invalidate('cardapio:');
+  invalidate('produtos:');
+};
 const camposCustoCalculado = (resultado, divisor = 1) => {
   const disponivel =
     resultado?.fonte === 'insumo' &&
@@ -121,6 +130,7 @@ const descontosDoProduto = (valor, tipo, precoNormal) => {
   return descontos;
 };
 const normalizarGrupoDesconto = (valor, tipo, precoNormal) => {
+<<<<<<< HEAD
   if (tipo !== 'venda' || !valor || !String(valor.nome || '').trim())
     return null;
   const nome = String(valor.nome).trim();
@@ -171,14 +181,36 @@ const normalizarGrupoDesconto = (valor, tipo, precoNormal) => {
       precoPromocional > precoNormal)
   )
     throw new Error('Preço promocional do grupo inválido');
+=======
+  if (tipo !== 'venda' || !valor || !String(valor.nome || '').trim()) return null;
+  const nome = String(valor.nome).trim();
+  const ativo = Boolean(valor.ativo);
+  const quantidadeInformada = valor.quantidadeMinima !== undefined && valor.quantidadeMinima !== null && valor.quantidadeMinima !== '';
+  const quantidadeMinima = quantidadeInformada ? Number(valor.quantidadeMinima) : undefined;
+  if (ativo && (!Number.isInteger(quantidadeMinima) || quantidadeMinima < 1)) throw new Error('Quantidade mínima do grupo deve ser um inteiro positivo');
+  if (quantidadeInformada && (!Number.isInteger(quantidadeMinima) || quantidadeMinima < 1)) throw new Error('Quantidade mínima do grupo deve ser um inteiro positivo');
+
+  const percentualInformado = valor.percentualDesconto !== undefined && valor.percentualDesconto !== null && valor.percentualDesconto !== '';
+  const percentualDesconto = percentualInformado ? Number(valor.percentualDesconto) : undefined;
+  if (percentualInformado && (!Number.isFinite(percentualDesconto) || percentualDesconto < 0 || percentualDesconto > 100)) throw new Error('Percentual do grupo deve estar entre 0% e 100%');
+
+  const promocionalInformado = valor.precoPromocional !== undefined && valor.precoPromocional !== null && valor.precoPromocional !== '';
+  const precoPromocional = promocionalInformado ? Number(valor.precoPromocional) : undefined;
+  if (!percentualInformado && ativo && !promocionalInformado) throw new Error('Informe o percentual do desconto por grupo');
+  if (promocionalInformado && (!Number.isFinite(precoPromocional) || precoPromocional < 0 || precoPromocional > precoNormal)) throw new Error('Preço promocional do grupo inválido');
+>>>>>>> origin/feature/pwa-offline-sincronizacao
 
   return {
     nome,
     ...(quantidadeMinima !== undefined ? { quantidadeMinima } : {}),
     ...(percentualDesconto !== undefined ? { percentualDesconto } : {}),
+<<<<<<< HEAD
     ...(!percentualInformado && precoPromocional !== undefined
       ? { precoPromocional }
       : {}),
+=======
+    ...(!percentualInformado && precoPromocional !== undefined ? { precoPromocional } : {}),
+>>>>>>> origin/feature/pwa-offline-sincronizacao
     ativo,
   };
 };
@@ -273,6 +305,7 @@ const validations = [
   body('producaoPropria').optional().isBoolean(),
 ];
 
+<<<<<<< HEAD
 router.get(
   '/',
   auth,
@@ -307,6 +340,238 @@ router.get(
         return res
           .status(400)
           .json({ msg: 'Parâmetros de paginação inválidos' });
+=======
+router.get('/inventory-list', auth, auth.allowRoles('admin', 'gerente', 'cozinha'), async (_req, res) => {
+  try {
+    const campos = [
+      'codigo', 'nome', 'categoria', 'tipo', 'tipoProduto', 'aFazer', 'producaoPropria',
+      'controladoComoInsumo', 'ativo', 'unidade', 'unidadeVenda', 'unidadeCompra',
+      'unidadeConteudo', 'conteudoPorEmbalagem', 'estoque', 'estoquePesoKg',
+      'estoquePesoNormalizado', 'pesoPorUnidade', 'estoqueEmbalagens', 'estoqueInsumos',
+      'estoqueConteudoAberto', 'usavelEmReceita',
+    ].join(' ');
+    const produtos = await Product.find({ ativo: { $ne: false } })
+      .select(campos)
+      .sort({ tipo: 1, categoria: 1, nome: 1, codigo: 1 });
+    const itens = produtos.flatMap((produto) => {
+      const tipo = resolverTipoProduto(produto);
+      if (tipo === 'venda' && (produto.aFazer || resolverTipoProdutoVenda(produto) === 'coz')) return [];
+
+      if (tipo === 'insumo') {
+        const resumo = resumoEstoqueInsumo(produto);
+        return [{
+          codigo: produto.codigo,
+          nome: produto.nome,
+          categoria: produto.categoria || 'Insumos',
+          tipo,
+          unidade: resumo.unidadeConteudo,
+          estoque: resumo.total,
+        }];
+      }
+
+      const estoque = dadosEstoqueProduto(produto);
+      const controlaPeso = produtoControlaPeso(produto);
+      return [{
+        codigo: produto.codigo,
+        nome: produto.nome,
+        categoria: produto.categoria || 'Outros',
+        tipo,
+        unidade: controlaPeso ? 'kg' : (produto.unidadeVenda || produto.unidade || 'un'),
+        estoque: controlaPeso ? estoque.estoquePesoKg : Number(produto.estoque || 0),
+      }];
+    });
+
+    itens.sort((a, b) => a.tipo.localeCompare(b.tipo, 'pt-BR')
+      || a.categoria.localeCompare(b.categoria, 'pt-BR')
+      || a.nome.localeCompare(b.nome, 'pt-BR')
+      || a.codigo.localeCompare(b.codigo, 'pt-BR'));
+    return res.json(itens);
+  } catch (err) {
+    return res.status(500).json({ msg: err.message });
+  }
+});
+
+router.get('/', auth, auth.allowRoles('admin', 'gerente', 'cozinha'), async (req, res) => {
+  try {
+    const search = req.query.busca ?? req.query.search;
+    const { categoria, tipo } = req.query;
+    const paginacaoSolicitada = req.query.pagina !== undefined || req.query.limite !== undefined;
+    if ((search !== undefined && typeof search !== 'string')
+      || (categoria !== undefined && typeof categoria !== 'string')
+      || (tipo !== undefined && typeof tipo !== 'string')) {
+      return res.status(400).json({ msg: 'Filtros inválidos' });
+    }
+    const parseInteiroLimitado = (valor, padrao, maximo) => {
+      if (valor === undefined) return padrao;
+      if (typeof valor !== 'string' || !/^-?\d+$/.test(valor)) return null;
+      const numero = Number(valor);
+      if (!Number.isSafeInteger(numero)) return null;
+      return Math.min(Math.max(numero, 1), maximo);
+    };
+    const pagina = parseInteiroLimitado(req.query.pagina, 1, Number.MAX_SAFE_INTEGER);
+    const limite = parseInteiroLimitado(req.query.limite, 25, 100);
+    if (pagina === null || limite === null) {
+      return res.status(400).json({ msg: 'Parâmetros de paginação inválidos' });
+    }
+    const query = {};
+    if (search) query.$or = [{ nome: { $regex: search, $options: 'i' } }, { codigo: { $regex: search, $options: 'i' } }];
+    if (categoria) query.categoria = categoria;
+    if (tipo === 'venda' || tipo === 'insumo') query.tipo = tipo;
+    const total = paginacaoSolicitada ? await Product.countDocuments(query) : null;
+    const totalPaginas = paginacaoSolicitada ? Math.max(1, Math.ceil(total / limite)) : null;
+    const paginaEfetiva = paginacaoSolicitada ? Math.min(pagina, totalPaginas) : pagina;
+    let buscaProdutos = Product.find(query).sort({ nome: 1 });
+    if (paginacaoSolicitada) {
+      buscaProdutos = buscaProdutos.skip((paginaEfetiva - 1) * limite).limit(limite);
+    }
+    const produtos = await buscaProdutos;
+    const idsProdutos = produtos.map(produto => produto._id);
+    const receitas = await Recipe.find({
+      ativa: true,
+      ...(paginacaoSolicitada ? { produtoId: { $in: idsProdutos } } : {}),
+    }).select('_id produtoId').lean();
+    const receitaPorProduto = new Map(receitas.map((receita) => [String(receita.produtoId), receita._id]));
+    const dados = produtos.map((produto) => ({
+      ...produto.toObject(),
+      ...(produto.tipo === 'insumo' && produto.unidadeCompra ? { unidadeVenda: produto.unidadeCompra } : {}),
+      ...dadosEstoqueProduto(produto),
+      tipoProduto: produto.tipo === 'venda' ? (produto.tipoProduto || (produto.aFazer ? 'coz' : produto.producaoPropria ? 'producao' : 'revenda')) : null,
+      receitaId: receitaPorProduto.get(String(produto._id)) || null,
+      temReceita: receitaPorProduto.has(String(produto._id)),
+      resumoInsumo: produto.tipo === 'insumo' ? calcularResumoCompleto(produto) : null,
+    }));
+    if (!paginacaoSolicitada) return res.json(dados);
+    res.json({ dados, total, pagina: paginaEfetiva, limite, totalPaginas });
+  } catch (err) { res.status(500).json({ msg: err.message }); }
+});
+
+router.get('/pdv', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+  try {
+    const produtos = await cached('produtos:pdv', 3000, async () => {
+      const lista = await Product.find({
+        ativo: { $ne: false },
+        $or: [
+          { tipo: 'venda' },
+          { tipo: { $exists: false }, controladoComoInsumo: { $ne: true } },
+        ],
+      })
+        .select('_id codigo nome categoria tipo tipoProduto controladoComoInsumo usavelEmReceita preco descontosPorQuantidade grupoDesconto unidadeVenda pesoPorUnidade unidadePeso vendidoFracionado aFazer permitirVendaSemInsumo fichaTecnica estoque estoquePesoKg estoquePesoNormalizado')
+        .populate('fichaTecnica.produtoId', 'nome tipo unidadeCompra unidadeConteudo conteudoPorEmbalagem estoqueEmbalagens estoqueInsumos estoqueConteudoAberto precoCompra custoUnitarioBase custoUnitario custo estoque estoquePesoKg estoquePesoNormalizado pesoPorUnidade unidadeVenda')
+        .sort({ nome: 1 })
+        .lean();
+      return lista.map((produto) => ({
+        ...produto,
+        tipo: resolverTipoProduto(produto),
+        ...dadosEstoqueProduto(produto),
+        cozDisponibilidade: disponibilidadeCoz(produto),
+      }));
+    });
+    res.json(produtos);
+  } catch (err) { res.status(500).json({ msg: err.message }); }
+});
+
+router.get('/mais-vendidos', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+  try {
+    const limite = Math.min(Math.max(Number(req.query.limite) || 8, 1), 20);
+    const ranking = await Order.aggregate([
+      { $match: { status: { $ne: 'cancelado' }, utilizacaoInterna: { $ne: true } } },
+      { $unwind: '$itens' },
+      { $project: { produtoId: '$itens.produtoId', quantidade: { $cond: [{ $in: ['$itens.unidadeVenda', ['g', 'ml']] }, { $divide: ['$itens.quantidade', 1000] }, '$itens.quantidade'] } } },
+      { $group: { _id: '$produtoId', quantidade: { $sum: '$quantidade' } } },
+      { $sort: { quantidade: -1 } },
+      { $limit: limite },
+    ]);
+    res.json(ranking.map((item) => ({ produtoId: item._id, quantidade: item.quantidade })));
+  } catch (err) { res.status(500).json({ msg: err.message }); }
+});
+
+router.post('/migracoes/corrigir-bolos-gramas', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const [pedidos, comandas, produtos] = await Promise.all([corrigirBolos(Order), corrigirBolos(Comanda), corrigirProdutosBolo(Product)]);
+    invalidarCacheProdutos();
+    res.json({ msg: 'Catálogo e histórico de bolos corrigidos.', itensCorrigidos: pedidos + comandas, produtosCorrigidos: produtos });
+  } catch (err) { res.status(500).json({ msg: err.message }); }
+});
+
+router.post('/migracoes/normalizar-estoque-peso', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const produtos = await Product.find({ pesoPorUnidade: { $gt: 0 }, unidadeVenda: { $in: ['kg', 'g'] }, estoque: { $gt: 1000 } });
+    let corrigidos = 0;
+    for (const produto of produtos) {
+      normalizarEstoqueLegado(produto);
+      await produto.save();
+      corrigidos += 1;
+    }
+    invalidarCacheProdutos();
+    res.json({ msg: 'Estoques pesáveis normalizados.', produtosCorrigidos: corrigidos });
+  } catch (err) { res.status(500).json({ msg: err.message }); }
+});
+
+router.post('/migracoes/separar-tipos', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const produtos = await Product.find({ $or: [{ tipo: { $exists: false } }, { tipo: null }, { tipo: 'venda', controladoComoInsumo: true }] });
+    let insumos = 0;
+    let vendas = 0;
+    for (const produto of produtos) {
+      const tipo = produto.controladoComoInsumo ? 'insumo' : 'venda';
+      produto.tipo = tipo;
+      produto.categoria = tipo === 'insumo' ? 'Insumos' : (produto.categoria === 'Insumos' ? 'Outros' : produto.categoria);
+      if (tipo === 'insumo') {
+        produto.precoCompra = Number(produto.precoCompra || produto.preco || 0);
+        produto.estoqueInsumos = Number(produto.estoqueInsumos || produto.estoque || 0);
+        produto.estoque = 0;
+        produto.usavelEmReceita = true;
+          produto.estoqueEmbalagens = Number(produto.estoqueInsumos || 0);
+        insumos += 1;
+      } else {
+        vendas += 1;
+      }
+      produto.controladoComoInsumo = undefined;
+      await produto.save();
+      await Product.updateOne({ _id: produto._id }, { $unset: { controladoComoInsumo: 1 } });
+    }
+    invalidarCacheProdutos();
+    res.json({ msg: 'Produtos separados por tipo.', insumos, vendas });
+  } catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
+router.post('/migracoes/normalizar-registros-legados', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const produtos = await Product.find({
+      $or: [
+        { tipo: { $in: [null, ''] } },
+        { tipoProduto: { $in: [null, ''] } },
+        { aFazer: { $exists: false } },
+        { producaoPropria: { $exists: false } },
+        { estoqueMinimo: { $lt: 0 } },
+        { estoqueMinimo: null },
+      ],
+    });
+
+    let corrigidos = 0;
+
+    for (const produto of produtos) {
+      const tipoPadrao = produto.controladoComoInsumo || produto.usavelEmReceita || produto.tipo === 'insumo' ? 'insumo' : 'venda';
+      produto.tipo = produto.tipo || tipoPadrao;
+
+      if (produto.tipo === 'insumo') {
+        produto.usavelEmReceita = true;
+        produto.aFazer = false;
+        produto.producaoPropria = false;
+        produto.tipoProduto = 'revenda';
+        produto.estoqueMinimo = Number(produto.estoqueMinimo || 0);
+        produto.estoqueMinimoInsumos = Number(produto.estoqueMinimoInsumos || produto.estoqueMinimoEmbalagens || 0);
+        produto.estoqueMinimoEmbalagens = Number(produto.estoqueMinimoEmbalagens || produto.estoqueMinimoInsumos || 0);
+        if (!produto.estoqueEmbalagens && Number(produto.estoqueInsumos || 0) > 0) {
+          produto.estoqueEmbalagens = Number(produto.estoqueInsumos || 0);
+        }
+      } else {
+        const tipoProdutoAtual = produto.tipoProduto || (produto.aFazer ? 'coz' : produto.producaoPropria ? 'producao' : 'revenda');
+        produto.tipoProduto = tipoProdutoAtual;
+        produto.aFazer = tipoProdutoAtual === 'coz';
+        produto.producaoPropria = tipoProdutoAtual === 'producao';
+        produto.estoqueMinimo = Number(produto.estoqueMinimo || 0);
+>>>>>>> origin/feature/pwa-offline-sincronizacao
       }
       const query = {};
       if (search)
@@ -380,6 +645,14 @@ router.get(
     } catch (err) {
       res.status(500).json({ msg: err.message });
     }
+<<<<<<< HEAD
+=======
+
+    invalidarCacheProdutos();
+    res.json({ msg: 'Registros legados normalizados com sucesso.', produtosCorrigidos: corrigidos });
+  } catch (error) {
+    res.status(500).json({ msg: error.message });
+>>>>>>> origin/feature/pwa-offline-sincronizacao
   }
 );
 
@@ -678,10 +951,156 @@ router.get('/sem-custo', auth, auth.allowRoles('admin'), async (req, res) => {
       custoUnitario: { $lte: 0 },
     }).select('nome codigo preco custoUnitario');
     res.json(produtos);
+<<<<<<< HEAD
   } catch (error) {
     res.status(500).json({ msg: error.message });
   }
 });
+=======
+  } catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
+router.put('/:id/aplicar-preco', auth, auth.allowRoles('admin'), exigirAutorizacao('alterar_preco'), [body('preco').isFloat({ min: 0 })], async (req, res) => {
+  try {
+    const produto = await Product.findByIdAndUpdate(req.params.id, { $set: { preco: Number(req.body.preco), reajusteRecomendado: false } }, { new: true, runValidators: true });
+    if (!produto) return res.status(404).json({ msg: 'Produto não encontrado' });
+    invalidarCacheProdutos();
+    res.json(produto);
+  } catch (error) { res.status(400).json({ msg: error.message }); }
+});
+
+router.get('/:id/historico-custo', auth, auth.allowRoles('admin'), async (req, res) => {
+  try { res.json(await HistoricoCusto.find({ produtoId: req.params.id }).sort({ data: -1 }).limit(6).lean()); }
+  catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
+router.get('/reajuste-recomendado', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const produtos = await Product.find({ reajusteRecomendado: true }).select('nome codigo preco custoUnitario reajusteRecomendado');
+    const lista = produtos.map((produto) => {
+      const custo = Number(produto.custoUnitario || 0);
+      const venda = Number(produto.preco || 0);
+      const margem = venda > 0 ? ((venda - custo) / venda) * 100 : 0;
+      return {
+        _id: produto._id,
+        nome: produto.nome,
+        codigo: produto.codigo,
+        custoAtual: custo,
+        precoAtual: venda,
+        margemAtual: margem,
+      };
+    });
+    res.json(lista);
+  } catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
+router.get('/:id/historico-custo', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const HistoricoCusto = require('../models/HistoricoCusto');
+    const historico = await HistoricoCusto.find({ produtoId: req.params.id }).sort({ data: -1 });
+    res.json(historico);
+  } catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
+router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
+    res.json({ ...product.toObject(), ...dadosEstoqueProduto(product), resumoInsumo: product.tipo === 'insumo' ? calcularResumoCompleto(product) : null });
+  } catch (_) { res.status(404).json({ msg: 'Produto não encontrado' }); }
+});
+
+router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    const details = errors.array();
+    return res.status(400).json({ error: details.map((item) => item.msg).join('; '), errors: details });
+  }
+  try {
+    const data = req.body;
+    const tipo = resolverTipoProduto(data);
+    const tipoProduto = tipo === 'venda' ? resolverTipoProdutoVenda(data) : null;
+    if (tipo === 'venda' && (data.precoVenda == null && data.preco == null)) return res.status(400).json({ msg: 'Preço de venda é obrigatório para produtos à venda' });
+    if ((tipo === 'insumo' || data.usavelEmReceita === true) && (data.precoCompra === undefined || Number(data.precoCompra) < 0)) return res.status(400).json({ msg: 'Preço de compra inválido' });
+    if (data.usavelEmReceita === true && (!Number.isFinite(Number(data.conteudoPorEmbalagem)) || Number(data.conteudoPorEmbalagem) < 0)) return res.status(400).json({ msg: 'Conteúdo por embalagem inválido' });
+    const exists = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') } });
+    if (exists) return res.status(400).json({ msg: 'Já existe um produto com este código' });
+    const estoque = tipoProduto === 'coz' ? 0 : toNumberOrZero(data.estoque);
+    const estoqueInsumos = toNumberOrZero(data.estoqueInsumos);
+    const fichaTecnica = Array.isArray(data.fichaTecnica) ? data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })).filter((item) => item.produtoId && Number.isFinite(item.quantidade) && item.quantidade > 0 && units.includes(item.unidade)) : [];
+    const custoUnitario = toNumberOrZero(data.custoUnitario ?? data.custo);
+    const pesoPorUnidade = toNumberOrZero(data.pesoPorUnidade);
+    const unidadeVenda = normalizarUnidade(data.unidadeVenda || data.unidade || 'un');
+    const unidadeCompra = normalizarUnidade(data.unidadeCompra || data.unidade || 'kg');
+    const categoria = tipo === 'insumo' ? 'Insumos' : (data.categoria || 'Outros');
+    const precoVenda = toNumberOrZero(data.precoVenda ?? data.preco);
+    const precoCompra = toNumberOrZero(data.precoCompra);
+    const descontoPorUnidadeCompra = toNumberOrZero(data.rendimentoPorUnidadeCompra);
+    const descontosPorQuantidade = descontosDoProduto(data.descontosPorQuantidade, tipo, precoVenda);
+    const grupoDesconto = normalizarGrupoDesconto(data.grupoDesconto, tipo, precoVenda);
+    const unidadeConteudo = normalizarUnidade(data.unidadeConteudo || unidadeCompra);
+    const conteudoPorEmbalagem = toNumberOrZero(data.conteudoPorEmbalagem || data.quantidade || 1);
+    const estoqueEmbalagens = tipo === 'insumo' ? toNumberOrZero(data.estoqueEmbalagens ?? estoque) : 0;
+    const estoqueConteudoAberto = tipo === 'insumo' ? toNumberOrZero(data.estoqueConteudoAberto) : 0;
+    const estoquePesoKg = pesoPorUnidade > 0 && unidadeVenda === 'kg'
+      ? estoque * pesoPorUnidade
+      : 0;
+    const deveAplicarConversao = tipo === 'venda' && descontoPorUnidadeCompra > 1 && unidadeCompra !== unidadeVenda;
+    const custoUnitarioBaseRevenda = precoCompra > 0 && conteudoPorEmbalagem > 0 ? precoCompra / conteudoPorEmbalagem : 0;
+    const unidade = normalizarUnidade(data.unidade || unidadeCompra);
+    const quantidade = toNumberOrZero(data.quantidade ?? data.conteudoPorEmbalagem ?? 1);
+    const rendimento = data.rendimento == null ? (descontoPorUnidadeCompra > 0 ? descontoPorUnidadeCompra : null) : toNumberOrZero(data.rendimento);
+    const product = await Product.create({
+      codigo: data.codigo.trim(),
+      nome: data.nome.trim(),
+      ncm: String(data.ncm ?? '').replace(/\D/g, '').slice(0, 8),
+      tipo,
+      unidade,
+      quantidade,
+      rendimento,
+      categoria,
+      preco: tipo === 'venda' ? precoVenda : 0,
+      descontosPorQuantidade: descontosPorQuantidade || [],
+      grupoDesconto,
+      usavelEmReceita: tipo === 'venda' ? Boolean(data.usavelEmReceita) : true,
+      precoCompra,
+      unidadeCompra,
+      marcaReferencia: data.marcaReferencia || '',
+      conteudoPorEmbalagem,
+      unidadeConteudo,
+      estoqueEmbalagens,
+      estoqueConteudoAberto,
+      estoqueMinimoEmbalagens: Number(data.estoqueMinimoEmbalagens ?? data.estoqueMinimoInsumos) || 0,
+      estoqueMinimoBase: tipo === 'insumo' ? calcularEstoqueMinimoBase(Number(data.estoqueMinimoEmbalagens ?? data.estoqueMinimoInsumos) || 0, unidadeConteudo) : 0,
+      rendimentoPorUnidadeCompra: descontoPorUnidadeCompra,
+      custo: custoUnitario,
+      custoUnitario,
+      custoUnitarioBase: tipo === 'insumo' || data.usavelEmReceita ? calcularCustoUnitarioBase(precoCompra, conteudoPorEmbalagem, unidadeConteudo) : custoUnitarioBaseRevenda,
+      estoque: tipo === 'venda' ? estoque : 0,
+      estoqueMinimo: tipo === 'venda' ? Math.max(0, toNumberOrZero(data.estoqueMinimo ?? 5)) : 0,
+      estoquePesoKg,
+      estoqueInsumos: tipo === 'insumo' ? estoqueEmbalagens : estoqueInsumos,
+      estoqueInicialDia: estoque,
+      estoqueInicialData: dataLocal(),
+      estoqueInsumosInicial: estoqueInsumos,
+      estoqueInsumosInicialData: dataLocal(),
+      estoqueMinimoInsumos: Number(data.estoqueMinimoInsumos) || 0,
+      unidadeVenda,
+      pesoPorUnidade,
+      unidadePeso: data.unidadePeso || 'kg',
+      vendidoFracionado: Boolean(data.vendidoFracionado),
+      aFazer: tipoProduto === 'coz',
+      permitirVendaSemInsumo: Boolean(data.permitirVendaSemInsumo),
+      fichaTecnica,
+      producaoPropria: tipoProduto === 'producao',
+      tipoProduto,
+      rendimentoPorReceita: tipoProduto === 'producao' ? Number(data.rendimentoPorReceita || 1) : 1,
+      usavelEmReceita: tipo === 'insumo' || Boolean(data.usavelEmReceita),
+      ativo: data.ativo !== undefined ? Boolean(data.ativo) : true,
+      createdBy: req.user.id,
+    });
+    invalidarCacheProdutos();
+>>>>>>> origin/feature/pwa-offline-sincronizacao
 
 router.put(
   '/:id/aplicar-preco',
@@ -745,9 +1164,16 @@ router.get(
           margemAtual: margem,
         };
       });
+<<<<<<< HEAD
       res.json(lista);
     } catch (error) {
       res.status(500).json({ msg: error.message });
+=======
+      invalidarCacheProdutos();
+      // Recarregar produto com custo atualizado
+      const updatedProduct = await Product.findById(product._id);
+      return res.status(201).json(updatedProduct);
+>>>>>>> origin/feature/pwa-offline-sincronizacao
     }
   }
 );
@@ -995,8 +1421,35 @@ router.post(
         const updatedProduct = await Product.findById(product._id);
         return res.status(201).json(updatedProduct);
       }
+<<<<<<< HEAD
       if (tipo === 'insumo' && data.precoCompra !== undefined)
         enfileirarRecalculoPorInsumo(product._id);
+=======
+    }
+    const produtoAtualParaDesconto = await Product.findById(req.params.id).select('preco tipo').lean();
+    const precoNormal = toNumberOrZero(data.precoVenda ?? data.preco ?? produtoAtualParaDesconto?.preco);
+    const descontosPorQuantidade = descontosDoProduto(data.descontosPorQuantidade, tipo, precoNormal);
+    if (descontosPorQuantidade !== undefined) fields.descontosPorQuantidade = descontosPorQuantidade;
+    if (data.grupoDesconto !== undefined) fields.grupoDesconto = normalizarGrupoDesconto(data.grupoDesconto, tipo, precoNormal);
+    ['vendidoFracionado', 'permitirVendaSemInsumo'].forEach((key) => { if (data[key] !== undefined) fields[key] = Boolean(data[key]); });
+    if (tipo === 'venda' && (data.tipoProduto !== undefined || data.aFazer !== undefined || data.producaoPropria !== undefined)) {
+      fields.tipoProduto = tipoProduto;
+      fields.aFazer = tipoProduto === 'coz';
+      fields.producaoPropria = tipoProduto === 'producao';
+      fields.estoque = tipoProduto === 'coz' ? 0 : toNumberOrZero(data.estoque ?? produtoAtual.estoque);
+    }
+    if (data.rendimentoPorReceita !== undefined) fields.rendimentoPorReceita = toNumberOrZero(data.rendimentoPorReceita);
+    if (data.fichaTecnica !== undefined) fields.fichaTecnica = data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: toNumberOrZero(item.quantidade), unidade: item.unidade }));
+    const fichaTecnicaAlterada = data.fichaTecnica !== undefined;
+    if (data.estoque !== undefined && antesDasOito()) {
+      fields.estoqueInicialDia = Number(data.estoque);
+      fields.estoqueInicialData = dataLocal();
+    }
+    if (data.estoqueInsumos !== undefined && antesDasOito()) {
+      fields.estoqueInsumosInicial = Number(data.estoqueInsumos);
+      fields.estoqueInsumosInicialData = dataLocal();
+    }
+>>>>>>> origin/feature/pwa-offline-sincronizacao
 
       res.status(201).json(product);
     } catch (err) {
@@ -1386,6 +1839,7 @@ router.put(
           });
       }
 
+<<<<<<< HEAD
       const product = await Product.findByIdAndUpdate(
         req.params.id,
         { $set: { ...fields, ...custoRecalculado } },
@@ -1407,6 +1861,16 @@ router.put(
     }
   }
 );
+=======
+    const product = await Product.findByIdAndUpdate(req.params.id, { $set: { ...fields, ...custoRecalculado } }, { new: true, runValidators: true });
+    if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
+    invalidarCacheProdutos();
+    if (tipo === 'insumo' && data.precoCompra !== undefined) enfileirarRecalculoPorInsumo(product._id);
+    
+    res.json({ ...product.toObject(), ...dadosEstoqueProduto(product), resumoInsumo: product.tipo === 'insumo' ? calcularResumoCompleto(product) : null });
+  } catch (err) { res.status(400).json({ msg: err.message }); }
+});
+>>>>>>> origin/feature/pwa-offline-sincronizacao
 
 router.delete('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
@@ -1431,6 +1895,7 @@ router.delete('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
           msg: 'Produto vinculado como produto final de uma ficha ativa; remova-o da ficha antes de excluir.',
         });
     await product.deleteOne();
+    invalidarCacheProdutos();
     res.json({ msg: 'Produto removido com sucesso' });
   } catch (err) {
     res
@@ -1552,7 +2017,45 @@ router.post(
     } catch (err) {
       res.status(400).json({ msg: err.message });
     }
+<<<<<<< HEAD
   }
 );
+=======
+
+    invalidarCacheProdutos();
+    res.json({ msg: 'Custos recalculados', insumo: insumo.nome, produtosAtualizados: resultados.length, detalhes: resultados });
+  } catch (err) { res.status(400).json({ msg: err.message }); }
+});
+
+// Rota para recalcular custo de um produto específico
+router.post('/recalcular-custo/:produtoId', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const produto = await Product.findById(req.params.produtoId);
+    if (!produto) return res.status(404).json({ msg: 'Produto não encontrado' });
+    if (produto.tipo !== 'venda' || !produto.fichaTecnica?.length) {
+      return res.status(400).json({ msg: 'Produto não possui ficha técnica para calcular custo' });
+    }
+
+    const resultadoCusto = await calcularCustoDaFichaTecnica(produto.fichaTecnica);
+    const custoAnterior = Number(produto.custoCalculado || produto.custo || produto.custoUnitario || 0);
+    const custoNovo = resultadoCusto.custoTotal;
+
+    await Product.findByIdAndUpdate(produto._id, { $set: camposCustoCalculado(resultadoCusto) });
+    invalidarCacheProdutos();
+
+    res.json({
+      msg: 'Custo recalculado',
+      produtoId: produto._id,
+      produtoNome: produto.nome,
+      custoAnterior,
+      custoNovo: resultadoCusto.fonte === 'insumo' ? resultadoCusto.custoTotal : null,
+      variacao: custoAnterior > 0 ? Number((Math.abs(((custoNovo - custoAnterior) / custoAnterior) * 100)).toFixed(2)) : 0,
+      fonte: resultadoCusto.fonte,
+      mensagem: resultadoCusto.mensagem,
+      detalhes: resultadoCusto.detalhes,
+    });
+  } catch (err) { res.status(400).json({ msg: err.message }); }
+});
+>>>>>>> origin/feature/pwa-offline-sincronizacao
 
 module.exports = router;

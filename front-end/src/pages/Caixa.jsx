@@ -4,6 +4,7 @@ import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
+import { parseNumericValue, safeNumber } from '../utils/numeric.js';
 
 const dinheiro = (value) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const hoje = () => new Date().toISOString().slice(0, 10);
@@ -62,13 +63,14 @@ export default function Caixa() {
     } finally { setAtualizando(false); }
   };
 
-  const totalDinheiro = Number((Number(valorContado) || 0).toFixed(2));
+  const totalDinheiro = Number(safeNumber(valorContado, 0).toFixed(2));
   const esperado = Number(sistema?.saldoEsperado || 0);
   const diferenca = Number((totalDinheiro - esperado).toFixed(2));
   const situacao = diferenca === 0 ? 'conferido' : diferenca > 0 ? 'sobrando' : 'faltante';
   const bloqueado = caixa?.status === 'fechado';
 
-  const contagemValida = valorContado.trim() !== '' && Number.isFinite(Number(valorContado)) && Number(valorContado) >= 0;
+  const valorContadoNumerico = parseNumericValue(valorContado, Number.NaN);
+  const contagemValida = valorContado.trim() !== '' && Number.isFinite(valorContadoNumerico) && valorContadoNumerico >= 0;
   const payloadContagem = { valorContado: totalDinheiro };
 
   const salvarParcial = async () => {
@@ -99,8 +101,10 @@ export default function Caixa() {
   const registrarMovimento = async (event) => {
     event.preventDefault();
     if (bloqueado) return;
+    const valor = parseNumericValue(movimento.valor, Number.NaN);
+    if (!Number.isFinite(valor) || valor <= 0) return showToast('Informe um valor de movimento válido.', 'warning');
     try {
-      const { data: atualizado } = await requestAutorizado('post', `/caixa/${caixa._id}/movimentos`, movimento, 'sangria_suprimento', solicitarSangria);
+      const { data: atualizado } = await requestAutorizado('post', `/caixa/${caixa._id}/movimentos`, { ...movimento, valor }, 'sangria_suprimento', solicitarSangria);
       setCaixa((atual) => ({ ...atual, sistema: atualizado.sistema }));
       setSistema(atualizado.sistema);
       setMovimento({ tipo: movimento.tipo, valor: '', responsavel: '', motivo: '' });

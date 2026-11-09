@@ -30,7 +30,7 @@ test('dashboard usa os limites de Sao Paulo na virada UTC do mes', async (t) => 
   t.mock.method(Product, 'find', () => query([]));
   t.mock.method(PaymentSettings, 'findOne', () => query(null));
   const response = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; } };
-  await router.stack.find(layer => layer.route?.path === '/').route.stack.at(-1).handle({}, response);
+  await router.stack.find(layer => layer.route?.path === '/').route.stack.at(-1).handle({ query: {} }, response);
   assert.equal(response.statusCode, 200);
   assert.equal(filters[0].createdAt.$gte.toISOString(), '2026-10-31T03:00:00.000Z');
   assert.equal(filters[1].createdAt.$gte.toISOString(), '2026-10-25T03:00:00.000Z');

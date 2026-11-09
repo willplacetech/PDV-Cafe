@@ -8,6 +8,7 @@ import usePagination from '../hooks/usePagination.js';
 import ConfirmarAcao from '../components/ConfirmarAcao.jsx';
 import EstadoLista from '../components/EstadoLista.jsx';
 import { useToast } from '../components/useToast.js';
+import { parseNumericValue } from '../utils/numeric.js';
 
 function PainelPlataforma() {
   const { showToast } = useToast();
@@ -68,7 +69,8 @@ function PainelPlataforma() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const body = Object.fromEntries(form);
-    body.taxaPorEntrega = Number(body.taxaPorEntrega || 0);
+    body.taxaPorEntrega = parseNumericValue(body.taxaPorEntrega || 0, Number.NaN);
+    if (!Number.isFinite(body.taxaPorEntrega) || body.taxaPorEntrega < 0) return showToast('Informe uma taxa por entrega válida.', 'warning');
     body.ativo = body.ativo === 'true';
     if (!body.dataVencimento) delete body.dataVencimento;
     const mensagemSucesso = edicao ? 'Comércio atualizado.' : 'Comércio cadastrado.';

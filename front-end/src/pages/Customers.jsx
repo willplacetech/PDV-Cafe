@@ -10,6 +10,7 @@ import AreaTabs from '../components/AreaTabs.jsx';
 import { criarXmlClientes } from '../utils/customersXml.js';
 import { exportarCSV, colunasCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { calcularMultiplicadorFidelidade } from '../utils/fidelidade.js';
+import { parseNumericValue } from '../utils/numeric.js';
 import Paginacao from '../components/Paginacao.jsx';
 import useUrlPagination from '../hooks/useUrlPagination.js';
 
@@ -83,7 +84,7 @@ export default function Customers() {
     if (telefoneLimpo.length !== 11) return showToast('⚠️ Telefone inválido! Digite com DDD e 9 dígitos', 'warning');
     if (cpfLimpo && cpfLimpo.length !== 11) return showToast('⚠️ CPF inválido! Digite os 11 números ou deixe em branco', 'warning');
     if (cpfLimpo && cpfJaExiste(cpfLimpo, editing?._id)) return showToast('⚠️ Este CPF já está cadastrado!', 'warning');
-    const cafesFidelidade = Number(form.cafesFidelidade);
+    const cafesFidelidade = parseNumericValue(form.cafesFidelidade, Number.NaN);
     if (editing && (!Number.isSafeInteger(cafesFidelidade) || cafesFidelidade < 0)) {
       return showToast('⚠️ Informe um total histórico de comandas inteiro e não negativo', 'warning');
     }
