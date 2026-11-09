@@ -21,7 +21,6 @@ const {
   produtoControlaPeso,
 } = require('../utils/estoqueProduto');
 const { resolverTipoProduto } = require('../utils/produtoTipo');
-<<<<<<< HEAD
 const {
   calcularResumoCompleto,
   calcularCustoUnitarioBase,
@@ -30,10 +29,8 @@ const {
   paraBase,
   custoPorBase,
   calcularCustoDaFichaTecnica,
+  resumoEstoqueInsumo,
 } = require('../utils/estoqueInsumo');
-=======
-const { calcularResumoCompleto, calcularCustoUnitarioBase, calcularEstoqueMinimoBase, estoqueTotalBase, paraBase, custoPorBase, calcularCustoDaFichaTecnica, resumoEstoqueInsumo } = require('../utils/estoqueInsumo');
->>>>>>> origin/feature/pwa-offline-sincronizacao
 const { normalizarDescontos } = require('../utils/descontosQuantidade');
 const {
   UNIDADES_PERMITIDAS,
@@ -198,19 +195,12 @@ const normalizarGrupoDesconto = (valor, tipo, precoNormal) => {
   const precoPromocional = promocionalInformado ? Number(valor.precoPromocional) : undefined;
   if (!percentualInformado && ativo && !promocionalInformado) throw new Error('Informe o percentual do desconto por grupo');
   if (promocionalInformado && (!Number.isFinite(precoPromocional) || precoPromocional < 0 || precoPromocional > precoNormal)) throw new Error('Preço promocional do grupo inválido');
->>>>>>> origin/feature/pwa-offline-sincronizacao
 
   return {
     nome,
     ...(quantidadeMinima !== undefined ? { quantidadeMinima } : {}),
     ...(percentualDesconto !== undefined ? { percentualDesconto } : {}),
-<<<<<<< HEAD
-    ...(!percentualInformado && precoPromocional !== undefined
-      ? { precoPromocional }
-      : {}),
-=======
     ...(!percentualInformado && precoPromocional !== undefined ? { precoPromocional } : {}),
->>>>>>> origin/feature/pwa-offline-sincronizacao
     ativo,
   };
 };

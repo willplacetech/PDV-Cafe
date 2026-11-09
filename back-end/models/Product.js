@@ -273,12 +273,9 @@ const ProductSchema = new mongoose.Schema({
 
 // Índice composto para busca
 ProductSchema.index({ nome: 'text', codigo: 'text' });
-<<<<<<< HEAD
 ProductSchema.index({ tenantId: 1, codigo: 1 }, { unique: true });
+ProductSchema.index({ tipo: 1, ativo: 1, nome: 1 });
 
 require('../utils/tenantSchema')(ProductSchema);
-=======
-ProductSchema.index({ tipo: 1, ativo: 1, nome: 1 });
->>>>>>> origin/feature/pwa-offline-sincronizacao
 
 module.exports = mongoose.model('Product', ProductSchema);

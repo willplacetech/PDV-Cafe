@@ -1,11 +1,8 @@
 const express = require('express');
 const auth = require('../middleware/auth');
 const MesasSettings = require('../models/MesasSettings');
-<<<<<<< HEAD
 const { garantirTokensMesas } = require('../utils/mesaTokens');
-=======
 const { cached, invalidate } = require('../utils/queryCache');
->>>>>>> origin/feature/pwa-offline-sincronizacao
 
 const router = express.Router();
 const mesasPadrao = () => ({
@@ -16,16 +13,16 @@ const mesasPadrao = () => ({
 router.use(auth);
 router.get('/', auth.allowRoles('admin', 'operador', 'garcom', 'cozinha'), async (req, res, next) => {
   try {
-<<<<<<< HEAD
-    const settings = await MesasSettings.findById('principal') || new MesasSettings({ _id: 'principal', ...mesasPadrao() });
-    await garantirTokensMesas(settings);
-    return res.json({ mesas: settings.mesas, oferecerBalcao: settings.oferecerBalcao });
-=======
     const settings = await cached('mesas:principal', 60000, () => MesasSettings.findById('principal')
       .select('mesas oferecerBalcao')
       .lean());
-    return res.json(settings ? { mesas: settings.mesas, oferecerBalcao: settings.oferecerBalcao } : mesasPadrao());
->>>>>>> origin/feature/pwa-offline-sincronizacao
+    if (settings) {
+      await garantirTokensMesas({ ...settings._doc });
+      return res.json({ mesas: settings.mesas, oferecerBalcao: settings.oferecerBalcao });
+    }
+    const defaultSettings = new MesasSettings({ _id: 'principal', ...mesasPadrao() });
+    await garantirTokensMesas(defaultSettings);
+    return res.json({ mesas: defaultSettings.mesas, oferecerBalcao: defaultSettings.oferecerBalcao });
   } catch (error) { return next(error); }
 });
 
@@ -46,7 +43,6 @@ router.put('/', auth.allowRoles('admin'), async (req, res, next) => {
   });
   if (!validas) return res.status(400).json({ msg: 'Cada mesa precisa de número único, nome e capacidade válidos' });
   try {
-<<<<<<< HEAD
     const settings = await MesasSettings.findById('principal') || new MesasSettings({ _id: 'principal' });
     const tokensExistentes = new Map((settings.mesas || []).map((mesa) => [mesa.id, mesa.token]));
     settings.mesas = mesas.map(({ id, numero, nome, lugares, ativa }) => ({
@@ -54,13 +50,9 @@ router.put('/', auth.allowRoles('admin'), async (req, res, next) => {
     }));
     settings.oferecerBalcao = oferecerBalcao;
     await garantirTokensMesas(settings);
-=======
-    const settings = await MesasSettings.findByIdAndUpdate('principal', {
-      $set: { mesas: mesas.map(({ id, numero, nome, lugares, ativa }) => ({ id, numero, nome: nome.trim(), lugares, ativa })), oferecerBalcao },
-    }, { upsert: true, new: true, runValidators: true });
+    await settings.save();
     invalidate('cardapio:');
     invalidate('mesas:');
->>>>>>> origin/feature/pwa-offline-sincronizacao
     return res.json({ mesas: settings.mesas, oferecerBalcao: settings.oferecerBalcao });
   } catch (error) { return next(error); }
 });
