@@ -97,51 +97,50 @@ export default function Dashboard() {
     if (user?.role !== 'admin') return;
     let ativo = true;
     const mesConsultado = mesRelatorioSelecionadoRef.current;
-    Promise.allSettled([
-      api.get('/dashboard', { params: { mes: mesConsultado } }),
-      api.get('/products'),
-      api.get('/comandas'),
-      api.get('/production/dashboard'),
-      api.get('/products/sem-custo'),
-      api.get('/products/reajuste-recomendado'),
-    ])
-      .then(([dashboardResult, productsResult, comandasResult, productionResult, semCustoResult, reajusteResult]) => {
+    const carregarDashboard = async () => {
+      try {
+        const dashboardResponse = await api.get('/dashboard', { params: { mes: mesConsultado } });
         if (!ativo) return;
-
-        const dashboardResponse = dashboardResult.status === 'fulfilled' ? dashboardResult.value : null;
-        const productsResponse = productsResult.status === 'fulfilled' ? productsResult.value : null;
-        const comandasResponse = comandasResult.status === 'fulfilled' ? comandasResult.value : null;
-        const productionResponse = productionResult.status === 'fulfilled' ? productionResult.value : null;
-        const semCustoResponse = semCustoResult.status === 'fulfilled' ? semCustoResult.value : null;
-        const reajusteResponse = reajusteResult.status === 'fulfilled' ? reajusteResult.value : null;
-
-        if (!dashboardResponse) {
-          const mensagem = dashboardResult.reason?.response?.data?.msg || 'Não foi possível carregar o dashboard';
-          setErroDashboard(mensagem);
-          showToast(mensagem, 'error');
-          return;
-        }
 
         setData(dashboardResponse.data);
         setMesRelatorioCarregado(mesConsultado);
-        setProdutos(productsResponse?.data || []);
-        setComandas(comandasResponse?.data || []);
-        setProductionData(productionResponse?.data || null);
-        setAlertasCusto({ semCusto: semCustoResponse?.data || [], reajuste: reajusteResponse?.data || [] });
         const pagamentos = dashboardResponse.data.relatorioMes?.pagamentos || [];
         const taxasConfiguradas = dashboardResponse.data.taxasCartao || {};
         setTaxasCartao({
           cartao_credito: taxasConfiguradas.cartao_credito ?? pagamentos.find((pagamento) => pagamento.tipo === 'cartao_credito')?.taxaPercentual ?? '',
           cartao_debito: taxasConfiguradas.cartao_debito ?? pagamentos.find((pagamento) => pagamento.tipo === 'cartao_debito')?.taxaPercentual ?? '',
         });
-      })
-      .catch((error) => {
+      } catch (error) {
         if (!ativo) return;
         const mensagem = error.response?.data?.msg || 'Não foi possível carregar o dashboard';
         setErroDashboard(mensagem);
         showToast(mensagem, 'error');
-      })
-      .finally(() => { if (ativo) setCarregandoDashboard(false); });
+      } finally {
+        if (ativo) setCarregandoDashboard(false);
+      }
+    };
+
+    const carregarDadosAuxiliares = async () => {
+      const [productsResult, comandasResult, productionResult, semCustoResult, reajusteResult] = await Promise.allSettled([
+        api.get('/products'),
+        api.get('/comandas'),
+        api.get('/production/dashboard'),
+        api.get('/products/sem-custo'),
+        api.get('/products/reajuste-recomendado'),
+      ]);
+      if (!ativo) return;
+
+      setProdutos(productsResult.status === 'fulfilled' ? productsResult.value.data || [] : []);
+      setComandas(comandasResult.status === 'fulfilled' ? comandasResult.value.data || [] : []);
+      setProductionData(productionResult.status === 'fulfilled' ? productionResult.value.data || null : null);
+      setAlertasCusto({
+        semCusto: semCustoResult.status === 'fulfilled' ? semCustoResult.value.data || [] : [],
+        reajuste: reajusteResult.status === 'fulfilled' ? reajusteResult.value.data || [] : [],
+      });
+    };
+
+    void carregarDashboard();
+    void carregarDadosAuxiliares();
     return () => { ativo = false; };
   }, [user?.role, showToast, tentativaDashboard]);
 

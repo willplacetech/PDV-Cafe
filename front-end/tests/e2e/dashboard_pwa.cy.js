@@ -19,15 +19,15 @@ describe('Dashboard e PWA', () => {
   });
 
   it('exibe o dashboard principal sem aguardar o catálogo auxiliar', () => {
-    let produtosCarregados = false;
-    cy.intercept('GET', '**/api/products', request => {
-      request.on('response', response => response.setDelay(2000));
-      request.on('after:response', () => { produtosCarregados = true; });
+    cy.intercept('GET', '**/api/products', {
+      delay: 2000,
+      body: [],
     }).as('dashboardProducts');
 
     cy.visit('/dashboard');
     cy.get('.dashboard-heading h1').should('be.visible');
-    cy.then(() => expect(produtosCarregados).to.equal(false));
+    cy.get('@dashboardProducts.all').should('have.length', 1);
+    cy.get('[data-testid="dashboard-loading"]').should('not.exist');
     cy.wait('@dashboardProducts');
   });
 
