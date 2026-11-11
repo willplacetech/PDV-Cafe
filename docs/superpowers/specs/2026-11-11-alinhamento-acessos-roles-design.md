@@ -38,6 +38,9 @@ financeiras.
 - A rota `POST /comandas/:id/fechar` permite admin, Operador e Gerente, mas
   nega Garçom, embora esse perfil já possa abrir e editar comandas e a tela
   atual apresente o fluxo de fechamento.
+- Garçom e Gerente já podem cancelar uma comanda com a aprovação exigida; Garçom
+  também já pode receber parcialmente. Garçom não pode reabrir comandas. Essas
+  permissões existentes não devem mudar.
 
 ## Abordagens consideradas
 
@@ -79,17 +82,19 @@ financeiras.
     produção, receitas, custos ou movimentos.
   - Caixa: manter leitura, contagem, abertura, sangria/suplementação,
     fechamento e reabertura conforme API e aprovações existentes.
-- **Comandas para Gerente:** pode consultar e fechar comandas, como já
-  permitido pela API; não pode criar comandas nem adicionar, alterar ou remover
-  itens. A tela não deve solicitar a configuração de mesas, que não é
-  necessária para essas ações e não é autorizada a esse perfil.
+- **Comandas para Gerente:** pode consultar, fechar e cancelar comandas,
+  conforme a API e as aprovações existentes; não pode criar comandas nem
+  adicionar, alterar ou remover itens. A tela não deve solicitar a
+  configuração de mesas, que não é necessária para essas ações e não é
+  autorizada a esse perfil.
 - **Operador e Garçom:** podem consultar comandas abertas e adicionar,
   ajustar quantidade e remover itens, conforme as permissões já existentes na
   API. A tela deve usar o catálogo `/products/pdv`, autorizado para esses
   perfis, em vez de bloquear o carregamento com `GET /products`.
 - **Fechamento pelo Garçom:** permitir finalizar uma comanda aberta pelo
   fluxo existente da tela e autorizar somente `POST /comandas/:id/fechar`.
-  Não permitir recebimento parcial, cancelamento ou reabertura por esse ajuste.
+  Preservar as permissões atuais de recebimento parcial e cancelamento com
+  aprovação; não permitir reabertura.
 - **Cozinha:** manter o quadro; permitir a rota de fichas técnicas em modo de
   leitura; além disso, consultar comandas abertas e adicionar, ajustar
   quantidade e remover itens. Não pode abrir comandas, alterar cliente/mesa ou
@@ -126,8 +131,8 @@ financeiras.
   devem ser limitadas aos campos operacionais descritos acima; a cozinha só
   pode editar comandas com status `aberta`, nunca `rascunho` ou fechadas.
 - Permitir Garçom somente na rota já existente de fechamento de comanda, além
-  das permissões atuais de atendimento. Nenhuma outra rota financeira deve
-  incluir esse perfil por causa desta alteração.
+  das permissões atuais de atendimento. Não alterar seus guards existentes de
+  recebimento parcial ou cancelamento; a reabertura continua negada.
 - Não alterar papéis cadastráveis, sessões, modelos persistidos ou dados de
   negócio. Não fazer migração de banco.
 - Não ampliar permissões de fechamento para Cozinha, recebimento, cancelamento,
@@ -139,8 +144,8 @@ financeiras.
 - Operador não ganha novas permissões de API; a tela passa a usar endpoints
   que esse perfil já pode acessar para leitura e edição de itens.
 - Garçom ganha somente a permissão de fechar comanda descrita nesta
-  especificação; leitura e edição de itens continuam usando as permissões
-  existentes.
+  especificação; recebimento parcial e cancelamento preservam suas permissões
+  e aprovações existentes, e reabertura continua negada.
 - Cozinha recebe somente as novas permissões de leitura e edição de itens em
   comandas abertas descritas nesta especificação.
 - A interface não deve apresentar uma operação como concluída se a API a
@@ -166,7 +171,8 @@ financeiras.
   abertas, não altera comandas fechadas e continua sem acesso às ações
   financeiras e de configuração.
 - Testes de RBAC confirmam que Garçom fecha uma comanda aberta e continua sem
-  acesso a recebimento parcial, cancelamento ou reabertura.
+  acesso à reabertura, preservando recebimento parcial e cancelamento conforme
+  os guards e aprovações existentes.
 - Verificar que as respostas de comandas e catálogo para Cozinha não contêm
   preços, custos, valores totais, pagamentos, telefone ou endereço.
 - Executar os testes direcionados para Caixa, Produtos, Clientes e Produção,
