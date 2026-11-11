@@ -73,6 +73,11 @@ financeiras.
 ### Acessos na interface
 
 - **Admin:** preserva todos os acessos e operações atuais.
+- **PDV / Nova venda:** somente Admin, Operador e Garçom. A rota e o menu
+  devem respeitar essa lista, pois Gerente e Cozinha não têm acesso aos
+  endpoints de venda usados pela tela. O destino inicial é Dashboard para
+  Admin, Comandas para Gerente, PDV para Operador/Garçom e Cozinha para
+  Cozinha.
 - **Gerente:** pode abrir Produtos, Clientes, Estoque de Insumos e Caixa,
   somente nas ações autorizadas pela API:
   - Produtos: listar e editar; não criar nem excluir. Edição que exige

@@ -13,7 +13,7 @@ const gruposMenu = [
     chave: 'atendimento',
     label: '🏪 ATENDIMENTO',
     items: [
-      { label: 'PDV · Nova venda', icon: '🛒', to: '/pdv' },
+      { label: 'PDV · Nova venda', icon: '🛒', to: '/pdv', roles: roleAccess.pdv },
       { label: 'Entregas', icon: '🛵', to: '/entregas', roles: ['admin', 'operador'], badge: true },
       { label: 'Mesas / Comandas', icon: '🪑', to: '/comandas', roles: roleAccess.comandas, badge: 'comandas' },
       { label: 'A Receber', icon: '💰', to: '/contas-receber', admin: true },
@@ -315,7 +315,7 @@ export default function Layout({ children }) {
             SIDEBAR DESKTOP - 260px
             ========================================== */}
       <aside id="sidebar-desktop">
-        <Link to={user?.role === 'admin' ? '/dashboard' : '/pdv'} aria-label="Página inicial" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40, textDecoration: 'none' }}>
+        <Link to={roleAccess.getHomePath(user?.role)} aria-label="Página inicial" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40, textDecoration: 'none' }}>
           <img src="/Abraco1.png" alt="Sabor de Abraço" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--brand-gold)' }} />
           <div>
             <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 17, color: 'var(--brand-brown)' }}>Sabor de Abraço</div>
@@ -372,7 +372,7 @@ export default function Layout({ children }) {
         <div className="mobile-menu-backdrop" onClick={() => toggleMobileMenu(false)}>
           <div className="mobile-menu-panel" onClick={(e) => e.stopPropagation()}>
             <div className="mobile-menu-header">
-              <Link to={user?.role === 'admin' ? '/dashboard' : '/pdv'} onClick={() => toggleMobileMenu(false)} aria-label="Página inicial" style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
+              <Link to={roleAccess.getHomePath(user?.role)} onClick={() => toggleMobileMenu(false)} aria-label="Página inicial" style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
                 <img src="/Abraco1.png" alt="Sabor de Abraço" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--brand-gold)' }} />
                 <div>
                   <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, color: 'var(--brand-brown)' }}>Sabor de Abraço</div>

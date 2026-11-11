@@ -108,7 +108,7 @@ function AppVersionGuard() {
 
 function DefaultLanding() {
   const { user } = useContext(AuthContext);
-  return <Navigate to={user?.role === 'admin' ? '/dashboard' : '/pdv'} replace />;
+  return <Navigate to={roleAccess.getHomePath(user?.role)} replace />;
 }
 
 export default function App() {
@@ -134,7 +134,9 @@ export default function App() {
                     <Route path="/login" element={<Login />} />
                     <Route element={<PrivateRoute />}>
                       <Route element={<FormasPagamentoProvider><ComandaProvider><Layout /></ComandaProvider></FormasPagamentoProvider>}>
-                        <Route path="/pdv" element={<PDV />} />
+                        <Route element={<RoleRoute roles={roleAccess.pdv} />}>
+                          <Route path="/pdv" element={<PDV />} />
+                        </Route>
                         <Route path="/atendimento/mesas" element={<Navigate to="/comandas" replace />} />
                         <Route element={<RoleRoute roles={roleAccess.comandas} />}>
                           <Route path="/comandas" element={<Comandas />} />

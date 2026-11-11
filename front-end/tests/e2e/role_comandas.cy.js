@@ -50,6 +50,59 @@ const visitComandas = (role, commands = []) => {
 };
 
 describe('Comandas por perfil', () => {
+  it('cozinha acessa o KDS ao abrir o PDV por URL sem carregar APIs de venda', () => {
+    const profile = { id: 'user-cozinha-pdv-e2e', username: 'cozinha-pdv-e2e', role: 'cozinha', tenantId: null };
+    cy.intercept('POST', '**/api/auth/refresh', { token: 'role-test-token', user: profile });
+    cy.intercept('GET', '**/api/comandas/cozinha', []).as('kitchenOrders');
+    cy.intercept('GET', '**/api/products/pdv', [kitchenProduct]).as('pdvCatalog');
+    cy.intercept('GET', '**/api/customers/pdv', { statusCode: 403, body: { msg: 'Acesso não autorizado' } }).as('pdvCustomers');
+    cy.intercept('GET', '**/api/products/mais-vendidos*', { statusCode: 403, body: { msg: 'Acesso não autorizado' } }).as('bestSellers');
+
+    cy.visit('/pdv', { onBeforeLoad(win) { win.localStorage.setItem('pdv_user', JSON.stringify(profile)); } });
+
+    cy.location('pathname').should('eq', '/cozinha');
+    cy.get('.kitchen-heading h1').should('be.visible');
+    cy.wait('@kitchenOrders');
+    cy.get('@pdvCatalog.all').should('have.length', 0);
+    cy.get('@pdvCustomers.all').should('have.length', 0);
+    cy.get('@bestSellers.all').should('have.length', 0);
+  });
+
+  it('gerente abre Comandas em vez do PDV sem chamar APIs de venda negadas', () => {
+    const profile = { id: 'user-gerente-pdv-e2e', username: 'gerente-pdv-e2e', role: 'gerente', tenantId: null };
+    cy.intercept('POST', '**/api/auth/refresh', { token: 'role-test-token', user: profile });
+    cy.intercept('GET', '**/api/comandas?status=aberta', []).as('openCommands');
+    cy.intercept('GET', '**/api/products', [product]).as('fullCatalog');
+    cy.intercept('GET', '**/api/products/pdv', { statusCode: 403, body: { msg: 'Acesso não autorizado' } }).as('pdvCatalog');
+    cy.intercept('GET', '**/api/customers/pdv', { statusCode: 403, body: { msg: 'Acesso não autorizado' } }).as('pdvCustomers');
+    cy.intercept('GET', '**/api/products/mais-vendidos*', { statusCode: 403, body: { msg: 'Acesso não autorizado' } }).as('bestSellers');
+
+    cy.visit('/pdv', { onBeforeLoad(win) { win.localStorage.setItem('pdv_user', JSON.stringify(profile)); } });
+
+    cy.location('pathname').should('eq', '/comandas');
+    cy.get('.comandas-page').should('be.visible');
+    cy.wait(['@openCommands', '@fullCatalog']);
+    cy.get('@pdvCatalog.all').should('have.length', 0);
+    cy.get('@pdvCustomers.all').should('have.length', 0);
+    cy.get('@bestSellers.all').should('have.length', 0);
+  });
+
+  for (const role of ['admin', 'operador', 'garcom']) {
+    it(`${role} mantém acesso ao PDV com preços do catálogo`, () => {
+      const profile = { id: `user-${role}-pdv-e2e`, username: `${role}-pdv-e2e`, role, tenantId: null };
+      cy.intercept('POST', '**/api/auth/refresh', { token: 'role-test-token', user: profile });
+      cy.intercept('GET', '**/api/comandas?status=aberta', []);
+      cy.intercept('GET', '**/api/products/pdv', [product]).as('pdvCatalog');
+      cy.intercept('GET', '**/api/customers/pdv', []).as('pdvCustomers');
+      cy.intercept('GET', '**/api/products/mais-vendidos*', []).as('bestSellers');
+
+      cy.visit('/pdv', { onBeforeLoad(win) { win.localStorage.setItem('pdv_user', JSON.stringify(profile)); } });
+
+      cy.wait(['@pdvCatalog', '@pdvCustomers', '@bestSellers']);
+      cy.get('.product-card').should('contain', 'Café operacional').and('contain', 'R$ 12,00');
+    });
+  }
+
   for (const { role, catalog, tablesRequired } of [
     { role: 'admin', catalog: 'fullCatalog', tablesRequired: true },
     { role: 'gerente', catalog: 'fullCatalog', tablesRequired: false },

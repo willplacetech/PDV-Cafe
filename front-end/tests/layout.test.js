@@ -50,10 +50,10 @@ test('layout still renders explicit children used by delivery', () => {
 
 test('navigation links follow the role access matrix', () => {
   const expectedLinks = {
-    admin: ['/produtos', '/clientes', '/producao', '/caixa', '/comandas', '/cadastro/mesas', '/cozinha', '/producao/fichas'],
+    admin: ['/pdv', '/produtos', '/clientes', '/producao', '/caixa', '/comandas', '/cadastro/mesas', '/cozinha', '/producao/fichas'],
     gerente: ['/produtos', '/clientes', '/producao', '/caixa', '/comandas'],
-    operador: ['/comandas', '/cozinha'],
-    garcom: ['/comandas'],
+    operador: ['/pdv', '/comandas', '/cozinha'],
+    garcom: ['/pdv', '/comandas'],
     cozinha: ['/comandas', '/cozinha', '/producao/fichas'],
   };
   const allLinks = [...new Set(Object.values(expectedLinks).flat())];

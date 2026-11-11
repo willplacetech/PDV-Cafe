@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { ThemeContext } from '../context/ThemeContextDefinition.js';
 import { useToast } from '../components/useToast.js';
+import { getHomePath } from '../permissions/roleAccess.js';
 
 export default function Login() {
   const imagensMarca = ['/Abraco5.png', '/Abraco10.png', '/Abraco11.png'];
@@ -38,7 +39,7 @@ export default function Login() {
     };
   }, [imagensMarca.length, showToast]);
 
-  if (user) return <Navigate to={user.role === 'admin' ? '/dashboard' : '/pdv'} replace />;
+  if (user) return <Navigate to={getHomePath(user.role)} replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
