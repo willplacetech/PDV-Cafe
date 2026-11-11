@@ -50,6 +50,12 @@ const sincronizarCustoReceita = async (recipeId) => {
 
 router.use(auth);
 router.use(auth.allowRoles('admin', 'gerente', 'cozinha'));
+router.use((req, res, next) => {
+  if (req.user.role === 'cozinha' && !(req.method === 'GET' && req.path === '/recipes')) {
+    return res.status(403).json({ msg: 'Acesso não autorizado' });
+  }
+  return next();
+});
 const onlyManager = auth.allowRoles('admin');
 
 const validate = (req, res) => {
@@ -63,9 +69,53 @@ const validate = (req, res) => {
 
 router.get('/recipes', async (req, res) => {
   try {
-    const recipes = await Recipe.find().populate('produtoId', 'nome codigo tipoProduto unidadeVenda producaoPropria aFazer estoque').populate('ingredientes.produtoId', 'nome codigo tipo usavelEmReceita precoCompra custoUnitarioBase unidadeVenda unidadeConteudo conteudoPorEmbalagem estoque estoqueInsumos estoqueEmbalagens estoqueConteudoAberto').populate('updatedBy', 'username').sort({ nome: 1 });
+    const cozinha = req.user.role === 'cozinha';
+    let query = Recipe.find();
+    if (cozinha) query = query.select('nome produtoId rendimento unidadeRendimento ingredientes ativa');
+    query = query
+      .populate('produtoId', 'nome tipoProduto unidadeVenda producaoPropria aFazer estoque')
+      .populate('ingredientes.produtoId', cozinha
+        ? 'nome tipo usavelEmReceita unidadeVenda unidadeConteudo conteudoPorEmbalagem estoque estoqueInsumos estoqueEmbalagens estoqueConteudoAberto'
+        : 'nome codigo tipo usavelEmReceita precoCompra custoUnitarioBase unidadeVenda unidadeConteudo conteudoPorEmbalagem estoque estoqueInsumos estoqueEmbalagens estoqueConteudoAberto');
+    if (!cozinha) query = query.populate('updatedBy', 'username');
+    const recipes = await query.sort({ nome: 1 });
     res.json(recipes.map((recipe) => {
       const produtoTipo = recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : 'producao');
+      const limites = produtoTipo === 'producao' ? [Number(recipe.produtoId?.estoque || 0)] : recipe.ingredientes.map((item) => {
+        const estoque = estoqueTotalBase(item.produtoId);
+        const consumo = paraBase(item.quantidade, item.unidade);
+        return consumo > 0 ? estoque / consumo : 0;
+      });
+      const producoesPossiveis = limites.length ? Math.floor(Math.min(...limites)) : 0;
+      const disponibilidade = {
+        quantidade: produtoTipo === 'producao' ? producoesPossiveis : producoesPossiveis * Number(recipe.rendimento || 1),
+        limitante: produtoTipo === 'producao' ? 'Estoque do produto' : recipe.ingredientes[limites.findIndex((limite) => limite === Math.min(...limites))]?.produtoId?.nome || null,
+      };
+      if (cozinha) {
+        return {
+          _id: recipe._id,
+          nome: recipe.nome,
+          produtoId: recipe.produtoId ? {
+            _id: recipe.produtoId._id,
+            nome: recipe.produtoId.nome,
+            tipoProduto: recipe.produtoId.tipoProduto,
+            unidadeVenda: recipe.produtoId.unidadeVenda,
+            producaoPropria: recipe.produtoId.producaoPropria,
+            aFazer: recipe.produtoId.aFazer,
+            estoque: recipe.produtoId.estoque,
+          } : null,
+          rendimento: recipe.rendimento,
+          unidadeRendimento: recipe.unidadeRendimento,
+          ingredientes: recipe.ingredientes.map((item) => ({
+            produtoId: item.produtoId ? { _id: item.produtoId._id, nome: item.produtoId.nome } : null,
+            quantidade: item.quantidade,
+            unidade: item.unidade,
+          })),
+          ativa: recipe.ativa,
+          tipoFicha: produtoTipo,
+          disponibilidade,
+        };
+      }
       const ingredientes = recipe.ingredientes.map((item) => {
         const resumo = item.produtoId ? calcularResumoCompleto(item.produtoId) : null;
         const custoUnitarioBase = Number(resumo?.custoUnitarioBase || 0);
@@ -77,14 +127,8 @@ router.get('/recipes', async (req, res) => {
           custoDisponivel: custoUnitarioBase > 0,
         };
       });
-      const limites = produtoTipo === 'producao' ? [Number(recipe.produtoId?.estoque || 0)] : recipe.ingredientes.map((item) => {
-        const estoque = estoqueTotalBase(item.produtoId);
-        const consumo = paraBase(item.quantidade, item.unidade);
-        return consumo > 0 ? estoque / consumo : 0;
-      });
-      const producoesPossiveis = limites.length ? Math.floor(Math.min(...limites)) : 0;
       const custoPorUnidade = Number(recipe.custoUnitario || 0);
-      return { ...recipe.toObject(), ingredientes, tipoFicha: produtoTipo, disponibilidade: { quantidade: produtoTipo === 'producao' ? producoesPossiveis : producoesPossiveis * Number(recipe.rendimento || 1), limitante: produtoTipo === 'producao' ? 'Estoque do produto' : recipe.ingredientes[limites.findIndex((limite) => limite === Math.min(...limites))]?.produtoId?.nome || null }, custoPorUnidade };
+      return { ...recipe.toObject(), ingredientes, tipoFicha: produtoTipo, disponibilidade, custoPorUnidade };
     }));
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });

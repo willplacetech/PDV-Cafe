@@ -8,6 +8,7 @@ const Order = require('../../models/Order');
 const Comanda = require('../../models/Comanda');
 const Tenant = require('../../models/Tenant');
 const PedidoEntrega = require('../../models/PedidoEntrega');
+const approval = require('../approvalFixture');
 
 let token;
 let product;
@@ -19,7 +20,27 @@ beforeEach(async () => {
   token = jwt.sign({ id: user.id, username: user.username, role: user.role, tenantId: tenant.id }, process.env.JWT_SECRET);
   product = await Product.create({ codigo: 'cafe', nome: 'Café', categoria: 'Bebidas Quentes', tipo: 'venda', preco: 6, estoque: 20, unidadeVenda: 'un' });
 });
-const api = (method, url, payload) => request(app)[method](url).set('Authorization', `Bearer ${token}`).set(require('../approvalFixture').headers(method, url, token, payload)).send(payload);
+const api = (method, url, payload, bearer = token, managerId) => request(app)[method](url)
+  .set('Authorization', `Bearer ${bearer}`)
+  .set(approval.headers(method, url, bearer, payload, managerId))
+  .send(payload);
+
+const criarToken = async role => {
+  const account = await User.create({ username: `comanda-${role}`, password: 'test-password', role, tenantId: tenant.id });
+  return jwt.sign({ id: account.id, username: account.username, role, tenantId: tenant.id }, process.env.JWT_SECRET);
+};
+
+const camposComandaCozinha = ['_id', 'numero', 'tipoAtendimento', 'mesa', 'status', 'itens'];
+const camposItemCozinha = [
+  '_id', 'produtoId', 'nome', 'quantidade', 'tipoVenda', 'unidadeVenda',
+  'pesoVendidoKg', 'pesoPorUnidade', 'unidadePeso', 'modificadores', 'aFazer',
+];
+const expectPayloadCozinha = response => {
+  expect(Object.keys(response.body).every(field => camposComandaCozinha.includes(field))).toBe(true);
+  for (const item of response.body.itens) {
+    expect(Object.keys(item).every(field => camposItemCozinha.includes(field))).toBe(true);
+  }
+};
 
 test('preço editado persiste ao salvar, alterar quantidade e fechar venda', async () => {
   const created = await api('post', '/api/comandas', { tipoAtendimento: 'balcao', rascunho: true, itens: [{ produtoId: product.id, quantidade: 1, precoUnitarioManual: 5 }] });
@@ -64,6 +85,115 @@ test('preço zero é preservado sem substituir pelo preço de catálogo', async 
   const created = await api('post', '/api/comandas', { tipoAtendimento: 'balcao', rascunho: true, itens: [{ produtoId: product.id, quantidade: 1, precoUnitarioManual: 0 }] });
   expect(created.status).toBe(201);
   expect(created.body.valorTotal).toBe(0);
+});
+
+test('cozinha adiciona e ajusta itens abertos, exigindo aprovação para reduzir e remover', async () => {
+  const kitchenToken = await criarToken('cozinha');
+  const comanda = await Comanda.create({
+    atendente: user.username,
+    tipoAtendimento: 'balcao',
+    status: 'aberta',
+    itens: [{ produtoId: product.id, nome: product.nome, precoUnitario: product.preco, quantidade: 1, aFazer: true }],
+  });
+
+  const added = await api('post', `/api/comandas/${comanda.id}/itens`, { produtoId: product.id, quantidade: 1 }, kitchenToken);
+  expect(added.status).toBe(200);
+  expectPayloadCozinha(added);
+  expect(added.body.itens).toHaveLength(2);
+
+  const itemId = added.body.itens[0]._id;
+  const increased = await api('patch', `/api/comandas/${comanda.id}/itens/${itemId}`, { quantidade: 2 }, kitchenToken);
+  expect(increased.status).toBe(200);
+  expectPayloadCozinha(increased);
+
+  const reduction = await api('patch', `/api/comandas/${comanda.id}/itens/${itemId}`, { quantidade: 1 }, kitchenToken);
+  expect(reduction.status).toBe(403);
+  const approvedReduction = await api('patch', `/api/comandas/${comanda.id}/itens/${itemId}`, { quantidade: 1 }, kitchenToken, user.id);
+  expect(approvedReduction.status).toBe(200);
+  expectPayloadCozinha(approvedReduction);
+
+  const itemToRemove = added.body.itens[1]._id;
+  const removal = await api('delete', `/api/comandas/${comanda.id}/itens/${itemToRemove}`, {}, kitchenToken);
+  expect(removal.status).toBe(403);
+  const approvedRemoval = await api('delete', `/api/comandas/${comanda.id}/itens/${itemToRemove}`, {}, kitchenToken, user.id);
+  expect(approvedRemoval.status).toBe(200);
+  expectPayloadCozinha(approvedRemoval);
+  expect(approvedRemoval.body.itens).toHaveLength(1);
+});
+
+test('cozinha não pode alterar preço manual nem com autorização de gerente', async () => {
+  const kitchenToken = await criarToken('cozinha');
+  const comanda = await Comanda.create({
+    atendente: user.username,
+    tipoAtendimento: 'balcao',
+    status: 'aberta',
+    itens: [{ produtoId: product.id, nome: product.nome, precoUnitario: product.preco, quantidade: 1 }],
+  });
+
+  const added = await api('post', `/api/comandas/${comanda.id}/itens`, {
+    produtoId: product.id,
+    quantidade: 1,
+    precoUnitarioManual: 1,
+  }, kitchenToken, user.id);
+  expect(added.status).toBe(403);
+
+  const updated = await api('patch', `/api/comandas/${comanda.id}/itens/${comanda.itens[0].id}`, {
+    quantidade: 2,
+    precoUnitarioManual: 1,
+  }, kitchenToken, user.id);
+  expect(updated.status).toBe(403);
+  const saved = await Comanda.findById(comanda.id);
+  expect(saved.itens).toHaveLength(1);
+  expect(saved.itens[0].precoUnitario).toBe(product.preco);
+});
+
+test.each(['rascunho', 'fechada'])('cozinha não altera comanda com status %s', async status => {
+  const kitchenToken = await criarToken('cozinha');
+  const comanda = await Comanda.create({
+    atendente: user.username,
+    tipoAtendimento: 'balcao',
+    status,
+    itens: [{ produtoId: product.id, nome: product.nome, precoUnitario: product.preco, quantidade: 1 }],
+  });
+
+  const response = await api('patch', `/api/comandas/${comanda.id}/itens/${comanda.itens[0].id}`, { quantidade: 2 }, kitchenToken);
+  expect(response.status).toBe(400);
+});
+
+test('garçom fecha, recebe parcialmente e cancela com aprovação, mas não reabre', async () => {
+  const waiterToken = await criarToken('garcom');
+  const criarComanda = () => Comanda.create({
+    atendente: user.username,
+    tipoAtendimento: 'balcao',
+    status: 'aberta',
+    valorTotal: 6,
+    itens: [{ produtoId: product.id, nome: product.nome, precoUnitario: 6, quantidade: 1 }],
+  });
+
+  const recebimento = await criarComanda();
+  const partialPayment = await api('patch', `/api/comandas/${recebimento.id}/receber-parcial`, {
+    formaPagamento: 'dinheiro',
+    valorRecebido: 2,
+    operacaoId: 'garcom-receber-parcial',
+  }, waiterToken);
+  expect(partialPayment.status).toBe(200);
+  expect((await Comanda.findById(recebimento.id)).historicoPagamentos).toHaveLength(1);
+
+  const cancelamento = await criarComanda();
+  const canceled = await api('patch', `/api/comandas/${cancelamento.id}/cancelar`, {}, waiterToken, user.id);
+  expect(canceled.status).toBe(200);
+  expect((await Comanda.findById(cancelamento.id)).status).toBe('cancelada');
+
+  const fechamento = await criarComanda();
+  const closed = await api('post', `/api/comandas/${fechamento.id}/fechar`, {
+    metodoPagamento: 'dinheiro',
+    operacaoId: 'garcom-fechar-comanda',
+  }, waiterToken);
+  expect(closed.status).toBe(200);
+  expect(closed.body.pedido.total).toBe(6);
+
+  const reopened = await api('post', `/api/comandas/${fechamento.id}/reabrir`, {}, waiterToken);
+  expect(reopened.status).toBe(403);
 });
 
 test('dashboard inclui venda delivery paga antes da entrega e isola faturamento de outro comércio', async () => {

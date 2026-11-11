@@ -105,13 +105,22 @@ financeiras.
   custos, totais, pagamentos, telefone ou endereço de entrega. A API deve
   retornar somente os dados operacionais necessários para localizar uma
   comanda e editar seus itens; a interface também não deve renderizar ações
-  financeiras. A resposta da comanda deve limitar-se a `_id`, `numero`,
-  `tipoAtendimento`, `mesa`, `status` e itens com `_id`,
-  `produtoId`, `nome`, `quantidade`, `tipoVenda`, `unidadeVenda`,
-  `pesoVendidoKg`, `pesoPorUnidade`, `unidadePeso`, `modificadores` e
-  `aFazer`. O catálogo deve limitar-se a `_id`, `nome`, `categoria`, `tipo`,
-  `tipoProduto`, `unidadeVenda`, `pesoPorUnidade`, `unidadePeso` e
-  `vendidoFracionado`.
+  financeiras. A lista de edição (`GET /comandas?status=aberta`) e as respostas
+  das rotas de itens limitam a comanda a `_id`, `numero`, `tipoAtendimento`,
+  `mesa`, `status` e itens com `_id`, `produtoId`, `nome`, `quantidade`,
+  `tipoVenda`, `unidadeVenda`, `pesoVendidoKg`, `pesoPorUnidade`, `unidadePeso`,
+  `modificadores` e `aFazer`. O catálogo `/products/pdv` limita-se a `_id`,
+  `nome`, `categoria`, `tipo`, `tipoProduto`, `unidadeVenda`, `pesoPorUnidade`,
+  `unidadePeso` e `vendidoFracionado`. O quadro KDS existente mantém somente
+  os dados operacionais usados pela tela (`_id`, `numero`, `tipoAtendimento`,
+  `mesa`, `status`, `createdAt`, `clienteNome`, `observacao`, `statusBalcao`,
+  estado `entrega.preparoPronto` e os mesmos campos operacionais dos itens);
+  não retorna contato, endereço ou valores. Cozinha não pode definir preço
+  manual, mesmo com token de autorização.
+- **Fichas técnicas da Cozinha:** `/products` e `/production/recipes` retornam
+  somente os dados operacionais necessários para consultar fichas e
+  disponibilidade; não incluem custos, preços ou autoria. A Cozinha não pode
+  acessar outras rotas de produção nem a listagem de estoque administrativo.
 - **Cadastro de Mesas:** somente admin, tanto pelo menu como por URL.
 - Todas as demais telas administrativas continuam restritas ao admin.
 

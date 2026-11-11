@@ -122,7 +122,7 @@ const validations = [
   body('producaoPropria').optional().isBoolean(),
 ];
 
-router.get('/inventory-list', auth, auth.allowRoles('admin', 'gerente', 'cozinha'), async (_req, res) => {
+router.get('/inventory-list', auth, auth.allowRoles('admin', 'gerente'), async (_req, res) => {
   try {
     const campos = [
       'codigo', 'nome', 'categoria', 'tipo', 'tipoProduto', 'aFazer', 'producaoPropria',
@@ -201,7 +201,11 @@ router.get('/', auth, auth.allowRoles('admin', 'gerente', 'cozinha'), async (req
     const total = paginacaoSolicitada ? await Product.countDocuments(query) : null;
     const totalPaginas = paginacaoSolicitada ? Math.max(1, Math.ceil(total / limite)) : null;
     const paginaEfetiva = paginacaoSolicitada ? Math.min(pagina, totalPaginas) : pagina;
+    const cozinha = req.user.role === 'cozinha';
     let buscaProdutos = Product.find(query).sort({ nome: 1 });
+    if (cozinha) {
+      buscaProdutos = buscaProdutos.select('_id nome tipo tipoProduto aFazer producaoPropria usavelEmReceita unidadeVenda unidadeCompra unidadeConteudo conteudoPorEmbalagem estoque estoqueInsumos estoqueEmbalagens estoqueConteudoAberto');
+    }
     if (paginacaoSolicitada) {
       buscaProdutos = buscaProdutos.skip((paginaEfetiva - 1) * limite).limit(limite);
     }
@@ -221,12 +225,30 @@ router.get('/', auth, auth.allowRoles('admin', 'gerente', 'cozinha'), async (req
       temReceita: receitaPorProduto.has(String(produto._id)),
       resumoInsumo: produto.tipo === 'insumo' ? calcularResumoCompleto(produto) : null,
     }));
-    if (!paginacaoSolicitada) return res.json(dados);
-    res.json({ dados, total, pagina: paginaEfetiva, limite, totalPaginas });
+    const resposta = cozinha ? dados.map((produto) => ({
+      _id: produto._id,
+      nome: produto.nome,
+      tipo: produto.tipo,
+      tipoProduto: produto.tipoProduto,
+      aFazer: produto.aFazer,
+      producaoPropria: produto.producaoPropria,
+      usavelEmReceita: produto.usavelEmReceita,
+      unidadeVenda: produto.unidadeVenda,
+      unidadeCompra: produto.unidadeCompra,
+      unidadeConteudo: produto.unidadeConteudo,
+      conteudoPorEmbalagem: produto.conteudoPorEmbalagem,
+      estoque: produto.estoque,
+      estoqueInsumos: produto.estoqueInsumos,
+      estoqueEmbalagens: produto.estoqueEmbalagens,
+      estoqueConteudoAberto: produto.estoqueConteudoAberto,
+      resumoInsumo: produto.resumoInsumo ? { totalBase: produto.resumoInsumo.totalBase } : null,
+    })) : dados;
+    if (!paginacaoSolicitada) return res.json(resposta);
+    res.json({ dados: resposta, total, pagina: paginaEfetiva, limite, totalPaginas });
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
-router.get('/pdv', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.get('/pdv', auth, auth.allowRoles('admin', 'operador', 'garcom', 'cozinha'), async (req, res) => {
   try {
     const produtos = await cached('produtos:pdv', 3000, async () => {
       const lista = await Product.find({
@@ -247,7 +269,17 @@ router.get('/pdv', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (
         cozDisponibilidade: disponibilidadeCoz(produto),
       }));
     });
-    res.json(produtos);
+    res.json(req.user.role === 'cozinha' ? produtos.map((produto) => ({
+      _id: produto._id,
+      nome: produto.nome,
+      categoria: produto.categoria,
+      tipo: produto.tipo,
+      tipoProduto: produto.tipoProduto,
+      unidadeVenda: produto.unidadeVenda,
+      pesoPorUnidade: produto.pesoPorUnidade,
+      unidadePeso: produto.unidadePeso,
+      vendidoFracionado: produto.vendidoFracionado,
+    })) : produtos);
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 

@@ -21,6 +21,55 @@ const { executarOperacaoFinanceira } = require('../utils/operacaoFinanceira');
 const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const permiteFracionar = (product) => !Number(product?.pesoPorUnidade) && (Boolean(product?.vendidoFracionado) || ['kg', 'L'].includes(product?.unidadeVenda));
+const projetarItemCozinha = (item) => {
+  const dados = typeof item.toObject === 'function' ? item.toObject() : item;
+  return {
+    _id: dados._id,
+    produtoId: dados.produtoId,
+    nome: dados.nome,
+    quantidade: dados.quantidade,
+    tipoVenda: dados.tipoVenda,
+    unidadeVenda: dados.unidadeVenda,
+    pesoVendidoKg: dados.pesoVendidoKg,
+    pesoPorUnidade: dados.pesoPorUnidade,
+    unidadePeso: dados.unidadePeso,
+    modificadores: dados.modificadores,
+    aFazer: dados.aFazer,
+  };
+};
+const projetarComandaCozinha = (comanda) => {
+  const dados = typeof comanda.toObject === 'function' ? comanda.toObject() : comanda;
+  return {
+    _id: dados._id,
+    numero: dados.numero,
+    tipoAtendimento: dados.tipoAtendimento,
+    mesa: dados.mesa,
+    status: dados.status,
+    itens: dados.itens.map(projetarItemCozinha),
+  };
+};
+const projetarComandaPainelCozinha = (comanda) => {
+  const dados = typeof comanda.toObject === 'function' ? comanda.toObject() : comanda;
+  return {
+    _id: dados._id,
+    numero: dados.numero,
+    tipoAtendimento: dados.tipoAtendimento,
+    mesa: dados.mesa,
+    status: dados.status,
+    createdAt: dados.createdAt,
+    clienteNome: dados.clienteNome,
+    observacao: dados.observacao,
+    statusBalcao: dados.statusBalcao,
+    entrega: dados.entrega ? { preparoPronto: dados.entrega.preparoPronto } : undefined,
+    itens: dados.itens.filter((item) => item.aFazer).map(projetarItemCozinha),
+  };
+};
+const rejeitarPrecoManualCozinha = (req, res, next) => {
+  if (req.user.role === 'cozinha' && Object.hasOwn(req.body, 'precoUnitarioManual')) {
+    return res.status(403).json({ msg: 'Cozinha não pode alterar preços' });
+  }
+  next();
+};
 
 const normalizarTelefoneCliente = (valor = '') => String(valor || '').replace(/\D/g, '');
 const calcularSubtotalComanda = (itens = []) => money((Array.isArray(itens) ? itens : []).reduce((soma, item) => soma + Number(item?.precoUnitario || 0) * Number(item?.quantidade || 0), 0));
@@ -84,10 +133,13 @@ async function recalcularPrecosComanda(comanda, session) {
   comanda.saldoDevedor = money(Math.max(0, comanda.valorTotal - pago));
 }
 
-router.get('/', auth, auth.allowRoles('admin', 'gerente', 'operador', 'garcom'), async (req, res) => {
+router.get('/', auth, auth.allowRoles('admin', 'gerente', 'operador', 'garcom', 'cozinha'), async (req, res) => {
   try {
+    if (req.user.role === 'cozinha' && req.query.status !== 'aberta') {
+      return res.status(403).json({ msg: 'Cozinha pode consultar somente comandas abertas' });
+    }
     const filter = req.query.status === 'aberta'
-      ? { status: { $in: ['aberta', 'rascunho'] } }
+      ? { status: req.user.role === 'cozinha' ? 'aberta' : { $in: ['aberta', 'rascunho'] } }
       : req.query.status ? { status: req.query.status } : {};
     const { dataInicio, dataFim } = req.query;
     if (dataInicio || dataFim) {
@@ -108,7 +160,7 @@ router.get('/', auth, auth.allowRoles('admin', 'gerente', 'operador', 'garcom'),
         if (!dados.clienteNome || dados.clienteNome === 'Cliente não identificado') dados.clienteNome = dados.clienteId.nome || dados.clienteNome;
         dados.clienteId = dados.clienteId._id;
       }
-      return dados;
+      return req.user.role === 'cozinha' ? projetarComandaCozinha(dados) : dados;
     }));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
@@ -116,7 +168,9 @@ router.get('/', auth, auth.allowRoles('admin', 'gerente', 'operador', 'garcom'),
 router.get('/cozinha', auth, auth.allowRoles('admin', 'operador', 'cozinha'), async (req, res) => {
   try {
     const comandas = await Comanda.find({ status: 'aberta', 'itens.aFazer': true }).sort({ createdAt: 1 });
-    res.json(comandas.map((comanda) => ({ ...comanda.toObject(), itens: comanda.itens.filter((item) => item.aFazer) })));
+    res.json(comandas.map((comanda) => req.user.role === 'cozinha'
+      ? projetarComandaPainelCozinha(comanda)
+      : { ...comanda.toObject(), itens: comanda.itens.filter((item) => item.aFazer) }));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
@@ -131,7 +185,7 @@ router.post('/:id/cozinha/pronto', auth, auth.allowRoles('admin', 'operador', 'c
     if (!comanda.itens.some(item => item.aFazer)) return res.status(409).json({ msg: 'Esta entrega não possui itens de preparo pendentes' });
     comanda.entrega.preparoPronto = true;
     await comanda.save();
-    res.json(comanda);
+    res.json(req.user.role === 'cozinha' ? projetarComandaPainelCozinha(comanda) : comanda);
   } catch (error) {
     res.status(400).json({ msg: error.message });
   }
@@ -342,7 +396,7 @@ router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), exigirPre
   } finally { await session.endSession(); }
 });
 
-router.patch('/:id/balcao/status', auth, auth.allowRoles('admin', 'operador', 'cozinha'), async (req, res) => {
+router.patch('/:id/balcao/status', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const statuses = ['aguardando', 'preparando', 'pronto', 'pago', 'entregue'];
     if (!statuses.includes(req.body.status)) return res.status(400).json({ msg: 'Status de balcão inválido' });
@@ -352,7 +406,7 @@ router.patch('/:id/balcao/status', auth, auth.allowRoles('admin', 'operador', 'c
   } catch (error) { res.status(400).json({ msg: error.message }); }
 });
 
-router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), exigirPrecoManual, async (req, res) => {
+router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom', 'cozinha'), rejeitarPrecoManualCozinha, exigirPrecoManual, async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -361,7 +415,8 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
     const vendaPorPeso = produtoControlaPeso(product) && req.body.tipoVenda === 'peso';
     const pesoVendidoKg = vendaPorPeso ? Number(req.body.pesoVendidoKg) : 0;
     const quantidade = vendaPorPeso ? 1 : Number(req.body.quantidade);
-    if (!comanda || !['aberta', 'rascunho'].includes(comanda.status)) return res.status(400).json({ msg: 'Comanda não está aberta' });
+    const estadosPermitidos = req.user.role === 'cozinha' ? ['aberta'] : ['aberta', 'rascunho'];
+    if (!comanda || !estadosPermitidos.includes(comanda.status)) return res.status(400).json({ msg: 'Comanda não está aberta' });
     if (!product || !Number.isFinite(quantidade) || quantidade < 0.001) return res.status(400).json({ msg: 'Item inválido' });
     if (vendaPorPeso && (!Number.isFinite(pesoVendidoKg) || pesoVendidoKg <= 0)) return res.status(400).json({ msg: 'Informe o peso vendido' });
     if (!permiteFracionar(product) && !Number.isInteger(quantidade)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
@@ -380,20 +435,21 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), 
     comanda.saldoDevedor = Math.max(0, comanda.valorTotal - Number(comanda.valorPago || 0));
     await comanda.save({ session });
     await session.commitTransaction();
-    res.json(comanda);
+    res.json(req.user.role === 'cozinha' ? projetarComandaCozinha(comanda) : comanda);
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
     res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   } finally { await session.endSession(); }
 });
 
-router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'garcom', 'cozinha'), rejeitarPrecoManualCozinha, async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
     const comanda = await Comanda.findById(req.params.id).session(session);
     const quantidade = Number(req.body.quantidade);
-    if (!comanda || !['aberta', 'rascunho'].includes(comanda.status)) return res.status(400).json({ msg: 'Comanda não está aberta' });
+    const estadosPermitidos = req.user.role === 'cozinha' ? ['aberta'] : ['aberta', 'rascunho'];
+    if (!comanda || !estadosPermitidos.includes(comanda.status)) return res.status(400).json({ msg: 'Comanda não está aberta' });
     const item = comanda.itens.id(req.params.itemId);
     if (!item) return res.status(404).json({ msg: 'Item não encontrado' });
     if (!Number.isFinite(quantidade) || quantidade < 0.001) return res.status(400).json({ msg: 'Quantidade inválida' });
@@ -422,19 +478,20 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'g
     comanda.saldoDevedor = Math.max(0, comanda.valorTotal - Number(comanda.valorPago || 0));
     await comanda.save({ session });
     await session.commitTransaction();
-    res.json(comanda);
+    res.json(req.user.role === 'cozinha' ? projetarComandaCozinha(comanda) : comanda);
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
     res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
   } finally { await session.endSession(); }
 });
 
-router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'garcom'), exigirAutorizacao('excluir_item'), async (req, res) => {
+router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'garcom', 'cozinha'), exigirAutorizacao('excluir_item'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
     const comanda = await Comanda.findById(req.params.id).session(session);
-    if (!comanda || !['aberta', 'rascunho'].includes(comanda.status)) return res.status(400).json({ msg: 'Comanda não está aberta' });
+    const estadosPermitidos = req.user.role === 'cozinha' ? ['aberta'] : ['aberta', 'rascunho'];
+    if (!comanda || !estadosPermitidos.includes(comanda.status)) return res.status(400).json({ msg: 'Comanda não está aberta' });
     const item = comanda.itens.id(req.params.itemId);
     if (!item) return res.status(404).json({ msg: 'Item não encontrado' });
     if (comanda.estoqueBaixado) await ajustarEstoque([item], 'devolver', session);
@@ -442,7 +499,7 @@ router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', '
     await recalcularPrecosComanda(comanda, session);
     await comanda.save({ session });
     await session.commitTransaction();
-    res.json(comanda);
+    res.json(req.user.role === 'cozinha' ? projetarComandaCozinha(comanda) : comanda);
   } catch (err) {
     if (session.inTransaction()) await session.abortTransaction();
     res.status(err.status || 400).json({ msg: err.message, ...(err.acao ? { acao: err.acao } : {}) });
@@ -696,7 +753,7 @@ router.post('/:id/reabrir', auth, auth.allowRoles('admin', 'gerente', 'operador'
   } finally { await session.endSession(); }
 });
 
-router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador', 'gerente'), async (req, res) => {
+router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador', 'gerente', 'garcom'), async (req, res) => {
   try {
     const resultado = await executarOperacaoFinanceira({ req, tipo: 'comanda-fechar', recursoId: req.params.id, executar: async (session, dataRecebimento) => {
     const comanda = await Comanda.findById(req.params.id).session(session);
