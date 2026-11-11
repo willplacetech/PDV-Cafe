@@ -223,30 +223,30 @@ git commit -m "fix: alinha controles de telas por perfil" -m "Co-authored-by: Co
 **Arquivos:**
 - Verificar os arquivos das tarefas 1–4; não adicionar funcionalidades.
 
-- [ ] **Passo 1: Executar testes unitários frontend**
+- [x] **Passo 1: Executar testes unitários frontend**
 
 Executar: `npm --prefix front-end run test:unit`
 
 Esperado: todos os testes passam.
 
-- [ ] **Passo 2: Executar RBAC e testes de comandas backend**
+- [x] **Passo 2: Executar RBAC e testes de comandas backend**
 
 Executar: `npm --prefix back-end run test:integration -- --runTestsByPath tests/integration/rbac.test.js tests/integration/comandaUnified.test.js`
 
 Esperado: PASS, sem ampliar permissões fora das explicitadas.
 
-- [ ] **Passo 3: Executar lint e build frontend**
+- [ ] **Passo 3: Executar lint e build frontend** — build concluído e lint dos arquivos alterados aprovado; lint global permanece bloqueado por dois erros preexistentes em `front-end/src/pages/Dashboard.jsx`.
 
 Executar `npm --prefix front-end run lint` e `npm --prefix front-end run build`.
 
 Esperado: lint sem erros e build de produção concluído.
 
-- [ ] **Passo 4: Revisar escopo e whitespace**
+- [x] **Passo 4: Revisar escopo e whitespace**
 
 Executar `git diff --check`, `git status --short` e `git diff --stat`.
 
 Esperado: sem erros de whitespace; nenhuma dependência, migração ou dado persistido alterado; mudanças apenas nas telas, permissões e testes especificados.
 
-- [ ] **Passo 5: Validar em staging antes de produção**
+- [ ] **Passo 5: Validar em staging antes de produção** — não executado: não há endpoint nem contas de staging configuradas; nenhuma publicação foi feita.
 
 Validar com contas de admin, gerente, operador, cozinha e garçom: rotas e menus diretos, edição e fechamento, aprovações, respostas de API da cozinha sem campos financeiros e rejeição de ações fora do escopo. Publicar backend primeiro e frontend depois; manter os dois artefatos anteriores para rollback.
