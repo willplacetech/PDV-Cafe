@@ -2,9 +2,10 @@ import FieldLabel from '../components/FieldLabel.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useFormasPagamento } from '../context/FormasPagamentoDefinition.js';
 import { criarOperacoesFinanceiras } from '../utils/operacaoFinanceira';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useComanda } from '../context/ComandaContext.jsx';
+import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import api from '../services/api.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
@@ -43,6 +44,16 @@ const produtoPorPeso = (product) => Number(product?.pesoPorUnidade) > 0 && produ
 export default function Comandas() {
   const { formasPagamento: FORMAS_PAGAMENTO, rotuloPagamento } = useFormasPagamento();
   const { comandaAtual, salvarComandaAberta, carregarComanda, limparComanda, setMesa, setTipo } = useComanda();
+  const { user } = useContext(AuthContext);
+  const role = user?.role;
+  const cozinha = role === 'cozinha';
+  const podeCriar = ['admin', 'operador', 'garcom'].includes(role);
+  const podeEditarItens = ['admin', 'operador', 'garcom', 'cozinha'].includes(role);
+  const podeSepararItens = ['admin', 'operador', 'garcom'].includes(role);
+  const podeUsarMesas = ['admin', 'operador', 'garcom'].includes(role);
+  const podeAtualizarBalcao = ['admin', 'operador'].includes(role);
+  const podeFechar = ['admin', 'operador', 'gerente', 'garcom'].includes(role);
+  const podeCancelar = ['admin', 'operador', 'gerente', 'garcom'].includes(role);
   const navigate = useNavigate();
   const [comandas, setComandas] = useState([]);
   const paginacaoComandas = usePagination(comandas);
@@ -202,8 +213,13 @@ export default function Comandas() {
     setCarregandoLista(true);
     setErroLista('');
     try {
-      const [commands, catalog, tables] = await Promise.all([api.get('/comandas?status=aberta'), api.get('/products'), api.get('/mesas')]);
-      setConfiguracaoMesas(tables.data);
+      const catalogPath = ['admin', 'gerente'].includes(role) ? '/products' : '/products/pdv';
+      const [commands, catalog, tables] = await Promise.all([
+        api.get('/comandas?status=aberta'),
+        api.get(catalogPath),
+        podeUsarMesas ? api.get('/mesas') : Promise.resolve(null),
+      ]);
+      setConfiguracaoMesas(tables?.data || { mesas: [], oferecerBalcao: false });
       setComandas(commands.data);
       setProducts(catalog.data);
       setSelected((current) => commands.data.find((c) => c._id === preferredId) || commands.data.find((c) => c._id === current?._id) || commands.data[0] || null);
@@ -212,7 +228,7 @@ export default function Comandas() {
     } finally {
       setCarregandoLista(false);
     }
-  }, []);
+  }, [podeUsarMesas, role]);
   useEffect(() => {
     const inicializar = async () => { await load(); };
     inicializar();
@@ -224,10 +240,10 @@ export default function Comandas() {
     campoCliente?.focus({ preventScroll: true });
   };
 
-  const subtotal = useMemo(() => (selected?.itens || []).reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0), [selected]);
-  const total = selected?.utilizacaoInterna ? 0 : Math.max(0, subtotal + safeNumber(selected?.taxaEntrega, 0) - safeNumber(discount, 0));
-  const jaRecebido = useMemo(() => totalPago(selected?.historicoPagamentos), [selected]);
-  const saldoEmAberto = Math.max(0, total - jaRecebido);
+  const subtotal = useMemo(() => cozinha ? 0 : (selected?.itens || []).reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0), [cozinha, selected]);
+  const total = cozinha ? 0 : selected?.utilizacaoInterna ? 0 : Math.max(0, subtotal + safeNumber(selected?.taxaEntrega, 0) - safeNumber(discount, 0));
+  const jaRecebido = useMemo(() => cozinha ? 0 : totalPago(selected?.historicoPagamentos), [cozinha, selected]);
+  const saldoEmAberto = cozinha ? 0 : Math.max(0, total - jaRecebido);
 
   const create = async (event) => {
     event.preventDefault();
@@ -595,8 +611,11 @@ export default function Comandas() {
   return (
     <div className="comandas-page">
       {renderizarAutorizacao()}
-      <div className="page-heading"><div><h1>🪑 Mesas / Comandas</h1><p>Consulte mesas, edite comandas abertas e separe pagamentos em uma única tela.</p></div><button type="button" className="comandas-primary-button btn btn-primary" onClick={() => void createBalcao()}>➕ Novo Pedido</button></div>
-      <section className="service-mode-panel">
+      <div className="page-heading">
+        <div><h1>{cozinha ? '🍳 Comandas da cozinha' : '🪑 Mesas / Comandas'}</h1><p>{cozinha ? 'Consulte comandas abertas e atualize os itens em preparo.' : 'Consulte mesas, edite comandas abertas e separe pagamentos em uma única tela.'}</p></div>
+        {podeCriar && <button type="button" className="comandas-primary-button btn btn-primary" onClick={() => void createBalcao()}>➕ Novo Pedido</button>}
+      </div>
+      {podeUsarMesas && <section className="service-mode-panel">
         <div className="service-mode-heading"><h2>🪑 Mesas ({mesasAtivas.length})</h2><span>Selecione uma mesa para abrir ou editar a comanda.</span></div>
         <div className="table-shortcuts">{mesasAtivas.map((configuracaoMesa) => {
           const mesa = configuracaoMesa.numero;
@@ -618,38 +637,38 @@ export default function Comandas() {
           </div>
           {todasMesasOcupadas && configuracaoMesas.oferecerBalcao && <div style={{ fontSize: 12, color: 'var(--warning-bg)', fontWeight: 700, marginTop: 6 }}>⚠️ Todas as mesas estão em uso. Prosseguir em balcão.</div>}
         </div>
-      </section>
-      <form onSubmit={create} className="comandas-open-form">
+      </section>}
+      {podeCriar && <form onSubmit={create} className="comandas-open-form">
         <input className="comandas-field" placeholder="Nome do cliente" value={newCommand.clienteNome} onChange={(e) => setNewCommand({ ...newCommand, clienteNome: e.target.value })} />
         <input className="comandas-field" placeholder="Observação" value={newCommand.observacao} onChange={(e) => setNewCommand({ ...newCommand, observacao: e.target.value })} />
         <button type="submit">Abrir mesa</button>
-      </form>
+      </form>}
 
       <div className="comandas-columns">
         <section className={`comandas-card comandas-list-card ${mobileView === 'detail' ? 'mobile-hidden' : ''}`}>
           <div className="comandas-card-heading"><div><h2>Em aberto</h2><p>Selecione uma comanda para editar.</p></div><span className="comandas-count">{comandas.length}</span></div>
-          <div className="comandas-quick-products"><strong>Lançamento rápido</strong><div>{products.filter((product) => product.categoria !== 'Insumos').slice(0, 8).map((product) => <button key={product._id} type="button" onClick={() => { setProductId(product._id); setQuantity('1'); }} className={productId === product._id ? 'selected' : ''}>{product.nome}</button>)}</div></div>
+          {podeEditarItens && <div className="comandas-quick-products"><strong>Lançamento rápido</strong><div>{products.filter((product) => product.categoria !== 'Insumos').slice(0, 8).map((product) => <button key={product._id} type="button" onClick={() => { setProductId(product._id); setQuantity('1'); }} className={productId === product._id ? 'selected' : ''}>{product.nome}</button>)}</div></div>}
           <EstadoLista
             carregando={carregandoLista}
             erro={erroLista}
             vazio={comandas.length === 0}
             tituloVazio="Nenhuma comanda em aberto"
             mensagemVazia="Abra uma comanda para começar o atendimento."
-            acaoVaziaTexto="Abrir a primeira comanda"
-            onAcaoVazia={focarCadastroComanda}
+            acaoVaziaTexto={podeCriar ? 'Abrir a primeira comanda' : undefined}
+            onAcaoVazia={podeCriar ? focarCadastroComanda : undefined}
             onRetry={() => { void load(); }}
           >
             <>
               {paginacaoComandas.itensPagina.map((command) => {
-                const info = statusPagamentoInfo(command.statusPagamento);
-                const saldo = saldoDevedor(command.valorTotal, command.historicoPagamentos);
+                const info = cozinha ? null : statusPagamentoInfo(command.statusPagamento);
+                const saldo = cozinha ? 0 : saldoDevedor(command.valorTotal, command.historicoPagamentos);
                 return (
                   <button className="comanda-select-button" key={command._id} onClick={() => { setSelected(command); setSelectedItemIds([]); setMobileView('detail'); }} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
                     <b>{command.tipoAtendimento === 'delivery' ? '🛵' : command.tipoAtendimento === 'balcao' ? '📦' : '🪑'} #{command.numero}</b>
-                    {command.statusPagamento === 'parcial' && <span className="comanda-status-pill" style={{ background: info.bg, color: info.txt }}>{info.label}</span>}
+                    {!cozinha && command.statusPagamento === 'parcial' && <span className="comanda-status-pill" style={{ background: info.bg, color: info.txt }}>{info.label}</span>}
                     <br />
-                    <small>{command.tipoAtendimento === 'delivery' ? 'Delivery' : command.tipoAtendimento === 'balcao' ? `Balcão · ${command.statusBalcao || 'aguardando'}` : command.tipoAtendimento === 'retirada' ? 'Retirada' : `Mesa ${command.mesa || ''}`} · {command.clienteNome} · {command.itens.length} itens</small>
-                    {saldo > 0 && <small style={{ display: 'block', marginTop: 4, fontWeight: 700 }}>A receber: {formatMoney(saldo)}</small>}
+                    <small>{command.tipoAtendimento === 'delivery' ? 'Delivery' : command.tipoAtendimento === 'balcao' ? `Balcão${!cozinha ? ` · ${command.statusBalcao || 'aguardando'}` : ''}` : command.tipoAtendimento === 'retirada' ? 'Retirada' : `Mesa ${command.mesa || ''}`}{!cozinha && command.clienteNome ? ` · ${command.clienteNome}` : ''} · {command.itens.length} itens</small>
+                    {!cozinha && saldo > 0 && <small style={{ display: 'block', marginTop: 4, fontWeight: 700 }}>A receber: {formatMoney(saldo)}</small>}
                   </button>
                 );
               })}
@@ -662,18 +681,18 @@ export default function Comandas() {
           {!selected ? <p>Selecione ou abra uma comanda.</p> : <>
             <div className="comandas-detail-actions">
               <button type="button" className="comandas-mobile-back" onClick={() => setMobileView('list')}>← Voltar para comandas</button>
-              <button type="button" className="comandas-secondary-button btn btn-ghost" onClick={() => void iniciarAtendimentoNoPdv(selected.tipoAtendimento, selected)}>Abrir no PDV</button>
+              {podeCriar && <button type="button" className="comandas-secondary-button btn btn-ghost" onClick={() => void iniciarAtendimentoNoPdv(selected.tipoAtendimento, selected)}>Abrir no PDV</button>}
             </div>
-            <h2 style={{ marginTop: 0 }}>{selected.tipoAtendimento === 'delivery' ? '🛵 Delivery' : selected.tipoAtendimento === 'balcao' ? '📦 Balcão' : '🪑 Mesa'} #{selected.numero} <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}>— {selected.clienteNome}</small></h2>
-            {selected.tipoAtendimento === 'balcao' && <div className="balcao-status-bar"><span>Status: <strong>{selected.statusBalcao || 'aguardando'}</strong></span><div>{['aguardando', 'preparando', 'pronto', 'pago', 'entregue'].map((status) => <button type="button" key={status} className={selected.statusBalcao === status ? 'active' : ''} onClick={() => updateBalcaoStatus(status)}>{status}</button>)}</div></div>}
-            <form onSubmit={addItem} className="comandas-add-form">
-              <SearchableSelect className="comandas-field" required disabled={adicionandoItem} value={productId} onChange={(e) => { setProductId(e.target.value); setTipoVenda('inteiro'); setPesoVendidoKg(''); }}><option value="">Adicionar produto…</option>{products.filter((product) => product.categoria !== 'Insumos').map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}{produtoPorPeso(product) ? '/kg' : ''}</option>)}</SearchableSelect>
+            <h2 style={{ marginTop: 0 }}>{selected.tipoAtendimento === 'delivery' ? '🛵 Delivery' : selected.tipoAtendimento === 'balcao' ? '📦 Balcão' : '🪑 Mesa'} #{selected.numero}{!cozinha && selected.clienteNome && <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}> — {selected.clienteNome}</small>}</h2>
+            {podeAtualizarBalcao && selected.tipoAtendimento === 'balcao' && <div className="balcao-status-bar"><span>Status: <strong>{selected.statusBalcao || 'aguardando'}</strong></span><div>{['aguardando', 'preparando', 'pronto', 'pago', 'entregue'].map((status) => <button type="button" key={status} className={selected.statusBalcao === status ? 'active' : ''} onClick={() => updateBalcaoStatus(status)}>{status}</button>)}</div></div>}
+            {podeEditarItens && <form onSubmit={addItem} className="comandas-add-form">
+              <SearchableSelect className="comandas-field" required disabled={adicionandoItem} value={productId} onChange={(e) => { setProductId(e.target.value); setTipoVenda('inteiro'); setPesoVendidoKg(''); }}><option value="">Adicionar produto…</option>{products.filter((product) => product.categoria !== 'Insumos').map((product) => <option key={product._id} value={product._id}>{product.nome}{!cozinha ? ` — ${formatMoney(product.preco)}${produtoPorPeso(product) ? '/kg' : ''}` : ''}</option>)}</SearchableSelect>
               {produtoPorPeso(produtoSelecionado) && <SearchableSelect className="comandas-field" disabled={adicionandoItem} value={tipoVenda} onChange={(e) => setTipoVenda(e.target.value)}><option value="inteiro">Bolo inteiro</option><option value="peso">Fatia pesada</option></SearchableSelect>}
               {tipoVenda === 'peso' && produtoPorPeso(produtoSelecionado) ? <input className="comandas-field quantity-field" disabled={adicionandoItem} required type="number" min="0.001" step="0.001" placeholder="Peso vendido (kg)" value={pesoVendidoKg} onChange={(e) => setPesoVendidoKg(e.target.value)} /> : <input className="comandas-field quantity-field" disabled={adicionandoItem} required type="number" min={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} step={permiteFracionar(produtoSelecionado) ? '0.001' : '1'} value={quantity} onChange={(e) => setQuantity(e.target.value)} />}
               <button type="submit" disabled={adicionandoItem} className="comandas-secondary-button btn btn-ghost">{adicionandoItem ? 'Adicionando…' : 'Adicionar'}</button>
-            </form>
+            </form>}
 
-            {selected.itens.length > 0 && (
+            {podeSepararItens && selected.itens.length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
                 <button type="button" onClick={moverParaNovaComanda} disabled={!selectedItemIds.length} className="comandas-secondary-button btn btn-ghost" style={{ flex: 1, minWidth: 220 }}>
                   📦 {selectedItemIds.length
@@ -695,21 +714,21 @@ export default function Comandas() {
               return (
                 <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border-color)', padding: '10px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1 }}>
-                    <input
+                    {podeSepararItens && <input
                       type="checkbox"
                       checked={selectedItemIds.includes(item._id)}
                       onChange={() => toggleItemSelection(item._id)}
                       style={{ marginTop: 5, width: 18, height: 18, accentColor: 'var(--accent-primary)' }}
                       aria-label={`Selecionar ${item.nome}`}
-                    />
+                    />}
                     <span>
                       <b>{item.nome}</b><br />
-                      <small>{formatQuantity(item)} × {formatMoney(item.precoUnitario)}</small>
+                      <small>{formatQuantity(item)}{!cozinha ? ` × ${formatMoney(item.precoUnitario)}` : ''}</small>
                       {item.modificadores?.length > 0 && <><br /><small style={{ color: 'var(--accent-primary)' }}>☕ {item.modificadores.join(' · ')}</small></>}
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-tertiary)' }}>
+                    {podeEditarItens ? <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-tertiary)' }}>
                       <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => atualizarQuantidadeItem(item._id, Math.max(step, Number(quantidadeExibida || 0) - step))} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: itemOcupado ? 'wait' : 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>−</button>
                       <input
                         type="number"
@@ -723,14 +742,14 @@ export default function Comandas() {
                         aria-label={`Quantidade de ${item.nome}`}
                       />
                       <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => atualizarQuantidadeItem(item._id, Number(quantidadeExibida || 0) + step)} style={{ width: 28, height: 30, border: 0, background: 'transparent', cursor: itemOcupado ? 'wait' : 'pointer', fontWeight: 700, color: 'var(--text-primary)' }}>+</button>
-                    </div>
-                    <span style={{ minWidth: 78, textAlign: 'right', fontWeight: 700 }}>{formatMoney(Number(quantidadeExibida || 0) * item.precoUnitario)}</span>
-                    <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`} style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', cursor: itemOcupado ? 'wait' : 'pointer', fontSize: 20 }}>🔒 ×</button>
+                    </div> : <strong>{formatQuantity(item)}</strong>}
+                    {!cozinha && podeEditarItens && <span style={{ minWidth: 78, textAlign: 'right', fontWeight: 700 }}>{formatMoney(Number(quantidadeExibida || 0) * item.precoUnitario)}</span>}
+                    {podeEditarItens && <button type="button" disabled={itemOcupado} onMouseDown={(event) => event.preventDefault()} onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`} style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', cursor: itemOcupado ? 'wait' : 'pointer', fontSize: 20 }}>🔒 ×</button>}
                   </div>
                 </div>
               );
             })}
-            <div className="comandas-checkout">
+            {!cozinha && <div className="comandas-checkout">
               <div>
                 <small style={{ display: 'block', color: 'var(--text-secondary)' }}>Total da comanda</small>
                 <b style={{ fontSize: 20, color: 'var(--accent-primary)' }}>{formatMoney(subtotal)}</b>
@@ -758,22 +777,22 @@ export default function Comandas() {
                   </details>
                 )}
               </div>
-              <button onClick={abrirModalFechamento} className="comandas-primary-button btn btn-primary">{jaRecebido > 0 ? 'Receber / Fechar' : 'Fechar comanda'}</button>
-              <ConfirmarAcao
+              {podeFechar && <button onClick={abrirModalFechamento} className="comandas-primary-button btn btn-primary">{jaRecebido > 0 ? 'Receber / Fechar' : 'Fechar comanda'}</button>}
+              {podeCancelar && <ConfirmarAcao
                 titulo="Cancelar comanda"
                 mensagem={`Cancelar a comanda #${selected.numero}?`}
                 acaoTexto="Cancelar comanda"
                 onConfirmar={cancel}
               >
                 {({ onClick }) => <button onClick={onClick} className="comandas-cancel-button">🔒 Cancelar</button>}
-              </ConfirmarAcao>
-            </div>
+              </ConfirmarAcao>}
+            </div>}
           </>}
         </section>
       </div>
 
       {/* ── MODAL DE FECHAMENTO ───────────────────────────────────────────── */}
-      {modalFechamento && selected && (
+      {podeFechar && modalFechamento && selected && (
         <div onClick={() => { if (!fechandoRef.current) setModalFechamento(false); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000, padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 576, maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 18, padding: 24, boxShadow: 'var(--shadow-lg)', color: 'var(--text-primary)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
@@ -850,7 +869,7 @@ export default function Comandas() {
         </div>
       )}
 
-      {modalMoverComanda && (
+      {podeSepararItens && modalMoverComanda && (
         <div onClick={() => setModalMoverComanda(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9002, padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 18, padding: 24, boxShadow: 'var(--shadow-lg)', color: 'var(--text-primary)' }}>
             <div style={{ width: 62, height: 62, borderRadius: '50%', margin: '0 auto 12px', background: 'rgba(124,75,30,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30 }}>📦</div>
@@ -891,7 +910,7 @@ export default function Comandas() {
       )}
 
       {/* ── MODAL DE SUCESSO ──────────────────────────────────────────────── */}
-      {modalSucesso && (
+      {!cozinha && modalSucesso && (
         <div onClick={() => setModalSucesso(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9001, padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 400, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 20, padding: 28, textAlign: 'center', boxShadow: 'var(--shadow-lg)', color: 'var(--text-primary)' }}>
             <div style={{ width: 68, height: 68, borderRadius: '50%', margin: '0 auto 14px', background: 'rgba(16,185,129,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34 }}>✅</div>
