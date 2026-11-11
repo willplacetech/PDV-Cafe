@@ -1,0 +1,64 @@
+name: Backup diário do MongoDB
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backup-mongodb
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirmar que o repositório é privado
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          visibility="$(gh api "repos/$REPOSITORY" --jq .visibility)"
+          if [ "$visibility" != "private" ]; then
+            echo "::error::O backup foi cancelado: torne o repositório privado antes de executá-lo."
+            exit 1
+          fi
+
+      - name: Validar segredos do banco
+        env:
+          BACKUP_MONGO_URI: ${{ secrets.BACKUP_MONGO_URI }}
+          BACKUP_MONGO_DB_NAME: ${{ secrets.BACKUP_MONGO_DB_NAME }}
+        run: |
+          if [ -z "$BACKUP_MONGO_URI" ] || [ -z "$BACKUP_MONGO_DB_NAME" ]; then
+            echo "::error::Configure os segredos BACKUP_MONGO_URI e BACKUP_MONGO_DB_NAME."
+            exit 1
+          fi
+
+      - name: Gerar dump compactado
+        env:
+          BACKUP_MONGO_URI: ${{ secrets.BACKUP_MONGO_URI }}
+          BACKUP_MONGO_DB_NAME: ${{ secrets.BACKUP_MONGO_DB_NAME }}
+        run: |
+          docker run --rm \
+            --entrypoint sh \
+            --env BACKUP_MONGO_URI \
+            --env BACKUP_MONGO_DB_NAME \
+            --volume "$RUNNER_TEMP:/backup" \
+            mongo:8.0 \
+            -ec 'mongodump --uri="$BACKUP_MONGO_URI" --db="$BACKUP_MONGO_DB_NAME" --archive=/backup/latest-mongodb-backup.archive.gz --gzip'
+          test -s "$RUNNER_TEMP/latest-mongodb-backup.archive.gz"
+
+      - name: Substituir o backup na Release privada
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_tag="database-backup"
+          if ! gh release view "$release_tag" >/dev/null 2>&1; then
+            gh release create "$release_tag" \
+              --title "Backup mais recente do MongoDB" \
+              --notes "Arquivo atualizado diariamente pelo GitHub Actions."
+          fi
+          gh release upload "$release_tag" "$RUNNER_TEMP/latest-mongodb-backup.archive.gz" --clobber
