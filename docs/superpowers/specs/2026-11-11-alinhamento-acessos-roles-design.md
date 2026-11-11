@@ -27,9 +27,14 @@ financeiras.
   `Promise.all`, mas consulta `GET /products`, que nega acesso a Operador e
   Garçom. A rejeição impede a tela inteira de carregar, apesar de a API já
   permitir que esses perfis leiam comandas e editem seus itens.
+- A mesma carga falha para Gerente porque `GET /mesas` não permite esse perfil,
+  embora Gerente possa consultar comandas e fechar uma comanda.
 - Cozinha tem acesso ao quadro e às fichas técnicas de leitura, mas não à lista
   completa de comandas nem às rotas de edição de itens. A captura apresentada
   mostra o erro 403 de `/products` para o usuário `garcom`.
+- Portanto, Operador e Garçom falham em `/products`, Gerente falha em `/mesas`
+  e Cozinha falha em `/comandas`; a carga atual só é autorizada integralmente
+  para Admin.
 - A rota `POST /comandas/:id/fechar` permite admin, Operador e Gerente, mas
   nega Garçom, embora esse perfil já possa abrir e editar comandas e a tela
   atual apresente o fluxo de fechamento.
@@ -76,7 +81,8 @@ financeiras.
     fechamento e reabertura conforme API e aprovações existentes.
 - **Comandas para Gerente:** pode consultar e fechar comandas, como já
   permitido pela API; não pode criar comandas nem adicionar, alterar ou remover
-  itens.
+  itens. A tela não deve solicitar a configuração de mesas, que não é
+  necessária para essas ações e não é autorizada a esse perfil.
 - **Operador e Garçom:** podem consultar comandas abertas e adicionar,
   ajustar quantidade e remover itens, conforme as permissões já existentes na
   API. A tela deve usar o catálogo `/products/pdv`, autorizado para esses
@@ -113,6 +119,8 @@ financeiras.
   Mesas.
 - Ajustar a consulta de catálogo em Comandas para usar `/products/pdv` nos
   perfis de atendimento e fornecer a Cozinha apenas os campos necessários.
+  Carregar configuração de mesas somente para os perfis que podem usá-la; não
+  ampliar `GET /mesas` para Gerente.
 - Permitir Cozinha somente na leitura de comandas abertas e nas rotas de
   adicionar, editar quantidade e remover itens. As respostas para Cozinha
   devem ser limitadas aos campos operacionais descritos acima; a cozinha só
@@ -151,6 +159,9 @@ financeiras.
   que admin mantém os controles atuais.
 - Testes de ponta a ponta reproduzem o 403 de `GET /products` para Garçom e
   confirmam que a lista de comandas carrega usando o catálogo autorizado.
+- Testes cobrem os 403 iniciais de `/mesas` para Gerente e `/comandas` para
+  Cozinha, confirmando depois que a interface não pede configuração de mesas
+  desnecessária e que a API permite apenas a consulta operacional aprovada.
 - Testes de RBAC confirmam que Cozinha consulta e edita itens em comandas
   abertas, não altera comandas fechadas e continua sem acesso às ações
   financeiras e de configuração.
