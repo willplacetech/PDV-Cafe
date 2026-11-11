@@ -1,8 +1,9 @@
 ﻿import FieldLabel from '../components/FieldLabel.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
+import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { exportarCSV, colunasCSV, dataArquivoCSV } from '../utils/exportarCsv.js';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
@@ -69,6 +70,8 @@ const vazio = {
 };
 
 export default function Products() {
+  const { user } = useContext(AuthContext);
+  const isAdmin = user?.role === 'admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [produtos, setProdutos] = useState([]);
@@ -196,6 +199,7 @@ export default function Products() {
 
   const submit = async (event) => {
     event.preventDefault();
+    if (!isAdmin && !editing) return;
     const tipo = form.tipo;
     if (!form.nome || form.nome.trim() === '') {
       showToast('Atenção: O nome do produto é obrigatório.', 'warning');
@@ -482,7 +486,7 @@ export default function Products() {
         </div>
       </div>
 
-      <section className="product-form-card" id="product-form">
+      {(isAdmin || editing) && <section className="product-form-card" id="product-form">
         <h2 className="product-form-heading">{editing ? 'Editar Produto' : 'Novo Produto'}</h2>
         <form onSubmit={submit}>
             <div className="product-form-grid product-essential-grid">
@@ -691,7 +695,7 @@ export default function Products() {
             )}
           </div>
         </form>
-      </section>
+      </section>}
 
       <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 16 }}>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 10 }}>
@@ -787,9 +791,9 @@ export default function Products() {
                   </div>
                   <div className="product-card-actions">
                     <button type="button" className="product-card-edit" onClick={() => editarProduto(produto)}>Editar</button>
-                    <ConfirmarAcao titulo="Excluir produto" mensagem="Excluir este produto?" acaoTexto="Excluir" onConfirmar={() => remover(produto._id)}>
+                    {isAdmin && <ConfirmarAcao titulo="Excluir produto" mensagem="Excluir este produto?" acaoTexto="Excluir" onConfirmar={() => remover(produto._id)}>
                       {({ onClick }) => <button type="button" className="product-card-delete" onClick={onClick}>✓ Excluir</button>}
-                    </ConfirmarAcao>
+                    </ConfirmarAcao>}
                   </div>
                 </div>
               </article>

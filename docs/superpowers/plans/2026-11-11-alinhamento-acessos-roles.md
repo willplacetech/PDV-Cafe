@@ -47,7 +47,7 @@
 - `roleAccess` exporta arrays `products`, `customers`, `productionStock`, `cash`, `kitchen`, `recipeSheets`, `tableSettings` e `comandas`.
 - `App.jsx` usa as arrays em `RoleRoute`; `Layout.jsx` usa as mesmas arrays nos links correspondentes.
 
-- [ ] **Passo 1: Adicionar testes da matriz e da navegação**
+- [x] **Passo 1: Adicionar testes da matriz e da navegação**
 
 Em `roleAccess.test.js`, conferir as listas exatas:
 - `products`, `customers`, `productionStock`, `cash`: `admin`, `gerente`.
@@ -58,23 +58,23 @@ Em `roleAccess.test.js`, conferir as listas exatas:
 
 Em `layout.test.js`, renderizar o layout com o contexto de cada perfil e verificar que os links obedecem às mesmas permissões.
 
-- [ ] **Passo 2: Executar os testes direcionados e confirmar a falha**
+- [x] **Passo 2: Executar os testes direcionados e confirmar a falha**
 
 Executar: `node --test front-end/tests/roleAccess.test.js front-end/tests/layout.test.js`
 
 Esperado: falha pelos exports ausentes e pela filtragem atual dos menus.
 
-- [ ] **Passo 3: Implementar a matriz compartilhada**
+- [x] **Passo 3: Implementar a matriz compartilhada**
 
 Criar as arrays em `roleAccess.js`, aplicar a matriz aos itens de menu e aos guards das rotas, proteger `/cadastro/mesas` como admin-only e renderizar `FichasTecnicas` diretamente em `/producao/fichas` para admin/cozinha.
 
-- [ ] **Passo 4: Executar os testes e confirmar a aprovação**
+- [x] **Passo 4: Executar os testes e confirmar a aprovação**
 
 Executar: `node --test front-end/tests/roleAccess.test.js front-end/tests/layout.test.js`
 
 Esperado: PASS, incluindo visibilidade por perfil e todos os links administrativos restritos.
 
-- [ ] **Passo 5: Commitar a tarefa**
+- [x] **Passo 5: Commitar a tarefa**
 
 ```powershell
 git add front-end\src\permissions\roleAccess.js front-end\src\App.jsx front-end\src\components\Layout.jsx front-end\tests\roleAccess.test.js front-end\tests\layout.test.js
@@ -96,7 +96,7 @@ git commit -m "feat: unifica acesso por perfil" -m "Co-authored-by: Copilot <223
 - As consultas `/products` e `/production/recipes` necessárias às fichas técnicas da Cozinha retornam somente projeções operacionais, sem custos; as demais rotas de produção e `/products/inventory-list` permanecem negadas.
 - As demais roles preservam os payloads e permissões existentes, exceto o fechamento por Garçom.
 
-- [ ] **Passo 1: Adicionar testes de RBAC e allowlist**
+- [x] **Passo 1: Adicionar testes de RBAC e allowlist**
 
 Adicionar testes cobrindo:
 - Cozinha lista apenas comandas abertas e o KDS mantém sua tela com dados operacionais, sem valores, pagamentos, telefone ou endereço.
@@ -108,25 +108,25 @@ Adicionar testes cobrindo:
 - Garçom fecha comanda aberta, preserva recebimento parcial e cancelamento sob as aprovações atuais e continua sem reabertura.
 - Gerente permanece sem acesso a `GET /mesas`; operador permanece sem acesso a `GET /products`.
 
-- [ ] **Passo 2: Executar os testes e confirmar as falhas**
+- [x] **Passo 2: Executar os testes e confirmar as falhas**
 
 Executar: `npm --prefix back-end run test:integration -- --runTestsByPath tests/integration/rbac.test.js tests/integration/comandaUnified.test.js`
 
 Esperado: falhas nos novos casos para Cozinha e Garçom.
 
-- [ ] **Passo 3: Implementar as permissões e projeções da API**
+- [x] **Passo 3: Implementar as permissões e projeções da API**
 
 Em `comandas.js`, permitir cozinha somente em `GET /?status=aberta` e nas rotas de inclusão, edição de quantidade e remoção de itens. Rejeitar rascunhos para cozinha, manter as verificações de gerente e serializar respostas da lista/edição com a allowlist definida na especificação. Preservar os campos operacionais usados pelo KDS, sem incluir valores ou dados de contato, e rejeitar alteração de preço manual pela Cozinha. Remover Cozinha do status de balcão. Adicionar Garçom somente ao guard de `POST /:id/fechar`.
 
 Em `products.js`, permitir cozinha em `/pdv` e, para esse perfil, projetar apenas os campos do catálogo definidos na especificação. Manter `/products` com projeção operacional sem custos para a tela de fichas técnicas e negar à Cozinha `/products/inventory-list`. Em `production.js`, permitir à Cozinha somente `GET /recipes`, com resposta operacional sem custos ou autoria; negar as demais rotas de produção. Não alterar as respostas para os demais perfis.
 
-- [ ] **Passo 4: Executar os testes e confirmar a aprovação**
+- [x] **Passo 4: Executar os testes e confirmar a aprovação**
 
 Executar: `npm --prefix back-end run test:integration -- --runTestsByPath tests/integration/rbac.test.js tests/integration/comandaUnified.test.js`
 
 Esperado: PASS, inclusive as negativas de ações não autorizadas e a ausência dos campos sensíveis.
 
-- [ ] **Passo 5: Commitar a tarefa**
+- [x] **Passo 5: Commitar a tarefa**
 
 ```powershell
 git add back-end\routes\comandas.js back-end\routes\products.js back-end\routes\production.js back-end\tests\integration\rbac.test.js back-end\tests\integration\comandaUnified.test.js docs\superpowers\specs\2026-11-11-alinhamento-acessos-roles-design.md docs\superpowers\plans\2026-11-11-alinhamento-acessos-roles.md
@@ -144,7 +144,7 @@ git commit -m "feat: limita permissões de comandas por perfil" -m "Co-authored-
 - `admin` e `gerente` usam o catálogo `/products`; `operador`, `garcom` e `cozinha` usam `/products/pdv`.
 - Consultar `/mesas` somente quando o perfil puder e precisar abrir mesas; gerente e cozinha não fazem essa chamada.
 
-- [ ] **Passo 1: Adicionar casos Cypress para os cinco perfis**
+- [x] **Passo 1: Adicionar casos Cypress para os cinco perfis**
 
 Com fixtures locais, verificar:
 - operador e Garçom carregam comandas e catálogo sem chamar `/products`; ambos podem alterar itens.
@@ -154,23 +154,23 @@ Com fixtures locais, verificar:
 - Garçom envia `POST /comandas/:id/fechar` no fluxo de fechamento.
 - admin mantém a tela completa.
 
-- [ ] **Passo 2: Executar o spec e confirmar as falhas**
+- [x] **Passo 2: Executar o spec e confirmar as falhas**
 
 Com Vite disponível em `http://localhost:5173`, executar: `npm --prefix front-end run test:frontend -- --spec tests/e2e/role_comandas.cy.js`
 
 Esperado: falha para o carregamento atual de operador/Garçom, e para os acessos ainda não implementados de gerente/cozinha.
 
-- [ ] **Passo 3: Corrigir as chamadas e os controles por perfil**
+- [x] **Passo 3: Corrigir as chamadas e os controles por perfil**
 
 Em `Comandas.jsx`, selecionar o endpoint de catálogo pelo perfil; omitir a consulta de mesas para gerente/cozinha; ocultar criação e alterações de itens para gerente; ocultar criação, metadados, movimento, fechamento e valores financeiros para cozinha. Não renderizar nem calcular componentes financeiros com campos ausentes na projeção de cozinha. Preservar cancelamento do Gerente com a aprovação atual, permissões financeiras atuais do Garçom, adição/ajuste/remoção de itens para cozinha e o fluxo atual de aprovação em ações destrutivas.
 
-- [ ] **Passo 4: Executar o spec e confirmar a aprovação**
+- [x] **Passo 4: Executar o spec e confirmar a aprovação**
 
 Executar: `npm --prefix front-end run test:frontend -- --spec tests/e2e/role_comandas.cy.js`
 
 Esperado: PASS para operador, Garçom, gerente, cozinha e admin.
 
-- [ ] **Passo 5: Commitar a tarefa**
+- [x] **Passo 5: Commitar a tarefa**
 
 ```powershell
 git add front-end\src\pages\Comandas.jsx front-end\tests\e2e\role_comandas.cy.js
@@ -191,27 +191,27 @@ git commit -m "fix: corrige acesso por perfil em comandas" -m "Co-authored-by: C
 - Todas as telas usam o usuário já fornecido por `AuthContext`.
 - Reabertura de Caixa mantém a chamada existente e o retry/autorização do interceptor global de `api.jsx`; não alterar `Caixa.jsx` para duplicar esse comportamento.
 
-- [ ] **Passo 1: Adicionar testes de telas e reabertura**
+- [x] **Passo 1: Adicionar testes de telas e reabertura**
 
 Verificar gerente sem criação/exclusão de produto, sem escrita em clientes e produção, com telas permitidas acessíveis; cozinha vê fichas técnicas sem controles de escrita. Para reabertura de caixa, simular 403 com `acao: 'reabrir_caixa'` e confirmar que o interceptor solicita autorização e repete a chamada com o header aprovado.
 
-- [ ] **Passo 2: Executar os specs e confirmar as falhas**
+- [x] **Passo 2: Executar os specs e confirmar as falhas**
 
 Com Vite disponível em `http://localhost:5173`, executar: `npm --prefix front-end run test:frontend -- --spec tests/e2e/role_access.cy.js,tests/e2e/autorizacao_gerente.cy.js`
 
 Esperado: falhas nos controles e guardas que ainda divergem da API.
 
-- [ ] **Passo 3: Aplicar os limites de ação nas telas**
+- [x] **Passo 3: Aplicar os limites de ação nas telas**
 
 Gerente mantém leitura/exportação de clientes, leitura e edição de produtos via aprovação, apenas estoque de insumos em Produção e as ações já permitidas de Caixa. Cozinha mantém as fichas técnicas somente para leitura. Admin mantém os controles atuais.
 
-- [ ] **Passo 4: Executar os specs e confirmar a aprovação**
+- [x] **Passo 4: Executar os specs e confirmar a aprovação**
 
 Executar: `npm --prefix front-end run test:frontend -- --spec tests/e2e/role_access.cy.js,tests/e2e/autorizacao_gerente.cy.js`
 
 Esperado: PASS, inclusive retry aprovado de reabertura pelo interceptor global.
 
-- [ ] **Passo 5: Commitar a tarefa**
+- [x] **Passo 5: Commitar a tarefa**
 
 ```powershell
 git add front-end\src\pages\Products.jsx front-end\src\pages\Customers.jsx front-end\src\pages\Production.jsx front-end\src\pages\FichasTecnicas.jsx front-end\tests\e2e\role_access.cy.js front-end\tests\e2e\autorizacao_gerente.cy.js

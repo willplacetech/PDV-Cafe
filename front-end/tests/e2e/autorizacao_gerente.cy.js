@@ -68,4 +68,38 @@ describe('Autorização de gerente', () => {
     cy.get('[role="dialog"]').should('not.exist');
     cy.then(() => expect(calls).to.equal(2));
   });
+
+  it('reabre caixa somente após a aprovação solicitada pelo interceptor', () => {
+    const approved = token();
+    const profile = { id: 'manager-cash-e2e', username: 'manager-cash-e2e', role: 'gerente', tenantId: null };
+    const caixaId = 'cash-reopen-approval-e2e';
+    const sistema = { saldoAnterior: 0, entradasDinheiro: 0, sangrias: [], suplementacoes: [], saldoEsperado: 0 };
+    cy.intercept('POST', '**/api/auth/refresh', { token: 'role-test-token', user: profile });
+    cy.intercept('GET', '**/api/configuracoes', { exigirAutorizacaoGerente: true });
+    cy.intercept('GET', '**/api/caixa/atual*', {
+      fechamento: { _id: caixaId, status: 'fechado', updatedAt: new Date().toISOString(), conferencia: { conferidoEm: new Date().toISOString() }, outrosMeios: {} },
+      sistema,
+      outrosMeios: {},
+    }).as('currentCash');
+    cy.intercept('POST', '**/api/auth/autorizar', req => {
+      expect(req.body).to.deep.equal({ senha: 'senha-gerente', acao: 'reabrir_caixa' });
+      req.reply({ tokenAutorizacao: approved, autorizado: true });
+    }).as('authorizeReopen');
+    let attempts = 0;
+    cy.intercept('POST', `**/api/caixa/${caixaId}/reabrir`, req => {
+      attempts++;
+      if (attempts === 1) return req.reply({ statusCode: 403, body: { msg: 'Autorização do gerente necessária', acao: 'reabrir_caixa' } });
+      expect(req.headers['x-autorizacao-gerente']).to.equal(approved);
+      req.reply({ statusCode: 200, body: { _id: caixaId, status: 'aberto' } });
+    }).as('reopenCash');
+    cy.visit('/caixa', { onBeforeLoad(win) { win.localStorage.setItem('pdv_user', JSON.stringify(profile)); } });
+    cy.contains('button', 'Reabrir caixa').should('be.visible').click();
+    cy.wait('@reopenCash').its('response.statusCode').should('equal', 403);
+    cy.get('[role="dialog"] input[aria-label="Senha do gerente ou administrador"]').type('senha-gerente');
+    cy.get('[role="dialog"]').contains('button', 'Confirmar').click();
+    cy.wait('@authorizeReopen');
+    cy.wait('@reopenCash').its('response.statusCode').should('equal', 200);
+    cy.get('[role="dialog"]').should('not.exist');
+    cy.then(() => expect(attempts).to.equal(2));
+  });
 });

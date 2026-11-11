@@ -1,6 +1,7 @@
 import FieldLabel from '../components/FieldLabel.jsx';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
 import api from '../services/api.jsx';
+import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
@@ -40,6 +41,8 @@ const aplicarMascaraData = (valor) => {
 };
 
 export default function Customers() {
+  const { user } = useContext(AuthContext);
+  const canEdit = user?.role === 'admin';
   const [clientes, setClientes] = useState([]);
   const [totalClientes, setTotalClientes] = useState(0);
   const [carregandoLista, setCarregandoLista] = useState(true);
@@ -197,7 +200,7 @@ export default function Customers() {
         <button type="button" className="btn btn-secondary" onClick={exportarCsv}>Exportar CSV</button>
       </div>
 
-      <div className="ui-card" style={{ marginBottom: 16 }}>
+      {canEdit && <div className="ui-card" style={{ marginBottom: 16 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 14px', color: 'var(--text-primary)' }}>
           {editing ? '✏️ Editar Cliente' : '➕ Novo Cliente'}
         </h3>
@@ -255,7 +258,7 @@ export default function Customers() {
             }}>Cancelar</button>}
           </div>
         </form>
-      </div>
+      </div>}
 
       <div className="ui-card">
         <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -273,7 +276,7 @@ export default function Customers() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                {['Nome', 'Telefone', 'CPF', 'Aniv.', 'Fidelidade', 'Ações'].map(h => (
+                {['Nome', 'Telefone', 'CPF', 'Aniv.', 'Fidelidade', ...(canEdit ? ['Ações'] : [])].map(h => (
                   <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{h}</th>
                 ))}
               </tr>
@@ -281,15 +284,15 @@ export default function Customers() {
             <tbody>
               {carregandoLista || erroLista || clientes.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={canEdit ? 6 : 5}>
                     <EstadoLista
                       carregando={carregandoLista}
                       erro={erroLista}
                       vazio={clientes.length === 0}
                       tituloVazio="Nenhum cliente cadastrado"
                       mensagemVazia="Cadastre o primeiro cliente para manter sua base organizada."
-                      acaoVaziaTexto="Cadastrar primeiro cliente"
-                      onAcaoVazia={focarCadastro}
+                      acaoVaziaTexto={canEdit ? 'Cadastrar primeiro cliente' : undefined}
+                      onAcaoVazia={canEdit ? focarCadastro : undefined}
                       onRetry={() => { void carregar(); }}
                     />
                   </td>
@@ -301,14 +304,14 @@ export default function Customers() {
                   <td style={{ padding: '10px 8px', fontSize: 13, fontFamily: 'monospace' }}>{aplicarMascaraCPF(c.cpf) || '-'}</td>
                   <td style={{ padding: '10px 8px', fontSize: 13, fontFamily: 'monospace', color: 'var(--accent-primary)' }}>{c.aniversario || '-'}</td>
                   <td style={{ padding: '10px 8px', fontSize: 13, whiteSpace: 'nowrap' }}>{c.clienteInterno ? '-' : <>{c.cafesFidelidade || 0} comandas · x{calcularMultiplicadorFidelidade(c.cafesFidelidade)}</>}</td>
-                  <td style={{ padding: '10px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  {canEdit && <td style={{ padding: '10px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {c.clienteInterno ? <span>Cliente do sistema</span> : <>
                       <button type="button" className="btn btn-ghost btn-sm" onClick={() => alterar(c)}>Editar</button>
                       <ConfirmarAcao titulo="Excluir cliente" mensagem="Excluir este cliente?" acaoTexto="Excluir" onConfirmar={() => remover(c._id)}>
                         {({ onClick }) => <button type="button" className="btn btn-danger btn-sm" onClick={onClick}>🔒 Excluir</button>}
                       </ConfirmarAcao>
                     </>}
-                  </td>
+                  </td>}
                 </tr>
               ))}
             </tbody>

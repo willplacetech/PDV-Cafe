@@ -1,8 +1,9 @@
 import FieldLabel from '../components/FieldLabel.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api.jsx';
+import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { requestAutorizado } from '../services/apiAutorizada.js';
 import { useAutorizacaoGerente } from '../hooks/useAutorizacaoGerente.jsx';
 import { useToast } from '../components/useToast.js';
@@ -23,8 +24,10 @@ const unidadeDoInsumo = (produto = {}) => produto.tipo === 'venda' && produto.us
 const fatoresBase = { kg: 1, L: 1, un: 1 };
 
 export default function Production() {
+  const { user } = useContext(AuthContext);
+  const isAdmin = user?.role === 'admin';
   const [searchParams, setSearchParams] = useSearchParams();
-  const [tab, setTab] = useState(searchParams.get('tab') === 'fichas' ? 'fichas-atual' : 'estoque');
+  const [tab, setTab] = useState(() => isAdmin && searchParams.get('tab') === 'fichas' ? 'fichas-atual' : 'estoque');
   const [products, setProducts] = useState([]);
   const [stock, setStock] = useState([]);
   const [recipes, setRecipes] = useState([]);
@@ -54,22 +57,31 @@ export default function Production() {
   const paginacaoMovimentos = useUrlPagination('movimentos-producao');
   const { paginaAtual: paginaEstoque, limiteAtual: limiteEstoque } = paginacaoEstoque;
   const { paginaAtual: paginaMovimentos, limiteAtual: limiteMovimentos } = paginacaoMovimentos;
+  const activeTab = isAdmin ? tab : 'estoque';
 
   const load = useCallback(async () => {
     setLoadingProduction(true);
     setProductionLoadError('');
     try {
-      const [productsResponse, stockResponse, recipesResponse, dashboardResponse, movimentosResponse] = await Promise.all([
+      const stockResponse = await api.get('/production/stock', { params: { location: 'insumos', pagina: paginaEstoque, limite: limiteEstoque } });
+      const stockData = stockResponse.data;
+      setStock(Array.isArray(stockData) ? stockData : stockData.dados);
+      setTotalStock(Array.isArray(stockData) ? stockData.length : stockData.total);
+      if (!isAdmin) {
+        setProducts([]);
+        setRecipes([]);
+        setProductionDashboard(null);
+        setMovimentos([]);
+        setTotalMovimentos(0);
+        return;
+      }
+      const [productsResponse, recipesResponse, dashboardResponse, movimentosResponse] = await Promise.all([
         api.get('/products'),
-        api.get('/production/stock', { params: { location: 'insumos', pagina: paginaEstoque, limite: limiteEstoque } }),
         api.get('/production/recipes'),
         api.get('/production/dashboard'),
         api.get('/production/movements', { params: { pagina: paginaMovimentos, limite: limiteMovimentos } }),
       ]);
       setProducts(productsResponse.data);
-      const stockData = stockResponse.data;
-      setStock(Array.isArray(stockData) ? stockData : stockData.dados);
-      setTotalStock(Array.isArray(stockData) ? stockData.length : stockData.total);
       setRecipes(recipesResponse.data);
       setProductionDashboard(dashboardResponse.data);
       const movementData = movimentosResponse.data;
@@ -82,7 +94,7 @@ export default function Production() {
     } finally {
       setLoadingProduction(false);
     }
-  }, [showToast, paginaEstoque, limiteEstoque, paginaMovimentos, limiteMovimentos]);
+  }, [isAdmin, showToast, paginaEstoque, limiteEstoque, paginaMovimentos, limiteMovimentos]);
 
   useEffect(() => {
     const loadInitialData = async () => { await load(); };
@@ -91,6 +103,7 @@ export default function Production() {
 
   const producibleProducts = products.filter((product) => product.tipo === 'venda' && (product.tipoProduto === 'producao' || (!product.tipoProduto && product.producaoPropria)));
   const alterarTab = (novaTab) => {
+    if (!isAdmin && novaTab !== 'estoque') return;
     setTab(novaTab === 'fichas' ? 'fichas-atual' : novaTab);
     setSearchParams(novaTab === 'fichas' ? { tab: 'fichas' } : {});
   };
@@ -299,21 +312,28 @@ export default function Production() {
     } catch (error) { showToast(error.response?.data?.msg || 'Não foi possível aplicar o preço', 'error'); }
   };
 
+  const productionTabs = isAdmin
+    ? [['estoque', '📦 Estoque de insumos'], ['fichas', '📋 Ficha técnica'], ['produzir', '🔄 Nova produção'], ['transferir', '⚖️ Ajuste de inventário'], ['historico', '📜 Histórico de movimentos'], ['custos', 'Custo da ficha técnica']]
+    : [['estoque', '📦 Estoque de insumos']];
+
   return <div className="production-page">
     {renderizarAutorizacaoPreco()}
-    <header className="production-heading page-heading"><div><span className="production-eyebrow">GESTÃO DE INSUMOS</span><h1>Produção</h1><p>Controle ingredientes, fichas técnicas e produtos produzidos na casa.</p></div><div className="production-header-actions"><button type="button" className="production-alert" onClick={() => setTab('custos')}><strong>{produtosSemCusto.length}</strong><span>produtos sem custo</span></button><button type="button" className="production-alert" onClick={() => setTab('custos')}><strong>{produtosReajuste.length}</strong><span>reajustes recomendados</span></button><div className="production-kpi"><strong>{productionDashboard?.receitasPossiveis?.filter((recipe) => recipe.producoesPossiveis > 0).length || 0}</strong><span>fichas possíveis</span></div></div></header>
+    <header className="production-heading page-heading">
+      <div><span className="production-eyebrow">GESTÃO DE INSUMOS</span><h1>Produção</h1><p>Controle ingredientes, fichas técnicas e produtos produzidos na casa.</p></div>
+      {isAdmin && <div className="production-header-actions"><button type="button" className="production-alert" onClick={() => setTab('custos')}><strong>{produtosSemCusto.length}</strong><span>produtos sem custo</span></button><button type="button" className="production-alert" onClick={() => setTab('custos')}><strong>{produtosReajuste.length}</strong><span>reajustes recomendados</span></button><div className="production-kpi"><strong>{productionDashboard?.receitasPossiveis?.filter((recipe) => recipe.producoesPossiveis > 0).length || 0}</strong><span>fichas possíveis</span></div></div>}
+    </header>
     <nav className="production-tabs" aria-label="Seções da produção">
-      {[['estoque', '📦 Estoque de insumos'], ['fichas', '📋 Ficha técnica'], ['produzir', '🔄 Nova produção'], ['transferir', '⚖️ Ajuste de inventário'], ['historico', '📜 Histórico de movimentos'], ['custos', 'Custo da ficha técnica']].map(([key, label]) => <button key={key} className={tab === key || (key === 'fichas' && tab === 'fichas-atual') ? 'active' : ''} onClick={() => alterarTab(key)}>{label}</button>)}
+      {productionTabs.map(([key, label]) => <button key={key} className={activeTab === key || (key === 'fichas' && activeTab === 'fichas-atual') ? 'active' : ''} onClick={() => alterarTab(key)}>{label}</button>)}
     </nav>
-    {tab === 'fichas-atual' && <FichasTecnicas embedded />}
+    {isAdmin && activeTab === 'fichas-atual' && <FichasTecnicas embedded />}
 
-    {tab === 'estoque' && <section className="production-section">
+    {activeTab === 'estoque' && <section className="production-section">
       <div className="section-heading"><div><h2>Estoque de insumos</h2><p>Itens zerados ou abaixo do mínimo aparecem primeiro.</p></div><strong>{totalStock} itens</strong></div>
       <div className="stock-grid"><EstadoLista carregando={loadingProduction} erro={productionLoadError} vazio={stock.length === 0} tituloVazio="Nenhum insumo em estoque" mensagemVazia="Cadastre um produto do tipo insumo." onRetry={load}>{stock.length ? stockOrdenado.map((product) => <article className={product.saldo <= product.minimo ? 'stock-card low' : 'stock-card'} key={product._id}><div><span>{product.codigo}</span><h3>{product.nome}</h3></div><b>{number(product.totalDisponivel || 0)} <small>{product.totalKgDisponivel ? 'kg' : (product.unidadeDisponivel || product.unidadeConteudo || product.unidadeCompra || 'un')}</small></b><p className="stock-packaging-info">📦 {number(product.saldo)} embalagem(ns) × {number(product.resumoInsumo?.conteudoPorEmbalagem || product.conteudoPorEmbalagem || 1)} {product.unidadeDisponivel || product.unidadeConteudo || product.unidadeCompra || 'un'}</p>{product.totalDisponivel > 0 && <p>Total disponível{product.conteudoAberto > 0 ? ` · aberto: ${number(product.conteudoAberto)} ${product.unidadeDisponivel}` : ''}</p>}<p>Mínimo: {number(product.minimo)} {product.unidadeCompra || 'embalagens'}</p></article>) : null}</EstadoLista></div>
       <Paginacao prefixo="estoque-producao" total={totalStock} paginaAtual={paginaEstoque} limiteAtual={limiteEstoque} onChangePagina={paginacaoEstoque.alterarPagina} onChangeLimite={paginacaoEstoque.alterarLimite} />
     </section>}
 
-  {tab === 'fichas' && <section className="production-section"><div className="section-heading"><div><h2>Fichas técnicas</h2><p>Vincule cada ficha técnica ao produto que ela abastece.</p></div></div><form className="recipe-form" onSubmit={saveRecipe}><div className="form-grid"><label>Nome da ficha técnica<input required value={recipeForm.nome} onChange={(event) => setRecipeForm({ ...recipeForm, nome: event.target.value })} placeholder="Ex.: Bolo de cenoura" /></label><label>Produto produzido<SearchableSelect required value={recipeForm.produtoId} onChange={(event) => setRecipeForm({ ...recipeForm, produtoId: event.target.value })}><option value="">Selecione</option>{producibleProducts.map((product) => <option key={product._id} value={product._id}>{product.nome}</option>)}</SearchableSelect></label><label><FieldLabel hint={<> Quantas unidades do produto pronto esta ficha técnica produz. Ex: 1kg rende 20 palitos = digite 20. </>}> Rendimento </FieldLabel><input type="number" min={quantityMinimum(recipeForm.unidadeRendimento)} step={quantityStep(recipeForm.unidadeRendimento)} required value={recipeForm.rendimento} onChange={(event) => setRecipeForm({ ...recipeForm, rendimento: event.target.value })} /></label><label>Unidade<SearchableSelect value={recipeForm.unidadeRendimento} onChange={(event) => setRecipeForm({ ...recipeForm, unidadeRendimento: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</SearchableSelect></label></div><div className="ingredients-heading"><h3>Ingredientes</h3><button type="button" className="secondary btn btn-ghost" onClick={() => setRecipeForm({ ...recipeForm, ingredientes: [...recipeForm.ingredientes, { produtoId: '', quantidade: '', unidade: 'un' }] })}>Adicionar ingrediente</button></div>{recipeForm.ingredientes.map((ingredient, index) => <div className="ingredient-row" key={`${index}-${ingredient.produtoId}`}><SearchableSelect required value={ingredient.produtoId} onChange={(event) => updateIngredient(index, 'produtoId', event.target.value)}><option value="">Ingrediente</option>{stockProducts.map((product) => <option key={product._id} value={product._id}>{product.nome} · {number(product.estoqueInsumos)} {product.unidadeVenda}</option>)}</SearchableSelect><label className="ingredient-quantity"><FieldLabel hint={<> Quanto deste insumo é CONSUMIDO por receita. Ex: 1 pacote de 1kg = digite 1. NÃO digite o rendimento aqui. {getIngredientWarning(ingredient) && <><br />{getIngredientWarning(ingredient)}</>} </>}>Quantidade</FieldLabel><input type="number" min={quantityMinimum(ingredient.unidade)} step={quantityStep(ingredient.unidade)} required placeholder="Quantidade" value={ingredient.quantidade} onChange={(event) => updateIngredient(index, 'quantidade', event.target.value)} /></label><SearchableSelect value={ingredient.unidade} onChange={(event) => setRecipeForm({ ...recipeForm, ingredientes: recipeForm.ingredientes.map((current, currentIndex) => currentIndex === index ? { ...current, unidade: event.target.value } : current) })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</SearchableSelect>{recipeForm.ingredientes.length > 1 && <button type="button" className="icon-button" title="Remover ingrediente" onClick={() => setRecipeForm({ ...recipeForm, ingredientes: recipeForm.ingredientes.filter((_, itemIndex) => itemIndex !== index) })}>×</button>}</div>)}<div style={{ display: 'flex', gap: 8 }}><button className="primary btn btn-primary" disabled={saving}>{saving ? (editingRecipeId ? 'Atualizando...' : 'Salvando...') : (editingRecipeId ? 'Atualizar receita' : 'Cadastrar receita')}</button>{editingRecipeId && <button type="button" className="secondary btn btn-ghost" onClick={cancelEditRecipe}>Cancelar</button>}</div></form><div className="recipe-list"><EstadoLista carregando={loadingProduction} erro={productionLoadError} vazio={recipes.length === 0} tituloVazio="Nenhuma ficha técnica cadastrada" onRetry={load}>{paginacaoReceitas.itensPagina.map((recipe) => <article className="recipe-card" key={recipe._id}><div><span>Rendimento: {number(recipe.rendimento)} {recipe.unidadeRendimento}</span><h3>{recipe.nome}</h3><p>Abastece: {recipe.produtoId?.nome || 'Produto removido'}</p><small>{recipe.ingredientes?.length || 0} ingrediente(s)</small></div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button className="secondary btn btn-ghost" onClick={() => startEditRecipe(recipe)}>Alterar</button><ConfirmarAcao titulo="Excluir ficha técnica" mensagem="Excluir esta ficha técnica?" acaoTexto="Excluir ficha" onConfirmar={() => deleteRecipe(recipe._id)}>{({ onClick }) => <button className="danger" onClick={onClick}>Excluir</button>}</ConfirmarAcao></div></article>)}</EstadoLista></div><Paginacao prefixo="receitas-producao" total={paginacaoReceitas.total} paginaAtual={paginacaoReceitas.paginaAtual} limiteAtual={paginacaoReceitas.limiteAtual} onChangePagina={paginacaoReceitas.alterarPagina} onChangeLimite={paginacaoReceitas.alterarLimite} /></section>}
+  {isAdmin && activeTab === 'fichas' && <section className="production-section"><div className="section-heading"><div><h2>Fichas técnicas</h2><p>Vincule cada ficha técnica ao produto que ela abastece.</p></div></div><form className="recipe-form" onSubmit={saveRecipe}><div className="form-grid"><label>Nome da ficha técnica<input required value={recipeForm.nome} onChange={(event) => setRecipeForm({ ...recipeForm, nome: event.target.value })} placeholder="Ex.: Bolo de cenoura" /></label><label>Produto produzido<SearchableSelect required value={recipeForm.produtoId} onChange={(event) => setRecipeForm({ ...recipeForm, produtoId: event.target.value })}><option value="">Selecione</option>{producibleProducts.map((product) => <option key={product._id} value={product._id}>{product.nome}</option>)}</SearchableSelect></label><label><FieldLabel hint={<> Quantas unidades do produto pronto esta ficha técnica produz. Ex: 1kg rende 20 palitos = digite 20. </>}> Rendimento </FieldLabel><input type="number" min={quantityMinimum(recipeForm.unidadeRendimento)} step={quantityStep(recipeForm.unidadeRendimento)} required value={recipeForm.rendimento} onChange={(event) => setRecipeForm({ ...recipeForm, rendimento: event.target.value })} /></label><label>Unidade<SearchableSelect value={recipeForm.unidadeRendimento} onChange={(event) => setRecipeForm({ ...recipeForm, unidadeRendimento: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</SearchableSelect></label></div><div className="ingredients-heading"><h3>Ingredientes</h3><button type="button" className="secondary btn btn-ghost" onClick={() => setRecipeForm({ ...recipeForm, ingredientes: [...recipeForm.ingredientes, { produtoId: '', quantidade: '', unidade: 'un' }] })}>Adicionar ingrediente</button></div>{recipeForm.ingredientes.map((ingredient, index) => <div className="ingredient-row" key={`${index}-${ingredient.produtoId}`}><SearchableSelect required value={ingredient.produtoId} onChange={(event) => updateIngredient(index, 'produtoId', event.target.value)}><option value="">Ingrediente</option>{stockProducts.map((product) => <option key={product._id} value={product._id}>{product.nome} · {number(product.estoqueInsumos)} {product.unidadeVenda}</option>)}</SearchableSelect><label className="ingredient-quantity"><FieldLabel hint={<> Quanto deste insumo é CONSUMIDO por receita. Ex: 1 pacote de 1kg = digite 1. NÃO digite o rendimento aqui. {getIngredientWarning(ingredient) && <><br />{getIngredientWarning(ingredient)}</>} </>}>Quantidade</FieldLabel><input type="number" min={quantityMinimum(ingredient.unidade)} step={quantityStep(ingredient.unidade)} required placeholder="Quantidade" value={ingredient.quantidade} onChange={(event) => updateIngredient(index, 'quantidade', event.target.value)} /></label><SearchableSelect value={ingredient.unidade} onChange={(event) => setRecipeForm({ ...recipeForm, ingredientes: recipeForm.ingredientes.map((current, currentIndex) => currentIndex === index ? { ...current, unidade: event.target.value } : current) })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</SearchableSelect>{recipeForm.ingredientes.length > 1 && <button type="button" className="icon-button" title="Remover ingrediente" onClick={() => setRecipeForm({ ...recipeForm, ingredientes: recipeForm.ingredientes.filter((_, itemIndex) => itemIndex !== index) })}>×</button>}</div>)}<div style={{ display: 'flex', gap: 8 }}><button className="primary btn btn-primary" disabled={saving}>{saving ? (editingRecipeId ? 'Atualizando...' : 'Salvando...') : (editingRecipeId ? 'Atualizar receita' : 'Cadastrar receita')}</button>{editingRecipeId && <button type="button" className="secondary btn btn-ghost" onClick={cancelEditRecipe}>Cancelar</button>}</div></form><div className="recipe-list"><EstadoLista carregando={loadingProduction} erro={productionLoadError} vazio={recipes.length === 0} tituloVazio="Nenhuma ficha técnica cadastrada" onRetry={load}>{paginacaoReceitas.itensPagina.map((recipe) => <article className="recipe-card" key={recipe._id}><div><span>Rendimento: {number(recipe.rendimento)} {recipe.unidadeRendimento}</span><h3>{recipe.nome}</h3><p>Abastece: {recipe.produtoId?.nome || 'Produto removido'}</p><small>{recipe.ingredientes?.length || 0} ingrediente(s)</small></div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button className="secondary btn btn-ghost" onClick={() => startEditRecipe(recipe)}>Alterar</button><ConfirmarAcao titulo="Excluir ficha técnica" mensagem="Excluir esta ficha técnica?" acaoTexto="Excluir ficha" onConfirmar={() => deleteRecipe(recipe._id)}>{({ onClick }) => <button className="danger" onClick={onClick}>Excluir</button>}</ConfirmarAcao></div></article>)}</EstadoLista></div><Paginacao prefixo="receitas-producao" total={paginacaoReceitas.total} paginaAtual={paginacaoReceitas.paginaAtual} limiteAtual={paginacaoReceitas.limiteAtual} onChangePagina={paginacaoReceitas.alterarPagina} onChangeLimite={paginacaoReceitas.alterarLimite} /></section>}
 
     {tab === 'produzir' && <section className="production-section"><div className="section-heading"><div><h2>Iniciar nova produção</h2><p>Os insumos serão baixados e o produto vinculado será abastecido automaticamente.</p></div></div><form className="action-form" onSubmit={produce}><div style={{ display: 'grid', gap: 12, marginBottom: 16 }}><label>Ficha técnica<SearchableSelect required value={selectedRecipeId} onChange={(event) => setSelectedRecipeId(event.target.value)}><option value="">Selecione uma ficha</option>{recipes.filter((recipe) => recipe.ativa && (recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : 'producao')) !== 'coz').map((recipe) => <option key={recipe._id} value={recipe._id}>{recipe.nome} · {recipe.produtoId?.nome} (rend: {recipe.rendimento} {recipe.unidadeRendimento})</option>)}</SearchableSelect></label>{selectedRecipeId && <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: 12, border: '1px solid var(--border-light)', borderRadius: 8, background: 'var(--bg-tertiary)' }}>        <label style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>Quantidade de produções: <input type="number" min="1" step="1" required value={selectedRecipeQty} onChange={(event) => setSelectedRecipeQty(event.target.value)} /></label>        {(() => {          const recipe = recipes.find((r) => r._id === selectedRecipeId);          return recipe && <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Rende: {number(Number(recipe.rendimento) * Number(selectedRecipeQty || 0))} {recipe.unidadeRendimento} de {recipe.produtoId?.nome}</span>;        })()}      </div>}</div><button className="primary btn btn-primary" disabled={saving || !selectedRecipeId}>{saving ? 'Produzindo...' : 'Confirmar produção'}</button></form><div className="possible-list"><h3>Estoque e capacidade atual</h3><EstadoLista carregando={loadingProduction} erro={productionLoadError} vazio={receitasPossiveis.length === 0} tituloVazio="Nenhuma capacidade de produção disponível" onRetry={load}>{paginacaoCapacidade.itensPagina.map((recipe) => <div key={String(recipe.receitaId)}><span>{recipe.receitaNome} · {recipe.produtoNome}</span><div className="possible-meta"><b>{recipe.tipoProduto === 'producao' ? `${number(recipe.estoqueProduto)} ${recipe.unidade} em estoque` : (recipe.producoesPossiveis > 0 ? `${number(recipe.producoesPossiveis)} produção(ões)` : 'Insumos insuficientes')}</b>{recipe.calculo && <small>{recipe.calculo}</small>}</div></div>)}</EstadoLista><Paginacao prefixo="capacidade-producao" total={paginacaoCapacidade.total} paginaAtual={paginacaoCapacidade.paginaAtual} limiteAtual={paginacaoCapacidade.limiteAtual} onChangePagina={paginacaoCapacidade.alterarPagina} onChangeLimite={paginacaoCapacidade.alterarLimite} /></div></section>}
 
