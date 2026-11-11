@@ -6,6 +6,8 @@ Corrigir divergências entre menus, rotas do frontend e permissões existentes n
 API, mantendo a API como fronteira de segurança. Permitir que Operador e Garçom
 usem a edição de comandas que já lhes é autorizada e conceder à Cozinha acesso
 limitado à consulta e edição de itens em comandas abertas, sem acesso financeiro.
+Permitir também que Garçom feche comandas, sem ampliar suas demais operações
+financeiras.
 
 ## Situação observada
 
@@ -28,13 +30,17 @@ limitado à consulta e edição de itens em comandas abertas, sem acesso finance
 - Cozinha tem acesso ao quadro e às fichas técnicas de leitura, mas não à lista
   completa de comandas nem às rotas de edição de itens. A captura apresentada
   mostra o erro 403 de `/products` para o usuário `garcom`.
+- A rota `POST /comandas/:id/fechar` permite admin, Operador e Gerente, mas
+  nega Garçom, embora esse perfil já possa abrir e editar comandas e a tela
+  atual apresente o fluxo de fechamento.
 
 ## Abordagens consideradas
 
-1. **Corrigir o acesso existente e conceder edição operacional limitada à
-   Cozinha (recomendada).** Usar o catálogo de PDV para Operador/Garçom e
-   ampliar somente os endpoints de comandas abertas e edição de itens para
-   Cozinha. Filtrar dados financeiros e esconder ações não autorizadas.
+1. **Corrigir o acesso existente e conceder permissões operacionais limitadas
+   (recomendada).** Usar o catálogo de PDV para Operador/Garçom, permitir que
+   Garçom feche comandas e ampliar somente leitura/edição de itens em
+   comandas abertas para Cozinha. Filtrar dados financeiros da Cozinha e
+   esconder ações não autorizadas.
 2. **Deixar a Cozinha somente no quadro atual.** Evita mudança de autorização,
    mas não atende ao pedido explícito de ver e editar comandas.
 3. **Dar acesso amplo à Cozinha nas rotas de comandas e finanças.** Rejeitada:
@@ -46,7 +52,8 @@ limitado à consulta e edição de itens em comandas abertas, sem acesso finance
 
 - A API continua sendo a autoridade final. Não remover nem relaxar
   aprovações de gerente ou validações existentes. As únicas permissões novas
-  são as explicitadas para Cozinha neste documento.
+  são as explicitadas para Cozinha e para o fechamento por Garçom neste
+  documento.
 - Usar uma única matriz frontend para os perfis autorizados a abrir cada tela,
   compartilhada entre `App.jsx` e `Layout.jsx`, evitando divergência entre
   menu e rota.
@@ -74,6 +81,9 @@ limitado à consulta e edição de itens em comandas abertas, sem acesso finance
   ajustar quantidade e remover itens, conforme as permissões já existentes na
   API. A tela deve usar o catálogo `/products/pdv`, autorizado para esses
   perfis, em vez de bloquear o carregamento com `GET /products`.
+- **Fechamento pelo Garçom:** permitir finalizar uma comanda aberta pelo
+  fluxo existente da tela e autorizar somente `POST /comandas/:id/fechar`.
+  Não permitir recebimento parcial, cancelamento ou reabertura por esse ajuste.
 - **Cozinha:** manter o quadro; permitir a rota de fichas técnicas em modo de
   leitura; além disso, consultar comandas abertas e adicionar, ajustar
   quantidade e remover itens. Não pode abrir comandas, alterar cliente/mesa ou
@@ -85,7 +95,7 @@ limitado à consulta e edição de itens em comandas abertas, sem acesso finance
   retornar somente os dados operacionais necessários para localizar uma
   comanda e editar seus itens; a interface também não deve renderizar ações
   financeiras. A resposta da comanda deve limitar-se a `_id`, `numero`,
-  `tipoAtendimento`, `mesa`, `status`, `observacao` e itens com `_id`,
+  `tipoAtendimento`, `mesa`, `status` e itens com `_id`,
   `produtoId`, `nome`, `quantidade`, `tipoVenda`, `unidadeVenda`,
   `pesoVendidoKg`, `pesoPorUnidade`, `unidadePeso`, `modificadores` e
   `aFazer`. O catálogo deve limitar-se a `_id`, `nome`, `categoria`, `tipo`,
@@ -107,16 +117,22 @@ limitado à consulta e edição de itens em comandas abertas, sem acesso finance
   adicionar, editar quantidade e remover itens. As respostas para Cozinha
   devem ser limitadas aos campos operacionais descritos acima; a cozinha só
   pode editar comandas com status `aberta`, nunca `rascunho` ou fechadas.
+- Permitir Garçom somente na rota já existente de fechamento de comanda, além
+  das permissões atuais de atendimento. Nenhuma outra rota financeira deve
+  incluir esse perfil por causa desta alteração.
 - Não alterar papéis cadastráveis, sessões, modelos persistidos ou dados de
   negócio. Não fazer migração de banco.
-- Não ampliar permissões de fechamento, recebimento, cancelamento, configuração
-  ou outras operações financeiras.
+- Não ampliar permissões de fechamento para Cozinha, recebimento, cancelamento,
+  reabertura, configuração ou outras operações financeiras.
 
 ## Compatibilidade e segurança
 
 - Usuários, sessões e dados persistidos não mudam.
-- Operador e Garçom não ganham novas permissões de API; a tela passa a usar
-  endpoints que esses perfis já podem acessar.
+- Operador não ganha novas permissões de API; a tela passa a usar endpoints
+  que esse perfil já pode acessar para leitura e edição de itens.
+- Garçom ganha somente a permissão de fechar comanda descrita nesta
+  especificação; leitura e edição de itens continuam usando as permissões
+  existentes.
 - Cozinha recebe somente as novas permissões de leitura e edição de itens em
   comandas abertas descritas nesta especificação.
 - A interface não deve apresentar uma operação como concluída se a API a
@@ -138,11 +154,13 @@ limitado à consulta e edição de itens em comandas abertas, sem acesso finance
 - Testes de RBAC confirmam que Cozinha consulta e edita itens em comandas
   abertas, não altera comandas fechadas e continua sem acesso às ações
   financeiras e de configuração.
+- Testes de RBAC confirmam que Garçom fecha uma comanda aberta e continua sem
+  acesso a recebimento parcial, cancelamento ou reabertura.
 - Verificar que as respostas de comandas e catálogo para Cozinha não contêm
   preços, custos, valores totais, pagamentos, telefone ou endereço.
 - Executar os testes direcionados para Caixa, Produtos, Clientes e Produção,
   preservando as proteções da API existentes.
 - Executar testes unitários frontend, lint e build de produção do frontend.
 - Validar manualmente em staging com contas admin, gerente, operador, cozinha
-  e garçom; confirmar edição de itens da Cozinha, navegação direta por URL e
-  rejeição de ações não autorizadas pela API.
+  e garçom; confirmar fechamento pelo Garçom, edição de itens da Cozinha,
+  navegação direta por URL e rejeição de ações não autorizadas pela API.
