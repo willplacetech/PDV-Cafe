@@ -6,6 +6,7 @@ import StatusConexao from './StatusConexao.jsx';
 import api from '../services/api.jsx';
 import { APP_GIT_HASH } from '../services/appVersion.js';
 import NovidadesModal from './NovidadesModal.jsx';
+import * as roleAccess from '../permissions/roleAccess.js';
 
 const gruposMenu = [
   {
@@ -14,7 +15,7 @@ const gruposMenu = [
     items: [
       { label: 'PDV · Nova venda', icon: '🛒', to: '/pdv' },
       { label: 'Entregas', icon: '🛵', to: '/entregas', roles: ['admin', 'operador'], badge: true },
-      { label: 'Mesas / Comandas', icon: '🪑', to: '/comandas', badge: 'comandas' },
+      { label: 'Mesas / Comandas', icon: '🪑', to: '/comandas', roles: roleAccess.comandas, badge: 'comandas' },
       { label: 'A Receber', icon: '💰', to: '/contas-receber', admin: true },
     ],
   },
@@ -22,8 +23,8 @@ const gruposMenu = [
     chave: 'cadastro',
     label: '📦 CADASTRO',
     items: [
-      { label: 'Produtos', icon: '📦', to: '/produtos', roles: ['admin', 'gerente'] },
-      { label: 'Mesas', icon: '🪑', to: '/cadastro/mesas', admin: true },
+      { label: 'Produtos', icon: '📦', to: '/produtos', roles: roleAccess.products },
+      { label: 'Mesas', icon: '🪑', to: '/cadastro/mesas', roles: roleAccess.tableSettings },
     ],
   },
   {
@@ -38,10 +39,11 @@ const gruposMenu = [
     chave: 'producao',
     label: '🧪 PRODUÇÃO',
     items: [
-      { label: 'Estoque de Insumos', icon: '📦', to: '/producao', roles: ['admin', 'gerente'] },
+      { label: 'Estoque de Insumos', icon: '📦', to: '/producao', roles: roleAccess.productionStock },
       { label: 'Lançar Produção', icon: '🔄', to: '/producao', admin: true },
       { label: 'Histórico de Movimentação', icon: '📜', to: '/producao', admin: true },
-      { label: 'Cozinha', icon: '🍳', to: '/cozinha', roles: ['admin', 'operador', 'cozinha'] },
+      { label: 'Cozinha', icon: '🍳', to: '/cozinha', roles: roleAccess.kitchen },
+      { label: 'Fichas Técnicas', icon: '📋', to: '/producao/fichas', roles: roleAccess.recipeSheets },
     ],
   },
   {
@@ -49,7 +51,7 @@ const gruposMenu = [
     label: '💰 GESTÃO',
     items: [
       { label: 'Dashboard', icon: '📊', to: '/dashboard', admin: true },
-      { label: 'Fechamento de Caixa', icon: '💵', to: '/caixa', roles: ['admin', 'gerente'] },
+      { label: 'Fechamento de Caixa', icon: '💵', to: '/caixa', roles: roleAccess.cash },
       { label: 'DRE / Demonstrativo', icon: '📈', to: '/financeiro', admin: true },
       { label: 'Auditoria', icon: '🧾', to: '/auditoria', admin: true },
     ],
@@ -58,7 +60,7 @@ const gruposMenu = [
     chave: 'pessoas',
     label: '👥 PESSOAS',
     items: [
-      { label: 'Clientes', icon: '👤', to: '/clientes', roles: ['admin', 'gerente'] },
+      { label: 'Clientes', icon: '👤', to: '/clientes', roles: roleAccess.customers },
       { label: 'Usuários', icon: '👥', to: '/usuarios', admin: true },
     ],
   },

@@ -12,6 +12,7 @@ import PrivateRoute from './components/PrivateRoute.jsx';
 import RoleRoute from './components/RoleRoute.jsx';
 import Layout from './components/Layout.jsx';
 import { AuthContext } from './context/AuthContextDefinition.jsx';
+import * as roleAccess from './permissions/roleAccess.js';
 import { useToast } from './components/useToast.js';
 import { APP_VERSION, fetchPublishedAppVersion, waitForServiceWorkerUpdate } from './services/appVersion.js';
 import { installNumberInputWheelGuard } from './utils/numberInputWheelGuard.js';
@@ -25,6 +26,7 @@ const Auditoria = lazy(() => import('./pages/Auditoria.jsx'));
 const Users = lazy(() => import('./pages/Users.jsx'));
 const Comandas = lazy(() => import('./pages/Comandas.jsx'));
 const MesasCadastro = lazy(() => import('./pages/MesasCadastro.jsx'));
+const FichasTecnicas = lazy(() => import('./pages/FichasTecnicas.jsx'));
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
 const Production = lazy(() => import('./pages/Production.jsx'));
 const Purchases = lazy(() => import('./pages/Purchases.jsx'));
@@ -134,28 +136,40 @@ export default function App() {
                       <Route element={<FormasPagamentoProvider><ComandaProvider><Layout /></ComandaProvider></FormasPagamentoProvider>}>
                         <Route path="/pdv" element={<PDV />} />
                         <Route path="/atendimento/mesas" element={<Navigate to="/comandas" replace />} />
-                        <Route path="/comandas" element={<Comandas />} />
-                        <Route path="/cadastro/mesas" element={<MesasCadastro />} />
-                        <Route element={<RoleRoute roles={['admin', 'operador', 'cozinha']} />}>
+                        <Route element={<RoleRoute roles={roleAccess.comandas} />}>
+                          <Route path="/comandas" element={<Comandas />} />
+                        </Route>
+                        <Route element={<RoleRoute roles={roleAccess.tableSettings} />}>
+                          <Route path="/cadastro/mesas" element={<MesasCadastro />} />
+                        </Route>
+                        <Route element={<RoleRoute roles={roleAccess.kitchen} />}>
                           <Route path="/cozinha" element={<Kitchen />} />
                         </Route>
-                        <Route element={<RoleRoute roles={['admin']} />}>
+                        <Route element={<RoleRoute roles={roleAccess.products} />}>
                           <Route path="/produtos" element={<Products />} />
+                        </Route>
+                        <Route element={<RoleRoute roles={roleAccess.customers} />}>
                           <Route path="/clientes" element={<Customers />} />
+                        </Route>
+                        <Route element={<RoleRoute roles={roleAccess.productionStock} />}>
+                          <Route path="/producao" element={<Production />} />
+                        </Route>
+                        <Route element={<RoleRoute roles={roleAccess.recipeSheets} />}>
+                          <Route path="/producao/fichas" element={<FichasTecnicas />} />
+                        </Route>
+                        <Route element={<RoleRoute roles={roleAccess.cash} />}>
+                          <Route path="/caixa" element={<Caixa />} />
+                        </Route>
+                        <Route element={<RoleRoute roles={['admin']} />}>
                           <Route path="/auditoria" element={<Auditoria />} />
                           <Route path="/contas-receber" element={<ContasReceber />} />
                           <Route path="/usuarios" element={<Users />} />
                           <Route path="/dashboard" element={<Dashboard />} />
-                          <Route path="/producao" element={<Production />} />
                           <Route path="/compras" element={<Purchases />} />
                           <Route path="/financeiro" element={<Financeiro />} />
-                          <Route path="/caixa" element={<Caixa />} />
                           <Route path="/ajustes/impressoras" element={<ImpressoraManager />} />
                           <Route path="/configuracoes" element={<ConfiguracoesPage />} />
                           <Route path="/configuracoes/pagamentos" element={<PaymentSettings />} />
-                        </Route>
-                        <Route element={<RoleRoute roles={['admin', 'cozinha']} />}>
-                          <Route path="/producao/fichas" element={<Navigate to="/producao?tab=fichas" replace />} />
                         </Route>
                         <Route path="*" element={<DefaultLanding />} />
                       </Route>
